@@ -3,6 +3,7 @@
     python -m unittest discover -s tests -v
 """
 import importlib.util
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -195,8 +196,12 @@ class ApprovalGateTests(unittest.TestCase):
         self.assertIn("pull_request_target:", wf)
         self.assertNotRegex(wf, r"(?m)^\s*pull_request:\s*$")
         self.assertIn("synchronize", wf)
-        self.assertIn("ref: ${{ github.event.pull_request.base.sha }}", wf)
-        self.assertNotIn("head.sha }}", wf.replace("pull_request.head.sha", ""))
+        # 信頼する設定は既定ブランチの「今の最新」から読む。base.sha は PR 作成時点に
+        # 固定されうるので checkout に使わない（承認者一覧の変更が既存 PR に効かなくなる）
+        refs = re.findall(r"(?m)^\s*ref:\s*(.+?)\s*$", wf)
+        self.assertEqual(refs, ["${{ github.event.repository.default_branch }}"])
+        self.assertNotRegex(wf, r"ref:\s*\$\{\{\s*github\.event\.pull_request\.(base|head)\.")
+        self.assertNotIn("head.sha", wf)
         self.assertNotRegex(wf, r"(?m)^\s*runs-on:.*self-hosted")
         self.assertRegex(wf, r"(?m)^\s*runs-on:\s*ubuntu-latest\s*$")
         self.assertRegex(wf, r"(?m)^\s*approval:\s*$", "必須チェック名はジョブ名 approval")

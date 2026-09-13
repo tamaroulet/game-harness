@@ -18,6 +18,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 ROOT = Path(__file__).resolve().parent.parent
 T = ROOT / "harness"
 GATE = "templates/game-repo/.github/scripts/ms4_approval_gate.py"
+WORKFLOW = "templates/game-repo/.github/workflows/approval.yml"
 
 M = [
     ("M1 pipeline rc2 を REJECT 扱い", "scheduler.py",
@@ -69,6 +70,13 @@ M = [
     ("M21 最初にラベルを付けた人で判定する", GATE,
      "                actor = (ev.get(\"actor\") or {}).get(\"login\")",
      "                actor = actor or (ev.get(\"actor\") or {}).get(\"login\")"),
+
+    ("M31 承認ワークフローが base.sha（PR 作成時点）を checkout する", WORKFLOW,
+     "with:\n          ref: ${{ github.event.repository.default_branch }}",
+     "with:\n          ref: ${{ github.event.pull_request.base.sha }}"),
+    ("M32 承認ワークフローが PR の head を checkout する", WORKFLOW,
+     "with:\n          ref: ${{ github.event.repository.default_branch }}",
+     "with:\n          ref: ${{ github.event.pull_request.head.sha }}"),
 
     # ---- PR 経由のマージ（A2）
     ("M22 --match-head-commit を外す", "scheduler.py",

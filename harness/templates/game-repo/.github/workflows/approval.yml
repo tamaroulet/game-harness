@@ -28,11 +28,24 @@ jobs:
   approval:
     runs-on: ubuntu-latest
     steps:
-      # base（保護されたブランチ）を checkout する。PR の head は取らない。
+      # 既定ブランチ（保護されたブランチ）の「今の最新」を checkout する。PR の head は取らない。
+      #
+      # pull_request.base.sha は使わない。PR のイベントが持つ base の SHA は PR 作成時点の
+      # コミットに固定されうるので、main で承認者一覧や判定スクリプトを直しても、
+      # 既存の PR の判定に反映されない。ブランチ名で指定すると checkout の時点で
+      # そのブランチの先頭を fetch する。
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
+
+      # どのコミットの判定スクリプトと承認者一覧で判定したかを、ログに必ず残す
+      - name: show trusted config
+        run: |
+          echo "trusted ref: ${{ github.event.repository.default_branch }} @ $(git rev-parse HEAD)"
+          echo "event base.sha: ${{ github.event.pull_request.base.sha }}"
+          echo "approvers:"
+          grep -v '^#' .github/ms4-approvers || true
 
       - name: approval gate
         env:
