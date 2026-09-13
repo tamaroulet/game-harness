@@ -12,7 +12,6 @@ jobs:
   test:
     runs-on: windows-latest
     env:
-      HARNESS_SELFTEST_DIR: ${{ runner.temp }}\harness-selftest
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
@@ -21,5 +20,8 @@ jobs:
         with:
           python-version: '3.12'
 
+      # runner コンテキストはジョブ単位の env では使えない（ワークフローごと起動しなかった。実測）
       - name: unittest
+        env:
+          HARNESS_SELFTEST_DIR: ${{ runner.temp }}\harness-selftest
         run: python -m unittest discover -s tests -v
