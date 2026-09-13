@@ -16,6 +16,7 @@
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -63,9 +64,14 @@ def git(*a):
 print(f"stub {role} #{n} mode={mode}")
 
 if role == "decompose":
-    if mode in ("ok", "stray"):
-        write(f"tools/units/issue_{n}.json", json.dumps({"id": f"issue_{n}"}))
-        write(f"tests/Core.Tests/Issue{n}Tests.cs", "// test\n")
+    if mode in ("ok", "stray", "no_test_methods"):
+        write(f"tools/units/issue_{n}.json",
+              json.dumps({"id": f"issue_{n}", "human_check_point": "実機で見る点"}, ensure_ascii=False))
+        if mode == "no_test_methods":
+            write(f"tests/Core.Tests/Issue{n}Tests.cs", "// [Test] はコメントの中だけ\n")
+        else:
+            write(f"tests/Core.Tests/Issue{n}Tests.cs",
+                  '[Test] public void Works() { Assert.AreEqual(1, Answer(), "答えは 1"); }\n')
         if mode == "stray":
             write("Game/Assets/Core/Sneaky.cs", "// not allowed\n")
         sys.exit(0)
@@ -133,23 +139,61 @@ def git(cwd, *args):
 # ============================================================ 偽 GitHub
 
 class FakeGH:
+    """gh の引数を解釈する偽物。PR のマージだけは helper clone で本物の git merge を行い、
+    bare リモートの main に実際に入れる（マージ方式・head の照合を git の実挙動で確かめる）。"""
+
     def __init__(self, issues):
         self.issues = {n: {"title": t, "state": "OPEN", "labels": {"ready"}, "comments": []}
                        for n, t in issues}
+        self.prs = {}
         self.labels = {"ready"}
         self.ci_conclusion = "success"
         self.ci_missing = False
         self.runs = {}
         self.calls = []
         self.fail_rules = []   # {"match": "issue comment", "times": 1, "apply": bool}
+        self.helper = None     # Base.run_scheduler が設定する
+        self.check_override = {}   # name -> (status, conclusion)
+        self.extra_check_runs = []
+        self.before_merge = None
+        self.merge_args = []
 
     def writes(self):
-        verbs = {"edit", "comment", "close", "create"}
+        verbs = {"edit", "comment", "close", "create", "merge"}
         return [c for c in self.calls if len(c) > 2 and c[2] in verbs]
 
+    def approve(self, pr_number):
+        self.prs[pr_number]["labels"].add("ms4:approved")
+
+    def pr_for_issue(self, n):
+        return next(num for num, p in self.prs.items() if p["branch"] == f"ms4/issue-{n}")
+
+    def _git(self, *args, check=True):
+        r = subprocess.run(["git"] + list(args), cwd=str(self.helper), capture_output=True,
+                           text=True, encoding="utf-8", errors="replace")
+        if check and r.returncode != 0:
+            raise RuntimeError(f"helper git {args}: {r.stderr}")
+        return r
+
+    def head_of(self, branch):
+        self._git("fetch", "-q", "origin")
+        return self._git("rev-parse", f"origin/{branch}").stdout.strip()
+
+    def _pr_json(self, num):
+        p = self.prs[num]
+        return {"number": num, "state": p["state"], "headRefName": p["branch"],
+                "headRefOid": self.head_of(p["branch"]),
+                "labels": [{"name": l} for l in sorted(p["labels"])],
+                "comments": [{"body": b} for b in p["comments"]],
+                "mergeCommit": {"oid": p["merge_sha"]} if p["merge_sha"] else None}
+
     def __call__(self, args, cwd, ttl):
-        assert args[0] == "gh" and args[-2:] == ["--repo", SLUG], args
-        a = args[1:-2]
+        assert args[0] == "gh", args
+        if args[1] == "api":
+            a = args[1:]
+        else:
+            assert args[-2:] == ["--repo", SLUG], args
+            a = args[1:-2]
         self.calls.append(args)
         key = " ".join(a[:2])
         for rule in self.fail_rules:
@@ -204,6 +248,76 @@ class FakeGH:
                                    "conclusion": self.ci_conclusion}]), ""
         if key == "run view":
             return 0, json.dumps({"status": "completed", "conclusion": self.ci_conclusion}), ""
+
+        # ---- PR
+        if key == "pr list":
+            open_prs = [(num, p) for num, p in sorted(self.prs.items()) if p["state"] == "OPEN"]
+            if self._opt(a, "--head"):
+                head = self._opt(a, "--head")[0]
+                open_prs = [(num, p) for num, p in open_prs if p["branch"] == head]
+            if self._opt(a, "--label"):
+                label = self._opt(a, "--label")[0]
+                open_prs = [(num, p) for num, p in open_prs if label in p["labels"]]
+            return 0, json.dumps([{"number": num, "headRefName": p["branch"]} for num, p in open_prs]), ""
+        if key == "pr create":
+            num = 100 + len(self.prs)
+            self.prs[num] = {"branch": self._opt(a, "--head")[0], "base": self._opt(a, "--base")[0],
+                             "title": self._opt(a, "--title")[0], "body": self._opt(a, "--body")[0],
+                             "state": "OPEN", "labels": set(), "comments": [], "merge_sha": None}
+            return 0, f"https://github.com/{SLUG}/pull/{num}\n", ""
+        if key == "pr view":
+            return 0, json.dumps(self._pr_json(int(a[2]))), ""
+        if key == "pr edit":
+            p = self.prs[int(a[2])]
+            p["labels"] |= set(self._opt(a, "--add-label"))
+            p["labels"] -= set(self._opt(a, "--remove-label"))
+            return 0, "", ""
+        if key == "pr comment":
+            self.prs[int(a[2])]["comments"].append(self._opt(a, "--body")[0])
+            return 0, "", ""
+        if key == "pr close":
+            self.prs[int(a[2])]["state"] = "CLOSED"
+            return 0, "", ""
+        if key == "pr merge":
+            num = int(a[2])
+            p = self.prs[num]
+            self.merge_args.append(list(a))
+            if self.before_merge:
+                hook, self.before_merge = self.before_merge, None
+                hook()
+            head = self.head_of(p["branch"])
+            want = self._opt(a, "--match-head-commit")
+            if want and want[0] != head:
+                return 1, "", "GraphQL: Head branch was modified. Review and try the merge again."
+            self._git("checkout", "-q", "main")
+            self._git("reset", "-q", "--hard", "origin/main")
+            mode = "--no-ff" if "--merge" in a else "--squash"
+            r = self._git("merge", mode, "-m", f"Merge pull request #{num}", f"origin/{p['branch']}",
+                          check=False)
+            if r.returncode != 0:
+                self._git("merge", "--abort", check=False)
+                return 1, "", "Pull request is not mergeable: conflict"
+            if mode == "--squash":
+                self._git("commit", "-q", "-m", f"squash #{num}")
+            self._git("push", "-q", "origin", "main")
+            p["state"] = "MERGED"
+            p["merge_sha"] = self._git("rev-parse", "HEAD").stdout.strip()
+            for m in re.finditer(r"Closes #(\d+)", p["body"]):
+                if int(m.group(1)) in self.issues:
+                    self.issues[int(m.group(1))]["state"] = "CLOSED"
+            return 0, "", ""
+        if key.startswith("api repos/") and "/check-runs" in key:
+            sha = key.split("/commits/")[1].split("/")[0]
+            pr = next((p for p in self.prs.values() if p["state"] == "OPEN"
+                       and self.head_of(p["branch"]) == sha), None)
+            approved = bool(pr and "ms4:approved" in pr["labels"])
+            runs = [{"id": 1000, "name": "test", "status": "completed", "conclusion": "success"},
+                    {"id": 1001, "name": "approval", "status": "completed",
+                     "conclusion": "success" if approved else "failure"}]
+            for i, (name, (status, conclusion)) in enumerate(self.check_override.items()):
+                runs.append({"id": 2000 + i, "name": name, "status": status, "conclusion": conclusion})
+            runs += self.extra_check_runs
+            return 0, json.dumps({"check_runs": runs}), ""
         return 1, "", f"FakeGH: 未対応 {a}"
 
 
@@ -246,7 +360,11 @@ class Base(unittest.TestCase):
                 "ready": {"name": "ready", "color": "FEF2C0", "description": "r"},
                 "running": {"name": "ms4:running", "color": "1D76DB", "description": "x"},
                 "failed": {"name": "ms4:failed", "color": "D93F0B", "description": "f"},
+                "awaiting": {"name": "ms4:awaiting-approval", "color": "FBCA04", "description": "w"},
+                "approved": {"name": "ms4:approved", "color": "0E8A16", "description": "a"},
+                "declined": {"name": "ms4:declined", "color": "B60205", "description": "d"},
             },
+            "required_checks": ["test", "approval"],
             "required_clis": ["git"],
             "commands": {
                 "decompose": ["{python}", stub, "decompose", "{number}"],
@@ -273,6 +391,7 @@ class Base(unittest.TestCase):
         shutil.rmtree(self.tmp, onerror=lambda f, p, e: (os.chmod(p, 0o700), f(p)))
 
     def run_scheduler(self, gh, *extra):
+        gh.helper = self.helper
         (self.tmp / "plan.json").write_text(json.dumps(self.plan), encoding="utf-8")
         cfg_path = self.tmp / "ms4.config.json"
         cfg_path.write_text(json.dumps(self.cfg), encoding="utf-8")
@@ -441,8 +560,31 @@ class SchedulerTests(Base):
         self.assertFalse(self.lock.exists())
 
     # 2
-    def test_happy_path_merges_and_closes(self):
+    def test_happy_path_waits_for_approval_then_merges(self):
         gh = FakeGH([(5, "タメ")])
+
+        # ---- 1 周目: 門を通って PR を作り、承認待ちで止まる（マージしない）
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertNotIn("Game/Assets/Core/Issue5.cs", self.remote_main_files(), "承認前にマージしない")
+        pr_num = gh.pr_for_issue(5)
+        pr = gh.prs[pr_num]
+        self.assertEqual(pr["state"], "OPEN")
+        self.assertEqual(pr["labels"], {"ms4:awaiting-approval"})
+        self.assertIn("Closes #5", pr["body"])
+        self.assertEqual(gh.issues[5]["labels"], {"ms4:awaiting-approval"})
+        head = gh.head_of("ms4/issue-5")
+        request = [c for c in pr["comments"] if f"ms4:approval-request:{head}" in c]
+        self.assertEqual(len(request), 1, "今の head SHA に対する承認依頼が 1 件")
+        self.assertIn("`Works`", request[0])
+        self.assertIn("「答えは 1」", request[0])
+        self.assertIn("実機で見る点", request[0])
+        self.assertEqual(self.branch(), "main")
+        self.assertEqual(self.dirty(), "")
+        self.assertFalse(self.lock.exists())
+        self.assertEqual([r["result"] for r in self.runs()], ["AWAITING"])
+
+        # ---- 2 周目: 人間が承認 → 必須チェック緑 → マージコミットで入る
+        gh.approve(pr_num)
         self.assertEqual(self.run_scheduler(gh), 0)
 
         files = self.remote_main_files()
@@ -450,25 +592,133 @@ class SchedulerTests(Base):
         self.assertIn("tools/units/issue_5.json", files)
         self.assertIn("Game/Assets/Core/Issue5.cs", files)
         parents = git(self.work, "rev-list", "--parents", "-n", "1", "origin/main").split()
-        self.assertEqual(len(parents), 3, "--no-ff のマージコミットであること")
+        self.assertEqual(len(parents), 3, "squash ではなくマージコミットであること")
+        self.assertEqual(len(gh.merge_args), 1)
+        self.assertIn("--merge", gh.merge_args[0])
+        self.assertNotIn("--squash", gh.merge_args[0])
+        self.assertEqual(gh.merge_args[0][gh.merge_args[0].index("--match-head-commit") + 1], head)
 
         issue = gh.issues[5]
         self.assertEqual(issue["state"], "CLOSED")
         self.assertEqual(issue["labels"], set())
         self.assertEqual(sum("合格" in c for c in issue["comments"]), 1)
-        self.assertEqual({"ms4:running", "ms4:failed"} - gh.labels, set())
-
-        self.assertEqual(self.branch(), "main")
-        self.assertEqual(self.dirty(), "")
+        self.assertEqual(gh.prs[pr_num]["state"], "MERGED")
+        self.assertEqual(git(self.work, "rev-parse", "HEAD"), gh.prs[pr_num]["merge_sha"],
+                         "ローカルの main もマージ後に追従する")
         self.assertFalse(self.local_has_branch("ms4/issue-5"))
         self.assertFalse(self.lock.exists())
 
         runs = self.runs()
-        self.assertEqual(len(runs), 1)
-        self.assertEqual(runs[0]["result"], "PASSED")
+        self.assertEqual([r["result"] for r in runs], ["AWAITING", "PASSED"])
         self.assertIn("skipped", runs[0]["audit"])
         self.assertEqual([s["name"] for s in runs[0]["steps"]], ["decompose", "pipeline"])
-        self.assertTrue(runs[0]["ci_run"])
+        self.assertTrue(runs[1]["ci_run"])
+
+    def test_scheduler_never_applies_the_approval_label(self):
+        gh = FakeGH([(5, "a")])
+        self.run_scheduler(gh)
+        gh.approve(gh.pr_for_issue(5))
+        self.run_scheduler(gh)
+        for call in gh.calls:
+            for i, x in enumerate(call[:-1]):
+                if x == "--add-label":
+                    self.assertNotEqual(call[i + 1], "ms4:approved", call)
+
+    def test_unapproved_pr_just_waits(self):
+        gh = FakeGH([(5, "a")])
+        self.run_scheduler(gh)
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(gh.prs[gh.pr_for_issue(5)]["state"], "OPEN")
+        self.assertEqual([r["result"] for r in self.runs()], ["AWAITING"], "再取得も記録もしない")
+        self.assertEqual(sum(1 for c in gh.calls if c[1:3] == ["pr", "create"]), 1)
+
+    def test_approved_but_required_check_pending_does_not_merge(self):
+        gh = FakeGH([(5, "a")])
+        self.run_scheduler(gh)
+        gh.approve(gh.pr_for_issue(5))
+        gh.check_override = {"test": ("in_progress", None)}
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(gh.merge_args, [])
+        self.assertEqual(gh.issues[5]["state"], "OPEN")
+
+    def test_label_without_green_approval_check_does_not_merge(self):
+        """ラベルは付いていても、approval チェックが赤（承認者以外が付けた等）ならマージしない。"""
+        gh = FakeGH([(5, "a")])
+        self.run_scheduler(gh)
+        gh.approve(gh.pr_for_issue(5))
+        gh.check_override = {"approval": ("completed", "failure")}
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(gh.merge_args, [])
+
+    def test_misconfigured_project_without_approval_check_still_needs_the_label(self):
+        """required_checks から approval が抜けた誤設定でも、人間のラベル無しではマージしない。
+
+        必須チェック approval が効いている間はスケジューラ側の確認と二重になるが、
+        設定を誤るとスケジューラ側の確認が最後の防壁になる（変異 M28 で実測）。
+        """
+        self.cfg["required_checks"] = ["test"]
+        gh = FakeGH([(5, "a")])
+        self.run_scheduler(gh)
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(gh.merge_args, [])
+        self.assertEqual(gh.prs[gh.pr_for_issue(5)]["state"], "OPEN")
+
+    def test_latest_check_run_wins_by_id_not_by_order(self):
+        gh = FakeGH([(5, "a")])
+        self.run_scheduler(gh)
+        gh.approve(gh.pr_for_issue(5))
+        gh.extra_check_runs = [{"id": 1, "name": "test", "status": "completed", "conclusion": "failure"}]
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(gh.prs[gh.pr_for_issue(5)]["state"], "MERGED")
+
+        gh2 = FakeGH([(7, "b")])
+        self.run_scheduler(gh2)
+        gh2.approve(gh2.pr_for_issue(7))
+        gh2.extra_check_runs = [{"id": 99999, "name": "test", "status": "completed", "conclusion": "failure"}]
+        self.assertEqual(self.run_scheduler(gh2), 0)
+        self.assertEqual(gh2.prs[gh2.pr_for_issue(7)]["state"], "OPEN", "新しい run が赤ならマージしない")
+
+    def test_push_after_approval_is_not_merged(self):
+        """承認した SHA 以外は入れない。承認後に push されたら待ちに戻す（ABORT しない）。"""
+        gh = FakeGH([(5, "a")])
+        self.run_scheduler(gh)
+        pr_num = gh.pr_for_issue(5)
+        gh.approve(pr_num)
+
+        def push_extra_commit():
+            git(self.helper, "fetch", "-q", "origin")
+            git(self.helper, "switch", "-q", "-c", "late", "origin/ms4/issue-5")
+            (self.helper / "late.txt").write_text("late\n", encoding="utf-8")
+            git(self.helper, "add", "late.txt")
+            git(self.helper, "commit", "-q", "-m", "late push")
+            git(self.helper, "push", "-q", "origin", "late:ms4/issue-5")
+            git(self.helper, "switch", "-q", "main")
+        gh.before_merge = push_extra_commit
+
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(gh.prs[pr_num]["state"], "OPEN")
+        self.assertNotIn("late.txt", self.remote_main_files())
+        self.assertFalse(self.lock.exists(), "ABORT ではない")
+        self.assertEqual(gh.issues[5]["state"], "OPEN")
+
+    def test_declined_pr_is_closed_and_issue_fails(self):
+        gh = FakeGH([(5, "a")])
+        self.run_scheduler(gh)
+        pr_num = gh.pr_for_issue(5)
+        gh.prs[pr_num]["labels"].add("ms4:declined")
+        self.assertEqual(self.run_scheduler(gh), 1)
+        self.assertEqual(gh.prs[pr_num]["state"], "CLOSED")
+        self.assertEqual(gh.issues[5]["labels"], {"ms4:failed"})
+        self.assertEqual(gh.merge_args, [])
+        self.assertTrue(self.remote_has_branch("ms4/issue-5"), "ブランチは残す")
+        self.assertEqual([r["result"] for r in self.runs()], ["AWAITING", "REJECT"])
+
+    def test_empty_test_list_is_never_sent_for_approval(self):
+        gh = FakeGH([(5, "a")])
+        self.plan["decompose"] = {"5": "no_test_methods"}
+        self.assertEqual(self.run_scheduler(gh), 2)
+        self.assertEqual(gh.prs, {})
+        self.assertIn("1 件も読み取れません", self.runs()[0]["reason"])
 
     # 3
     def test_decompose_reject_then_next_issue_passes(self):
@@ -482,8 +732,8 @@ class SchedulerTests(Base):
         self.assertTrue(any("不合格の理由: 自明アサーション" in c for c in i5["comments"]),
                         "ログ末尾が UTF-8 のままコメントされること")
         self.assertFalse(self.local_has_branch("ms4/issue-5"))
-        self.assertEqual(gh.issues[6]["state"], "CLOSED")
-        self.assertEqual([r["result"] for r in self.runs()], ["REJECT", "PASSED"])
+        self.assertEqual(gh.issues[6]["labels"], {"ms4:awaiting-approval"}, "次の Issue へ進む")
+        self.assertEqual([r["result"] for r in self.runs()], ["REJECT", "AWAITING"])
 
     # 4
     def test_decompose_abort_stops_everything(self):
@@ -516,7 +766,7 @@ class SchedulerTests(Base):
         self.assertTrue(self.local_has_branch("ms4/issue-5"))
         self.assertTrue(self.remote_has_branch("ms4/issue-5"))
         self.assertNotIn("tests/Core.Tests/Issue5Tests.cs", self.remote_main_files())
-        self.assertEqual(gh.issues[6]["state"], "CLOSED")
+        self.assertEqual(gh.issues[6]["labels"], {"ms4:awaiting-approval"})
         self.assertEqual(self.branch(), "main")
 
     # 6
@@ -575,7 +825,7 @@ class SchedulerTests(Base):
         self.assertEqual(runs[0]["steps"], [])
         self.assertEqual(gh.issues[5]["labels"], {"ms4:failed"})
         self.assertTrue(self.remote_has_branch("ms4/issue-5"), "既存ブランチを消さない")
-        self.assertEqual(gh.issues[6]["state"], "CLOSED")
+        self.assertEqual(gh.issues[6]["labels"], {"ms4:awaiting-approval"})
 
     # 9
     def test_existing_lock_blocks_without_touching_anything(self):
@@ -605,6 +855,8 @@ class SchedulerTests(Base):
         os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
         gh = FakeGH([(5, "a")])
         self.assertEqual(self.run_scheduler(gh), 0)
+        gh.approve(gh.pr_for_issue(5))
+        self.assertEqual(self.run_scheduler(gh), 0)
         files = self.remote_main_files()
         self.assertIn("reports/audits/audit_issue_5.md", files)
         self.assertIn("reports/audits/audit_Issue5Tests.md", files)
@@ -616,7 +868,7 @@ class SchedulerTests(Base):
         self.plan["audit"] = {"5": "fail"}
         self.assertEqual(self.run_scheduler(gh), 0)
         self.assertTrue(self.runs()[0]["audit"].startswith("failed"))
-        self.assertEqual(gh.issues[5]["state"], "CLOSED")
+        self.assertEqual(gh.issues[5]["labels"], {"ms4:awaiting-approval"})
 
     def test_required_audit_without_key_rejects(self):
         self.cfg["audit"]["required"] = True
@@ -638,47 +890,63 @@ class SchedulerTests(Base):
 
     # 12
     def test_merge_conflict_aborts_cleanly(self):
+        """承認後、main が先に進んで PR が衝突した。マージできないので ABORT（人間が見る）。"""
         gh = FakeGH([(5, "a")])
         self.plan["pipeline"] = {"5": "conflict"}
+        self.assertEqual(self.run_scheduler(gh), 0)
+        gh.approve(gh.pr_for_issue(5))
         self.assertEqual(self.run_scheduler(gh), 2)
-        self.assertFalse((self.work / ".git" / "MERGE_HEAD").exists(), "merge --abort 済み")
+        self.assertFalse((self.helper / ".git" / "MERGE_HEAD").exists(), "merge --abort 済み")
         self.assertEqual(self.branch(), "main")
         self.assertEqual(self.dirty(), "")
         self.assertEqual(gh.issues[5]["state"], "OPEN")
+        self.assertEqual(gh.prs[gh.pr_for_issue(5)]["state"], "OPEN")
+        self.assertTrue(self.lock.exists())
 
     # 13
     def test_red_ci_on_main_aborts_without_closing(self):
         gh = FakeGH([(5, "a")])
+        self.run_scheduler(gh)
+        gh.approve(gh.pr_for_issue(5))
         gh.ci_conclusion = "failure"
         self.assertEqual(self.run_scheduler(gh), 2)
-        self.assertEqual(gh.issues[5]["state"], "OPEN")
-        self.assertEqual(gh.issues[5]["labels"], {"ms4:running"})
-        self.assertIn("failure", self.runs()[0]["reason"])
+        self.assertEqual(gh.issues[5]["labels"], {"ms4:awaiting-approval"})
+        self.assertFalse(any("合格" in c for c in gh.issues[5]["comments"]))
+        self.assertIn("failure", self.runs()[-1]["reason"])
 
     def test_ci_run_never_appears_aborts_after_waiting(self):
         gh = FakeGH([(5, "a")])
+        self.run_scheduler(gh)
+        gh.approve(gh.pr_for_issue(5))
         gh.ci_missing = True
         self.assertEqual(self.run_scheduler(gh), 2)
-        self.assertIn("見つかりません", self.runs()[0]["reason"])
+        self.assertIn("見つかりません", self.runs()[-1]["reason"])
         self.assertEqual(self.sleeps.count(1), 3, "ci_find_seconds / 間隔 の回数だけ待つ")
 
     # 再試行
     def test_gh_transient_failure_is_retried(self):
         gh = FakeGH([(5, "a")])
         gh.fail_rules.append({"match": "issue list", "times": 2})
-        gh.fail_rules.append({"match": "issue comment", "times": 1})
+        gh.fail_rules.append({"match": "pr comment", "times": 1})
         self.assertEqual(self.run_scheduler(gh), 0)
-        self.assertEqual(len(gh.issues[5]["comments"]), 1)
+        self.assertEqual(len(gh.prs[gh.pr_for_issue(5)]["comments"]), 1)
         self.assertGreaterEqual(self.sleeps.count(5), 3)
 
     def test_lost_response_does_not_double_post(self):
         """書き込みは反映されたのに失敗が返る。読み直して重ねないこと。"""
         gh = FakeGH([(5, "a")])
-        gh.fail_rules.append({"match": "issue comment", "times": 1, "apply": True})
-        gh.fail_rules.append({"match": "issue close", "times": 1, "apply": True})
+        gh.fail_rules.append({"match": "pr create", "times": 1, "apply": True})
+        gh.fail_rules.append({"match": "pr comment", "times": 1, "apply": True})
         self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(len(gh.prs), 1, "PR を二重に作らない")
+        self.assertEqual(len(gh.prs[gh.pr_for_issue(5)]["comments"]), 1)
+
+        gh.approve(gh.pr_for_issue(5))
+        gh.fail_rules.append({"match": "pr merge", "times": 1, "apply": True})
+        gh.fail_rules.append({"match": "issue comment", "times": 1, "apply": True})
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(len(gh.merge_args), 1, "マージを重ねない")
         self.assertEqual(len(gh.issues[5]["comments"]), 1)
-        self.assertEqual(sum(1 for c in gh.calls if c[1:3] == ["issue", "close"]), 1)
 
     def test_gh_failing_three_times_aborts(self):
         gh = FakeGH([(5, "a")])

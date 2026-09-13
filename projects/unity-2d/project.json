@@ -14,5 +14,8 @@
   "_units_note": "単位定義はゲーム側の記録として残す（分解役の出力で、コミット履歴の証拠になる）",
   "units_dir": "tools/units",
 
+  "_checks_note": "マージ前に success を要求するチェック名（ジョブ名）。test は core-tests.yml、approval は approval.yml（A4 で配置）",
+  "required_checks": ["test", "approval"],
+
   "out_dir": "C:\\src\\.local\\out\\harness\\unity-2d"
 }

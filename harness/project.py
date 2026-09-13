@@ -20,7 +20,8 @@ HARNESS_DIR = Path(__file__).resolve().parent
 ROOT = HARNESS_DIR.parent
 
 REQUIRED_KEYS = ["id", "repo_slug", "repo_dir", "base_branch", "unity_project_subdir",
-                 "test_dir", "impl_dir", "fast_test_project", "units_dir", "out_dir"]
+                 "test_dir", "impl_dir", "fast_test_project", "units_dir", "out_dir",
+                 "required_checks"]
 
 
 class ProjectError(Exception):

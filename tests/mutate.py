@@ -17,6 +17,7 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8")
 ROOT = Path(__file__).resolve().parent.parent
 T = ROOT / "harness"
+GATE = "templates/game-repo/.github/scripts/ms4_approval_gate.py"
 
 M = [
     ("M1 pipeline rc2 を REJECT 扱い", "scheduler.py",
@@ -29,8 +30,8 @@ M = [
      "if done is not None and done():", "if False:"),
     ("M4 文字列 exit を 1 にする", "exitcode.py",
      "    print(code, file=sys.stderr)\n    return ABORT", "    print(code, file=sys.stderr)\n    return 1"),
-    ("M5 merge --abort を外す", "scheduler.py",
-     '            self._git("merge", "--abort", check=False)\n', ""),
+# M5（ローカルの merge --abort）は削除した。A2 で PR 経由のマージにしてから呼ばれない
+# 死にコードになり、壊しても何も起きず変異が生き残ったため（変異テストで発見）。
     ("M6 CI の conclusion を見ない", "scheduler.py",
      'if conclusion != "success":', 'if conclusion == "never":'),
     ("M7 想定外パス検査を外す", "scheduler.py",
@@ -55,6 +56,41 @@ M = [
      "        if k in paths:\n", "        if False:\n"),
     ("M16 taskkill に TTL を付けない", "scheduler.py",
      "creationflags=_NO_WINDOW, timeout=60)", "creationflags=_NO_WINDOW)"),
+
+    # ---- 承認ゲート（A3）
+    ("M17 synchronize でラベルを外さない", GATE,
+     '            api("DELETE", f"/repos/{repo}/issues/{number}/labels/{label}", allow_404=True)\n', ""),
+    ("M18 head SHA の照合を外す", GATE,
+     '    if current["head"]["sha"] != event_sha:', "    if False:"),
+    ("M19 承認者の照合を外す", GATE,
+     "    if not who or who.lower() not in approvers:", "    if not who:"),
+    ("M20 承認者が空でも通す", GATE,
+     "    if not approvers:\n        return False", "    if False:\n        return False"),
+    ("M21 最初にラベルを付けた人で判定する", GATE,
+     "                actor = (ev.get(\"actor\") or {}).get(\"login\")",
+     "                actor = actor or (ev.get(\"actor\") or {}).get(\"login\")"),
+
+    # ---- PR 経由のマージ（A2）
+    ("M22 --match-head-commit を外す", "scheduler.py",
+     '"--merge", "--match-head-commit", sha]', '"--merge"]'),
+    ("M23 squash でマージする", "scheduler.py",
+     '"--merge", "--match-head-commit", sha]', '"--squash", "--match-head-commit", sha]'),
+    ("M24 必須チェックを見ない", "scheduler.py",
+     '            not_ok = {k: v for k, v in states.items() if v != "success"}', "            not_ok = {}"),
+    ("M25 同名 check-run の古いほうを採る", "scheduler.py",
+     'r["id"] > latest[name]["id"]', 'r["id"] < latest[name]["id"]'),
+    ("M26 空のテスト一覧でも承認依頼を出す", "scheduler.py",
+     "        if total == 0:", "        if False:"),
+    ("M27 承認後の push を ABORT 扱いにする", "scheduler.py",
+     '                if now["state"] != "MERGED" and now["sha"] != pr["sha"]:', "                if False:"),
+    ("M28 承認を待たずに PR を出した直後にマージする", "scheduler.py",
+     "        if L[\"declined\"] not in names and L[\"approved\"] not in names:\n            return \"WAITING\"",
+     "        if False:\n            return \"WAITING\""),
+    ("M29 承認依頼を今の SHA に紐付けない", "scheduler.py",
+     'self.gh.comment(pr, f"ms4:approval-request:{sha}", summary, kind="pr")',
+     'self.gh.comment(pr, "ms4:approval-request", summary, kind="pr")'),
+    ("M30 抽出器が複数行の Assert を途中で切る", "test_summary.py",
+     '            stop = scan_until(body, am.start(), ";")', '            stop = body.find("\\n", am.start())'),
 ]
 
 

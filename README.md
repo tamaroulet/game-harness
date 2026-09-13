@@ -21,19 +21,38 @@
 ```
 harness/
   project.py      プロジェクト設定の読み込み（全道具がここを通す）
-  scheduler.py    ready の Issue → 分解 → 監査 → 実装 → マージ
+  scheduler.py    ready の Issue → 分解 → 監査 → 実装 → PR → 承認 → マージ
   pipeline.py     1 単位を実装して門を通す（終了コード 0 / 1 / 2）
   decompose.py    Issue → 受入テスト + 単位定義
   audit.py        独立監査
+  test_summary.py 受入テストの一覧（名前・期待値・メッセージ）を C# から機械抽出
   exitcode.py     sys.exit("ABORT") と未捕捉例外を rc=2 にそろえる
+  templates/game-repo/   ゲームのリポジトリに配るもの
+    .github/workflows/approval.yml       必須チェック approval（pull_request_target）
+    .github/scripts/ms4_approval_gate.py その判定
+    .github/ms4-approvers                承認してよい人
 config/           全プロジェクト共通の設定
 projects/<id>/
-  project.json    リポジトリ・ローカルパス・テスト置き場（ここにだけ書く）
+  project.json    リポジトリ・ローカルパス・テスト置き場・必須チェック名（ここにだけ書く）
   pipeline.json   実装パイプラインの設定
 tests/
   test_scheduler.py   状態遷移・異常系（git は本物、GitHub は偽物、子はスタブ）
+  test_approval.py    抽出器と承認ゲート
   mutate.py           判定をわざと壊して、テストが赤になるかを確かめる
 ```
+
+## 承認とマージ
+
+```
+門を通過 → PR（Closes #N）→ 受入テスト一覧を「今の head SHA 宛て」にコメント → ms4:awaiting-approval
+人間: dispatch --approve <project>#<PR>（一覧を表示して y/n）
+必須チェック approval: 承認者が・今の head SHA に対して付けたラベルか（時刻は比べない。push で失効）
+スケジューラ: 必須チェックが全部 success → gh pr merge --merge --match-head-commit <承認した SHA>
+```
+
+- マージはマージコミット（squash しない。履歴の追跡性のため）
+- 承認後に push されたら、マージせず承認待ちに戻す
+- 承認は実装が門を通った後に 1 回。実装前に承認させると、実装の push で承認が失効するため。代償として、テストが誤っていても実装を 1 回走らせる
 
 ## 使い方
 
@@ -67,4 +86,6 @@ python tests/mutate.py
 
 - **サンドボックスの隔離は機構ではない。** 実装役は同じ OS ユーザーで動き、本体を書き換えられる（実測）。破られたことを検出して ABORT するところまで
 - **Unity の受入はこの PC でしか走らない。** GitHub の必須チェックは Pure C# の `dotnet test` だけ。Unity 受入を通したことは、スケジューラが保証している（GitHub 側では強制されない）
-- 計画中: PR 経由の自動マージ、承認の必須チェック、ブランチ保護、常駐（`C:\Users\tamar\.claude\plans\glistening-wobbling-dijkstra.md` のフェーズ A2〜A6）
+- **承認者とスケジューラは同じ GitHub アカウントで動いている。** スケジューラは `ms4:approved` を付けないように作り、テストで確かめているが、approval チェックは両者を区別できない。区別するには、スケジューラを別アカウント（machine user）のトークンで動かす必要がある
+- **ブランチ保護はまだ無い（A4 で設定）。** それまでは必須チェックも「スケジューラが確かめている」だけで、GitHub 側では強制されない。approval.yml もまだゲームのリポジトリに配っていない
+- 計画中: ブランチ保護、常駐（`C:\Users\tamar\.claude\plans\glistening-wobbling-dijkstra.md` のフェーズ A4・A6）

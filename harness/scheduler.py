@@ -1,20 +1,37 @@
-"""MS4 スケジューラ。ready の Issue を 1 本ずつ、分解 → 監査 → 実装 → マージまで運ぶ。
+"""MS4 スケジューラ。ready の Issue を 1 本ずつ、分解 → 監査 → 実装 → PR → 承認 → マージまで運ぶ。
 
     python harness/scheduler.py --project unity-2d --dry-run     # 対象と予定だけ表示。何も変えない
     python harness/scheduler.py --project unity-2d               # 一覧を 1 周して終わる
     python harness/scheduler.py --project unity-2d --max-issues 1
 
-終了コード: 0=全件合格または対象なし / 1=不合格を含む / 2=ABORT（停止）
+終了コード: 0=不合格なし（マージ・承認待ち・対象なしを含む） / 1=不合格を含む / 2=ABORT（停止）
 
-**1 Issue の流れ**
+**1 周の流れ**
 
-    ready → ms4:running
-    ブランチ ms4/issue-N を切る（既にあれば不合格。前回の残骸か人間の作業中）
-    decompose.py   0 → 次 / 1 → 不合格 / それ以外 → ABORT
-    生成物をコミット（想定外のパスがあれば ABORT）
-    audit.py       キーが無ければスキップ。結果は合否に使わない（required=false のとき）
-    ms3_pipeline   0 → マージ / 1 → 不合格 / それ以外 → ABORT
-    main へ --no-ff マージ → push → main の CI を SHA で待つ → Issue をクローズ
+    1. 承認待ちの PR（ms4:awaiting-approval）を見る
+         ms4:declined  → PR を閉じ、Issue を ms4:failed
+         ms4:approved  → 必須チェック（required_checks）が今の head SHA で全部 success なら
+                         gh pr merge --merge --match-head-commit <その SHA>
+                         → main の CI を待つ → Issue をクローズ
+                         承認後に push されていたら、マージせず待ちに戻す
+         それ以外      → 待つ
+    2. ready の Issue
+         ready → ms4:running
+         ブランチ ms4/issue-N を切る（既にあれば不合格。前回の残骸か人間の作業中）
+         decompose.py   0 → 次 / 1 → 不合格 / それ以外 → ABORT
+         生成物をコミット（想定外のパスがあれば ABORT）
+         audit.py       キーが無ければスキップ。結果は合否に使わない（required=false のとき）
+         pipeline.py    0 → PR / 1 → 不合格 / それ以外 → ABORT
+         PR を作り、受入テストの一覧（C# から機械抽出）をコメントし、ms4:awaiting-approval
+
+**なぜ承認が実装の後なのか**
+
+承認は最終的な head SHA に対して 1 回だけ有効で、push されると必須チェック approval が
+ラベルを外す。実装前にテストを承認させると、実装の push で承認が消える。
+代償として、テストが誤っていても実装を 1 回走らせてしまう。
+
+**スケジューラ自身は ms4:approved を付けない。** 付けるのは人間（dispatch --approve）だけ。
+ただし同じ GitHub アカウントで動く限り、approval チェックは両者を区別できない（慣習）。
 
 **なぜブランチを切るのか**
 
@@ -45,6 +62,7 @@ from pathlib import Path
 
 import exitcode
 import project
+import test_summary
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -223,13 +241,6 @@ class Git:
     def push(self, branch):
         self._net("push", "origin", branch)
 
-    def merge_no_ff(self, branch, message):
-        rc, out, err = self._git("merge", "--no-ff", "-m", message, branch, check=False)
-        if rc != 0:
-            self._git("merge", "--abort", check=False)
-            raise Abort(f"{branch} を main へマージできません（衝突など）。"
-                        f"merge --abort 済み: {(err or out)[:300]}")
-
     def head_sha(self):
         return self._git("rev-parse", "HEAD")[1].strip()
 
@@ -268,12 +279,24 @@ class GitHub:
         with_retries(lambda: self._once(args), done, self.retries, self.interval,
                      self.sleep, "gh " + " ".join(args[:2]))
 
+    def api_json(self, path):
+        """gh api は --repo を取らないので、パスにリポジトリを入れて呼ぶ。"""
+        def attempt():
+            rc, out, err = self.run(["gh", "api", path], self.cwd, self.ttl)
+            return rc == 0, out if rc == 0 else (err or out or f"rc={rc}")
+        out = with_retries(attempt, None, self.retries, self.interval, self.sleep,
+                           "gh api " + path.split("?")[0])
+        try:
+            return json.loads(out or "null")
+        except ValueError:
+            raise Abort(f"gh api {path} の出力が JSON ではありません: {out[:200]}")
+
     # ---- 読み取り
     def list_ready(self):
         items = self.read_json(["issue", "list", "--label", self.labels["ready"]["name"],
                                 "--state", "open", "--limit", "100",
                                 "--json", "number,title,labels"])
-        skip = {self.labels["running"]["name"], self.labels["failed"]["name"]}
+        skip = {self.labels[k]["name"] for k in ("running", "failed", "awaiting")}
         picked = []
         for it in items or []:
             names = {l["name"] for l in it.get("labels", [])}
@@ -281,13 +304,55 @@ class GitHub:
                 picked.append({"number": it["number"], "title": it["title"]})
         return sorted(picked, key=lambda x: x["number"])
 
-    def view(self, number):
-        d = self.read_json(["issue", "view", str(number), "--json", "state,labels,comments"])
-        return {
+    def list_waiting_prs(self):
+        items = self.read_json(["pr", "list", "--label", self.labels["awaiting"]["name"],
+                                "--state", "open", "--limit", "100",
+                                "--json", "number,headRefName"])
+        return sorted(items or [], key=lambda x: x["number"])
+
+    def find_pr(self, branch):
+        items = self.read_json(["pr", "list", "--head", branch, "--state", "open",
+                                "--json", "number"]) or []
+        return items[0]["number"] if items else None
+
+    def view(self, number, kind="issue"):
+        """kind は issue か pr。PR では head の SHA とマージコミットも返す。"""
+        fields = "state,labels,comments"
+        if kind == "pr":
+            fields += ",headRefName,headRefOid,mergeCommit"
+        d = self.read_json([kind, "view", str(number), "--json", fields])
+        v = {
             "state": d.get("state"),
             "labels": {l["name"] for l in d.get("labels", [])},
             "comments": [c.get("body", "") for c in d.get("comments", [])],
         }
+        if kind == "pr":
+            v.update(branch=d.get("headRefName"), sha=d.get("headRefOid"),
+                     merge_sha=(d.get("mergeCommit") or {}).get("oid"))
+        return v
+
+    def check_states(self, sha, names):
+        """必須チェックごとの状態: success / failure 等 / pending / missing。
+
+        同じ名前の run が複数あれば（再実行・ラベルの付け外し）、id が最大のものを採る。
+        時刻では比べない。
+        """
+        d = self.api_json(f"repos/{self.slug}/commits/{sha}/check-runs?per_page=100") or {}
+        latest = {}
+        for r in d.get("check_runs", []):
+            name = r.get("name")
+            if name in names and (name not in latest or r["id"] > latest[name]["id"]):
+                latest[name] = r
+        states = {}
+        for name in names:
+            r = latest.get(name)
+            if r is None:
+                states[name] = "missing"
+            elif r.get("status") != "completed":
+                states[name] = "pending"
+            else:
+                states[name] = r.get("conclusion") or "unknown"
+        return states
 
     def label_names(self):
         return {l["name"] for l in
@@ -312,31 +377,56 @@ class GitHub:
                         "--description", spec["description"]],
                        done=lambda n=spec["name"]: n in self.label_names())
 
-    def set_labels(self, number, add=(), remove=()):
+    def set_labels(self, number, add=(), remove=(), kind="issue"):
         add = [self.labels[k]["name"] for k in add]
         remove = [self.labels[k]["name"] for k in remove]
-        args = ["issue", "edit", str(number)]
-        for n in add:
-            args += ["--add-label", n]
-        for n in remove:
-            args += ["--remove-label", n]
 
         def done():
-            now = self.view(number)["labels"]
+            now = self.view(number, kind)["labels"]
             return set(add) <= now and not (set(remove) & now)
-        if done():
+
+        now = self.view(number, kind)["labels"]
+        if set(add) <= now and not (set(remove) & now):
             return
+        args = [kind, "edit", str(number)]
+        for n in add:
+            if n not in now:
+                args += ["--add-label", n]
+        for n in remove:
+            if n in now:  # 付いていないラベルを外す指定は渡さない
+                args += ["--remove-label", n]
         self.write(args, done)
 
-    def comment(self, number, marker, body):
+    def comment(self, number, marker, body, kind="issue"):
         """marker（HTML コメント）で同じ投稿を識別し、二重に付けない。"""
         text = f"<!-- {marker} -->\n{body}"
-        self.write(["issue", "comment", str(number), "--body", text],
-                   done=lambda: any(marker in c for c in self.view(number)["comments"]))
+        if any(marker in c for c in self.view(number, kind)["comments"]):
+            return
+        self.write([kind, "comment", str(number), "--body", text],
+                   done=lambda: any(marker in c for c in self.view(number, kind)["comments"]))
 
-    def close(self, number):
-        self.write(["issue", "close", str(number)],
-                   done=lambda: self.view(number)["state"] == "CLOSED")
+    def close(self, number, kind="issue"):
+        if self.view(number, kind)["state"] in ("CLOSED", "MERGED"):
+            return
+        self.write([kind, "close", str(number)],
+                   done=lambda: self.view(number, kind)["state"] in ("CLOSED", "MERGED"))
+
+    def create_pr(self, branch, base, title, body):
+        existing = self.find_pr(branch)
+        if existing:
+            return existing
+        self.write(["pr", "create", "--head", branch, "--base", base,
+                    "--title", title, "--body", body],
+                   done=lambda: self.find_pr(branch) is not None)
+        n = self.find_pr(branch)
+        if not n:
+            raise Abort(f"PR を作ったはずが見つかりません: {branch}")
+        return n
+
+    def merge_pr(self, number, sha):
+        """--merge（マージコミット。squash しない）と --match-head-commit（承認した SHA 以外は入れない）。"""
+        self.write(["pr", "merge", str(number), "--merge", "--match-head-commit", sha],
+                   done=lambda: self.view(number, "pr")["state"] == "MERGED")
 
 
 # ============================================================ スケジューラ
@@ -467,7 +557,7 @@ class Scheduler:
         if rc != 0:
             raise Abort(f"ms3_pipeline.py が rc={rc} で終了しました（環境異常）", log=log)
 
-        self.merge(n, title, branch, rec)
+        self.open_pr(n, title, branch, unit, rec)
 
     def audit(self, rec, files):
         """戻り値: 監査が完了しなかったら True。合否に使うかは呼び出し側が設定で決める。"""
@@ -484,28 +574,137 @@ class Scheduler:
         rec["audit"] = "failed: " + "; ".join(failed) if failed else "done"
         return bool(failed)
 
-    def merge(self, n, title, branch, rec):
+    def open_pr(self, n, title, branch, unit, rec):
+        """門を通った実装を PR にし、人間の承認を待つ。ここではマージしない。
+
+        承認は最終的な head SHA に対して 1 回だけ行う。承認後に push すると
+        必須チェック approval が承認を外すので、承認の前に実装を済ませておく。
+        """
         dirty = self.git.changed_paths()
         if dirty:
             raise Abort("パイプラインは合格ですが作業ツリーが汚れています: " + ", ".join(dirty[:5]))
-        self.git.switch(self.base)
-        self.git.pull_ff()
-        self.git.merge_no_ff(branch, f"Merge issue #{n}: {title}")
-        self.git.push(self.base)
+        self.git.push(branch)  # パイプラインが push 済みのはず。同じなら何も起きない
         sha = self.git.head_sha()
-        rec["merge_sha"] = sha
+        rec["head_sha"] = sha
+        summary = self.approval_summary(n, unit, rec, sha)
+        self.git.switch(self.base)
 
-        run_id = self.wait_ci(sha)
-        rec["ci_run"] = run_id
+        pr = self.gh.create_pr(
+            branch, self.base, f"#{n}: {title}",
+            f"Closes #{n}\n\nms4 スケジューラが作成した PR です。"
+            "受入テストの一覧はコメントにあります。承認は dispatch から行います。\n")
+        rec["pr"] = pr
+        self.gh.comment(pr, f"ms4:approval-request:{sha}", summary, kind="pr")
+        self.gh.set_labels(pr, add=["awaiting"], kind="pr")
+        self.gh.set_labels(n, add=["awaiting"], remove=["running", "ready"])
 
-        self.gh.comment(n, f"ms4:{n}:passed:{self.run_id}",
-                        f"**ms4 スケジューラ: 合格**\n\n"
-                        f"- マージ: `{sha[:8]}`（`{branch}` → `{self.base}`）\n"
-                        f"- main の CI: run {run_id}\n"
-                        f"- 記録: `reports/TIMELINE.md` の末尾\n")
-        self.gh.close(n)
-        self.gh.set_labels(n, remove=["running", "ready"])
-        self.git.delete_branch(branch, force=False)
+    def approval_summary(self, n, unit, rec, sha):
+        """承認依頼の本文。テスト一覧は C# から機械的に抜き出す（LLM に要約させない）。"""
+        tests = rec.get("tests") or []
+        try:
+            total, md = test_summary.summarize_files(tests, root=self.repo)
+        except (OSError, ValueError) as e:
+            raise Abort(f"受入テストの一覧を作れません: {e}")
+        if total == 0:
+            raise Abort("受入テストを 1 件も読み取れません。空の一覧で承認させません: "
+                        + ", ".join(tests))
+        try:
+            hcp = json.loads((self.repo / unit).read_text(encoding="utf-8")).get("human_check_point")
+        except (OSError, ValueError):
+            hcp = None
+        project_id = self.cfg.get("project_id") or self.cfg["repo_slug"]
+        body = (
+            f"**ms4: 承認依頼** — Issue #{n}\n\n"
+            f"対象コミット: `{sha[:8]}`（この SHA に対してだけ有効。push されると承認は外れます）\n\n"
+            f"### 受入テスト（分解役が書いたもの。C# から機械抽出。合計 {total} 件）\n\n{md}\n\n"
+            f"### 人間が実機で見ること\n\n{hcp or '（単位定義に human_check_point がありません）'}\n\n"
+            f"### 監査\n\n{rec.get('audit', '（記録なし）')}\n\n"
+            f"### 承認\n\n"
+            f"```\npython tools/dispatch.py --approve {project_id}#PR番号\n"
+            f"python tools/dispatch.py --decline {project_id}#PR番号 --reason \"...\"\n```\n")
+        limit = self.cfg.get("comment_max_chars", 60000)
+        if len(body) > limit:
+            body = body[:limit] + "\n\n…（長すぎるため省略。テストファイルを直接確認してください）\n"
+        return body
+
+    def handle_waiting(self, item):
+        """承認待ちの PR を 1 本見る。承認済みならマージ、却下なら不合格、それ以外は待つ。"""
+        prefix = self.cfg["branch_prefix"]
+        branch = item.get("headRefName") or ""
+        if not branch.startswith(prefix) or not branch[len(prefix):].isdigit():
+            return "WAITING"  # スケジューラが作った PR ではない
+        n, num = int(branch[len(prefix):]), item["number"]
+        pr = self.gh.view(num, "pr")
+        names = pr["labels"]
+        L = {k: self.labels_name(k) for k in ("approved", "declined")}
+
+        if L["declined"] not in names and L["approved"] not in names:
+            return "WAITING"
+        if L["declined"] not in names:
+            states = self.gh.check_states(pr["sha"], self.cfg["required_checks"])
+            not_ok = {k: v for k, v in states.items() if v != "success"}
+            if not_ok:
+                print(f"  PR #{num}: 承認ラベルはあるが必須チェックが揃っていません: {not_ok}")
+                return "WAITING"
+
+        rec = {"run_id": self.run_id, "issue": n, "pr": num, "branch": branch, "steps": [],
+               "started": datetime.now().isoformat(timespec="seconds")}
+        self.touched = True
+        try:
+            if L["declined"] in names:
+                print(f"\n=== PR #{num}（Issue #{n}）: 却下")
+                self.gh.close(num, "pr")
+                self.gh.comment(n, f"ms4:{n}:declined:{pr['sha']}",
+                                f"**ms4: 人間が却下しました**（PR #{num}、`{pr['sha'][:8]}`）\n\n"
+                                "理由は PR のコメントを見てください。ブランチは残してあります。"
+                                "直すには、ブランチを消して要求を直し、`ready` を付け直してください。\n")
+                self.gh.set_labels(num, remove=["awaiting"], kind="pr")
+                self.gh.set_labels(n, add=["failed"], remove=["awaiting", "running", "ready"])
+                rec["result"] = "REJECT"
+                rec["reason"] = "declined"
+                return "REJECT"
+
+            print(f"\n=== PR #{num}（Issue #{n}）: 承認済み。マージします")
+            try:
+                self.gh.merge_pr(num, pr["sha"])
+            except Abort:
+                now = self.gh.view(num, "pr")
+                if now["state"] != "MERGED" and now["sha"] != pr["sha"]:
+                    print(f"  承認後に push されました（{pr['sha'][:8]} → {now['sha'][:8]}）。承認待ちに戻します")
+                    rec["result"] = "WAITING"
+                    rec["reason"] = "head moved after approval"
+                    return "WAITING"
+                if now["state"] != "MERGED":
+                    raise
+            merged = self.gh.view(num, "pr")
+            rec["merge_sha"] = merged["merge_sha"]
+            self.git.pull_ff()
+            run_id = self.wait_ci(merged["merge_sha"])
+            rec["ci_run"] = run_id
+
+            self.gh.comment(n, f"ms4:{n}:passed:{merged['merge_sha']}",
+                            f"**ms4 スケジューラ: 合格**\n\n"
+                            f"- PR #{num} をマージ: `{merged['merge_sha'][:8]}`（承認した `{pr['sha'][:8]}`）\n"
+                            f"- main の CI: run {run_id}\n"
+                            f"- 記録: `reports/TIMELINE.md` の末尾\n")
+            self.gh.close(n)
+            self.gh.set_labels(num, remove=["awaiting"], kind="pr")
+            self.gh.set_labels(n, remove=["awaiting", "running", "ready"])
+            if self.git.local_branch_exists(branch):
+                self.git.delete_branch(branch, force=False)
+            rec["result"] = "PASSED"
+            print(f"=== #{n} 合格（マージ済み）")
+            return "PASSED"
+        except Abort as e:
+            rec["result"], rec["reason"] = "ABORT", str(e)
+            self.on_abort(n, e)
+            raise
+        finally:
+            if rec.get("result") != "WAITING":
+                self.record(rec)
+
+    def labels_name(self, key):
+        return self.cfg["labels"][key]["name"]
 
     def wait_ci(self, sha):
         """SHA で run を特定してから待つ（直近の run を拾うと別の結果を見る。欠陥 7）。
@@ -574,9 +773,9 @@ class Scheduler:
         try:
             try:
                 self.process(n, title, rec)
-                rec["result"] = "PASSED"
-                print(f"=== #{n} 合格")
-                return "PASSED"
+                rec["result"] = "AWAITING"
+                print(f"=== #{n} 門を通過。PR #{rec.get('pr')} で人間の承認を待ちます")
+                return "AWAITING"
             except Reject as e:
                 rec["result"], rec["reason"] = "REJECT", str(e)
                 print(f"=== #{n} 不合格: {e}")
@@ -592,6 +791,13 @@ class Scheduler:
     # ---- 入口
     def dry_run(self):
         print(f"ブランチ: {self.git.current_branch()} / 変更: {len(self.git.changed_paths())} 件")
+        waiting = self.gh.list_waiting_prs()
+        print(f"承認待ちの PR: {len(waiting)} 本")
+        for item in waiting:
+            pr = self.gh.view(item["number"], "pr")
+            mark = ("却下" if self.labels_name("declined") in pr["labels"] else
+                    "承認済み" if self.labels_name("approved") in pr["labels"] else "未承認")
+            print(f"  PR #{item['number']} {item.get('headRefName')} `{(pr['sha'] or '')[:8]}` {mark}")
         issues = self.gh.list_ready()
         print(f"対象: {len(issues)} 件（上限 {self.cfg['max_issues_per_run']}）")
         for it in issues[:self.cfg["max_issues_per_run"]]:
@@ -625,6 +831,12 @@ class Scheduler:
         try:
             self.preflight()
             self.gh.ensure_labels()
+            # 先に承認待ちを片付ける（承認済みはマージ、却下は不合格）
+            waiting = self.gh.list_waiting_prs()
+            if waiting:
+                print(f"承認待ちの PR: {len(waiting)} 本")
+            for item in waiting:
+                results.append(self.handle_waiting(item))
             limit = max_issues or self.cfg["max_issues_per_run"]
             issues = self.gh.list_ready()[:limit]
             print(f"対象: {len(issues)} 件")
@@ -642,12 +854,13 @@ class Scheduler:
             return 2
 
         self.release_lock()
-        print(f"\n完了: 合格 {results.count('PASSED')} / 不合格 {results.count('REJECT')}")
+        print(f"\n完了: マージ {results.count('PASSED')} / 承認待ちへ {results.count('AWAITING')} / "
+              f"待機中 {results.count('WAITING')} / 不合格 {results.count('REJECT')}")
         return 1 if "REJECT" in results else 0
 
 
 PROJECT_KEYS = ("project_id", "repo_slug", "repo_dir", "base_branch", "out_dir",
-                "test_dir", "audit_dir", "unit_path_template")
+                "test_dir", "audit_dir", "unit_path_template", "required_checks")
 
 
 def build_config(project_id):
@@ -671,7 +884,11 @@ def build_config(project_id):
         test_dir=p["test_dir"],
         audit_dir=project.config("audit")["out_dir"],
         unit_path_template=p["units_dir"].rstrip("/") + "/issue_{number}.json",
+        required_checks=p.get("required_checks") or [],
     )
+    if not cfg["required_checks"]:
+        raise project.ProjectError(f"{p['dir']}\\project.json に required_checks がありません。"
+                                   "チェック無しでマージさせません")
     return cfg
 
 

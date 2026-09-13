@@ -9,8 +9,13 @@
   "labels": {
     "ready":   { "name": "ready",       "color": "FEF2C0", "description": "dispatch から投入された未着手の要求" },
     "running": { "name": "ms4:running", "color": "1D76DB", "description": "スケジューラが処理中。ABORT で止まった場合もこのまま残る" },
-    "failed":  { "name": "ms4:failed",  "color": "D93F0B", "description": "スケジューラが不合格にした。原因を直し、ブランチを消して ready を付け直す" }
+    "failed":  { "name": "ms4:failed",  "color": "D93F0B", "description": "スケジューラが不合格にした。原因を直し、ブランチを消して ready を付け直す" },
+    "awaiting": { "name": "ms4:awaiting-approval", "color": "FBCA04", "description": "門を通過し PR で人間の承認を待っている" },
+    "approved": { "name": "ms4:approved", "color": "0E8A16", "description": "人間が今の head SHA を承認した（push されると approval チェックが外す）" },
+    "declined": { "name": "ms4:declined", "color": "B60205", "description": "人間が却下した。スケジューラが PR を閉じて Issue を ms4:failed にする" }
   },
+
+  "_approved_note": "スケジューラ自身は ms4:approved を付けない。付けるのは人間（dispatch --approve）だけ",
 
   "_clis_note": "前提検査で PATH にあることを確かめる。無ければ全 Issue が同じ理由で落ちるので、着手前に止める",
   "required_clis": ["git", "gh", "claude", "agy"],
