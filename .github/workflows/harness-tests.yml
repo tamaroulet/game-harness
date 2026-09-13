@@ -1,0 +1,25 @@
+name: harness-tests
+
+# スケジューラの状態遷移テスト。git は本物、GitHub は偽物、子プロセスはスタブ。
+# taskkill と Windows のパスを使うので windows-latest（GitHub-hosted）で走らせる。
+# self-hosted runner は使わない（PC が止まっていてもチェックが回るように）。
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    env:
+      HARNESS_SELFTEST_DIR: ${{ runner.temp }}\harness-selftest
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: unittest
+        run: python -m unittest discover -s tests -v

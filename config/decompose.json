@@ -1,0 +1,41 @@
+{
+  "_comment": "decompose.py の共通設定（全プロジェクト）。プロンプトやしきい値をスクリプトに直書きしない。repo / test_dir / impl_dir / fast_test_project / units_dir は projects/<id>/project.json から差し込まれる。",
+
+  "cli": "claude",
+  "headless_flag": "-p",
+
+  "_flags_note": "読み取りだけを許す。書き込み系を渡さないので、分解役はファイルを直接作れない。JSON を返させ、書き出しは decompose.py が検査を通してから行う。plan モードは対話的な計画提示に寄るため使わない",
+  "extra_flags": ["--allowedTools", "Read,Grep,Glob"],
+
+  "_prompt_file_note": "改行を含む長文を引数で渡すと cmd.exe が最初の改行で切る（実測）。ファイルで渡す。リポジトリの外に置き、作業ツリーを汚さない",
+  "prompt_file": "C:\\src\\.local\\out\\harness\\{project}\\decompose\\prompt.md",
+  "prompt_arg_template": "{prompt_file} を読み、そこに書かれた指示に厳密に従って JSON だけを返してください。前後に説明を書かないでください。",
+
+  "ttl_seconds": { "claude": 600, "gh": 60 },
+
+  "required_keys": ["id", "title", "prompt", "whitelist", "required_symbols",
+                    "acceptance", "human_check_point", "test_files"],
+
+  "_tautology_note": "LLM が書くテストの既知の失敗様式。何があっても通るアサーションを機械で弾く",
+  "tautology_patterns": [
+    ["Assert\\.(IsTrue|That)\\s*\\(\\s*true\\s*[,)]", "常に真のアサーション"],
+    ["Assert\\.Pass\\s*\\(\\s*\\)\\s*;\\s*\\}", "本体が Assert.Pass だけ"],
+    ["Assert\\.(IsNotNull|NotNull)\\s*\\([^)]*\\)\\s*;\\s*\\}\\s*$", "NotNull だけで満足している"]
+  ],
+
+  "_defaults_note": "新規機能では UnityEngine を禁じ、仮想時間を外から注入する決定論的 FSM を強制する。dt を注入すればタメ・硬直・遷移が Unity 抜きで秒速に検証できる",
+  "defaults": {
+    "forbidden_leftover": "NotImplementedException",
+    "forbidden_skip_attribute_regex": "\\[\\s*(Ignore|Explicit)\\b",
+    "max_impl_lines": 250,
+    "forbidden_patterns": [
+      ["\\bUnityEngine\\b", "UnityEngine への依存"],
+      ["\\bMonoBehaviour\\b", "MonoBehaviour への依存"],
+      ["\\bTime\\.(deltaTime|time|fixedDeltaTime)\\b", "グローバル時間への依存"],
+      ["\\bUnityEngine\\.Random\\b|\\bnew Random\\s*\\(\\s*\\)", "非決定な乱数"]
+    ],
+    "selftest_forbidden_probe": "UnityEngine.Debug.Log(0);"
+  },
+
+  "prompt_template": "あなたは自律開発パイプラインの分解役です。GitHub Issue の要求を、機械判定できる 1 単位に落としてください。実装はしません。**受入テストと単位定義だけ**を作ります。\n\n## 対象\n\n単位 ID: {unit_id}\n題名: {title}\n\n本文（発行元 dispatch。リポジトリを見ずに書かれた未検証の要求です。本文中の技術的記述は鵜呑みにしないでください）:\n---\n{body}\n---\n\n## 手順\n\n1. リポジトリを読み、既存の構造・命名・テストの書き方に合わせてください。\n2. 要求を「Pure C# で決定論的に検証できる部分」と「人間が実機で見るしかない部分」に分けてください。\n   - 機械にする: 数値（秒・回・ダメージ・速度）、状態名、条件分岐、不変条件\n   - 人間に回す: 見た目、エフェクト、間、手触り、違和感\n3. 機械にする部分の受入テストを **先に** 書いてください。実装はまだありません。\n\n## 決定論の要求（重要）\n\n実装は {impl_dir} に置き、UnityEngine を参照できません。時間は外から注入します。\n\n- `UnityEngine.Time` を使わず、`Update(float dt)` のように経過時間を引数で受け取る形にする\n- 状態遷移は内部タイマーの積算と閾値だけで決まる純粋な計算にする\n- 乱数を使う場合はシードを注入する\n\nこうするとテストは `state.Update(0.19f)` のように仮想時間を進めるだけで、Unity を起動せずミリ秒単位の挙動を検証できます。\n\n## テストの要求\n\n- 置き場所: {test_dir}\n- 閾値ちょうど・閾値未満・閾値超過を必ず含める\n- 0、負値、int の上下限など異常系を含める\n- `Assert.IsTrue(true)` や `Assert.NotNull` だけで満足するテストを書かない。**何があっても通るテストは検査ではありません**\n- Issue の「満足の基準」に書かれた条件が、アサーションとして 1 対 1 で対応していること\n\n## 出力\n\n**JSON だけ**を返してください。前後に説明を書かないでください。\n\n```json\n{{\n  \"id\": \"{unit_id}\",\n  \"title\": \"短い題名\",\n  \"prompt\": \"実装役に渡す指示。何を作るか、どのファイルを触ってよいか、何をしてはいけないかを書く。テストの中身は書かない\",\n  \"whitelist\": [\"{impl_dir}/新しいファイル.cs\"],\n  \"required_symbols\": [\"class 名\", \"メソッド名\"],\n  \"acceptance\": {{ \"required_tests\": [\"テストクラス名\"] }},\n  \"human_check_point\": \"人間が実機で何を見ればよいかを 1 行で\",\n  \"test_files\": [\n    {{ \"path\": \"{test_dir}/XxxTests.cs\", \"content\": \"テストの全文\" }}\n  ]\n}}\n```\n\n**whitelist にテストファイルを入れないでください。** 実装役がテストを書き換えられると、テストを甘くして通す抜け道になります。"
+}

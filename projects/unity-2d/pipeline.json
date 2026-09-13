@@ -1,0 +1,112 @@
+{
+  "_comment": "unity-2d の実装パイプライン設定（旧 unity-2d/tools/ms3.config.json）。repo と unity_project_subdir は project.json にだけ書く（harness/project.py が差し込む）。",
+
+  "paths": {
+    "_existing_note": "out_dir と sandbox は移設前のパスのまま。サンドボックスの Unity Library（初回 11.9 分）を捨てないため",
+    "out_dir": "C:\\src\\.local\\out\\ms3",
+    "oracles_dir": "C:\\src\\.local\\oracles",
+    "_sandbox_note": "実装AIの唯一の作業場。worktree なので本体に触れない",
+    "sandbox": "C:\\src\\.local\\wt\\ms3-sandbox"
+  },
+
+  "unity_exe": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.3.23f1\\Editor\\Unity.exe",
+
+  "_skip_note": "既存の [Explicit] による skip。GameFlowControllerTests 13 / GameFlowControllerRelicTests 4 / GameMonteCarloSimulationTests 3。これを超えたら新たに無効化されたテストがある。なお -testFilter で名前空間を指定すると NUnit は [Explicit] を明示的な選択とみなして実行してしまうため、フィルタは付けない",
+  "unity_skip_baseline": 20,
+
+  "_golden_dir_note": "同じ Unity スイートに同居するゴールデンランナーは全て同じステージング先を見る。片方しか設定しないと他方が『ファイルが無い』で落ち、実装が正しくても REJECT になる",
+  "golden_dir_env_vars": ["MS2_GOLDEN_DIR", "MS3_GOLDEN_DIR"],
+
+  "gates": {
+    "max_retry": 2
+  },
+
+  "implementer": {
+    "cli": "agy",
+    "headless_flag": "-p",
+    "auto_approve_flag": "--dangerously-skip-permissions",
+    "model_flag": "--model",
+    "model_name": "gemini-3.8-flash-high"
+  },
+
+  "rel": {
+    "capture_test": "Game/Assets/Tests/MetaPointCaptureTests.cs",
+    "disclosed_golden": "tests/golden/golden_metapoint_disclosed.json"
+  },
+
+  "oracle_filenames": {
+    "disclosed": "golden_metapoint_disclosed.json",
+    "holdout": "golden_metapoint_holdout.json"
+  },
+
+  "control_groups": {
+    "must_pass": "AlwaysPasses_ControlGroup",
+    "must_fail": "control_must_fail"
+  },
+
+  "golden_capture": {
+    "case_count_min": 30,
+    "case_count_max": 90,
+    "holdout_every_nth": 3,
+
+    "_probe_note": "int.MaxValue だけでは桁あふれを証明できない。2147483647*5 は int32 で 2147483643 となり正のまま。500000000*5 = 2500000000 が -1794967296 に回り込んで初めて Max(0,..) に到達する",
+    "probe_values": [-2147483648, -1, 0, 1, 500000000, 2147483647],
+
+    "base_coeff": {
+      "turnBonusPerTurn": 5,
+      "skillBonusMultiplier": 2,
+      "bossDefeatedBonus": 50,
+      "gameClearBonus": 100
+    },
+    "_coeff_variant_note": "係数感度の検査用。基準から1本だけ変えたときに出力が変わることを確認する",
+    "coeff_variants": {
+      "turnBonusPerTurn": 7,
+      "skillBonusMultiplier": 3,
+      "bossDefeatedBonus": 60,
+      "gameClearBonus": 150
+    },
+    "coeff_edge_values": [0, -1],
+
+    "calc_base": {
+      "currentTurn": 24,
+      "stamina": 100,
+      "skill": 50,
+      "mental": 50,
+      "isGameClear": true,
+      "bossDefeatedCount": 4
+    },
+    "_calc_varied_note": "CalculateEarnedPoints が実際に読む軸のみ。直積は禁止。基準から1軸ずつ動かす",
+    "calc_varied_fields": ["currentTurn", "skill", "bossDefeatedCount"],
+
+    "apply_base": {
+      "availableMetaPoints": 10,
+      "totalEarnedMetaPoints": 100,
+      "totalRunsCompleted": 3,
+      "unlockedIds": [1, 2],
+      "earnedPoints": 50
+    },
+    "apply_varied_fields": ["availableMetaPoints", "totalEarnedMetaPoints", "totalRunsCompleted", "earnedPoints"],
+    "apply_unlocked_variants": [[], [7], [7, 7]]
+  },
+
+  "tautology": {
+    "_note": "荷物が軽い（対象2メソッドの分岐は3本）ため、通ったが何も測っていない状態を機械で弾く",
+    "max_copy_ratio": 0.34,
+    "min_distinct_ratio": 0.5,
+    "min_coeff_sensitive": 4,
+    "_clamp_note": "Max(0,･) の証明は「出力が0」ではなく「f(負値) == f(0)」の一致で行う。出力が0になるには全項が同時に0でなければならず、他の項が正だと成立しないため",
+    "min_clamp_axes": 3,
+    "require_all_nonpositive_zero": true,
+    "min_overflow_to_zero": 1,
+    "min_null_guard_per_method": 1
+  },
+
+  "_ttl_note": "すべて実測に基づく。Unity は Library 無しの初回 11.9 分を吸収できる値",
+  "ttl_seconds": {
+    "git": 120,
+    "implementer": 300,
+    "dotnet_test": 300,
+    "unity": 1800,
+    "gh": 600
+  }
+}

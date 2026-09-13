@@ -1,0 +1,18 @@
+{
+  "_comment": "unity-2d（ボス・コマンド・レリックのあるターン制ゲーム）。リポジトリの位置はここにだけ書く。",
+
+  "id": "unity-2d",
+  "repo_slug": "tamaroulet/unity-2d",
+  "repo_dir": "C:\\src\\unity-2d",
+  "base_branch": "main",
+  "unity_project_subdir": "Game",
+
+  "test_dir": "tests/Core.Tests",
+  "impl_dir": "Game/Assets/Core",
+  "fast_test_project": "tests/Core.Tests/Core.Tests.csproj",
+
+  "_units_note": "単位定義はゲーム側の記録として残す（分解役の出力で、コミット履歴の証拠になる）",
+  "units_dir": "tools/units",
+
+  "out_dir": "C:\\src\\.local\\out\\harness\\unity-2d"
+}

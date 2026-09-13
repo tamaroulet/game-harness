@@ -1,0 +1,51 @@
+{
+  "_comment": "scheduler.py の共通設定（全プロジェクト）。リポジトリ・テスト置き場・出力先は projects/<id>/project.json、監査レポートの置き場は config/audit.json から差し込まれる。ここに再掲しない。",
+
+  "branch_prefix": "ms4/issue-",
+
+  "_lock_note": "全プロジェクトで 1 つ。Unity の受入を同時に 2 本走らせない。リポジトリの外に置く",
+  "lock_path": "C:\\src\\.local\\out\\harness\\scheduler.lock",
+
+  "labels": {
+    "ready":   { "name": "ready",       "color": "FEF2C0", "description": "dispatch から投入された未着手の要求" },
+    "running": { "name": "ms4:running", "color": "1D76DB", "description": "スケジューラが処理中。ABORT で止まった場合もこのまま残る" },
+    "failed":  { "name": "ms4:failed",  "color": "D93F0B", "description": "スケジューラが不合格にした。原因を直し、ブランチを消して ready を付け直す" }
+  },
+
+  "_clis_note": "前提検査で PATH にあることを確かめる。無ければ全 Issue が同じ理由で落ちるので、着手前に止める",
+  "required_clis": ["git", "gh", "claude", "agy"],
+
+  "_commands_note": "{python} は実行中の Python、{harness} は harness/ の絶対パス、{project} はプロジェクト ID。cwd はゲームのリポジトリ。テストではここをスタブに差し替える",
+  "commands": {
+    "decompose": ["{python}", "{harness}/decompose.py", "--project", "{project}", "--issue", "{number}"],
+    "audit":     ["{python}", "{harness}/audit.py", "--project", "{project}", "--file", "{file}"],
+    "pipeline":  ["{python}", "{harness}/pipeline.py", "--project", "{project}", "--unit", "{unit}"]
+  },
+
+  "audit": {
+    "_required_note": "false: キーが無ければスキップ、失敗しても記録のみ。監査結果は合否に使わない（人間の決定 2026-09-13）",
+    "required": false,
+    "key_env": "OPENAI_API_KEY"
+  },
+
+  "_ttl_note": "pipeline は自己検査の Unity 実行と 3 試行（各 Unity 最大 1800s + CI 待ち）を含む。途中で殺すと Unity が孤児になるので長めに取る",
+  "ttl_seconds": {
+    "git": 180,
+    "gh": 90,
+    "decompose": 1200,
+    "audit": 900,
+    "pipeline": 18000
+  },
+
+  "_ci_note": "Actions のキュー待ちで run がまだ生成されていない間は ABORT しない。見つけるまでと、完了するまでを分けて待つ",
+  "ci_find_seconds": 600,
+  "ci_watch_seconds": 3600,
+  "ci_poll_interval_seconds": 15,
+
+  "_retry_note": "gh と git のネットワーク操作だけ。書き込みは再試行の前に状態を読み直し、反映済みなら重ねない",
+  "net_retries": 2,
+  "net_retry_interval_seconds": 5,
+
+  "comment_log_tail_chars": 1500,
+  "max_issues_per_run": 5
+}
