@@ -45,9 +45,9 @@ M = [
      '        try:\n            self.gh.comment(n, f"ms4:{n}:abort:',
      '        self.git._git("switch", "-f", self.base, check=False)\n        try:\n            self.gh.comment(n, f"ms4:{n}:abort:'),
     ("M11 再試行回数を 0 に", "scheduler.py",
-     "    for i in range(retries + 1):", "    for i in range(1):"),
+     "            if failures >= retries:", "            if failures >= 0:"),
     ("M12 TTL で木ごと殺さない（待ち続ける）", "scheduler.py",
-     "            return proc.wait(timeout=ttl)", "            return proc.wait()"),
+     "                return proc.wait(timeout=min(tick, remaining))", "                return proc.wait()"),
     ("M13 decompose rc2 を不合格扱い", "scheduler.py",
      '        if rc == 1:\n            raise Reject("分解役',
      '        if rc in (1, 2):\n            raise Reject("分解役'),
@@ -166,6 +166,14 @@ M = [
     ("M58 テレメトリの無いステップを空の辞書にする", "scheduler.py",
      '        telemetry.put(entry, "telemetry", data, why)',
      '        telemetry.put(entry, "telemetry", data or {}, why)'),
+
+    # ---- 常駐（Step 5。要所の 3 件だけ）
+    ("M59 死んだロックの判定で pid の生死を見ない", "scheduler.py",
+     "        if pid_alive(pid):\n            return None", "        if False:\n            return None"),
+    ("M60 レート制限を通常の失敗と同じ 5 秒の再試行にする", "scheduler.py",
+     "        if on_limited is not None and is_rate_limited(detail):", "        if False:"),
+    ("M61 サンドボックスのリセット後に空であることを確かめない", "pipeline.py",
+     "    if leftover:\n        sys.exit(", "    if False:\n        sys.exit("),
 ]
 
 

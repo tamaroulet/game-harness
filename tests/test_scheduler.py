@@ -169,6 +169,8 @@ class FakeGH:
         self.before_merge = None
         self.merge_args = []
         self.label_events = {}  # PR 番号 -> issue events（テレメトリ用）
+        # gh api rate_limit の応答。資源名 -> (残量, リセットの epoch 秒)
+        self.rate = {"core": (5000, int(time.time()) + 3600), "graphql": (5000, int(time.time()) + 3600)}
 
     def writes(self):
         verbs = {"edit", "comment", "close", "create", "merge"}
@@ -213,7 +215,7 @@ class FakeGH:
                 rule["times"] -= 1
                 if rule.get("apply"):
                     self._do(a)
-                return 1, "", "HTTP 502: simulated"
+                return 1, "", rule.get("message", "HTTP 502: simulated")
         return self._do(a)
 
     def _opt(self, a, name):
@@ -330,6 +332,9 @@ class FakeGH:
                 runs.append({"id": 2000 + i, "name": name, "status": status, "conclusion": conclusion})
             runs += self.extra_check_runs
             return 0, json.dumps({"check_runs": runs}), ""
+        if key == "api rate_limit":
+            return 0, json.dumps({"resources": {k: {"limit": 5000, "remaining": r, "reset": t}
+                                                for k, (r, t) in self.rate.items()}}), ""
         if key.startswith("api repos/") and "/events" in key:
             # テレメトリ（承認待ち時間）用。既定は空で、テストが label_events に置いた分だけ返す
             num = int(key.split("/issues/")[1].split("/")[0])
@@ -409,13 +414,13 @@ class Base(unittest.TestCase):
         self.env.stop()
         shutil.rmtree(self.tmp, onerror=lambda f, p, e: (os.chmod(p, 0o700), f(p)))
 
-    def run_scheduler(self, gh, *extra):
+    def run_scheduler(self, gh, *extra, sleep=None):
         gh.helper = self.helper
         (self.tmp / "plan.json").write_text(json.dumps(self.plan), encoding="utf-8")
         cfg_path = self.tmp / "ms4.config.json"
         cfg_path.write_text(json.dumps(self.cfg), encoding="utf-8")
         return ms4.main(["--config", str(cfg_path)] + list(extra),
-                        gh_run=gh, sleep=self.sleeps.append)
+                        gh_run=gh, sleep=sleep or self.sleeps.append)
 
     # ---- 観測
     def runs(self):
@@ -1049,6 +1054,168 @@ class SchedulerTests(Base):
         self.assertEqual(git(self.work, "rev-parse", "HEAD"), head)
         self.assertFalse(self.lock.exists())
         self.assertEqual(self.runs(), [])
+
+
+# ============================================================ 常駐（Step 5）
+
+RATE_LIMITED = "HTTP 403: API rate limit exceeded for user ID 1. (https://docs.github.com/rest/overview/rate-limits)"
+
+
+class ResidentTests(Base):
+    """常駐・レート制限・死んだロック・ハートビート・自己監視。git は本物、GitHub は偽物。"""
+
+    def heartbeat(self):
+        return json.loads((self.out / "heartbeat.json").read_text(encoding="utf-8"))
+
+    def stop_after(self, n):
+        """n 回目の待機で停止ファイルを置く sleep。"""
+        calls = []
+
+        def sleep(secs):
+            calls.append(secs)
+            if len(calls) == n:
+                (self.lock.parent / "scheduler.stop").write_text("x", encoding="utf-8")
+        return sleep, calls
+
+    # ---- レート制限
+    def test_rate_limit_waits_until_reset_instead_of_aborting(self):
+        gh = FakeGH([(5, "a")])
+        gh.rate["core"] = (0, int(time.time()) + 600)
+        gh.fail_rules.append({"match": "pr list", "times": 1, "message": RATE_LIMITED})
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertGreaterEqual(sum(self.sleeps), 600, "リセットまで待つ（5 秒の再試行では抜けられない）")
+        self.assertLess(sum(self.sleeps), 700)
+        self.assertEqual(self.runs()[0]["result"], "AWAITING", "待ったあと、そのまま処理を続ける")
+
+    def test_secondary_rate_limit_backs_off_exponentially(self):
+        gh = FakeGH([])
+        gh.fail_rules.append({"match": "pr list", "times": 2, "message": "HTTP 403: You have exceeded a secondary rate limit"})
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(sum(self.sleeps), 60 + 120)
+
+    def test_rate_limit_beyond_the_cap_aborts(self):
+        gh = FakeGH([(5, "a")])
+        gh.rate["graphql"] = (0, int(time.time()) + 7200)
+        gh.fail_rules.append({"match": "pr list", "times": 1, "message": RATE_LIMITED})
+        self.assertEqual(self.run_scheduler(gh), 2)
+        self.assertEqual(gh.prs, {})
+        self.assertEqual(gh.issues[5]["labels"], {"ready"}, "Issue には着手していない")
+        self.assertFalse(self.lock.exists(), "着手前の ABORT なのでロックは残さない")
+
+    # ---- 常駐
+    def test_watch_runs_cycles_until_the_stop_file(self):
+        gh = FakeGH([(5, "a")])
+        sleep, calls = self.stop_after(1)
+        self.assertEqual(self.run_scheduler(gh, "--watch", "--interval", "10", sleep=sleep), 0)
+        self.assertEqual(len(gh.prs), 1, "1 周目で Issue を処理した")
+        self.assertFalse(self.lock.exists())
+        self.assertFalse((self.lock.parent / "scheduler.stop").exists(), "停止ファイルは消す")
+        self.assertEqual(self.heartbeat()["state"], "stopped")
+        logs = list(self.out.glob("scheduler-*.log"))
+        self.assertEqual(len(logs), 1)
+        self.assertIn("常駐を終了", logs[0].read_text(encoding="utf-8"))
+
+    def test_watch_exits_on_abort_and_keeps_the_lock(self):
+        gh = FakeGH([(5, "a")])
+        self.plan["pipeline"] = {"5": "abort"}
+        sleep, _ = self.stop_after(1)
+        self.assertEqual(self.run_scheduler(gh, "--watch", "--interval", "10", sleep=sleep), 2)
+        self.assertIn("aborted", self.lock.read_text(encoding="utf-8"))
+        self.assertEqual(self.heartbeat()["state"], "stopped")
+
+    def test_watch_does_not_start_an_issue_when_the_budget_is_low(self):
+        gh = FakeGH([(5, "a")])
+        gh.rate["core"] = (10, int(time.time()) + 100)
+        sleep, calls = self.stop_after(1)
+        self.assertEqual(self.run_scheduler(gh, "--watch", sleep=sleep), 0)
+        self.assertEqual(gh.writes(), [], "残量不足のあいだは Issue に触らない")
+        self.assertEqual(gh.prs, {})
+
+    def test_stop_and_status_commands(self):
+        gh = FakeGH([])
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.assertEqual(self.run_scheduler(gh, "--status"), 0)
+        self.assertIn("ロック", out.getvalue())
+        self.assertEqual(gh.calls, [], "--status は何も変えない")
+        self.assertEqual(self.run_scheduler(gh, "--stop"), 0)
+        self.assertTrue((self.lock.parent / "scheduler.stop").exists())
+
+    def test_pythonw_without_stdout_writes_to_a_log_file(self):
+        gh = FakeGH([])
+        with mock.patch.object(sys, "stdout", None), mock.patch.object(sys, "stderr", None):
+            self.assertEqual(self.run_scheduler(gh), 0)
+        logs = list(self.out.glob("scheduler-*.log"))
+        self.assertEqual(len(logs), 1)
+        self.assertIn("対象: 0 件", logs[0].read_text(encoding="utf-8"))
+
+    # ---- 死んだロック
+    def dead_pid(self):
+        p = subprocess.Popen([sys.executable, "-c", "pass"])
+        p.wait(timeout=60)
+        return p.pid
+
+    def write_lock(self, *records):
+        self.out.mkdir(parents=True, exist_ok=True)
+        text = "".join(json.dumps(r) + "\n" for r in records)
+        self.lock.write_text(text, encoding="utf-8")
+        return text
+
+    def test_dead_lock_without_abort_record_is_released(self):
+        gh = FakeGH([(5, "a")])
+        self.write_lock({"pid": self.dead_pid(), "run_id": "old"})
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(len(gh.prs), 1)
+        self.assertFalse(self.lock.exists())
+
+    def test_live_or_aborted_or_malformed_locks_are_kept(self):
+        cases = {
+            "生きている pid": [{"pid": os.getpid(), "run_id": "now"}],
+            "ABORT の記録": [{"pid": self.dead_pid(), "run_id": "old"}, {"aborted": "理由"}],
+            "pid が無い": [{"run_id": "old"}],
+        }
+        for label, records in cases.items():
+            with self.subTest(label):
+                gh = FakeGH([(5, "a")])
+                text = self.write_lock(*records)
+                self.assertEqual(self.run_scheduler(gh), 2)
+                self.assertEqual(gh.calls, [])
+                self.assertEqual(self.lock.read_text(encoding="utf-8"), text)
+                self.lock.unlink()
+
+    # ---- ハートビートと自己監視
+    def test_heartbeat_is_updated_while_waiting_for_a_child(self):
+        gh = FakeGH([(5, "a")])
+        self.plan["pipeline"] = {"5": "sleep"}
+        self.cfg["ttl_seconds"]["pipeline"] = 4
+        self.cfg["heartbeat_seconds"] = 1
+        beats, real = [], ms4.Heartbeat.beat
+
+        def spy(hb, **fields):
+            beats.append(fields)
+            return real(hb, **fields)
+        with mock.patch.object(ms4.Heartbeat, "beat", spy):
+            self.assertEqual(self.run_scheduler(gh), 2)
+        with_child = [b for b in beats if b.get("child_pid")]
+        self.assertGreaterEqual(len(with_child), 3, "起動直後と、待つ間の刻みごとに更新する")
+
+    def test_watchdog_kills_the_child_tree_and_exits_when_heartbeat_stalls(self):
+        s = ms4.Scheduler(self.cfg, gh_run=FakeGH([]), sleep=lambda s: None)
+        exits = []
+        s._exit = exits.append
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+        try:
+            s.hb.beat(state="running", child_pid=child.pid)
+            self.assertFalse(s.watchdog_check(900), "更新されたばかりなら何もしない")
+            s.hb.last -= 1000
+            self.assertTrue(s.watchdog_check(900))
+            child.wait(timeout=60)
+        finally:
+            if child.poll() is None:
+                child.kill()
+        self.assertEqual(exits, [2])
+        hb = self.heartbeat()
+        self.assertEqual(hb["state"], "stopped")
+        self.assertIn("自己監視", hb["reason"])
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import fileops
 from proc import run
 
 LABEL = "Unity"
@@ -38,7 +39,7 @@ def run_tests(c, tag):
     xml = c.out / f"{tag}.xml"
     log = c.out / f"{tag}.log"
     if xml.exists():
-        xml.unlink()
+        fileops.unlink(xml)
 
     env = dict(os.environ)
     # 同居する全ランナーが同じステージング先を見る。片方しか設定しないと

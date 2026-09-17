@@ -30,6 +30,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import adapters
+import fileops
 import oracle
 import project
 import telemetry
@@ -116,8 +117,23 @@ def sandbox_reset(c):
         sys.exit("ABORT: リポジトリの HEAD を取得できません")
 
     purge_holdout(c)
-    run(["git", "reset", "--hard", target], c.sandbox, c.ttl["git"], "reset to repo head")
-    run(["git", "clean", "-fd"], c.sandbox, c.ttl["git"], "clean")
+    # reset / clean の戻り値だけでは足りない。ほかのプロセス（TTL で止めた子の孫、
+    # エンジンやビルドの残り）がファイルを掴んでいると消し残りが出て、次の試行の
+    # gate_whitelist に「許可外の変更」として現れ、原因が隠れる。
+    # 結果（作業ツリーが空か）で確かめ、掴まれている間は待ってやり直す。
+    leftover = []
+    for delay in (0,) + fileops.DELAYS:
+        if delay:
+            time.sleep(delay)
+        run(["git", "reset", "--hard", target], c.sandbox, c.ttl["git"], "reset to repo head")
+        run(["git", "clean", "-fd"], c.sandbox, c.ttl["git"], "clean")
+        _, status, _ = run(["git", "status", "--porcelain"], c.sandbox, c.ttl["git"], "status after reset")
+        leftover = [l for l in status.splitlines() if l.strip()]
+        if not leftover:
+            break
+    if leftover:
+        sys.exit("ABORT: サンドボックスをリセットできません（ファイルが掴まれている可能性）: "
+                 + ", ".join(l[3:] for l in leftover[:5]))
     purge_holdout(c)
 
     # 同期できたことの検査。ここを散文ではなく検査にしないと、同じ間違いが
@@ -207,7 +223,9 @@ def wait_for_ci(c):
         return 2, f"CI の run が見つかりません (sha={sha[:8]})"
 
     c.metrics["ci_run_id"] = run_id
-    rc, _, err = run(["gh", "run", "watch", run_id, "--exit-status"],
+    # 既定の 3 秒間隔だと API を多く使う（レート制限）。scheduler の CI 待ちと同じ間隔にそろえる。
+    interval = str(c.cfg.get("ci_watch_interval_seconds", 15))
+    rc, _, err = run(["gh", "run", "watch", run_id, "--exit-status", "--interval", interval],
                      c.repo, c.ttl["gh"], "gh run watch")
     if rc != 0:
         return rc, f"CI が赤 (run={run_id}): {err[:200]}"
@@ -271,7 +289,7 @@ def purge_holdout(c):
     copies = [p for g in c.fast.build_output_globs(name) for p in c.sandbox.glob(g)]
     for p in [c.sb(c.g["holdout_rel"])] + copies + list(c.stage.glob(name)):
         if p.exists():
-            p.unlink()
+            fileops.unlink(p)
             removed.append(str(p))
     return removed
 
@@ -502,7 +520,7 @@ def stage_golden(c, with_holdout):
     """
     c.stage.mkdir(parents=True, exist_ok=True)
     for p in c.stage.glob("golden_*.json"):
-        p.unlink()
+        fileops.unlink(p)
 
     src_dir = c.sb("tests/golden")
     staged = []
@@ -561,7 +579,7 @@ def establish_base(c):
                 return "ABORT", ("base がビルドできず、除くべき受入テストのファイルも"
                                  f"見つかりません: {fast_err}")
             for p in files:
-                p.unlink()
+                fileops.unlink(p)
             print(f"    base は未ビルド。受入テスト {len(files)} ファイルを除いて測り直します")
             fast_p2p, isolated_err = run_fast_tests(c, "base_fast_isolated")
             if isolated_err:
@@ -991,7 +1009,7 @@ def selftest(c):
     junk = c.sandbox / "junk_not_allowed.txt"
     junk.write_text("x", encoding="utf-8")
     check("ホワイトリストが許可外を弾く", len(gate_whitelist(c)) > 0)
-    junk.unlink()
+    fileops.unlink(junk)
 
     core_rel = c.unit.get("core_impl") or (c.unit.get("impl_files") or c.unit["whitelist"])[0]
     core = c.sb(core_rel)
@@ -1033,9 +1051,9 @@ def selftest(c):
     check("差分行数を弾く", ng is not None, str(ng))
 
     for p in created:
-        p.unlink(missing_ok=True)      # 検査のために作った実体を残さない
+        fileops.unlink(p)      # 検査のために作った実体を残さない
     if not core_existed:
-        core.unlink(missing_ok=True)
+        fileops.unlink(core)
     core.write_text(orig, encoding="utf-8")
     sandbox_reset(c)
 

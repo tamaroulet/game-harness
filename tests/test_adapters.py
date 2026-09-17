@@ -26,7 +26,7 @@ from adapters import dotnet, unity  # noqa: E402
 FIX = ROOT / "tests" / "fixtures"
 
 CORE_FILES = ["pipeline.py", "scheduler.py", "project.py", "proc.py", "exitcode.py", "oracle.py",
-              "telemetry.py"]
+              "telemetry.py", "fileops.py"]
 
 # コアに現れてはいけない語。プロジェクト ID の "unity-2d" は使用例として許す
 #（\bUnity\b は大文字始まりだけ、\bunity_ はキー名だけを捕まえる）。
