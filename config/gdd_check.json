@@ -1,0 +1,39 @@
+{
+  "_comment": "網羅検査器（harness/gdd_check.py）の設定。docs/design/spec_pipeline.md §6。ゲームごとの禁止語は projects/<id>/spec_terms.json に置く（ここには置かない）",
+
+  "_exclude_note": "網羅の分母から外す GDD の行（§6.4）。コードフェンスの中では、フェンスの行そのもの以外は外さない（ルールが書かれうるため）。examples は tests/test_gdd_check.py が全件確かめる",
+  "exclude_rules": [
+    { "name": "blank", "regex": "^\\s*$",
+      "examples": { "match": ["", "   ", "\t"], "no_match": ["a", " - x"] } },
+    { "name": "heading", "regex": "^#{1,6}\\s",
+      "examples": { "match": ["# 仕様", "### 3. 操作"], "no_match": ["#タグ", "####### 7 個", "本文 # 見出しではない"] } },
+    { "name": "horizontal_rule", "regex": "^\\s*([-*_])(\\s*\\1){2,}\\s*$",
+      "examples": { "match": ["---", "* * *", "___", " - - - "], "no_match": ["--", "- 項目", "-*-"] } },
+    { "name": "code_fence", "regex": "^\\s*(```|~~~)",
+      "examples": { "match": ["```", "```toml", "~~~"], "no_match": ["`inline`", "``"] } },
+    { "name": "table_separator", "regex": "^\\s*\\|?\\s*:?-+:?\\s*(\\|\\s*:?-+:?\\s*)*\\|?\\s*$",
+      "examples": { "match": ["|:--|:--|", "| --- | :---: |", "---|---"], "no_match": ["| a | b |", "|:--| x |"] } },
+    { "name": "html_comment", "regex": "^\\s*<!--.*-->\\s*$",
+      "examples": { "match": ["<!-- project: x -->", "  <!-- note -->"], "no_match": ["<!-- 開いたまま", "本文 <!-- x -->"] } },
+    { "name": "bullet_only", "regex": "^\\s*[-*+]\\s*$",
+      "examples": { "match": ["-", "  *", "+ "], "no_match": ["- a", "-- "] } }
+  ],
+
+  "_anchor_note": "基盤ゲームモデルの錨（§5）。見当たらないことは GDD の不足として mergeable を偽にする（spec の不備ではない）。書き方の誤りは NG",
+  "anchors": {
+    "tick_word": "ティック",
+    "if_forbidden_time_regex": "秒|浮動小数|\\bfloat\\b|\\bdouble\\b",
+    "seed_word": "シード",
+    "rng_word": "XorShift32",
+    "forbidden_rng_regex": "System\\.Random",
+    "invariant_prefix": "不変条件:",
+    "shapes": ["I", "O", "T", "S", "Z", "J", "L"],
+    "rotations": ["0", "R", "2", "L"]
+  },
+
+  "_hc_note": "人間確認・演出（HC）にロジックを回していないことの近似（§6.8）。内容の列にこれが現れたら NG",
+  "hc_forbidden_regex": "[0-9０-９]|[<>=≤≥]|\\b(LP|ST|RL|IF|PR|HC)-\\d{2,}\\b|\\bQ-\\d{2,}\\b|ティック",
+
+  "_candidate_note": "禁止語の一覧は漏れる前提。GDD に現れない語で spec に現れた、機能名らしい語の候補（承認コメントに出すだけ。合否には使わない）",
+  "candidate_regexes": ["[ァ-ヶー]{3,}", "[A-Za-z][A-Za-z0-9]{2,}"]
+}
