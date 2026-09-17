@@ -1,0 +1,50 @@
+{
+  "_comment": "falling-blocks の実装パイプライン設定。repo と unity_project_subdir は project.json にだけ書く（harness/project.py が差し込む）。unity-2d の MS3 専用キー（rel・oracle_filenames・golden_capture・tautology・oracles_dir）は持たない。",
+  "paths": {
+    "_isolation_note": "作業場・出力先は unity-2d と共有しない（tests/test_projects.py が重なりを検査する）。sandbox を書かないと pipeline.py が ms3-sandbox を使ってしまう",
+    "out_dir": "C:\\src\\.local\\out\\falling-blocks",
+    "sandbox": "C:\\src\\.local\\wt\\falling-blocks-sandbox",
+    "_playtest_note": "playtest_out は dispatch の playtest_out_root と同じ場所（プロジェクトごとの下位フォルダは playtest.py が切る）",
+    "playtest_worktree": "C:\\src\\.local\\wt\\falling-blocks-playtest",
+    "playtest_out": "C:\\src\\.local\\out\\playtest"
+  },
+  "unity_exe": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.3.23f1\\Editor\\Unity.exe",
+  "playtest_build_method": "Game.EditorScripts.PlaytestBuild.BuildWindows",
+  "_skip_note": "骨格の時点で [Explicit] などの skip は 0 件",
+  "unity_skip_baseline": 0,
+  "golden_dir_env_vars": [],
+  "golden_required_engine_suites": [],
+  "gates": {
+    "max_retry": 2
+  },
+  "implementer": {
+    "cli": "agy",
+    "headless_flag": "-p",
+    "auto_approve_flag": "--dangerously-skip-permissions",
+    "model_flag": "--model",
+    "model_name": "gemini-3.8-flash-high",
+    "_usage_note": "テレメトリ用（判定には使わない）。--output-format json の形は harness/telemetry.py の USAGE_FORMATS に実測で書いてある",
+    "output_format_args": [
+      "--output-format",
+      "json"
+    ],
+    "usage_format": "agy"
+  },
+  "control_groups": {
+    "must_pass": "AlwaysPasses_ControlGroup",
+    "must_fail": "control_must_fail"
+  },
+  "_oracle_note": "quarantine の各要素は {test, reason, approved_in}。approved_in（承認した PR 番号）の無い要素は ABORT",
+  "oracle": {
+    "quarantine": []
+  },
+  "_ttl_note": "unity-2d の実測値と同じ（骨格の Library 生成は 11.9 分、プレイ確認ビルドは 10.4 分で実測）",
+  "ttl_seconds": {
+    "git": 120,
+    "implementer": 300,
+    "fast_tests": 300,
+    "engine_tests": 1800,
+    "playtest_build": 3600,
+    "gh": 600
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "_comment": "falling-blocks（レトロ落ちものパズル。GDD 駆動）。リポジトリの位置はここにだけ書く。",
+  "id": "falling-blocks",
+  "repo_slug": "tamaroulet/falling-blocks",
+  "repo_dir": "C:\\src\\falling-blocks",
+  "base_branch": "main",
+  "_adapters_note": "unity-2d と同じ組み合わせ（Unity + dotnet）",
+  "adapters": {
+    "engine": "unity",
+    "fast": "dotnet"
+  },
+  "unity_project_subdir": "Game",
+  "test_dir": "tests/Core.Tests",
+  "impl_dir": "Game/Assets/Core",
+  "fast_test_project": "tests/Core.Tests/Core.Tests.csproj",
+  "units_dir": "tools/units",
+  "_checks_note": "マージ前に success を要求するチェック名。test は core-tests.yml、approval は approval.yml（ルールセットと同じ）",
+  "required_checks": [
+    "test",
+    "approval"
+  ],
+  "out_dir": "C:\\src\\.local\\out\\harness\\falling-blocks"
+}
