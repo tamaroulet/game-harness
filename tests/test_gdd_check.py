@@ -338,6 +338,26 @@ class ContinuityTests(Base):
             run(prev="壊れた spec")
 
 
+class PrecheckTests(unittest.TestCase):
+    """LLM を呼ぶ前の錨の事前検査（B-2d）。"""
+    FULL = ("1 ティックは 1/60 秒。乱数は XorShift32、シードを注入する。不変条件: a\n"
+            + "".join(f"形状 {s} 向き {r}: (0, 0) (1, 0) (2, 0) (3, 0)\n" for s in "IOTSZJL" for r in "0R2L"))
+
+    def test_complete_gdd_has_nothing_missing(self):
+        self.assertEqual(gdd_check.precheck(self.FULL), [])
+
+    def test_each_word_is_required(self):
+        for word in ("ティック", "XorShift32", "シード", "不変条件"):
+            with self.subTest(word):
+                missing = gdd_check.precheck(self.FULL.replace(word, "＿"))
+                self.assertEqual(missing, [f"「{word}」の記述が GDD にありません"])
+
+    def test_coordinate_pairs_must_reach_the_minimum(self):
+        short = self.FULL.replace("(3, 0)\n", "\n", 1)   # 1 組だけ減らす
+        self.assertEqual(len(gdd_check.precheck(short)), 1)
+        self.assertIn("111 組しかありません", gdd_check.precheck(short)[0])
+
+
 class ProjectTermsTests(unittest.TestCase):
     def test_falling_blocks_terms_cover_the_experiment_features(self):
         features = {f for f, _ in gdd_check.load_terms("falling-blocks")}
