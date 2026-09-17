@@ -460,6 +460,16 @@ class Base(unittest.TestCase):
     def branch(self):
         return git(self.work, "branch", "--show-current")
 
+    def issue_wt(self, n):
+        """Issue の使い捨ての worktree（テストの設定には worktree_root も project_id も無い）。"""
+        return self.out / "worktrees" / f"project-issue-{n}"
+
+    def wt_branch(self, n):
+        return git(self.issue_wt(n), "branch", "--show-current")
+
+    def wt_dirty(self, n):
+        return git(self.issue_wt(n), "status", "--porcelain", "--untracked-files=all")
+
     def dirty(self):
         return git(self.work, "status", "--porcelain", "--untracked-files=all")
 
@@ -534,7 +544,8 @@ class ProjectConfigTests(unittest.TestCase):
         for name, script in (("decompose", "decompose.py"), ("audit", "audit.py"),
                              ("pipeline", "pipeline.py")):
             args = [a.format(python="py", harness=project.HARNESS_DIR.as_posix(),
-                             project="unity-2d", number=5, file="f", unit="u", telemetry="t.json")
+                             project="unity-2d", number=5, file="f", unit="u", telemetry="t.json",
+                             repo="r")
                     for a in cfg["commands"][name]]
             self.assertTrue(Path(args[1]).name == script and Path(args[1]).exists(), args)
             self.assertEqual(args[2:4], ["--project", "unity-2d"])
@@ -911,14 +922,17 @@ class SchedulerTests(Base):
         self.assertEqual(gh.issues[6]["labels"], {"ready"})
         self.assertEqual(gh.issues[6]["comments"], [])
         self.assertTrue(self.lock.exists(), "着手後の ABORT ではロックを残す")
-        self.assertEqual(self.branch(), "ms4/issue-5", "ブランチを戻さない（触らない）")
+        self.assertEqual(self.branch(), "main", "本体の clone は main のまま（作業は worktree）")
+        self.assertEqual(self.dirty(), "")
+        self.assertEqual(self.wt_branch(5), "ms4/issue-5", "証拠の worktree を消さない（触らない）")
         self.assertEqual([r["result"] for r in self.runs()], ["ABORT"])
 
     def test_decompose_reject_leaving_dirty_tree_escalates_to_abort(self):
         gh = FakeGH([(5, "a")])
         self.plan["decompose"] = {"5": "reject_dirty"}
         self.assertEqual(self.run_scheduler(gh), 2)
-        self.assertIn("Issue5Tests.cs", self.dirty())
+        self.assertIn("Issue5Tests.cs", self.wt_dirty(5), "汚れた worktree を証拠として残す")
+        self.assertEqual(self.dirty(), "", "本体の clone は汚れない")
         self.assertEqual(gh.issues[5]["labels"], {"ms4:running"})
 
     # 5
@@ -940,8 +954,9 @@ class SchedulerTests(Base):
         self.plan["pipeline"] = {"5": "abort_dirty"}
         self.assertEqual(self.run_scheduler(gh), 2)
 
-        self.assertTrue((self.work / "Game/Assets/Core/Half.cs").exists(), "汚れを掃除しない")
-        self.assertEqual(self.branch(), "ms4/issue-5")
+        self.assertTrue((self.issue_wt(5) / "Game/Assets/Core/Half.cs").exists(), "汚れを掃除しない")
+        self.assertEqual(self.wt_branch(5), "ms4/issue-5")
+        self.assertEqual((self.branch(), self.dirty()), ("main", ""))
         self.assertEqual(gh.issues[5]["labels"], {"ms4:running"})
         self.assertEqual(gh.issues[6]["labels"], {"ready"})
         self.assertTrue(self.lock.exists())
@@ -957,8 +972,28 @@ class SchedulerTests(Base):
         self.assertEqual(self.run_scheduler(gh), 2)
         self.assertEqual(gh.issues[5]["labels"], {"ms4:running"})
         self.assertEqual(gh.issues[6]["labels"], {"ready"})
-        self.assertEqual(self.branch(), "ms4/issue-5")
+        self.assertEqual(self.wt_branch(5), "ms4/issue-5")
+        self.assertEqual((self.branch(), self.dirty()), ("main", ""))
         self.assertEqual([r["result"] for r in self.runs()], ["ABORT"])
+
+    def test_issue_work_happens_in_a_disposable_worktree(self):
+        """本体の clone（repo_dir）は main のまま一切汚れない。PR を作ったら worktree を消し、ブランチは残す。"""
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual((self.branch(), self.dirty()), ("main", ""))
+        self.assertEqual(git(self.work, "log", "--oneline", "main").count("\n"), 0, "本体の main にコミットしない")
+        self.assertFalse(self.issue_wt(5).exists(), "PR を作ったら worktree を消す")
+        self.assertEqual(git(self.work, "worktree", "list").count("\n"), 0, "worktree の登録を残さない")
+        self.assertTrue(self.local_has_branch("ms4/issue-5"), "ブランチは PR のために残す")
+        self.assertEqual(self.runs()[-1]["worktree"], str(self.issue_wt(5)))
+
+    def test_clean_reject_removes_the_worktree_but_keeps_the_branch(self):
+        gh = FakeGH([(5, "a")])
+        self.plan["pipeline"] = {"5": "reject"}
+        self.assertEqual(self.run_scheduler(gh), 1)
+        self.assertFalse(self.issue_wt(5).exists())
+        self.assertTrue(self.local_has_branch("ms4/issue-5"))
+        self.assertEqual((self.branch(), self.dirty()), ("main", ""))
 
     # 7
     def test_unexpected_child_rc_is_abort(self):
@@ -1051,7 +1086,8 @@ class SchedulerTests(Base):
         self.plan["decompose"] = {"5": "stray"}
         self.assertEqual(self.run_scheduler(gh), 2)
         self.assertIn("Sneaky.cs", self.runs()[0]["reason"])
-        self.assertTrue((self.work / "Game/Assets/Core/Sneaky.cs").exists())
+        self.assertTrue((self.issue_wt(5) / "Game/Assets/Core/Sneaky.cs").exists())
+        self.assertFalse((self.work / "Game/Assets/Core/Sneaky.cs").exists())
 
     # 12
     def test_merge_conflict_aborts_cleanly(self):

@@ -45,9 +45,11 @@ CFG = None
 TEL = {"schema": telemetry.SCHEMA, "tool": "decompose"}
 
 
-def configure(project_id):
+def configure(project_id, repo_dir=None):
     global ROOT, CFG
     p = project.load(project_id)
+    if repo_dir:
+        p["repo_dir"] = repo_dir
     CFG = project.config("decompose")
     for k in ("repo", "test_dir", "impl_dir", "fast_test_project", "units_dir"):
         if k in CFG:
@@ -266,6 +268,7 @@ def main():
     g.add_argument("--file", help="Issue の代わりにローカルの文書を使う（試験用）")
     ap.add_argument("--id", help="単位 ID。--file のときは必須")
     ap.add_argument("--telemetry", help="テレメトリの書き出し先（JSON）。判定には使わない")
+    ap.add_argument("--repo-dir", help="Issue の worktree。テストと単位定義をここに書く（既定は project.json の repo_dir）")
     a = ap.parse_args()
     TEL["started"] = datetime.now().isoformat(timespec="seconds")
     rc = None
@@ -281,7 +284,7 @@ def main():
 
 
 def decompose(a):
-    configure(a.project)
+    configure(a.project, getattr(a, "repo_dir", None))
 
     if a.issue:
         title, body = fetch_issue(a.issue)

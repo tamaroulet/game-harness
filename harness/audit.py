@@ -141,13 +141,14 @@ def main():
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--file", metavar="PATH", help="監査する文書（GDD / 単位定義 / テスト）")
     g.add_argument("--list-models", action="store_true", help="使えるモデルの一覧")
+    ap.add_argument("--repo-dir", help="Issue の worktree。監査レポートをここに書く（既定は project.json の repo_dir）")
     a = ap.parse_args()
 
     if a.list_models:
         return cmd_list_models()
     if not a.project:
         sys.exit("--file のときは --project が必要です")
-    ROOT = Path(project.load(a.project)["repo_dir"])
+    ROOT = Path(a.repo_dir or project.load(a.project)["repo_dir"])
     return cmd_audit(a.file)
 
 

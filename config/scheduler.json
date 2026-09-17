@@ -27,11 +27,14 @@
   "_clis_note": "前提検査で PATH にあることを確かめる。無ければ全 Issue が同じ理由で落ちるので、着手前に止める",
   "required_clis": ["git", "gh", "claude", "agy"],
 
-  "_commands_note": "{python} は実行中の Python、{harness} は harness/ の絶対パス、{project} はプロジェクト ID、{telemetry} はログの隣のテレメトリ JSON。cwd はゲームのリポジトリ。テストではここをスタブに差し替える",
+  "_worktree_note": "Issue と GDD の PR の作業は、この下の使い捨ての worktree（<project>-issue-N / <project>-gdd-v<版>-<sha8>）で行う。本体の clone（repo_dir）には書き込まない（docs/design/spec_pipeline.md §13）",
+  "worktree_root": "C:\\src\\.local\\wt",
+
+  "_commands_note": "{python} は実行中の Python、{harness} は harness/ の絶対パス、{project} はプロジェクト ID、{telemetry} はログの隣のテレメトリ JSON、{repo} は作業する worktree（cwd も同じ）。テストではここをスタブに差し替える",
   "commands": {
-    "decompose": ["{python}", "{harness}/decompose.py", "--project", "{project}", "--issue", "{number}", "--telemetry", "{telemetry}"],
-    "audit":     ["{python}", "{harness}/audit.py", "--project", "{project}", "--file", "{file}"],
-    "pipeline":  ["{python}", "{harness}/pipeline.py", "--project", "{project}", "--unit", "{unit}", "--telemetry", "{telemetry}"],
+    "decompose": ["{python}", "{harness}/decompose.py", "--project", "{project}", "--issue", "{number}", "--repo-dir", "{repo}", "--telemetry", "{telemetry}"],
+    "audit":     ["{python}", "{harness}/audit.py", "--project", "{project}", "--file", "{file}", "--repo-dir", "{repo}"],
+    "pipeline":  ["{python}", "{harness}/pipeline.py", "--project", "{project}", "--unit", "{unit}", "--repo-dir", "{repo}", "--telemetry", "{telemetry}"],
     "playtest":  ["{python}", "{harness}/playtest.py", "--project", "{project}", "--pr", "{pr}", "--sha", "{sha}", "--telemetry", "{telemetry}"],
     "spec":      ["{python}", "{harness}/spec.py", "--project", "{project}", "--gdd", "{gdd}", "--out-dir", "{out_dir}", "--work-dir", "{work_dir}", "--previous-spec", "{previous_spec}", "--telemetry", "{telemetry}"]
   },

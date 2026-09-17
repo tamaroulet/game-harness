@@ -369,18 +369,46 @@ def gate_repo_untouched(c):
     return [l[3:].strip() for l in out.splitlines() if l.strip()]
 
 
+def changed_entries(cwd, ttl):
+    """作業ツリーの変更 [(状態 2 文字, パス)]。改名・複製は新旧の両方のパスを並べる。
+
+    -z: 空白や日本語のパスを引用符やエスケープで崩さない（core.quotePath の影響も受けない）。
+    --untracked-files=all: 新しいフォルダを `dir/` にまとめず、ファイル単位で出す。
+    まとめられると、新しいフォルダに作った正当なファイルが「許可外」に見え、
+    逆に許可外のファイルがフォルダ名に隠れる。
+    """
+    _, out, _ = run(["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd, ttl, "status")
+    parts, entries, i = out.split("\0"), [], 0
+    while i < len(parts):
+        entry = parts[i]
+        i += 1
+        if len(entry) < 4:
+            continue
+        code, path = entry[:2], entry[3:]
+        entries.append((code, path.replace("\\", "/")))
+        if code[0] in "RC" and i < len(parts):   # -z では改名元・複製元が次の要素に続く
+            entries.append((code, parts[i].replace("\\", "/")))
+            i += 1
+    return entries
+
+
 def gate_whitelist(c):
-    _, out, _ = run(["git", "status", "--porcelain"], c.sandbox, c.ttl["git"], "status")
+    """サンドボックスの変更のうち、許されていないパス（contract.md §5.3）。
+
+    - 通常のファイル: 単位定義の whitelist に完全一致するものだけ
+    - エンジンの付随ファイル（どれが付随ファイルかは engine アダプタが決める）: 本体が whitelist にあり、
+      かつ新規（未追跡か追加）のものだけ。既存の付随ファイルの変更・削除は許さない（エンジンの参照が
+      静かに切れうる。サンドボックスのエンジンのテストだけを通す改ざんにもなる）。無関係なファイルの
+      付随ファイルも許さない
+    """
     allowed = set(c.unit["whitelist"])
     bad = []
-    for line in out.splitlines():
-        if not line.strip():
-            continue
-        path = line[3:].strip().strip('"')
-        if " -> " in path:
-            path = path.split(" -> ")[-1].strip().strip('"')
-        path = path.replace("\\", "/")
+    for code, path in changed_entries(c.sandbox, c.ttl["git"]):
         if c.engine.is_companion(path):
+            owner = any(path in c.engine.companions(a) for a in allowed)
+            is_new = code == "??" or code[0] == "A"
+            if not (owner and is_new):
+                bad.append(path)
             continue
         if path not in allowed:
             bad.append(path)
@@ -1030,6 +1058,11 @@ def selftest(c):
     junk.write_text("x", encoding="utf-8")
     check("ホワイトリストが許可外を弾く", len(gate_whitelist(c)) > 0)
     fileops.unlink(junk)
+    for comp in c.engine.companions("junk_not_allowed.txt"):
+        junk_comp = c.sb(comp)
+        junk_comp.write_text("x", encoding="utf-8")
+        check("ホワイトリストが無関係な付随ファイルを弾く", len(gate_whitelist(c)) > 0)
+        fileops.unlink(junk_comp)
 
     core_rel = c.unit.get("core_impl") or (c.unit.get("impl_files") or c.unit["whitelist"])[0]
     core = c.sb(core_rel)
@@ -1265,6 +1298,8 @@ def main():
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--skip-selftest", action="store_true")
     ap.add_argument("--telemetry", help="テレメトリの書き出し先（JSON）。判定には使わない")
+    ap.add_argument("--repo-dir", help="Issue の worktree。持ち出し・コミット・push をここで行う"
+                                       "（既定は project.json の repo_dir）")
     args = ap.parse_args()
 
     tel = {"schema": telemetry.SCHEMA, "tool": "pipeline",
@@ -1274,6 +1309,8 @@ def main():
     rc, c = None, None
     try:
         proj = project.load(args.project)
+        if args.repo_dir:
+            proj["repo_dir"] = args.repo_dir
         unit_path = Path(args.unit)
         if not unit_path.is_absolute() and not unit_path.exists():
             unit_path = Path(proj["repo_dir"]) / args.unit
