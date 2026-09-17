@@ -181,6 +181,27 @@ M = [
      "        if False:\n            self.build_playtest(n, pr, sha, rec)"),
     ("M63 ビルド後の非破壊の確認を外す", "playtest.py",
      "    if changed:\n        raise Stop(2,", "    if False:\n        raise Stop(2,"),
+    # ---- 契約の最小の読み込み（docs/design/spec_pipeline.md §11.2）
+    ("M64 契約を作業ツリーから読む", "contract.py",
+     '    rc, out, err = run(["git", "show", f"{sha}:{PATH}"], repo, ttl, "git show (contract)")',
+     '    rc, out, err = 0, open(str(repo) + "/" + PATH, encoding="utf-8").read(), ""'),
+    ("M65 契約の前に fetch しない", "contract.py",
+     '    rc, out, err = run(["git", "fetch", "origin", base], repo, ttl, "git fetch (contract)")',
+     '    rc, out, err = 0, "", ""'),
+    ("M66 契約のパターンを和から外す", "contract.py",
+     'list(contract["forbidden"]) + [tuple(x)', '[] + [tuple(x)'),
+    ("M67 契約が無くても単位定義だけで続ける", "contract.py",
+     '        raise ContractError("契約が読み込まれていません")',
+     '        return [tuple(x) for x in unit.get("forbidden_patterns", [])]'),
+    ("M68 probe の空振りを見ない", "contract.py",
+     "        if not any(re.search(p, probe) for p, _ in forbidden):",
+     "        if False:"),
+    ("M69 未対応のキーを黙って無視する", "contract.py",
+     "        if extra:", "        if False:"),
+    ("M70 正規表現を検査しない", "contract.py",
+     '            re.compile(item["pattern"])', '            pass'),
+    ("M71 パイプラインが契約を読まない", "pipeline.py",
+     "        require_unit_safe(c)\n        apply_contract(c)\n", "        require_unit_safe(c)\n"),
 ]
 
 
