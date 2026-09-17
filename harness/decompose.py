@@ -220,6 +220,11 @@ def validate(d):
     if not d.get("human_check_point", "").strip():
         problems.append("human_check_point が空です（人間が何を見るか書かれていません）")
 
+    # プレイ確認の宣言。これでスケジューラが実行ファイルを作るかを決める（H2）。
+    # 書き間違いを「none 扱い」にすると、見た目の変更が人間に遊ばれずに通るので弾く。
+    if d.get("playtest") not in ("none", "required"):
+        problems.append(f"playtest は \"none\" か \"required\" です: {d.get('playtest')!r}")
+
     return problems
 
 

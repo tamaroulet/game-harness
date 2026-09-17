@@ -12,7 +12,8 @@
     "failed":  { "name": "ms4:failed",  "color": "D93F0B", "description": "スケジューラが不合格にした。原因を直し、ブランチを消して ready を付け直す" },
     "awaiting": { "name": "ms4:awaiting-approval", "color": "FBCA04", "description": "門を通過し PR で人間の承認を待っている" },
     "approved": { "name": "ms4:approved", "color": "0E8A16", "description": "人間が今の head SHA を承認した（push されると approval チェックが外す）" },
-    "declined": { "name": "ms4:declined", "color": "B60205", "description": "人間が却下した。スケジューラが PR を閉じて Issue を ms4:failed にする" }
+    "declined": { "name": "ms4:declined", "color": "B60205", "description": "人間が却下した。スケジューラが PR を閉じて Issue を ms4:failed にする" },
+    "playtest": { "name": "ms4:playtest-required", "color": "5319E7", "description": "プレイ確認（H2）が必要。dispatch --playtest で全項目 OK にしないと承認できない" }
   },
 
   "_approved_note": "スケジューラ自身は ms4:approved を付けない。付けるのは人間（dispatch --approve）だけ",
@@ -24,7 +25,8 @@
   "commands": {
     "decompose": ["{python}", "{harness}/decompose.py", "--project", "{project}", "--issue", "{number}", "--telemetry", "{telemetry}"],
     "audit":     ["{python}", "{harness}/audit.py", "--project", "{project}", "--file", "{file}"],
-    "pipeline":  ["{python}", "{harness}/pipeline.py", "--project", "{project}", "--unit", "{unit}", "--telemetry", "{telemetry}"]
+    "pipeline":  ["{python}", "{harness}/pipeline.py", "--project", "{project}", "--unit", "{unit}", "--telemetry", "{telemetry}"],
+    "playtest":  ["{python}", "{harness}/playtest.py", "--project", "{project}", "--pr", "{pr}", "--sha", "{sha}", "--telemetry", "{telemetry}"]
   },
 
   "_condition_note": "runs.jsonl の condition。比較実験で、門番の無い再試行ループ（loop-no-gate）の記録と区別する（docs/design/telemetry.md）",
@@ -42,7 +44,8 @@
     "gh": 90,
     "decompose": 1200,
     "audit": 900,
-    "pipeline": 18000
+    "pipeline": 18000,
+    "playtest": 3900
   },
 
   "_ci_note": "Actions のキュー待ちで run がまだ生成されていない間は ABORT しない。見つけるまでと、完了するまでを分けて待つ",

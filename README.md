@@ -24,6 +24,7 @@ harness/
   scheduler.py    ready の Issue → 分解 → 監査 → 実装 → PR → 承認 → マージ
   pipeline.py     1 単位を実装して門を通す（終了コード 0 / 1 / 2）
   oracle.py       二相判定（F2P / P2P）・制御群・quarantine の検証。テスト名単位で判定する
+  playtest.py     プレイ確認（H2）用のビルド。PR の head SHA から専用ワークツリーで実行ファイルを作る
   fileops.py      ファイルの削除・置き換えの再試行（Windows のファイルロック対策）
   telemetry.py    runs.jsonl に載せる実測値（CLI の利用量・試行の指標）。取れない値は null ＋理由（docs/design/telemetry.md）
   decompose.py    Issue → 受入テスト + 単位定義
@@ -47,6 +48,7 @@ tests/
   test_approval.py    抽出器と承認ゲート
   test_adapters.py    アダプタの選択・結果ファイルの読み取り（実物）・コアに固有の語が無いこと
   test_oracle.py      二相判定（偽テスト・入れ替わり・消えたテスト・制御群・quarantine の承認）
+  test_playtest.py    プレイ確認のビルド（SHA ごとに 1 回・非破壊の確認・失敗の区別）と分解役の宣言
   test_fileops.py     ファイルロックの再試行（実物の共有違反）・サンドボックスのリセットの確認
   test_telemetry.py   テレメトリ（null と 0 の区別、実測した CLI の JSON、査読用の指標の手計算）
   mutate.py           判定をわざと壊して、テストが赤になるかを確かめる
@@ -77,6 +79,20 @@ python tests/mutate.py
 ```
 
 `--unit` と `--file` は、ゲームのリポジトリからの相対パス。
+
+## プレイ確認（H2）
+
+```
+分解役: 単位に playtest: "none" | "required"（見た目・手触り・間に関わるなら required）
+スケジューラ: required なら PR に ms4:playtest-required → playtest.py で head SHA から実行ファイルを作る → PR にコメント
+人間: dispatch --playtest <project>#<PR>（起動して、確認項目ごとに OK / NG / 保留）→ 結果を SHA 付きで PR にコメント
+人間: dispatch --approve は、今の SHA に全項目 OK の結果が無ければ拒否する
+```
+
+- ビルドは専用ワークツリー（`paths.playtest_worktree`）で行い、出力は `paths.playtest_out/<project>/pr<N>-<sha8>/`。同じ SHA は作り直さない
+- **非破壊の確認**: ビルド後にワークツリーの追跡中のファイルが変わっていたら rc=2（止める）
+- ビルドの失敗（rc=1）は、PR にコメントして承認待ちのまま残す（遊べないので人間が却下する）
+- ビルド関数（`pipeline.json` の `playtest_build_method`）はゲーム側の Editor スクリプトが持つ。**unity-2d への配備と実物のビルドは Step 7**
 
 ## 常駐
 
@@ -115,4 +131,5 @@ python harness/scheduler.py --project unity-2d --stop                     # 停�
 - **承認者とスケジューラは同じ GitHub アカウントで動いている。** スケジューラは `ms4:approved` を付けないように作り、テストで確かめているが、approval チェックは両者を区別できない。区別するには、スケジューラを別アカウント（machine user）のトークンで動かす必要がある
 - **ブランチ保護はまだ無い（A4 で設定）。** それまでは必須チェックも「スケジューラが確かめている」だけで、GitHub 側では強制されない。approval.yml もまだゲームのリポジトリに配っていない
 - **常駐の仕組み（`--watch`）はあるが、タスクスケジューラへの登録はまだしていない**（OS に設定が残るため、人間の許可を得てから行う）。dispatch の `--inbox` へのハートビート表示と `--resume` も未実装
+- **プレイ確認の結果を承認の条件にしているのは dispatch だけ。** GitHub の必須チェック approval は見ていないので、GitHub の画面から承認ラベルを付ければ通ってしまう（同じアカウントで動く限り、どのみち区別できない）
 - **自己監視は「ハートビートが止まった」ことしか見ない。** 子プロセス（pipeline など）の中で固まった場合は、子の TTL（`ttl_seconds`）で止まる

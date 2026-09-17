@@ -174,6 +174,13 @@ M = [
      "        if on_limited is not None and is_rate_limited(detail):", "        if False:"),
     ("M61 サンドボックスのリセット後に空であることを確かめない", "pipeline.py",
      "    if leftover:\n        sys.exit(", "    if False:\n        sys.exit("),
+
+    # ---- プレイ確認（Step 6。要所の 2 件だけ）
+    ("M62 playtest: required でもビルドしない", "scheduler.py",
+     "        if playtest:\n            self.build_playtest(n, pr, sha, rec)",
+     "        if False:\n            self.build_playtest(n, pr, sha, rec)"),
+    ("M63 ビルド後の非破壊の確認を外す", "playtest.py",
+     "    if changed:\n        raise Stop(2,", "    if False:\n        raise Stop(2,"),
 ]
 
 

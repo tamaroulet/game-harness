@@ -55,7 +55,7 @@ def number():
     return "".join(ch for ch in Path(arg).stem if ch.isdigit())
 
 n = number()
-mode = plan.get(role, {}).get(n, "ok")
+mode = plan.get(role, {}).get(n, plan.get(role, {}).get("*", "ok"))
 if role == "audit":
     mode = plan.get("audit", {}).get(n, "ok")
 
@@ -70,9 +70,11 @@ def git(*a):
 print(f"stub {role} #{n} mode={mode}")
 
 if role == "decompose":
-    if mode in ("ok", "stray", "no_test_methods"):
-        write(f"tools/units/issue_{n}.json",
-              json.dumps({"id": f"issue_{n}", "human_check_point": "実機で見る点"}, ensure_ascii=False))
+    if mode in ("ok", "stray", "no_test_methods", "playtest"):
+        unit = {"id": f"issue_{n}", "human_check_point": "実機で見る点"}
+        if mode == "playtest":
+            unit.update(playtest="required", human_check_point="ボス戦で溜めが見える\n回避が間に合う")
+        write(f"tools/units/issue_{n}.json", json.dumps(unit, ensure_ascii=False))
         if mode == "no_test_methods":
             write(f"tests/Core.Tests/Issue{n}Tests.cs", "// [Test] はコメントの中だけ\n")
         else:
@@ -133,6 +135,9 @@ if role == "pipeline":
         subprocess.run(["git", "-C", helper, "commit", "-am", "main edits README"], check=True, capture_output=True)
         subprocess.run(["git", "-C", helper, "push", "origin", "main"], check=True, capture_output=True)
         sys.exit(0)
+
+if role == "playtest":
+    sys.exit({"ok": 0, "fail": 1, "abort": 2}[mode])
 
 print("stub: 未知のモード")
 sys.exit(9)
@@ -702,6 +707,54 @@ class SchedulerTests(Base):
         self.assertIsNone(passed["token_to_accepted_loc"])
         self.assertIsNone(passed["human"]["wait_seconds"], "イベントが無ければ不明")
         self.assertEqual(gh.prs[gh.pr_for_issue(5)]["state"], "MERGED", "テレメトリでマージを止めない")
+
+    # ---- プレイ確認（Step 6）
+    def enable_playtest(self, build_mode):
+        stub = str(self.tmp / "stub.py")
+        self.cfg["commands"]["playtest"] = ["{python}", stub, "playtest", "{pr}"]
+        self.cfg["ttl_seconds"]["playtest"] = 60
+        self.cfg["labels"]["playtest"] = {"name": "ms4:playtest-required", "color": "5319E7", "description": "p"}
+        self.plan["decompose"] = {"5": "playtest"}
+        self.plan["playtest"] = {"*": build_mode}
+
+    def test_playtest_required_unit_gets_label_and_build(self):
+        self.enable_playtest("ok")
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        pr = gh.prs[gh.pr_for_issue(5)]
+        head = gh.head_of("ms4/issue-5")
+        self.assertEqual(pr["labels"], {"ms4:awaiting-approval", "ms4:playtest-required"})
+        request = [c for c in pr["comments"] if f"ms4:approval-request:{head}" in c][0]
+        self.assertIn("### プレイ確認", request)
+        self.assertIn("回避が間に合う", request, "確認項目（human_check_point の各行）が承認依頼に載る")
+        built = [c for c in pr["comments"] if f"ms4:playtest-build:{head}" in c]
+        self.assertEqual(len(built), 1)
+        self.assertIn("--playtest", built[0])
+        self.assertEqual([s["name"] for s in self.runs()[0]["steps"]], ["decompose", "pipeline", "playtest"])
+
+    def test_playtest_build_failure_stays_awaiting_with_a_comment(self):
+        self.enable_playtest("fail")
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        pr = gh.prs[gh.pr_for_issue(5)]
+        self.assertEqual(pr["state"], "OPEN")
+        self.assertIn("ms4:awaiting-approval", pr["labels"])
+        self.assertTrue(any("ビルドに失敗" in c for c in pr["comments"]))
+        self.assertEqual(self.runs()[0]["result"], "AWAITING")
+
+    def test_playtest_build_environment_error_aborts(self):
+        self.enable_playtest("abort")
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 2)
+        self.assertEqual(self.runs()[0]["result"], "ABORT")
+
+    def test_playtest_none_does_not_build(self):
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        pr = gh.prs[gh.pr_for_issue(5)]
+        self.assertNotIn("ms4:playtest-required", pr["labels"])
+        self.assertFalse(any("ms4:playtest-build" in c for c in pr["comments"]))
+        self.assertNotIn("### プレイ確認", pr["comments"][0])
 
     def test_scheduler_never_applies_the_approval_label(self):
         gh = FakeGH([(5, "a")])
