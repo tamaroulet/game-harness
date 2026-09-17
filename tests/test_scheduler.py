@@ -72,7 +72,9 @@ print(f"stub {role} #{n} mode={mode}")
 
 if role == "decompose":
     if mode in ("ok", "stray", "no_test_methods", "playtest"):
-        unit = {"id": f"issue_{n}", "human_check_point": "実機で見る点"}
+        core = Path("Game/Assets/Core")
+        unit = {"id": f"issue_{n}", "human_check_point": "実機で見る点",
+                "saw": sorted(p.name for p in core.glob("*.cs")) if core.is_dir() else []}
         if mode == "playtest":
             unit.update(playtest="required", human_check_point="ボス戦で溜めが見える\n回避が間に合う")
         write(f"tools/units/issue_{n}.json", json.dumps(unit, ensure_ascii=False))
@@ -97,8 +99,11 @@ if role == "decompose":
         sys.exit(3)
 
 if role == "audit":
-    if mode == "ok":
+    if mode in ("ok", "concern", "reject", "no_verdict"):
         write(f"reports/audits/audit_{Path(arg).stem}.md", "# audit\n")
+        if mode != "no_verdict":   # no_verdict = 監査役が決められた形で返さなかった
+            write_tel({"schema": 1, "tool": "audit", "file": arg, "verdict": mode,
+                       "findings": [] if mode == "ok" else ["境界値の確認が要る"]})
         sys.exit(0)
     if mode == "fail":
         sys.exit(1)
@@ -128,13 +133,36 @@ if role == "pipeline":
         time.sleep(120)
         sys.exit(0)
     if mode == "conflict":
+        # 門は通るが、統合ブランチ側が先に同じ行を変えている（マージが衝突する）
         write("README.md", "branch side\n")
         git("commit", "-am", "branch edits README")
         git("push")
-        helper = plan["helper"]
-        Path(helper, "README.md").write_text("main side\n", encoding="utf-8")
-        subprocess.run(["git", "-C", helper, "commit", "-am", "main edits README"], check=True, capture_output=True)
-        subprocess.run(["git", "-C", helper, "push", "origin", "main"], check=True, capture_output=True)
+        helper, integ = plan["helper"], plan["integration"]
+        subprocess.run(["git", "-C", helper, "fetch", "-q", "origin"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", helper, "checkout", "-q", "-B", integ, "origin/" + integ],
+                       check=True, capture_output=True)
+        Path(helper, "README.md").write_text("integration side\n", encoding="utf-8")
+        subprocess.run(["git", "-C", helper, "commit", "-am", "integration edits README"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", helper, "push", "-q", "origin", integ], check=True, capture_output=True)
+        subprocess.run(["git", "-C", helper, "checkout", "-q", "main"], check=True, capture_output=True)
+        sys.exit(0)
+    if mode == "ahead":
+        # 門は通るが、統合ブランチが先に進む（push が fast-forward にならない）
+        write(f"Game/Assets/Core/Issue{n}.cs", "// impl\n")
+        git("add", "--", f"Game/Assets/Core/Issue{n}.cs")
+        git("commit", "-m", f"impl {n}")
+        git("push")
+        helper, integ = plan["helper"], plan["integration"]
+        subprocess.run(["git", "-C", helper, "fetch", "-q", "origin"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", helper, "checkout", "-q", "-B", integ, "origin/" + integ],
+                       check=True, capture_output=True)
+        Path(helper, "AHEAD.md").write_text("someone else\n", encoding="utf-8")
+        subprocess.run(["git", "-C", helper, "add", "AHEAD.md"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", helper, "commit", "-m", "someone else moved integration"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", helper, "push", "-q", "origin", integ], check=True, capture_output=True)
+        subprocess.run(["git", "-C", helper, "checkout", "-q", "main"], check=True, capture_output=True)
         sys.exit(0)
 
 if role == "playtest":
@@ -207,8 +235,9 @@ class FakeGH:
     def approve(self, pr_number):
         self.prs[pr_number]["labels"].add("ms4:approved")
 
-    def pr_for_issue(self, n):
-        return next(num for num, p in self.prs.items() if p["branch"] == f"ms4/issue-{n}")
+    def integration_pr(self):
+        """統合 PR の番号（Issue ごとの PR はもう作らない）。"""
+        return next(num for num, p in self.prs.items() if p["branch"].startswith("integration/"))
 
     def _git(self, *args, check=True):
         r = subprocess.run(["git"] + list(args), cwd=str(self.helper), capture_output=True,
@@ -388,6 +417,11 @@ class Base(unittest.TestCase):
             git(repo, "config", "user.email", "t@example.invalid")
         (self.work / "README.md").write_text("base\n", encoding="utf-8")
         (self.work / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+        # 契約。マージコミットに Contract-SHA を書くので、base に必ず要る
+        (self.work / ".harness.toml").write_text(
+            '[static]\nselftest_forbidden_probe = "using UnityEngine;"\n'
+            '[[static.forbidden]]\npattern = "UnityEngine"\nlabel = "engine word in core"\n',
+            encoding="utf-8")
         git(self.work, "add", ".")
         git(self.work, "commit", "-m", "init")
         git(self.work, "push", "-u", "origin", "main")
@@ -414,13 +448,19 @@ class Base(unittest.TestCase):
                 "awaiting": {"name": "ms4:awaiting-approval", "color": "FBCA04", "description": "w"},
                 "approved": {"name": "ms4:approved", "color": "0E8A16", "description": "a"},
                 "declined": {"name": "ms4:declined", "color": "B60205", "description": "d"},
+                "integrated": {"name": "ms4:integrated", "color": "0052CC", "description": "i"},
             },
+            "integration_prefix": "integration/",
+            "integration_target": "mvp",
+            "integration_pr_min_issues": 3,
+            "integration_max_issues": 4,
+            "runner_worktree_name": "issue-runner",
             "required_checks": ["test", "approval"],
             "adapters": {"engine": "unity", "fast": "dotnet"},
             "required_clis": ["git"],
             "commands": {
                 "decompose": ["{python}", stub, "decompose", "{number}"],
-                "audit": ["{python}", stub, "audit", "{file}"],
+                "audit": ["{python}", stub, "audit", "{file}", "{verdict}"],
                 "pipeline": ["{python}", stub, "pipeline", "{unit}"],
             },
             "unit_path_template": "tools/units/issue_{number}.json",
@@ -433,6 +473,7 @@ class Base(unittest.TestCase):
             "comment_log_tail_chars": 800,
             "max_issues_per_run": 5,
         }
+        self.plan["integration"] = "integration/mvp"
         self.sleeps = []
         self.env = mock.patch.dict(os.environ, {"STUB_PLAN": str(self.tmp / "plan.json")})
         self.env.start()
@@ -460,15 +501,31 @@ class Base(unittest.TestCase):
     def branch(self):
         return git(self.work, "branch", "--show-current")
 
-    def issue_wt(self, n):
-        """Issue の使い捨ての worktree（テストの設定には worktree_root も project_id も無い）。"""
-        return self.out / "worktrees" / f"project-issue-{n}"
+    INTEG = "integration/mvp"
 
-    def wt_branch(self, n):
-        return git(self.issue_wt(n), "branch", "--show-current")
+    def runner_wt(self):
+        """Issue の作業に使い回す固定 worktree（テストの設定には worktree_root も project_id も無い）。"""
+        return self.out / "worktrees" / "project-issue-runner"
 
-    def wt_dirty(self, n):
-        return git(self.issue_wt(n), "status", "--porcelain", "--untracked-files=all")
+    def wt_branch(self):
+        return git(self.runner_wt(), "branch", "--show-current")
+
+    def wt_dirty(self):
+        return git(self.runner_wt(), "status", "--porcelain", "--untracked-files=all")
+
+    def merge_messages(self):
+        """統合ブランチに積まれたマージコミットの本文（古い順）。"""
+        git(self.work, "fetch", "origin")
+        out = git(self.work, "log", "--first-parent", "--format=%B%x1e",
+                  f"origin/main..origin/{self.INTEG}")
+        return list(reversed([x.strip() for x in out.split(chr(30))
+                              if x.strip() and "Issue: #" in x]))
+
+    def trailer(self, body, key):
+        for line in body.splitlines():
+            if line.startswith(key + ": "):
+                return line[len(key) + 2:]
+        return None
 
     def dirty(self):
         return git(self.work, "status", "--porcelain", "--untracked-files=all")
@@ -480,8 +537,11 @@ class Base(unittest.TestCase):
         return bool(git(self.work, "branch", "--list", b))
 
     def remote_main_files(self):
+        return self.remote_files("main")
+
+    def remote_files(self, branch):
         git(self.work, "fetch", "origin")
-        return set(git(self.work, "ls-tree", "-r", "--name-only", "origin/main").splitlines())
+        return set(git(self.work, "ls-tree", "-r", "--name-only", f"origin/{branch}").splitlines())
 
     @property
     def lock(self):
@@ -545,7 +605,7 @@ class ProjectConfigTests(unittest.TestCase):
                              ("pipeline", "pipeline.py")):
             args = [a.format(python="py", harness=project.HARNESS_DIR.as_posix(),
                              project="unity-2d", number=5, file="f", unit="u", telemetry="t.json",
-                             repo="r")
+                             verdict="v.json", repo="r")
                     for a in cfg["commands"][name]]
             self.assertTrue(Path(args[1]).name == script and Path(args[1]).exists(), args)
             self.assertEqual(args[2:4], ["--project", "unity-2d"])
@@ -622,22 +682,49 @@ class SchedulerTests(Base):
         self.assertEqual(self.run_scheduler(gh), 0)
         self.assertTrue(self.out.exists())
         self.assertEqual(git(self.work, "rev-parse", "HEAD"), head)
+        self.assertTrue(self.remote_has_branch(self.INTEG), "統合ブランチが無ければ作る")
+        self.assertEqual(git(self.work, "rev-parse", f"origin/{self.INTEG}"), head,
+                         "起点は origin/main")
+        self.assertEqual(gh.prs, {}, "積まれた Issue が無ければ統合 PR は作らない")
         self.assertFalse(self.lock.exists())
 
     # 2
-    def test_happy_path_waits_for_approval_then_merges(self):
+    def test_gate_pass_pushes_to_integration_then_one_pr_to_main(self):
         gh = FakeGH([(5, "タメ")])
 
-        # ---- 1 周目: 門を通って PR を作り、承認待ちで止まる（マージしない）
+        # ---- 1 周目: 門を通ったら Issue の PR を作らず、統合ブランチへ直接 push する
         self.assertEqual(self.run_scheduler(gh), 0)
-        self.assertNotIn("Game/Assets/Core/Issue5.cs", self.remote_main_files(), "承認前にマージしない")
-        pr_num = gh.pr_for_issue(5)
-        pr = gh.prs[pr_num]
-        self.assertEqual(pr["state"], "OPEN")
+        self.assertNotIn("Game/Assets/Core/Issue5.cs", self.remote_main_files(),
+                         "承認前に main へは入れない")
+        files = self.remote_files(self.INTEG)
+        for want in ("Game/Assets/Core/Issue5.cs", "tests/Core.Tests/Issue5Tests.cs",
+                     "tools/units/issue_5.json"):
+            self.assertIn(want, files)
+        self.assertFalse(self.remote_has_branch("ms4/issue-5"), "Issue のブランチは片付ける")
+        self.assertFalse(self.local_has_branch("ms4/issue-5"))
+
+        body = self.merge_messages()[0]
+        self.assertTrue(body.startswith(f"feat(core): implement Issue #5 into {self.INTEG}"), body)
+        self.assertEqual(self.trailer(body, "Issue"), "#5")
+        self.assertEqual(self.trailer(body, "Gate-Result"), "PASSED")
+        self.assertEqual(self.trailer(body, "Audit-Verdict"), "skipped", "鍵が無ければ判定は skipped")
+        self.assertEqual(self.trailer(body, "Run-Id"), self.runs()[0]["run_id"])
+        self.assertEqual(self.trailer(body, "Contract-SHA"),
+                         git(self.work, "rev-parse", "origin/main:.harness.toml"))
+        parents = git(self.work, "rev-list", "--parents", "-n", "1", f"origin/{self.INTEG}").split()
+        self.assertEqual(len(parents), 3, "fast-forward ではなくマージコミット")
+
+        self.assertEqual(gh.issues[5]["labels"], {"ms4:integrated"})
+        self.assertEqual(gh.issues[5]["state"], "OPEN", "統合 PR のマージまで閉じない")
+
+        # ---- 対象の Issue が尽きたので、周の末尾に統合 PR が 1 本できる
+        num = gh.integration_pr()
+        pr = gh.prs[num]
+        self.assertEqual((pr["branch"], pr["base"]), (self.INTEG, "main"))
         self.assertEqual(pr["labels"], {"ms4:awaiting-approval"})
         self.assertIn("Closes #5", pr["body"])
-        self.assertEqual(gh.issues[5]["labels"], {"ms4:awaiting-approval"})
-        head = gh.head_of("ms4/issue-5")
+        self.assertIn("すべてのマージコミットが", pr["body"], "Run-Id と runs.jsonl の照合が載る")
+        head = gh.head_of(self.INTEG)
         request = [c for c in pr["comments"] if f"ms4:approval-request:{head}" in c]
         self.assertEqual(len(request), 1, "今の head SHA に対する承認依頼が 1 件")
         self.assertIn("`Works`", request[0])
@@ -646,18 +733,16 @@ class SchedulerTests(Base):
         self.assertEqual(self.branch(), "main")
         self.assertEqual(self.dirty(), "")
         self.assertFalse(self.lock.exists())
-        self.assertEqual([r["result"] for r in self.runs()], ["AWAITING"])
+        self.assertEqual([r["result"] for r in self.runs()], ["PASSED", "AWAITING"])
 
-        # ---- 2 周目: 人間が承認 → 必須チェック緑 → マージコミットで入る
-        gh.approve(pr_num)
+        # ---- 2 周目: 人間が承認 → 必須チェック緑 → main へマージコミットで入る
+        gh.approve(num)
         self.assertEqual(self.run_scheduler(gh), 0)
 
         files = self.remote_main_files()
         self.assertIn("tests/Core.Tests/Issue5Tests.cs", files)
         self.assertIn("tools/units/issue_5.json", files)
         self.assertIn("Game/Assets/Core/Issue5.cs", files)
-        parents = git(self.work, "rev-list", "--parents", "-n", "1", "origin/main").split()
-        self.assertEqual(len(parents), 3, "squash ではなくマージコミットであること")
         self.assertEqual(len(gh.merge_args), 1)
         self.assertIn("--merge", gh.merge_args[0])
         self.assertNotIn("--squash", gh.merge_args[0])
@@ -665,19 +750,109 @@ class SchedulerTests(Base):
 
         issue = gh.issues[5]
         self.assertEqual(issue["state"], "CLOSED")
-        self.assertEqual(issue["labels"], set())
-        self.assertEqual(sum("合格" in c for c in issue["comments"]), 1)
-        self.assertEqual(gh.prs[pr_num]["state"], "MERGED")
-        self.assertEqual(git(self.work, "rev-parse", "HEAD"), gh.prs[pr_num]["merge_sha"],
+        self.assertEqual(sum("ms4 スケジューラ: 合格" in c for c in issue["comments"]), 1)
+        self.assertEqual(gh.prs[num]["state"], "MERGED")
+        self.assertEqual(git(self.work, "rev-parse", "HEAD"), gh.prs[num]["merge_sha"],
                          "ローカルの main もマージ後に追従する")
-        self.assertFalse(self.local_has_branch("ms4/issue-5"))
+        self.assertFalse(self.remote_has_branch(self.INTEG), "統合ブランチは役目を終えたら消す")
         self.assertFalse(self.lock.exists())
 
         runs = self.runs()
-        self.assertEqual([r["result"] for r in runs], ["AWAITING", "PASSED"])
+        self.assertEqual([r["result"] for r in runs], ["PASSED", "AWAITING", "PASSED"])
         self.assertIn("skipped", runs[0]["audit"])
         self.assertEqual([s["name"] for s in runs[0]["steps"]], ["decompose", "pipeline"])
-        self.assertTrue(runs[1]["ci_run"])
+        self.assertTrue(runs[2]["ci_run"])
+
+    def test_three_issues_reach_the_pr_threshold_in_one_pr(self):
+        """統合 PR は 1 本。3 件の Issue が 1 つの承認にまとまる。"""
+        gh = FakeGH([(5, "a"), (6, "b"), (7, "c")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(len(gh.prs), 1)
+        pr = gh.prs[gh.integration_pr()]
+        for n in (5, 6, 7):
+            self.assertIn(f"Closes #{n}", pr["body"])
+            self.assertEqual(gh.issues[n]["labels"], {"ms4:integrated"})
+        self.assertEqual([self.trailer(b, "Issue") for b in self.merge_messages()],
+                         ["#5", "#6", "#7"], "積まれた順に 1 Issue = 1 マージコミット")
+        self.assertEqual([r["result"] for r in self.runs()],
+                         ["PASSED", "PASSED", "PASSED", "AWAITING"])
+
+    def test_no_pr_until_the_threshold_while_issues_remain(self):
+        """対象が残っているうちは、下限に達するまで統合 PR を作らない。"""
+        self.cfg["max_issues_per_run"] = 2
+        gh = FakeGH([(5, "a"), (6, "b"), (7, "c")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(gh.prs, {}, "2 本では下限 3 本に足りず、対象も残っている")
+        self.assertEqual(len(self.merge_messages()), 2)
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(len(gh.prs), 1, "3 本目で下限に達する")
+        self.assertEqual(len(self.merge_messages()), 3)
+
+    def test_an_integrated_issue_is_not_processed_again(self):
+        """人間が ready を付け直しても、統合ブランチに入った Issue は作り直さない。
+
+        マージのときに ready を外してはいるが、外し忘れや付け直しが起きうる。二重に積むと、
+        同じ実装が 2 つのマージコミットとして履歴に残り、Run-Id との対応が崩れる。
+        """
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        gh.issues[5]["labels"].add("ready")
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(len(self.merge_messages()), 1, "二重に積まない")
+        self.assertEqual(gh.issues[5]["labels"], {"ms4:integrated", "ready"}, "ラベルにも触らない")
+        self.assertEqual([r["result"] for r in self.runs()], ["PASSED", "AWAITING"])
+
+    def test_a_later_issue_starts_from_the_earlier_ones(self):
+        """後続の Issue は、先行 Issue の実装を含む統合ブランチの先頭から切る（直列の依存で止まらない）。"""
+        gh = FakeGH([(5, "a"), (6, "b")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        unit5 = json.loads(git(self.work, "show", f"origin/{self.INTEG}:tools/units/issue_5.json"))
+        unit6 = json.loads(git(self.work, "show", f"origin/{self.INTEG}:tools/units/issue_6.json"))
+        self.assertEqual(unit5["saw"], [])
+        self.assertEqual(unit6["saw"], ["Issue5.cs"], "#6 の分解役は #5 の実装を見ている")
+
+    def test_a_record_that_does_not_match_the_commit_is_reported(self):
+        """コミット履歴と runs.jsonl が食い違ったら、人間が承認する前に統合 PR に出す。"""
+        self.cfg["max_issues_per_run"] = 1
+        gh = FakeGH([(5, "a"), (6, "b")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(gh.prs, {}, "1 本では下限に足りず、対象も残っている")
+        path = self.out / "runs.jsonl"
+        rows = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines()]
+        rows[0]["harness_sha"] = "0" * 40
+        path.write_text("".join(json.dumps(r, ensure_ascii=False) + chr(10) for r in rows),
+                        encoding="utf-8")
+
+        self.assertEqual(self.run_scheduler(gh), 0)
+        pr = gh.prs[gh.integration_pr()]
+        self.assertIn("**不一致**", pr["body"])
+        self.assertIn("ハーネスの版が違います", pr["body"])
+        self.assertEqual(len(self.runs()[-1]["run_id_problems"]), 1)
+
+    def test_missing_contract_aborts_before_merging(self):
+        """契約（.harness.toml）が base に無ければ、その版を記録できないので統合ブランチへ入れない。"""
+        git(self.helper, "fetch", "-q", "origin")
+        git(self.helper, "reset", "-q", "--hard", "origin/main")
+        git(self.helper, "rm", "-q", ".harness.toml")
+        git(self.helper, "commit", "-q", "-m", "drop contract")
+        git(self.helper, "push", "-q", "origin", "main")
+        git(self.work, "pull", "-q", "--ff-only")
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 2)
+        self.assertEqual(self.merge_messages(), [])
+        self.assertIn(".harness.toml", self.runs()[0]["reason"])
+        self.assertEqual(gh.issues[5]["labels"], {"ms4:running"})
+
+    def test_stacking_stops_at_the_cap(self):
+        """1 つの統合ブランチに積むのは上限まで。承認待ちの間は新しい Issue に着手しない。"""
+        self.cfg["integration_pr_min_issues"] = 9      # 周の末尾に PR を作らせない
+        self.cfg["integration_max_issues"] = 2
+        gh = FakeGH([(5, "a"), (6, "b"), (7, "c")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(len(self.merge_messages()), 2, "上限まで積んだら止まる")
+        self.assertEqual(gh.issues[7]["labels"], {"ready"}, "3 本目には着手しない")
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(len(self.merge_messages()), 2, "承認されるまで増えない")
 
     def test_telemetry_reaches_runs_jsonl_with_research_metrics(self):
         """Step 4: 道具のテレメトリが runs.jsonl に載り、査読用の 4 指標が算出されること。"""
@@ -686,7 +861,7 @@ class SchedulerTests(Base):
         self.cfg["experiment_condition"] = "harness"
         gh = FakeGH([(5, "タメ")])
         self.assertEqual(self.run_scheduler(gh), 0)
-        pr_num = gh.pr_for_issue(5)
+        pr_num = gh.integration_pr()
         gh.approve(pr_num)
         gh.label_events[pr_num] = [
             {"event": "labeled", "label": {"name": "ms4:awaiting-approval"},
@@ -696,26 +871,29 @@ class SchedulerTests(Base):
         ]
         self.assertEqual(self.run_scheduler(gh), 0)
 
-        awaiting, passed = self.runs()
-        self.assertEqual(awaiting["condition"], "harness")
-        self.assertEqual(awaiting["steps"][0]["telemetry"]["usage"]["total_tokens"], 100)
-        self.assertIsNone(awaiting["steps"][0].get("telemetry_null_reason"))
-        self.assertEqual(awaiting["p2p_violation_rate"], 50.0)
-        self.assertEqual(awaiting["attempts_judged"], 2)
-        self.assertEqual(awaiting["retry_entropy"], 0.25)
-        self.assertIsNone(awaiting["token_to_accepted_loc"])
-        self.assertIn("token_to_accepted_loc_null_reason", awaiting)
+        issue, opened, merged = self.runs()
+        self.assertEqual(issue["condition"], "harness")
+        self.assertEqual(issue["steps"][0]["telemetry"]["usage"]["total_tokens"], 100)
+        self.assertIsNone(issue["steps"][0].get("telemetry_null_reason"))
+        self.assertEqual(issue["p2p_violation_rate"], 50.0)
+        self.assertEqual(issue["attempts_judged"], 2)
+        self.assertEqual(issue["retry_entropy"], 0.25)
+        self.assertEqual(issue["tokens_total"], 150)
+        self.assertEqual(issue["accepted_loc"], 1, "Issue5.cs の 1 行だけ（テスト・単位定義は数えない）")
+        self.assertEqual(issue["token_to_accepted_loc"], 150.0)
+        self.assertEqual(issue["gate_result"], "PASSED")
 
-        self.assertEqual(passed["tokens_total"], 150)
-        self.assertEqual(passed["accepted_loc"], 1, "Issue5.cs の 1 行だけ（テスト・単位定義は数えない）")
-        self.assertEqual(passed["token_to_accepted_loc"], 150.0)
-        self.assertEqual(passed["human"]["wait_seconds"], 150.0)
-        self.assertEqual(passed["human"]["decided_by"], "human")
-        self.assertIsNone(passed["human"]["active_seconds"])
-        self.assertIsNone(passed["human_active_intervention_time"])
-        self.assertIn("human_active_intervention_time_null_reason", passed)
-        self.assertIn("total_seconds", passed)
-        self.assertNotIn("_t0", passed)
+        self.assertEqual(opened["result"], "AWAITING")
+        self.assertEqual(opened["issues"], [5])
+        self.assertEqual(opened["run_id_problems"], [], "Run-Id と runs.jsonl が一致する")
+
+        self.assertEqual(merged["human"]["wait_seconds"], 150.0)
+        self.assertEqual(merged["human"]["decided_by"], "human")
+        self.assertIsNone(merged["human"]["active_seconds"])
+        self.assertIsNone(merged["human_active_intervention_time"])
+        self.assertIn("human_active_intervention_time_null_reason", merged)
+        self.assertIn("total_seconds", merged)
+        self.assertNotIn("_t0", merged)
 
     def test_dry_run_expands_every_placeholder(self):
         """本番の commands（{harness} {project} {telemetry} を含む）で、対象の Issue があっても落ちない。"""
@@ -730,17 +908,17 @@ class SchedulerTests(Base):
         """テレメトリを書かない道具（{telemetry} を渡していない）でも、0 や {} にしない。"""
         gh = FakeGH([(5, "a")])
         self.assertEqual(self.run_scheduler(gh), 0)
-        gh.approve(gh.pr_for_issue(5))
+        gh.approve(gh.integration_pr())
         self.assertEqual(self.run_scheduler(gh), 0)
-        awaiting, passed = self.runs()
-        for s in awaiting["steps"]:
+        issue, _, merged = self.runs()
+        for s in issue["steps"]:
             self.assertIsNone(s["telemetry"], s)
             self.assertTrue(s["telemetry_null_reason"])
-        self.assertIsNone(awaiting["p2p_violation_rate"])
-        self.assertIsNone(passed["tokens_total"])
-        self.assertIsNone(passed["token_to_accepted_loc"])
-        self.assertIsNone(passed["human"]["wait_seconds"], "イベントが無ければ不明")
-        self.assertEqual(gh.prs[gh.pr_for_issue(5)]["state"], "MERGED", "テレメトリでマージを止めない")
+        self.assertIsNone(issue["p2p_violation_rate"])
+        self.assertIsNone(issue["tokens_total"])
+        self.assertIsNone(issue["token_to_accepted_loc"])
+        self.assertIsNone(merged["human"]["wait_seconds"], "イベントが無ければ不明")
+        self.assertEqual(gh.prs[gh.integration_pr()]["state"], "MERGED", "テレメトリでマージを止めない")
 
     # ---- プレイ確認（Step 6）
     def enable_playtest(self, build_mode):
@@ -755,8 +933,8 @@ class SchedulerTests(Base):
         self.enable_playtest("ok")
         gh = FakeGH([(5, "a")])
         self.assertEqual(self.run_scheduler(gh), 0)
-        pr = gh.prs[gh.pr_for_issue(5)]
-        head = gh.head_of("ms4/issue-5")
+        pr = gh.prs[gh.integration_pr()]
+        head = gh.head_of(self.INTEG)
         self.assertEqual(pr["labels"], {"ms4:awaiting-approval", "ms4:playtest-required"})
         request = [c for c in pr["comments"] if f"ms4:approval-request:{head}" in c][0]
         self.assertIn("### プレイ確認", request)
@@ -764,28 +942,32 @@ class SchedulerTests(Base):
         built = [c for c in pr["comments"] if f"ms4:playtest-build:{head}" in c]
         self.assertEqual(len(built), 1)
         self.assertIn("--playtest", built[0])
-        self.assertEqual([s["name"] for s in self.runs()[0]["steps"]], ["decompose", "pipeline", "playtest"])
+        issue, opened = self.runs()
+        self.assertEqual([s["name"] for s in issue["steps"]], ["decompose", "pipeline"])
+        self.assertEqual([s["name"] for s in opened["steps"]], ["playtest"],
+                         "ビルドは統合 PR の head から 1 回だけ")
 
     def test_playtest_build_failure_stays_awaiting_with_a_comment(self):
         self.enable_playtest("fail")
         gh = FakeGH([(5, "a")])
         self.assertEqual(self.run_scheduler(gh), 0)
-        pr = gh.prs[gh.pr_for_issue(5)]
+        pr = gh.prs[gh.integration_pr()]
         self.assertEqual(pr["state"], "OPEN")
         self.assertIn("ms4:awaiting-approval", pr["labels"])
         self.assertTrue(any("ビルドに失敗" in c for c in pr["comments"]))
-        self.assertEqual(self.runs()[0]["result"], "AWAITING")
+        self.assertEqual(self.runs()[-1]["result"], "AWAITING")
 
     def test_playtest_build_environment_error_aborts(self):
         self.enable_playtest("abort")
         gh = FakeGH([(5, "a")])
         self.assertEqual(self.run_scheduler(gh), 2)
-        self.assertEqual(self.runs()[0]["result"], "ABORT")
+        self.assertEqual(self.runs()[-1]["result"], "ABORT")
+        self.assertEqual(self.runs()[0]["result"], "PASSED", "統合ブランチへは入っている")
 
     def test_playtest_none_does_not_build(self):
         gh = FakeGH([(5, "a")])
         self.assertEqual(self.run_scheduler(gh), 0)
-        pr = gh.prs[gh.pr_for_issue(5)]
+        pr = gh.prs[gh.integration_pr()]
         self.assertNotIn("ms4:playtest-required", pr["labels"])
         self.assertFalse(any("ms4:playtest-build" in c for c in pr["comments"]))
         self.assertNotIn("### プレイ確認", pr["comments"][0])
@@ -793,7 +975,7 @@ class SchedulerTests(Base):
     def test_scheduler_never_applies_the_approval_label(self):
         gh = FakeGH([(5, "a")])
         self.run_scheduler(gh)
-        gh.approve(gh.pr_for_issue(5))
+        gh.approve(gh.integration_pr())
         self.run_scheduler(gh)
         for call in gh.calls:
             for i, x in enumerate(call[:-1]):
@@ -804,14 +986,15 @@ class SchedulerTests(Base):
         gh = FakeGH([(5, "a")])
         self.run_scheduler(gh)
         self.assertEqual(self.run_scheduler(gh), 0)
-        self.assertEqual(gh.prs[gh.pr_for_issue(5)]["state"], "OPEN")
-        self.assertEqual([r["result"] for r in self.runs()], ["AWAITING"], "再取得も記録もしない")
+        self.assertEqual(gh.prs[gh.integration_pr()]["state"], "OPEN")
+        self.assertEqual([r["result"] for r in self.runs()], ["PASSED", "AWAITING"],
+                         "再取得も記録もしない")
         self.assertEqual(sum(1 for c in gh.calls if c[1:3] == ["pr", "create"]), 1)
 
     def test_approved_but_required_check_pending_does_not_merge(self):
         gh = FakeGH([(5, "a")])
         self.run_scheduler(gh)
-        gh.approve(gh.pr_for_issue(5))
+        gh.approve(gh.integration_pr())
         gh.check_override = {"test": ("in_progress", None)}
         self.assertEqual(self.run_scheduler(gh), 0)
         self.assertEqual(gh.merge_args, [])
@@ -821,7 +1004,7 @@ class SchedulerTests(Base):
         """ラベルは付いていても、approval チェックが赤（承認者以外が付けた等）ならマージしない。"""
         gh = FakeGH([(5, "a")])
         self.run_scheduler(gh)
-        gh.approve(gh.pr_for_issue(5))
+        gh.approve(gh.integration_pr())
         gh.check_override = {"approval": ("completed", "failure")}
         self.assertEqual(self.run_scheduler(gh), 0)
         self.assertEqual(gh.merge_args, [])
@@ -837,37 +1020,37 @@ class SchedulerTests(Base):
         self.run_scheduler(gh)
         self.assertEqual(self.run_scheduler(gh), 0)
         self.assertEqual(gh.merge_args, [])
-        self.assertEqual(gh.prs[gh.pr_for_issue(5)]["state"], "OPEN")
+        self.assertEqual(gh.prs[gh.integration_pr()]["state"], "OPEN")
 
     def test_latest_check_run_wins_by_id_not_by_order(self):
         gh = FakeGH([(5, "a")])
         self.run_scheduler(gh)
-        gh.approve(gh.pr_for_issue(5))
+        gh.approve(gh.integration_pr())
         gh.extra_check_runs = [{"id": 1, "name": "test", "status": "completed", "conclusion": "failure"}]
         self.assertEqual(self.run_scheduler(gh), 0)
-        self.assertEqual(gh.prs[gh.pr_for_issue(5)]["state"], "MERGED")
+        self.assertEqual(gh.prs[gh.integration_pr()]["state"], "MERGED")
 
         gh2 = FakeGH([(7, "b")])
         self.run_scheduler(gh2)
-        gh2.approve(gh2.pr_for_issue(7))
+        gh2.approve(gh2.integration_pr())
         gh2.extra_check_runs = [{"id": 99999, "name": "test", "status": "completed", "conclusion": "failure"}]
         self.assertEqual(self.run_scheduler(gh2), 0)
-        self.assertEqual(gh2.prs[gh2.pr_for_issue(7)]["state"], "OPEN", "新しい run が赤ならマージしない")
+        self.assertEqual(gh2.prs[gh2.integration_pr()]["state"], "OPEN", "新しい run が赤ならマージしない")
 
     def test_push_after_approval_is_not_merged(self):
         """承認した SHA 以外は入れない。承認後に push されたら待ちに戻す（ABORT しない）。"""
         gh = FakeGH([(5, "a")])
         self.run_scheduler(gh)
-        pr_num = gh.pr_for_issue(5)
+        pr_num = gh.integration_pr()
         gh.approve(pr_num)
 
         def push_extra_commit():
             git(self.helper, "fetch", "-q", "origin")
-            git(self.helper, "switch", "-q", "-c", "late", "origin/ms4/issue-5")
+            git(self.helper, "switch", "-q", "-c", "late", f"origin/{self.INTEG}")
             (self.helper / "late.txt").write_text("late\n", encoding="utf-8")
             git(self.helper, "add", "late.txt")
             git(self.helper, "commit", "-q", "-m", "late push")
-            git(self.helper, "push", "-q", "origin", "late:ms4/issue-5")
+            git(self.helper, "push", "-q", "origin", f"late:{self.INTEG}")
             git(self.helper, "switch", "-q", "main")
         gh.before_merge = push_extra_commit
 
@@ -877,17 +1060,21 @@ class SchedulerTests(Base):
         self.assertFalse(self.lock.exists(), "ABORT ではない")
         self.assertEqual(gh.issues[5]["state"], "OPEN")
 
-    def test_declined_pr_is_closed_and_issue_fails(self):
-        gh = FakeGH([(5, "a")])
+    def test_declined_integration_pr_is_closed_and_issues_fail(self):
+        gh = FakeGH([(5, "a"), (6, "b")])
         self.run_scheduler(gh)
-        pr_num = gh.pr_for_issue(5)
+        pr_num = gh.integration_pr()
         gh.prs[pr_num]["labels"].add("ms4:declined")
         self.assertEqual(self.run_scheduler(gh), 1)
         self.assertEqual(gh.prs[pr_num]["state"], "CLOSED")
-        self.assertEqual(gh.issues[5]["labels"], {"ms4:failed"})
+        for n in (5, 6):
+            self.assertEqual(gh.issues[n]["labels"], {"ms4:integrated", "ms4:failed"},
+                             "統合ブランチには入ったまま。ms4:failed で対象から外す")
+            self.assertTrue(any("却下" in c for c in gh.issues[n]["comments"]))
         self.assertEqual(gh.merge_args, [])
-        self.assertTrue(self.remote_has_branch("ms4/issue-5"), "ブランチは残す")
-        self.assertEqual([r["result"] for r in self.runs()], ["AWAITING", "REJECT"])
+        self.assertTrue(self.remote_has_branch(self.INTEG), "統合ブランチは残す（人間が中身を見る）")
+        self.assertEqual([r["result"] for r in self.runs()],
+                         ["PASSED", "PASSED", "AWAITING", "REJECT"])
 
     def test_empty_test_list_is_never_sent_for_approval(self):
         gh = FakeGH([(5, "a")])
@@ -908,8 +1095,8 @@ class SchedulerTests(Base):
         self.assertTrue(any("不合格の理由: 自明アサーション" in c for c in i5["comments"]),
                         "ログ末尾が UTF-8 のままコメントされること")
         self.assertFalse(self.local_has_branch("ms4/issue-5"))
-        self.assertEqual(gh.issues[6]["labels"], {"ms4:awaiting-approval"}, "次の Issue へ進む")
-        self.assertEqual([r["result"] for r in self.runs()], ["REJECT", "AWAITING"])
+        self.assertEqual(gh.issues[6]["labels"], {"ms4:integrated"}, "次の Issue へ進む")
+        self.assertEqual([r["result"] for r in self.runs()], ["REJECT", "PASSED", "AWAITING"])
 
     # 4
     def test_decompose_abort_stops_everything(self):
@@ -924,14 +1111,14 @@ class SchedulerTests(Base):
         self.assertTrue(self.lock.exists(), "着手後の ABORT ではロックを残す")
         self.assertEqual(self.branch(), "main", "本体の clone は main のまま（作業は worktree）")
         self.assertEqual(self.dirty(), "")
-        self.assertEqual(self.wt_branch(5), "ms4/issue-5", "証拠の worktree を消さない（触らない）")
+        self.assertEqual(self.wt_branch(), "ms4/issue-5", "証拠の worktree を掃除しない（触らない）")
         self.assertEqual([r["result"] for r in self.runs()], ["ABORT"])
 
     def test_decompose_reject_leaving_dirty_tree_escalates_to_abort(self):
         gh = FakeGH([(5, "a")])
         self.plan["decompose"] = {"5": "reject_dirty"}
         self.assertEqual(self.run_scheduler(gh), 2)
-        self.assertIn("Issue5Tests.cs", self.wt_dirty(5), "汚れた worktree を証拠として残す")
+        self.assertIn("Issue5Tests.cs", self.wt_dirty(), "汚れた worktree を証拠として残す")
         self.assertEqual(self.dirty(), "", "本体の clone は汚れない")
         self.assertEqual(gh.issues[5]["labels"], {"ms4:running"})
 
@@ -944,8 +1131,10 @@ class SchedulerTests(Base):
         self.assertEqual(gh.issues[5]["labels"], {"ms4:failed"})
         self.assertTrue(self.local_has_branch("ms4/issue-5"))
         self.assertTrue(self.remote_has_branch("ms4/issue-5"))
-        self.assertNotIn("tests/Core.Tests/Issue5Tests.cs", self.remote_main_files())
-        self.assertEqual(gh.issues[6]["labels"], {"ms4:awaiting-approval"})
+        self.assertNotIn("tests/Core.Tests/Issue5Tests.cs", self.remote_files(self.INTEG),
+                         "不合格の Issue は統合ブランチに入らない")
+        self.assertEqual([self.trailer(b, "Issue") for b in self.merge_messages()], ["#6"])
+        self.assertEqual(gh.issues[6]["labels"], {"ms4:integrated"})
         self.assertEqual(self.branch(), "main")
 
     # 6
@@ -954,8 +1143,8 @@ class SchedulerTests(Base):
         self.plan["pipeline"] = {"5": "abort_dirty"}
         self.assertEqual(self.run_scheduler(gh), 2)
 
-        self.assertTrue((self.issue_wt(5) / "Game/Assets/Core/Half.cs").exists(), "汚れを掃除しない")
-        self.assertEqual(self.wt_branch(5), "ms4/issue-5")
+        self.assertTrue((self.runner_wt() / "Game/Assets/Core/Half.cs").exists(), "汚れを掃除しない")
+        self.assertEqual(self.wt_branch(), "ms4/issue-5")
         self.assertEqual((self.branch(), self.dirty()), ("main", ""))
         self.assertEqual(gh.issues[5]["labels"], {"ms4:running"})
         self.assertEqual(gh.issues[6]["labels"], {"ready"})
@@ -972,26 +1161,50 @@ class SchedulerTests(Base):
         self.assertEqual(self.run_scheduler(gh), 2)
         self.assertEqual(gh.issues[5]["labels"], {"ms4:running"})
         self.assertEqual(gh.issues[6]["labels"], {"ready"})
-        self.assertEqual(self.wt_branch(5), "ms4/issue-5")
+        self.assertEqual(self.wt_branch(), "ms4/issue-5")
         self.assertEqual((self.branch(), self.dirty()), ("main", ""))
         self.assertEqual([r["result"] for r in self.runs()], ["ABORT"])
 
-    def test_issue_work_happens_in_a_disposable_worktree(self):
-        """本体の clone（repo_dir）は main のまま一切汚れない。PR を作ったら worktree を消し、ブランチは残す。"""
-        gh = FakeGH([(5, "a")])
+    def test_issue_work_happens_in_one_reused_worktree(self):
+        """本体の clone（repo_dir）は main のまま汚れない。固定 worktree は消さずに使い回す。
+
+        以前は Issue ごとに使い捨ての worktree を作って削除していた。Windows では削除が
+        WinError 32 で失敗しうる。削除しなければ、その衝突は原理的に起きない。
+        """
+        gh = FakeGH([(5, "a"), (6, "b")])
         self.assertEqual(self.run_scheduler(gh), 0)
         self.assertEqual((self.branch(), self.dirty()), ("main", ""))
-        self.assertEqual(git(self.work, "log", "--oneline", "main").count("\n"), 0, "本体の main にコミットしない")
-        self.assertFalse(self.issue_wt(5).exists(), "PR を作ったら worktree を消す")
-        self.assertEqual(git(self.work, "worktree", "list").count("\n"), 0, "worktree の登録を残さない")
-        self.assertTrue(self.local_has_branch("ms4/issue-5"), "ブランチは PR のために残す")
-        self.assertEqual(self.runs()[-1]["worktree"], str(self.issue_wt(5)))
+        self.assertEqual(git(self.work, "log", "--oneline", "main").count("\n"), 0,
+                         "本体の main にコミットしない")
+        self.assertTrue(self.runner_wt().exists(), "worktree は残す（消さない）")
+        self.assertEqual(git(self.work, "worktree", "list").count("\n"), 1,
+                         "登録されている worktree は固定の 1 つだけ")
+        self.assertEqual([r["worktree"] for r in self.runs() if r.get("worktree")],
+                         [str(self.runner_wt())] * 2, "2 件の Issue が同じ worktree を使う")
+        self.assertEqual(self.wt_dirty(), "", "次に使う前に空にできる状態で終わる")
 
-    def test_clean_reject_removes_the_worktree_but_keeps_the_branch(self):
+    def test_the_runner_worktree_is_cleaned_before_each_issue(self):
+        """前の Issue の残骸（未追跡・無視されるファイル）を持ち越さない。"""
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        junk = self.runner_wt() / "leftover.txt"
+        junk.write_text("x", encoding="utf-8")
+        (self.runner_wt() / "__pycache__").mkdir(exist_ok=True)      # .gitignore 済み
+        (self.runner_wt() / "__pycache__" / "x.pyc").write_text("x", encoding="utf-8")
+        gh.approve(gh.integration_pr())
+        self.assertEqual(self.run_scheduler(gh), 0)
+
+        gh2 = FakeGH([(6, "b")])
+        self.assertEqual(self.run_scheduler(gh2), 0)
+        self.assertFalse(junk.exists(), "clean -fdx で消える")
+        self.assertFalse((self.runner_wt() / "__pycache__").exists(), "無視されるファイルも消す")
+        self.assertEqual(self.wt_dirty(), "")
+
+    def test_clean_reject_keeps_the_branch_and_the_worktree(self):
         gh = FakeGH([(5, "a")])
         self.plan["pipeline"] = {"5": "reject"}
         self.assertEqual(self.run_scheduler(gh), 1)
-        self.assertFalse(self.issue_wt(5).exists())
+        self.assertTrue(self.runner_wt().exists(), "worktree は消さない")
         self.assertTrue(self.local_has_branch("ms4/issue-5"))
         self.assertEqual((self.branch(), self.dirty()), ("main", ""))
 
@@ -1025,7 +1238,7 @@ class SchedulerTests(Base):
         self.assertEqual(runs[0]["steps"], [])
         self.assertEqual(gh.issues[5]["labels"], {"ms4:failed"})
         self.assertTrue(self.remote_has_branch("ms4/issue-5"), "既存ブランチを消さない")
-        self.assertEqual(gh.issues[6]["labels"], {"ms4:awaiting-approval"})
+        self.assertEqual(gh.issues[6]["labels"], {"ms4:integrated"})
 
     # 9
     def test_existing_lock_blocks_without_touching_anything(self):
@@ -1051,16 +1264,54 @@ class SchedulerTests(Base):
         self.assertEqual(gh.calls, [])
 
     # 10
-    def test_audit_runs_and_reports_are_merged_when_key_present(self):
+    def test_audit_runs_before_the_implementation_and_again_before_the_merge(self):
         os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
         gh = FakeGH([(5, "a")])
         self.assertEqual(self.run_scheduler(gh), 0)
-        gh.approve(gh.pr_for_issue(5))
+        files = self.remote_files(self.INTEG)
+        self.assertIn("reports/audits/audit_issue_5.md", files, "実装の前: 単位定義")
+        self.assertIn("reports/audits/audit_Issue5Tests.md", files, "実装の前: テスト")
+        self.assertIn("reports/audits/audit_Issue5.md", files, "マージの直前: 実装そのもの")
+        issue = self.runs()[0]
+        self.assertEqual(issue["audit"], "done")
+        self.assertEqual(issue["merge_audit"], "done")
+        self.assertEqual(issue["impl_files"], ["Game/Assets/Core/Issue5.cs"],
+                         "マージ直前の監査は実装だけを見る（テスト・単位定義・レポートは外す）")
+        self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "ok")
+        self.assertEqual(issue["merge_audit_verdict"], "ok")
+
+    def test_an_unreadable_verdict_is_unknown_not_ok(self):
+        """監査役が決められた形で返さなかった。判定を ok に畳まない。"""
+        os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
+        self.plan["audit"] = {"5": "no_verdict"}
+        gh = FakeGH([(5, "a")])
         self.assertEqual(self.run_scheduler(gh), 0)
-        files = self.remote_main_files()
-        self.assertIn("reports/audits/audit_issue_5.md", files)
-        self.assertIn("reports/audits/audit_Issue5Tests.md", files)
-        self.assertEqual(self.runs()[0]["audit"], "done")
+        self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "unknown")
+        self.assertEqual(self.runs()[0]["merge_audit"], "done", "監査自体は動いている")
+
+    def test_audit_verdict_reaches_the_commit_and_the_approval_request(self):
+        os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
+        self.plan["audit"] = {"5": "concern"}
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "concern")
+        issue = self.runs()[0]
+        self.assertEqual(issue["merge_audit_verdict"], "concern")
+        self.assertEqual(issue["merge_audit_findings"], ["`Issue5.cs`: 境界値の確認が要る"])
+        pr = gh.prs[gh.integration_pr()]
+        request = [c for c in pr["comments"] if "ms4:approval-request" in c][0]
+        self.assertIn("### 監査の判定", request)
+        self.assertIn("#5 concern", request)
+        self.assertIn("境界値の確認が要る", request, "指摘が承認依頼に出る")
+
+    def test_a_single_reject_verdict_decides_the_whole_issue(self):
+        os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
+        self.plan["audit"] = {"5": "reject"}
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "reject")
+        self.assertEqual(gh.issues[5]["labels"], {"ms4:integrated"},
+                         "判定は合否に使わない（門を通っていれば統合ブランチへ入る）")
 
     def test_audit_failure_is_recorded_but_not_blocking(self):
         os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
@@ -1068,7 +1319,7 @@ class SchedulerTests(Base):
         self.plan["audit"] = {"5": "fail"}
         self.assertEqual(self.run_scheduler(gh), 0)
         self.assertTrue(self.runs()[0]["audit"].startswith("failed"))
-        self.assertEqual(gh.issues[5]["labels"], {"ms4:awaiting-approval"})
+        self.assertEqual(gh.issues[5]["labels"], {"ms4:integrated"})
 
     def test_required_audit_without_key_rejects(self):
         self.cfg["audit"]["required"] = True
@@ -1086,39 +1337,68 @@ class SchedulerTests(Base):
         self.plan["decompose"] = {"5": "stray"}
         self.assertEqual(self.run_scheduler(gh), 2)
         self.assertIn("Sneaky.cs", self.runs()[0]["reason"])
-        self.assertTrue((self.issue_wt(5) / "Game/Assets/Core/Sneaky.cs").exists())
+        self.assertTrue((self.runner_wt() / "Game/Assets/Core/Sneaky.cs").exists())
         self.assertFalse((self.work / "Game/Assets/Core/Sneaky.cs").exists())
 
     # 12
-    def test_merge_conflict_aborts_cleanly(self):
-        """承認後、main が先に進んで PR が衝突した。マージできないので ABORT（人間が見る）。"""
+    def test_integration_merge_conflict_rolls_back_and_aborts(self):
+        """統合ブランチ側が先に同じ行を変えていた。自動で解決せず、取り消して ABORT する。"""
         gh = FakeGH([(5, "a")])
         self.plan["pipeline"] = {"5": "conflict"}
-        self.assertEqual(self.run_scheduler(gh), 0)
-        gh.approve(gh.pr_for_issue(5))
         self.assertEqual(self.run_scheduler(gh), 2)
-        self.assertFalse((self.helper / ".git" / "MERGE_HEAD").exists(), "merge --abort 済み")
-        self.assertEqual(self.branch(), "main")
-        self.assertEqual(self.dirty(), "")
-        self.assertEqual(gh.issues[5]["state"], "OPEN")
-        self.assertEqual(gh.prs[gh.pr_for_issue(5)]["state"], "OPEN")
+        git(self.work, "fetch", "origin")
+        tip = git(self.work, "log", "-1", "--format=%s", f"origin/{self.INTEG}")
+        self.assertEqual(tip, "integration edits README", "衝突の相手（helper の push）だけが入っている")
+        self.assertEqual(self.merge_messages(), [], "Issue のマージコミットは 1 つも入らない")
+        self.assertFalse((Path(git(self.runner_wt(), "rev-parse", "--absolute-git-dir"))
+                          / "MERGE_HEAD").exists(), "merge --abort 済み")
+        self.assertEqual(self.wt_dirty(), "", "衝突の跡を残さない")
+        self.assertEqual(gh.issues[5]["labels"], {"ms4:running"})
+        self.assertEqual(gh.prs, {}, "統合 PR は作らない")
+        self.assertEqual((self.branch(), self.dirty()), ("main", ""))
+        self.assertTrue(self.lock.exists())
+        self.assertIn("衝突", self.runs()[0]["reason"])
+
+    def test_non_fast_forward_push_rolls_back_and_aborts(self):
+        """統合ブランチが先に進んでいた。リベースせず、マージを取り消して ABORT する。"""
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        gh.approve(gh.integration_pr())
+        self.assertEqual(self.run_scheduler(gh), 0)
+
+        gh2 = FakeGH([(6, "b")])
+        self.assertEqual(self.run_scheduler(gh2), 0)   # 統合ブランチを作り直す
+        stale = git(self.work, "rev-parse", f"origin/{self.INTEG}")
+        gh3 = FakeGH([(7, "c")])
+        self.plan["pipeline"] = {"7": "ahead"}
+        # 誰かが先に統合ブランチを進めたのに、こちらの追跡参照は古いまま（fetch が届かない）
+        with mock.patch.object(ms4.Git, "fetch_branch", lambda self, branch: None):
+            self.assertEqual(self.run_scheduler(gh3), 2)
+        self.assertEqual(git(self.runner_wt(), "rev-parse", "HEAD"), stale,
+                         "マージを取り消して、統合ブランチに立つ前の状態に戻す")
+        git(self.work, "fetch", "origin")
+        self.assertNotEqual(stale, git(self.work, "rev-parse", f"origin/{self.INTEG}"),
+                            "先に進めた側だけが残る")
+        self.assertEqual(self.wt_dirty(), "")
+        self.assertEqual(gh3.issues[7]["labels"], {"ms4:running"})
+        self.assertIn("fast-forward", self.runs()[-1]["reason"])
         self.assertTrue(self.lock.exists())
 
     # 13
     def test_red_ci_on_main_aborts_without_closing(self):
         gh = FakeGH([(5, "a")])
         self.run_scheduler(gh)
-        gh.approve(gh.pr_for_issue(5))
+        gh.approve(gh.integration_pr())
         gh.ci_conclusion = "failure"
         self.assertEqual(self.run_scheduler(gh), 2)
-        self.assertEqual(gh.issues[5]["labels"], {"ms4:awaiting-approval"})
-        self.assertFalse(any("合格" in c for c in gh.issues[5]["comments"]))
+        self.assertEqual(gh.issues[5]["labels"], {"ms4:integrated"})
+        self.assertFalse(any("ms4 スケジューラ: 合格" in c for c in gh.issues[5]["comments"]))
         self.assertIn("failure", self.runs()[-1]["reason"])
 
     def test_ci_run_never_appears_aborts_after_waiting(self):
         gh = FakeGH([(5, "a")])
         self.run_scheduler(gh)
-        gh.approve(gh.pr_for_issue(5))
+        gh.approve(gh.integration_pr())
         gh.ci_missing = True
         self.assertEqual(self.run_scheduler(gh), 2)
         self.assertIn("見つかりません", self.runs()[-1]["reason"])
@@ -1130,7 +1410,7 @@ class SchedulerTests(Base):
         gh.fail_rules.append({"match": "issue list", "times": 2})
         gh.fail_rules.append({"match": "pr comment", "times": 1})
         self.assertEqual(self.run_scheduler(gh), 0)
-        self.assertEqual(len(gh.prs[gh.pr_for_issue(5)]["comments"]), 1)
+        self.assertEqual(len(gh.prs[gh.integration_pr()]["comments"]), 1)
         self.assertGreaterEqual(self.sleeps.count(5), 3)
 
     def test_lost_response_does_not_double_post(self):
@@ -1140,14 +1420,15 @@ class SchedulerTests(Base):
         gh.fail_rules.append({"match": "pr comment", "times": 1, "apply": True})
         self.assertEqual(self.run_scheduler(gh), 0)
         self.assertEqual(len(gh.prs), 1, "PR を二重に作らない")
-        self.assertEqual(len(gh.prs[gh.pr_for_issue(5)]["comments"]), 1)
+        self.assertEqual(len(gh.prs[gh.integration_pr()]["comments"]), 1)
+        self.assertEqual(len(gh.issues[5]["comments"]), 2, "統合ブランチへのマージと、統合 PR の案内")
 
-        gh.approve(gh.pr_for_issue(5))
+        gh.approve(gh.integration_pr())
         gh.fail_rules.append({"match": "pr merge", "times": 1, "apply": True})
         gh.fail_rules.append({"match": "issue comment", "times": 1, "apply": True})
         self.assertEqual(self.run_scheduler(gh), 0)
         self.assertEqual(len(gh.merge_args), 1, "マージを重ねない")
-        self.assertEqual(len(gh.issues[5]["comments"]), 1)
+        self.assertEqual(len(gh.issues[5]["comments"]), 3)
 
     def test_gh_failing_three_times_aborts(self):
         gh = FakeGH([(5, "a")])
@@ -1393,7 +1674,7 @@ class ResidentTests(Base):
         self.assertEqual(self.run_scheduler(gh), 0)
         self.assertGreaterEqual(sum(self.sleeps), 600, "リセットまで待つ（5 秒の再試行では抜けられない）")
         self.assertLess(sum(self.sleeps), 700)
-        self.assertEqual(self.runs()[0]["result"], "AWAITING", "待ったあと、そのまま処理を続ける")
+        self.assertEqual(self.runs()[0]["result"], "PASSED", "待ったあと、そのまま処理を続ける")
 
     def test_secondary_rate_limit_backs_off_exponentially(self):
         gh = FakeGH([])

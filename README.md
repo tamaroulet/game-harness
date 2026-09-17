@@ -21,10 +21,10 @@
 ```
 harness/
   project.py      プロジェクト設定の読み込み（全道具がここを通す）
-  scheduler.py    ready の Issue → 分解 → 監査 → 実装 → PR → 承認 → マージ
+  scheduler.py    ready の Issue → 分解 → 監査 → 実装 → 統合ブランチへ直接マージ → 統合 PR
   pipeline.py     1 単位を実装して門を通す（終了コード 0 / 1 / 2）
   oracle.py       二相判定（F2P / P2P）・制御群・quarantine の検証。テスト名単位で判定する
-  playtest.py     プレイ確認（H2）用のビルド。PR の head SHA から専用ワークツリーで実行ファイルを作る
+  playtest.py     プレイ確認（H2）用のビルド。統合 PR の head SHA から専用ワークツリーで実行ファイルを作る
   fileops.py      ファイルの削除・置き換えの再試行（Windows のファイルロック対策）
   telemetry.py    runs.jsonl に載せる実測値（CLI の利用量・試行の指標）。取れない値は null ＋理由（docs/design/telemetry.md）
   decompose.py    Issue → 受入テスト + 単位定義
@@ -56,16 +56,29 @@ tests/
 
 ## 承認とマージ
 
+Issue ごとの PR は作らない。機械で判定できるものは機械が通し、人間の承認は統合 PR で 1 回だけ受ける
+（docs/design/spec_pipeline.md §13 の 1）。
+
 ```
-門を通過 → PR（Closes #N）→ 受入テスト一覧を「今の head SHA 宛て」にコメント → ms4:awaiting-approval
-人間: dispatch --approve <project>#<PR>（一覧を表示して y/n）
-必須チェック approval: 承認者が・今の head SHA に対して付けたラベルか（時刻は比べない。push で失効）
-スケジューラ: 必須チェックが全部 success → gh pr merge --merge --match-head-commit <承認した SHA>
+統合ブランチ  integration/<まとまり>。無ければ origin/main から作って push する
+Issue         ブランチ ms4/issue-N を origin/<統合ブランチ> から切る（先行 Issue の実装を含む）
+門を通過      → 統合ブランチへ git merge --no-ff → そのまま git push → Issue に ms4:integrated
+              マージコミットの本文に Issue / Run-Id / Harness-SHA / Contract-SHA /
+              Audit-Verdict / Gate-Result を固定の書式で書く（統合 PR で機械照合する）
+周の末尾      積まれた Issue が 3 本に達するか、ready が尽きたら統合 PR を 1 本作る
+              本文に Closes #N... と、Run-Id と runs.jsonl の照合レポート
+人間          dispatch --approve <project>#<統合 PR>（受入テスト一覧と監査の判定を見て y/n）
+必須チェック  approval: 承認者が・今の head SHA に対して付けたラベルか（時刻は比べない。push で失効）
+スケジューラ  必須チェックが全部 success → gh pr merge --merge --match-head-commit <承認した SHA>
+              → main の CI を待つ → Issue を閉じる → 統合ブランチを消す（次の周が作り直す）
 ```
 
-- マージはマージコミット（squash しない。履歴の追跡性のため）
+- マージはマージコミット（squash しない。コミット履歴と runs.jsonl の対応を保つため）
+- 1 つの統合ブランチに積む Issue は 4 本まで（汚染が伝わって捨てる範囲を小さくする）
 - 承認後に push されたら、マージせず承認待ちに戻す
-- 承認は実装が門を通った後に 1 回。実装前に承認させると、実装の push で承認が失効するため。代償として、テストが誤っていても実装を 1 回走らせる
+- **競合したら自分では直さない**: 統合ブランチへのマージが衝突したときも、push が fast-forward でないときも、リベースや競合解決を試みずに取り消して ABORT する（自律的な競合解決は先祖返りを静かに持ち込む）
+- **Issue の作業は固定の worktree を使い回す**（`<worktree_root>/<project>-issue-runner`）。使う前に `reset --hard` と `clean -fdx` で空にする。物理削除しないので、Windows のファイルロック（WinError 32）で止まらない
+- **監査の判定は合否に使わない**。`audit.py --verdict-json` が `{"verdict": ok|concern|reject, "findings": [...]}` を書き、マージコミット・`runs.jsonl`・統合 PR の承認依頼の先頭に載る。判定を読み取れなければ `unknown`、監査を回していなければ `skipped`（`ok` に畳まない）
 
 ## 使い方
 
@@ -84,8 +97,9 @@ python tests/mutate.py
 
 ```
 分解役: 単位に playtest: "none" | "required"（見た目・手触り・間に関わるなら required）
-スケジューラ: required なら PR に ms4:playtest-required → playtest.py で head SHA から実行ファイルを作る → PR にコメント
-人間: dispatch --playtest <project>#<PR>（起動して、確認項目ごとに OK / NG / 保留）→ 結果を SHA 付きで PR にコメント
+スケジューラ: 統合 PR に入った Issue のどれかが required なら、統合 PR に ms4:playtest-required
+             → playtest.py で統合ブランチの head SHA から実行ファイルを作る → PR にコメント
+人間: dispatch --playtest <project>#<統合 PR>（起動して、確認項目ごとに OK / NG / 保留）→ 結果を SHA 付きで PR にコメント
 人間: dispatch --approve は、今の SHA に全項目 OK の結果が無ければ拒否する
 ```
 

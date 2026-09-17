@@ -1,4 +1,4 @@
-"""MS4 スケジューラ。ready の Issue を 1 本ずつ、分解 → 監査 → 実装 → PR → 承認 → マージまで運ぶ。
+"""MS4 スケジューラ。ready の Issue を 1 本ずつ、分解 → 監査 → 実装 → 統合ブランチへマージまで運ぶ。
 
     python harness/scheduler.py --project unity-2d --dry-run     # 対象と予定だけ表示。何も変えない
     python harness/scheduler.py --project unity-2d               # 一覧を 1 周して終わる
@@ -8,11 +8,12 @@
 
 **1 周の流れ**
 
-    1. 承認待ちの PR（ms4:awaiting-approval）を見る
-         ms4:declined  → PR を閉じ、Issue を ms4:failed
+    0. 統合ブランチ（integration/<まとまり>）が無ければ origin/main から作って push する
+    1. 承認待ちの PR（ms4:awaiting-approval）を見る。対象は GDD の PR と統合 PR だけ
+         ms4:declined  → PR を閉じ、積まれていた Issue を ms4:failed
          ms4:approved  → 必須チェック（required_checks）が今の head SHA で全部 success なら
                          gh pr merge --merge --match-head-commit <その SHA>
-                         → main の CI を待つ → Issue をクローズ
+                         → main の CI を待つ → Issue をクローズ → 統合ブランチを消す
                          承認後に push されていたら、マージせず待ちに戻す
          それ以外      → 待つ
     2. GDD の PR（ms4:gdd、ブランチ spec/gdd-v<版>。docs/design/spec_pipeline.md §2）
@@ -21,40 +22,71 @@
          使い捨ての worktree で spec.py → docs/spec の 2 ファイルだけをコミットして push
          マージ可 → 承認依頼と ms4:awaiting-approval / マージ不可 → ms4:questions
          spec.py 1 → ms4:failed / それ以外 → ABORT
-    3. ready の Issue
+    3. ready の Issue（統合ブランチに積まれた本数が上限に達していたら着手しない）
          ready → ms4:running
          ブランチ ms4/issue-N を切る（既にあれば不合格。前回の残骸か人間の作業中）
-         作業は使い捨ての worktree（<worktree_root>/<project>-issue-N）で行う。本体の clone は main のまま触らない
+         作業は固定の worktree（<worktree_root>/<project>-issue-runner）で行う。起点は
+         origin/<統合ブランチ>。本体の clone は main のまま触らない
          decompose.py   0 → 次 / 1 → 不合格 / それ以外 → ABORT
          生成物をコミット（想定外のパスがあれば ABORT）
          audit.py       キーが無ければスキップ。結果は合否に使わない（required=false のとき）
-         pipeline.py    0 → PR / 1 → 不合格 / それ以外 → ABORT
-         PR を作り、受入テストの一覧（C# から機械抽出）をコメントし、ms4:awaiting-approval
+         pipeline.py    0 → 統合ブランチへマージ / 1 → 不合格 / それ以外 → ABORT
+         マージの直前にもう一度 audit.py（今度は実装そのもの）。判定を記録する
+         統合ブランチへ --no-ff でローカルマージし、そのまま push。Issue に ms4:integrated
+    4. 周の末尾。積まれた Issue が下限に達したか、ready が尽きたら統合 PR を 1 本作る
 
-**なぜ承認が実装の後なのか**
+**なぜ Issue ごとの PR をやめたか（S24）**
 
-承認は最終的な head SHA に対して 1 回だけ有効で、push されると必須チェック approval が
-ラベルを外す。実装前にテストを承認させると、実装の push で承認が消える。
-代償として、テストが誤っていても実装を 1 回走らせてしまう。
+以前は Issue 1 本ごとに PR を作り、人間の承認を待ってから main へマージしていた。すると
+GitHub Actions の承認ゲートとローカルのハーネスが同じ PR で二重に主権を持ち、機械の門に
+通っても人間が承認するまで次の Issue に進めない（非同期の自走が成り立たない）。さらに、
+Issue は main から切るので、承認待ちの先行 Issue の実装を後続が含まず、直列の依存で止まる。
+
+今は、機械で判定できるものは機械が通す。門（F2P / P2P / 静的検査 / 改変ブロック）に通った
+実装は、スケジューラが統合ブランチへ --no-ff でマージして直接 push する。人間の承認（H1）と
+プレイ確認（H2）は、統合ブランチから main への統合 PR で 1 回だけ受ける
+（docs/design/spec_pipeline.md §13 の 1）。
 
 **スケジューラ自身は ms4:approved を付けない。** 付けるのは人間（dispatch --approve）だけ。
 ただし同じ GitHub アカウントで動く限り、approval チェックは両者を区別できない（慣習）。
+
+**なぜ機械可読なマージコミットにするのか**
+
+統合 PR には 3〜4 本の Issue が入る。人間はそのまとまりを 1 回で承認するので、「どの Issue が
+どの実行（Run-Id）の、どのハーネスの版・どの契約の版で、どんな監査判定を受けて入ったか」を
+コミット履歴から機械で読めないと、後から検証できない。マージコミットの本文に Issue / Run-Id /
+Harness-SHA / Contract-SHA / Audit-Verdict / Gate-Result を固定の書式で書き、統合 PR で
+runs.jsonl と突き合わせた照合レポートを付ける。
+
+**なぜ競合を自分で直さないのか**
+
+マージが衝突したときも、push が fast-forward でないときも、リベースや競合解決を試みずに
+直前の状態へ戻して ABORT する。自律的な競合解決は、先祖返り（P2P 破壊）を静かに持ち込む
+経路になる。この実験が測ろうとしているものを、実験装置が壊してはいけない。
+
+**なぜ worktree を消さないのか**
+
+Issue ごとに使い捨ての worktree を作って毎回削除していたが、Windows では直前に動いた
+エンジン・ビルド・ウイルス対策がファイルを掴んでいると削除が WinError 32 で失敗する。
+固定の worktree を使い回し、使う前に reset --hard と clean -fdx で空にする。削除しなければ
+その衝突は原理的に起きない。
 
 **なぜブランチを切るのか**
 
 パイプラインのサンドボックスは HEAD から同期し、起動時に作業ツリーが clean で
 あることを要求する。分解役が書いたテストはコミットしないと届かない。一方、
-実装の無いテストを main にコミットすると CI が赤になる（main を壊す検証は禁止）。
+実装の無いテストを統合ブランチに直接コミットすると CI が赤になる。
 
 **ABORT で何を残すか**
 
 作業ツリーには一切触らない。証拠を保全する（無差別な checkout で自分の修正を
 消した実例がある）。Issue は ms4:running のまま残し、次回の一覧から外す。
-Issue に着手した後の ABORT ではロックも残す。人間が原因を見るまで次を回さない。
+Issue に着手した後の ABORT ではロックも残す。人間が原因を見るまで次を回さない
+（ロックが残っている限り、次の周が固定 worktree を掃除することもない）。
 
 **不合格（1）で何をするか**
 
-ms4:failed を付け、ログ末尾をコメントし、main に戻って次の Issue へ進む。
+ms4:failed を付け、ログ末尾をコメントし、次の Issue へ進む。
 その時点で作業ツリーが汚れていたら、それはもう不合格ではなく ABORT に格上げする。
 """
 import argparse
@@ -71,6 +103,7 @@ from datetime import datetime
 from pathlib import Path
 
 import adapters
+import contract
 import exitcode
 import fileops
 import gdd_check
@@ -81,6 +114,20 @@ _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 GDD_BRANCH_RE = re.compile(r"spec/gdd-v([1-9][0-9]*)")
 GDD_PATH = "docs/gdd/source.md"
 SPEC_FILES = ("docs/spec/spec.md", "docs/spec/questions.md")
+
+# 統合ブランチのマージコミットに必ず入れる行（機械照合用。統合 PR で runs.jsonl と突き合わせる）。
+# 順序も固定する。読むときは行頭の完全一致でしか拾わない（本文中の引用に釣られない）。
+MERGE_TRAILERS = ("Issue", "Run-Id", "Harness-SHA", "Contract-SHA", "Audit-Verdict", "Gate-Result")
+TRAILER_RE = re.compile(r"^(" + "|".join(MERGE_TRAILERS) + r"): (.+)$", re.M)
+ISSUE_REF_RE = re.compile(r"#([1-9][0-9]*)$")
+
+# 監査役が返してよい判定。これ以外は「読めなかった」として扱う。
+VERDICT_ORDER = {"ok": 0, "concern": 1, "reject": 2}
+VERDICT_UNKNOWN = "unknown"
+VERDICT_SKIPPED = "skipped"
+# 複数ファイルの判定をまとめるときの強さ。「取れなかった」を ok に畳まず（0 と「不明」を
+# 混ぜない、と同じ理由）、かつ reject を unknown で覆い隠さない（強い警告のほうを人間に見せる）。
+VERDICT_RANK = {"ok": 0, VERDICT_UNKNOWN: 1, "concern": 2, "reject": 3}
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -349,6 +396,67 @@ class Git:
         self._git("worktree", "prune", check=False)
         return not Path(path).exists()
 
+    def worktree_add_detached(self, path, start):
+        """固定 worktree を detached HEAD で作る。ブランチは後から checkout -B で決める。"""
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        self._git("worktree", "add", "--detach", str(path), start)
+
+    def checkout_new(self, branch, start):
+        """checkout -B。既にあれば start に合わせ直す（前回の残骸を持ち越さない）。"""
+        self._git("checkout", "-B", branch, start)
+
+    def reset_hard(self, ref):
+        self._git("reset", "--hard", ref)
+
+    def clean_fdx(self):
+        """未追跡も無視も消す。物理削除しない worktree を使い回すので、ここで必ず空にする。"""
+        self._git("clean", "-f", "-d", "-x")
+
+    def merge_no_ff(self, branch, message):
+        """--no-ff でマージする。衝突なら (False, 理由)。fast-forward も squash もしない
+        （コミット履歴と runs.jsonl の対応を保つため、1 Issue = 1 マージコミットにする）。"""
+        rc, out, err = self._git("merge", "--no-ff", "-m", message, branch, check=False)
+        return rc == 0, (err or out)[:300]
+
+    def merge_abort(self):
+        self._git("merge", "--abort", check=False)
+
+    def push_new_branch(self, start, branch):
+        """start（例 origin/main）を、そのまま新しいリモートブランチにする。ローカルに checkout しない。"""
+        self._net("push", "origin", f"{start}:refs/heads/{branch}")
+
+    def delete_remote_branch(self, branch):
+        self._net("push", "origin", "--delete", branch)
+        # 追跡用の参照も消す。残すと、消えたブランチを指したままの ref を後で読んでしまう
+        self._git("update-ref", "-d", f"refs/remotes/origin/{branch}", check=False)
+
+    def blob_sha(self, ref, path):
+        """ref にある path の blob の SHA。無ければ None（作業ツリーは見ない）。"""
+        rc, out, _ = self._git("rev-parse", f"{ref}:{path}", check=False)
+        return out.strip() if rc == 0 else None
+
+    def first_parent_log(self, rng):
+        """rng を第 1 親だけ辿ったコミット（新しい順）。[(sha, 本文)]。
+
+        統合ブランチの第 1 親は、必ず「1 つ前の統合ブランチの先頭」になる（--no-ff で
+        統合ブランチ側に立ってマージするため）。Issue 側のコミットは第 2 親に入るので、
+        第 1 親だけを辿れば「積まれた Issue のマージコミット」がちょうど並ぶ。
+        """
+        _, out, _ = self._git("log", "--first-parent", "--format=%H%x1f%B%x1e", rng)
+        rows = []
+        for entry in out.split(chr(30)):
+            entry = entry.strip(chr(10))
+            if not entry:
+                continue
+            sha, _, body = entry.partition(chr(31))
+            rows.append((sha.strip(), body))
+        return rows
+
+    def diff_names(self, rng):
+        """rng で変わったパス。-z で空白や日本語のパスも崩さない。"""
+        _, out, _ = self._git("diff", "--name-only", "-z", rng)
+        return sorted(x for x in out.split(chr(0)) if x)
+
     def added_lines(self, merge_sha, exclude_prefixes):
         """マージコミットで第 1 親から増えた行数（除外する接頭辞のパスを除く）。(行数, 理由)。"""
         rc, out, err = self._git("diff", "--numstat", f"{merge_sha}^1", merge_sha, check=False)
@@ -485,7 +593,7 @@ class GitHub:
         items = self.read_json(["issue", "list", "--label", self.labels["ready"]["name"],
                                 "--state", "open", "--limit", "100",
                                 "--json", "number,title,labels"])
-        skip = {self.labels[k]["name"] for k in ("running", "failed", "awaiting")}
+        skip = {self.labels[k]["name"] for k in ("running", "failed", "awaiting", "integrated")}
         picked = []
         for it in items or []:
             names = {l["name"] for l in it.get("labels", [])}
@@ -918,10 +1026,10 @@ class Scheduler:
     # 査読用の指標。算出する行の種類が決まっているので、ほかの行では null ＋理由で枠だけ置く
     # （キーが無いのと null を区別できるように、どの行にも必ずある形にする）。
     METRICS = {
-        "p2p_violation_rate": "実装を試した行（AWAITING / REJECT）でだけ算出する",
-        "retry_entropy": "実装を試した行（AWAITING / REJECT）でだけ算出する",
-        "token_to_accepted_loc": "マージした行（PASSED）でだけ算出する",
-        "human_active_intervention_time": "承認・却下を処理した行でだけ記録する",
+        "p2p_violation_rate": "実装を試した行（Issue の PASSED / REJECT）でだけ算出する",
+        "retry_entropy": "実装を試した行（Issue の PASSED / REJECT）でだけ算出する",
+        "token_to_accepted_loc": "統合ブランチへマージした行（Issue の PASSED）でだけ算出する",
+        "human_active_intervention_time": "承認・却下を処理した行（統合 PR）でだけ記録する",
     }
 
     def new_record(self, **fields):
@@ -980,20 +1088,14 @@ class Scheduler:
             rec["attempts_judged"] = tel.get("attempts_judged")
             rec["retry_same_failure_repeats"] = tel.get("retry_same_failure_repeats")
 
-    def accepted_metrics(self, rec, n, pr_number, merge_sha):
-        """マージした Issue の token_to_accepted_loc と、人間の待ち時間。失敗しても処理は止めない。"""
-        records = []
-        try:
-            with (self.out / "runs.jsonl").open(encoding="utf-8") as f:
-                for line in f:
-                    try:
-                        r = json.loads(line)
-                    except ValueError:
-                        continue
-                    if r.get("issue") == n:
-                        records.append(r)
-        except OSError:
-            pass
+    def accepted_metrics(self, rec, n, merge_sha):
+        """統合ブランチへ入れた Issue の token_to_accepted_loc。失敗しても処理は止めない。
+
+        人間の待ち時間はここでは測らない（Issue ごとの承認が無くなったため）。統合 PR の行で測る。
+        """
+        # 過去の回（不合格を含む）と、まだ書き出していない今の回。今の回は runs.jsonl に
+        # 入る前なので、読み直しでは拾えない（Issue ごとの承認が無くなり、同じ周で数えるため）
+        records = [r for r in self.read_runs() if r.get("issue") == n] + [rec]
         tokens, t_why = telemetry.tokens_total(records)
         units_dir = self.cfg["unit_path_template"].rsplit("/", 1)[0] + "/"
         exclude = [self.test_dir + "/", units_dir, self.audit_dir + "/", "reports/"]
@@ -1002,7 +1104,6 @@ class Scheduler:
         telemetry.put(rec, "accepted_loc", loc, l_why)
         value, why = telemetry.token_to_accepted_loc(tokens, t_why, loc, l_why)
         telemetry.put(rec, "token_to_accepted_loc", value, why)
-        self.record_human(rec, pr_number)
 
     def record_human(self, rec, pr_number):
         human = {}
@@ -1035,12 +1136,106 @@ class Scheduler:
             raise Abort("作業ツリーが汚れています: " + ", ".join(dirty[:5]))
         self.git._git("worktree", "prune", check=False)
         self.git.pull_ff()
+        self.ensure_integration_branch()
 
     def worktree_root(self):
         return Path(self.cfg.get("worktree_root") or self.out / "worktrees")
 
-    def issue_worktree(self, n):
-        return self.worktree_root() / f"{self.cfg.get('project_id') or 'project'}-issue-{n}"
+    def runner_worktree(self):
+        """Issue の作業に使い回す固定 worktree。周ごとに作り直さない。
+
+        以前は Issue ごとに使い捨ての worktree を作り、終わったら `git worktree remove` で
+        物理削除していた。Windows では、直前に動いたエンジン・ビルド・ウイルス対策が
+        ファイルを掴んでいると削除が WinError 32 で失敗する。削除しなければその衝突は
+        起こりえない。代わりに、使う前に reset --hard と clean -fdx で中身を空にする。
+        """
+        name = self.cfg.get("runner_worktree_name") or "issue-runner"
+        return self.worktree_root() / f"{self.cfg.get('project_id') or 'project'}-{name}"
+
+    def prepare_runner(self, branch, start):
+        """固定 worktree を start から branch に作り直す。(パス, Git)。
+
+        掃除の順序に意味がある。checkout -B の前に reset --hard と clean -fdx をかけないと、
+        前回の未追跡ファイルが「上書きされる」と言われて checkout が失敗する。
+        """
+        wt = self.runner_worktree()
+        if not (wt / ".git").exists():
+            if wt.exists() and any(wt.iterdir()):
+                raise Abort(f"固定 worktree の場所に、git の管理下でないものがあります: {wt}")
+            self.git._git("worktree", "prune", check=False)
+            self.git.worktree_add_detached(wt, start)
+        g = Git(wt, self.cfg, self.pause)
+        g.reset_hard("HEAD")
+        g.clean_fdx()
+        g.checkout_new(branch, start)
+        left = g.changed_paths()
+        if left:
+            raise Abort(f"固定 worktree を掃除しきれません（{wt}）: " + ", ".join(left[:5]))
+        return wt, g
+
+    # ---- 統合ブランチ（docs/design/spec_pipeline.md §13 の 1）
+    def integration_branch(self):
+        return self.cfg["integration_prefix"] + self.cfg["integration_target"]
+
+    def ensure_integration_branch(self):
+        """統合ブランチが無ければ、今の origin/<base> から作って push する。作ったら True。
+
+        ローカルに checkout しない（本体の clone は base のまま触らない）。
+        統合 PR が main にマージされると、スケジューラが統合ブランチを消す。次の周が
+        新しい main から作り直すので、まとまりの区切りとカウンタが同時に戻る。
+        """
+        b = self.integration_branch()
+        created = False
+        if not self.git.remote_branch_exists(b):
+            self.git.push_new_branch(f"origin/{self.base}", b)
+            created = True
+            print(f"統合ブランチを作りました: {b}（起点 origin/{self.base}）")
+        self.git.fetch_branch(b)   # 積まれた Issue を数えるので、無い周でも必ず取ってくる
+        return created
+
+    def integration_merges(self):
+        """統合ブランチに積まれた Issue のマージコミット（古い順）。
+
+        マージコミットの本文に MERGE_TRAILERS の行を書いてあるので、それを読み直す。
+        コミットに無い Issue（人間が手で入れたもの）は拾わない。
+        """
+        b = self.integration_branch()
+        rc, _, _ = self.git._git("rev-parse", "--verify", "--quiet",
+                                 f"refs/remotes/origin/{b}", check=False)
+        if rc != 0:
+            return []   # まだ無いか、直前にマージされて消えた（次の周が作り直す）
+        rows = []
+        for sha, body in self.git.first_parent_log(f"origin/{self.base}..origin/{b}"):
+            found = dict(TRAILER_RE.findall(body))
+            m = ISSUE_REF_RE.fullmatch((found.get("Issue") or "").strip())
+            if not m:
+                continue
+            row = {"sha": sha, "issue": int(m.group(1))}
+            row.update({k: (found.get(k) or "").strip() for k in MERGE_TRAILERS if k != "Issue"})
+            rows.append(row)
+        return list(reversed(rows))
+
+    def contract_sha(self):
+        """origin/<base> にある契約（.harness.toml）の blob の SHA。
+
+        読むのは保護された既定ブランチの先頭からだけ（docs/design/contract.md §4.1）。
+        統合ブランチや Issue のブランチの .harness.toml は、実装役が書き換えうる。
+        """
+        sha = self.git.blob_sha(f"origin/{self.base}", contract.PATH)
+        if not sha:
+            raise Abort(f"契約 {contract.PATH} が origin/{self.base} にありません。"
+                        "契約の版を記録できないので、統合ブランチへ入れません")
+        return sha
+
+    def merge_message(self, n, verdict, contract_sha):
+        """統合ブランチへのマージコミットの本文。統合 PR で runs.jsonl と機械照合するため、
+        書式を固定する（MERGE_TRAILERS の順序どおり、1 行 1 項目）。"""
+        values = {"Issue": f"#{n}", "Run-Id": self.run_id,
+                  "Harness-SHA": self.harness_sha or VERDICT_UNKNOWN,
+                  "Contract-SHA": contract_sha, "Audit-Verdict": verdict,
+                  "Gate-Result": "PASSED"}
+        head = f"feat(core): implement Issue #{n} into {self.integration_branch()}"
+        return head + "\n\n" + "".join(f"{k}: {values[k]}\n" for k in MERGE_TRAILERS)
 
     def require_only(self, changed, allowed, phase):
         bad = [p for p in changed if not any(a(p) for a in allowed)]
@@ -1050,20 +1245,21 @@ class Scheduler:
     # ---- 1 Issue
     def process(self, n, title, rec):
         branch = f"{self.cfg['branch_prefix']}{n}"
+        integ = self.integration_branch()
         unit = self.cfg["unit_path_template"].format(number=n)
         rec["branch"] = branch
+        rec["integration_branch"] = integ
 
         self.gh.set_labels(n, add=["running"], remove=["ready"])
 
         if self.git.local_branch_exists(branch) or self.git.remote_branch_exists(branch):
             raise Reject(f"ブランチ `{branch}` が既にあります。前回の残骸か、人間の作業中です。"
                          "中身を確認してブランチを消し、`ready` を付け直してください。")
-        wt = self.issue_worktree(n)
-        if wt.exists() and not self.git.worktree_remove(wt):
-            raise Abort(f"前回の worktree の残骸を消せません（ファイルが掴まれている可能性）: {wt}")
-        # 本体の clone（repo_dir）は main のまま触らない。分解・監査・実装・コミット・push は worktree で行う
-        self.git.worktree_add(wt, branch, f"origin/{self.base}", new_branch=True)
-        self.wt, self.igit = wt, Git(wt, self.cfg, self.pause)
+        # Issue は main ではなく統合ブランチの先頭から切る。承認待ちの先行 Issue の実装を
+        # 後続が含められるようにするため（直列の依存で止まらない。§13 の 1）。
+        self.git.fetch_branch(integ)
+        wt, self.igit = self.prepare_runner(branch, f"origin/{integ}")
+        self.wt = wt
         rec["worktree"] = str(wt)
 
         # ---- 分解
@@ -1083,10 +1279,13 @@ class Scheduler:
         if not tests:
             raise Abort("decompose.py は rc=0 ですがテストファイルがありません", log=log)
         rec["tests"] = tests
+        # 承認依頼に載せる一覧を、実装に入る前に 1 度作ってみる。読めない一覧のまま
+        # 実装を走らせても、統合 PR で人間に見せられない（空の一覧で承認させない）
+        rec["test_count"] = self.summarize_tests(n, tests)[0]
         self.igit.add_commit(changed, f"test(ms4): acceptance tests for issue #{n}")
 
-        # ---- 監査
-        audit_failed = self.audit(rec, [unit] + tests)
+        # ---- 監査（実装の前。分解役が書いたテストと単位定義を見る）
+        audit_failed, _ = self.audit(rec, [unit] + tests, "spec")
         changed = self.igit.changed_paths()
         if changed:
             self.require_only(changed, [lambda p: p.startswith(self.audit_dir + "/")], "audit.py")
@@ -1105,66 +1304,362 @@ class Scheduler:
         if rc != 0:
             raise Abort(f"ms3_pipeline.py が rc={rc} で終了しました（環境異常）", log=log)
 
-        self.open_pr(n, title, branch, unit, rec)
+        self.merge_into_integration(n, branch, integ, unit, rec)
 
-    def audit(self, rec, files):
-        """戻り値: 監査が完了しなかったら True。合否に使うかは呼び出し側が設定で決める。"""
+    # 監査を回す場面。表示用の名前（runs.jsonl のキーは spec→audit / merge→merge_audit）
+    AUDIT_PHASES = {"spec": "監査（実装の前）", "merge": "監査（マージの直前）"}
+
+    def audit(self, rec, files, phase):
+        """監査を回す。戻り値: (完了しなかったか, 判定)。
+
+        **判定は合否に使わない**（非決定的な門を増やさない）。ok / concern / reject を
+        マージコミット・runs.jsonl・統合 PR の承認依頼の先頭に載せ、人間の目に入れる（§13 の 3）。
+        判定を読み取れなかったものは unknown にする。ok に畳まない。
+        """
+        key = "audit" if phase == "spec" else phase + "_audit"
         key_env = self.cfg["audit"]["key_env"]
         if not os.environ.get(key_env):
-            rec["audit"] = f"skipped ({key_env} 未設定)"
-            print(f"  [audit] {key_env} が無いのでスキップ")
-            return True
-        failed = []
+            rec[key] = f"skipped ({key_env} 未設定)"
+            rec[key + "_verdict"] = VERDICT_SKIPPED
+            print(f"  [{self.AUDIT_PHASES[phase]}] {key_env} が無いのでスキップ")
+            return True, VERDICT_SKIPPED
+        if not files:
+            rec[key] = "skipped (対象のファイルがありません)"
+            rec[key + "_verdict"] = VERDICT_SKIPPED
+            return False, VERDICT_SKIPPED
+        failed, verdicts, findings = [], [], []
         for f in files:
-            rc, _ = self.step(rec, "audit", tag=Path(f).stem, cwd=self.wt, file=f)
+            tag = ("" if phase == "spec" else phase + "-") + Path(f).stem
+            vpath = self.out / f"issue_{rec['issue']}" / f"audit_{tag}.verdict.json"
+            fileops.unlink(vpath)
+            rc, _ = self.step(rec, "audit", tag=tag, cwd=self.wt, file=f, verdict=str(vpath))
             if rc != 0:
                 failed.append(f"{f} rc={rc}")
-        rec["audit"] = "failed: " + "; ".join(failed) if failed else "done"
-        return bool(failed)
+                continue
+            data, why = telemetry.read(vpath)
+            got = (data or {}).get("verdict")
+            verdicts.append(got)
+            findings += [f"`{Path(f).name}`: {x}" for x in ((data or {}).get("findings") or [])]
+            if got not in VERDICT_ORDER:
+                print(f"  [{self.AUDIT_PHASES[phase]}] {f}: 判定を読めません: "
+                      + str((data or {}).get("verdict_null_reason") or why))
+        verdict = self.worst_verdict(verdicts)
+        rec[key] = "failed: " + "; ".join(failed) if failed else "done"
+        rec[key + "_verdict"] = verdict
+        rec[key + "_findings"] = findings
+        return bool(failed), verdict
 
-    def open_pr(self, n, title, branch, unit, rec):
-        """門を通った実装を PR にし、人間の承認を待つ。ここではマージしない。
+    @staticmethod
+    def worst_verdict(verdicts):
+        """複数のファイルの判定をまとめる。強いほうを採り、読めなかったものは unknown として数える。"""
+        if not verdicts:
+            return VERDICT_SKIPPED
+        got = [v if v in VERDICT_ORDER else VERDICT_UNKNOWN for v in verdicts]
+        return max(got, key=lambda v: VERDICT_RANK[v])
 
-        承認は最終的な head SHA に対して 1 回だけ行う。承認後に push すると
-        必須チェック approval が承認を外すので、承認の前に実装を済ませておく。
+    def impl_files(self, branch, integ):
+        """Issue のブランチが統合ブランチから足した、実装のファイル。
+
+        テスト・単位定義・監査レポート・記録は外す（分解役の出力は実装の前に監査済み）。
+        """
+        units_dir = self.cfg["unit_path_template"].rsplit("/", 1)[0] + "/"
+        skip = (self.test_dir + "/", self.audit_dir + "/", units_dir, "reports/")
+        return [x for x in self.igit.diff_names(f"origin/{integ}...{branch}")
+                if not any(x.startswith(s) for s in skip)]
+
+    def merge_into_integration(self, n, branch, integ, unit, rec):
+        """門を通った実装を、統合ブランチへローカルでマージして直接 push する（S24）。
+
+        **なぜ Issue ごとの PR をやめたか**: GitHub Actions の承認ゲートとローカルの
+        ハーネスが同じ PR で二重に主権を持つと、機械の門に通っても人間の承認が来るまで
+        次の Issue へ進めない（自走のデッドロック）。機械で判定できるものは機械が通し、
+        人間の承認（H1）とプレイ確認（H2）は統合 PR で 1 回だけ受ける。
+
+        **競合したら自分では直さない**: マージが衝突したときも、push が fast-forward で
+        ないときも、リベースや競合解決を試みずに直前の状態へ戻して ABORT する。
+        自律的な競合解決は、先祖返り（P2P 破壊）を静かに持ち込む経路になる。
         """
         dirty = self.igit.changed_paths()
         if dirty:
             raise Abort("パイプラインは合格ですが作業ツリーが汚れています: " + ", ".join(dirty[:5]))
-        self.igit.push(branch)  # パイプラインが push 済みのはず。同じなら何も起きない
+        self.igit.push(branch)   # パイプラインが push 済みのはず。同じなら何も起きない
         sha = self.igit.head_sha()
         rec["head_sha"] = sha
-        playtest = self.unit_field(unit, "playtest") == "required"
-        summary = self.approval_summary(n, unit, rec, sha, playtest)
-        self.close_issue_worktree(rec)
+        rec["playtest"] = "required" if self.unit_field(unit, "playtest") == "required" else "none"
 
-        pr = self.gh.create_pr(
-            branch, self.base, f"#{n}: {title}",
-            f"Closes #{n}\n\nms4 スケジューラが作成した PR です。"
-            "受入テストの一覧はコメントにあります。承認は dispatch から行います。\n")
-        rec["pr"] = pr
-        self.gh.comment(pr, f"ms4:approval-request:{sha}", summary, kind="pr")
-        self.gh.set_labels(pr, add=["awaiting"], kind="pr")
-        self.gh.set_labels(n, add=["awaiting"], remove=["running", "ready"])
-        if playtest:
-            self.build_playtest(n, pr, sha, rec)
+        # ---- マージの直前の監査。実装役が書いた実装そのものを、第三者のモデルに見せる
+        impl = self.impl_files(branch, integ)
+        rec["impl_files"] = impl
+        merge_audit_failed, verdict = self.audit(rec, impl, "merge")
+        changed = self.igit.changed_paths()
+        if changed:
+            # 先に片付ける。汚れたまま Reject を上げると、後始末の汚れ検査が ABORT に格上げする
+            self.require_only(changed, [lambda p: p.startswith(self.audit_dir + "/")], "audit.py")
+            self.igit.add_commit(changed, f"docs(audit): pre-merge audit for issue #{n}")
+            self.igit.push(branch)
+            sha = self.igit.head_sha()
+            rec["head_sha"] = sha
+        if merge_audit_failed and self.cfg["audit"]["required"]:
+            raise Reject("監査が必須の設定ですが、マージ直前の監査が完了しませんでした: "
+                         + rec["merge_audit"])
+        contract_sha = self.contract_sha()
 
-    def close_issue_worktree(self, rec):
-        """Issue の worktree を消す（ブランチは残す）。消せなければ記録して続ける（WinError 32 で止まらない）。"""
-        if self.wt is not None and not self.git.worktree_remove(self.wt):
-            rec["worktree_left"] = str(self.wt)
-            print(f"  worktree を消せませんでした（次に使う前に消し直します）: {self.wt}")
+        # ---- ローカルマージ。統合ブランチ側に立って --no-ff（1 Issue = 1 マージコミット）
+        self.igit.fetch_branch(integ)
+        self.igit.checkout_new(integ, f"origin/{integ}")
+        base_sha = self.igit.head_sha()
+        ok, detail = self.igit.merge_no_ff(branch, self.merge_message(n, verdict, contract_sha))
+        if not ok:
+            self.igit.merge_abort()
+            self.igit.reset_hard(base_sha)
+            raise Abort(f"統合ブランチ {integ} へのマージが衝突しました。"
+                        f"自動では解決せず、マージを取り消しました: {detail}")
+        merge_sha = self.igit.head_sha()
+        try:
+            self.igit.push(integ)
+        except Abort as e:
+            self.igit.reset_hard(base_sha)
+            raise Abort(f"統合ブランチ {integ} へ push できません（fast-forward ではありません）。"
+                        f"リベースも競合解決も行わず、マージを取り消しました: {e}")
+        self.git.fetch_branch(integ)
+        rec["merge_sha"] = merge_sha
+        rec["gate_result"] = "PASSED"
+        print(f"  {integ} へマージして push しました: {merge_sha[:8]}")
+
+        # ---- 二重処理の防止。Issue はここでは閉じない（閉じるのは統合 PR の Closes #N）
+        self.gh.comment(n, f"ms4:{n}:integrated:{merge_sha}",
+                        self.integrated_report(n, integ, rec, verdict))
+        self.gh.set_labels(n, add=["integrated"], remove=["running", "ready"])
+        self.accepted_metrics(rec, n, merge_sha)
+
+        # ---- Issue のブランチは役目を終えた（中身はマージコミットの第 2 親に残っている）
+        self.git.delete_branch(branch, force=True)
+        if self.git.remote_branch_exists(branch):
+            self.git.delete_remote_branch(branch)
         self.wt, self.igit = None, None
 
-    def unit_field(self, unit, key):
-        """単位定義の値。Issue の worktree がある間（消す前）に読むこと。"""
+    def integrated_report(self, n, integ, rec, verdict):
+        found = rec.get("merge_audit_findings") or []
+        body = (f"**ms4: 統合ブランチへマージしました** — Issue #{n}\n\n"
+                f"- 統合ブランチ: `{integ}`\n"
+                f"- マージコミット: `{rec['merge_sha'][:8]}`（Issue 側の先頭 `{rec['head_sha'][:8]}`）\n"
+                f"- 門: F2P / P2P / 静的検査 / 改変ブロック すべて合格（`Gate-Result: PASSED`）\n"
+                f"- 監査の判定: **{verdict}**（合否には使っていません）\n"
+                f"- Run-Id: `{self.run_id}`\n\n")
+        if found:
+            body += "### 監査役の指摘\n\n" + "\n".join(f"- {x}" for x in found[:20]) + "\n\n"
+        body += (f"この Issue はまだ閉じていません。人間の承認（H1）とプレイ確認（H2）は、"
+                 f"`{integ}` から `{self.base}` への統合 PR で 1 回だけ受けます。\n")
+        return body
+
+    def release_runner(self):
+        """固定 worktree の HEAD をブランチから外す。そのブランチを消せるようにするため。"""
+        wt = self.runner_worktree()
+        if (wt / ".git").exists():
+            Git(wt, self.cfg, self.pause)._git("checkout", "--detach", check=False)
+
+    def unit_field(self, unit, key, root=None):
+        """単位定義の値。worktree にその版が取り出されている間に読むこと。"""
         try:
-            return json.loads((Path(self.wt or self.repo) / unit).read_text(encoding="utf-8")).get(key)
+            path = Path(root or self.wt or self.repo) / unit
+            return json.loads(path.read_text(encoding="utf-8")).get(key)
         except (OSError, ValueError):
             return None
 
-    def build_playtest(self, n, pr, sha, rec):
-        """プレイ確認（H2）が必要な PR に印を付け、head SHA から実行ファイルを作る。
+    # ---- 統合 PR（統合ブランチ → base。人間の承認はここでだけ受ける）
+    def summarize_tests(self, n, tests):
+        """受入テストの一覧を C# から機械抽出する。1 件も読めなければ ABORT。
+
+        テストが唯一のオラクルなので、人間が中身を見られない状態で承認させてはいけない
+        （分解役が [Test] を 1 つも書いていないのに rc=0 で返した実例がある）。
+        """
+        try:
+            total, md = self.fast.summarize_files(tests, root=Path(self.wt or self.repo))
+        except (OSError, ValueError) as e:
+            raise Abort(f"Issue #{n} の受入テストの一覧を作れません: {e}")
+        if total == 0:
+            raise Abort(f"Issue #{n} の受入テストを 1 件も読み取れません。空の一覧で承認させません: "
+                        + ", ".join(tests or ["（記録なし）"]))
+        return total, md
+
+    def read_runs(self):
+        rows = []
+        try:
+            with (self.out / "runs.jsonl").open(encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        rows.append(json.loads(line))
+                    except ValueError:
+                        continue
+        except OSError:
+            pass
+        return rows
+
+    def check_run_ids(self, merges):
+        """マージコミットの Run-Id を runs.jsonl と突き合わせる。
+
+        統合 PR に付ける照合レポートの素。コミット履歴（誰でも見られる）と、ハーネスの
+        記録（手元にしかない）が食い違っていたら、人間が承認する前に見えるようにする。
+        """
+        rows = self.read_runs()
+        checked = []
+        for m in merges:
+            n = m["issue"]
+            hit = next((r for r in rows
+                        if r.get("run_id") == m["Run-Id"] and r.get("issue") == n), None)
+            if hit is None:
+                problem = f"runs.jsonl に run_id `{m['Run-Id']}` と Issue #{n} の組がありません"
+            elif hit.get("merge_sha") != m["sha"]:
+                problem = (f"記録のマージコミット `{str(hit.get('merge_sha'))[:8]}` が、"
+                           f"統合ブランチの `{m['sha'][:8]}` と違います")
+            elif m["Gate-Result"] != "PASSED" or hit.get("gate_result") != "PASSED":
+                problem = f"門の結果が PASSED ではありません（コミット `{m['Gate-Result']}`）"
+            elif m["Harness-SHA"] != (hit.get("harness_sha") or VERDICT_UNKNOWN):
+                problem = (f"ハーネスの版が違います（コミット `{m['Harness-SHA'][:8]}` / "
+                           f"記録 `{str(hit.get('harness_sha'))[:8]}`）")
+            else:
+                problem = None
+            checked.append({"issue": n, "merge": m, "run": hit, "problem": problem,
+                            "tests": (hit or {}).get("tests") or [],
+                            "playtest": (hit or {}).get("playtest") == "required"})
+        return checked
+
+    def maybe_open_integration_pr(self, more_ready):
+        """周の末尾。積まれた Issue が下限に達したか、対象が尽きたら統合 PR を 1 本作る。"""
+        integ = self.integration_branch()
+        if not self.git.remote_branch_exists(integ):
+            return None   # 直前に統合 PR がマージされて消えた。次の周が作り直す
+        self.git.fetch_branch(integ)
+        merges = self.integration_merges()
+        if not merges:
+            return None
+        if self.gh.find_pr(integ) is not None:
+            return None   # もう 1 本出ている（人間の承認待ち）
+        # 却下された Issue が混ざっている統合ブランチから、PR を出し直さない。
+        # 人間が却下したものを、機械がそのまま差し戻すことになる
+        declined = [m["issue"] for m in merges
+                    if self.labels_name("failed") in self.gh.view(m["issue"])["labels"]]
+        if declined:
+            print(f"統合ブランチ {integ} には却下された Issue が含まれます"
+                  + "（" + ", ".join(f"#{n}" for n in declined) + "）。PR を出し直しません")
+            return None
+        least = self.cfg["integration_pr_min_issues"]
+        if len(merges) < least and more_ready:
+            print(f"統合 PR はまだ作りません（積まれた Issue {len(merges)} 本 < {least} 本、"
+                  "対象の Issue が残っています）")
+            return None
+        return self.open_integration_pr(integ, merges)
+
+    def open_integration_pr(self, integ, merges):
+        """統合ブランチから base への PR を 1 本作り、人間の承認（H1）を待つ。"""
+        issues = [m["issue"] for m in merges]
+        rec = self.new_record(issue="integration-" + self.cfg["integration_target"],
+                              kind="integration", issues=issues, branch=integ)
+        self.touched = True
+        print(f"\n=== 統合 PR を作ります（{integ} → {self.base}、Issue "
+              + ", ".join(f"#{n}" for n in issues) + "）")
+        try:
+            wt, g = self.prepare_runner(integ, f"origin/{integ}")
+            self.wt, self.igit = wt, g
+            head = g.head_sha()
+            rec["head_sha"] = head
+            checked = self.check_run_ids(merges)
+            rec["run_id_problems"] = [c["problem"] for c in checked if c["problem"]]
+            for c in checked:
+                self.summarize_tests(c["issue"], c["tests"])   # PR を出す前に読めることを確かめる
+            num = self.gh.create_pr(
+                integ, self.base,
+                "統合: " + ", ".join(f"#{n}" for n in issues) + f" → {self.base}",
+                self.integration_pr_body(integ, checked, head))
+            rec["pr"] = num
+            summary = self.integration_approval_request(integ, checked, head, num)
+            self.gh.comment(num, f"ms4:approval-request:{head}", summary, kind="pr")
+            self.gh.set_labels(num, add=["awaiting"], kind="pr")
+            for c in checked:
+                n = c["issue"]
+                self.gh.comment(n, f"ms4:{n}:integration-pr:{head}",
+                                f"**ms4: 統合 PR #{num} に入りました**（`{integ}` → `{self.base}`）\n\n"
+                                "承認とプレイ確認は、その PR で行ってください。"
+                                f"この Issue は PR のマージ（`Closes #{n}`）で閉じます。\n")
+            if any(c["playtest"] for c in checked):
+                self.build_playtest(num, head, rec)
+            rec["result"] = "AWAITING"
+            return num
+        except Abort as e:
+            rec["result"], rec["reason"] = "ABORT", str(e)
+            for n in issues:
+                self.on_abort(n, e)
+            raise
+        finally:
+            self.wt, self.igit = None, None
+            self.record(rec)
+
+    def integration_pr_body(self, integ, checked, head):
+        """統合 PR の本文。Closes と、Run-Id と runs.jsonl の照合レポート。"""
+        issues = [c["issue"] for c in checked]
+        rows = []
+        for c in checked:
+            m = c["merge"]
+            rows.append(f"| #{c['issue']} | `{m['sha'][:8]}` | `{m['Run-Id']}` | "
+                        f"`{m['Harness-SHA'][:8]}` | `{m['Contract-SHA'][:8]}` | "
+                        f"{m['Audit-Verdict']} | {m['Gate-Result']} | "
+                        + ("OK" if c["problem"] is None else "**不一致**") + " |")
+        problems = [f"- Issue #{c['issue']}: {c['problem']}" for c in checked if c["problem"]]
+        return (
+            ", ".join(f"Closes #{n}" for n in issues) + "\n\n"
+            f"ms4 スケジューラが作った統合 PR です。`{integ}` の先頭は `{head[:8]}`。\n\n"
+            "各 Issue は、機械の門（F2P / P2P / 静的検査 / 改変ブロック）に通ったあと、"
+            f"スケジューラが `--no-ff` で `{integ}` にマージして push しました。"
+            "人間の承認（H1）とプレイ確認（H2）は、この PR で 1 回だけ受けます。"
+            f"`{self.base}` へはマージコミット（`--merge`）で入れます（squash しません）。\n\n"
+            "### コミットと記録の照合\n\n"
+            "| Issue | マージ | Run-Id | Harness | Contract | 監査 | 門 | 照合 |\n"
+            "|:--|:--|:--|:--|:--|:--|:--|:--|\n" + "\n".join(rows) + "\n\n"
+            + ("**照合できない行があります。承認の前に確認してください。**\n\n"
+               + "\n".join(problems) + "\n" if problems else
+               "すべてのマージコミットが `runs.jsonl` の記録と一致しています。\n"))
+
+    def integration_approval_request(self, integ, checked, head, num):
+        """承認依頼の本文。監査の判定を先頭に置き、受入テストは C# から機械抽出する。"""
+        project_id = self.cfg.get("project_id") or self.cfg["repo_slug"]
+        blocks, findings = [], []
+        for c in checked:
+            n = c["issue"]
+            unit = self.cfg["unit_path_template"].format(number=n)
+            total, md = self.summarize_tests(n, c["tests"])
+            hcp = self.unit_field(unit, "human_check_point", root=self.wt)
+            blocks.append(f"#### Issue #{n}（監査 {c['merge']['Audit-Verdict']}、"
+                          f"受入テスト {total} 件）\n\n{md}\n\n"
+                          "人間が実機で見ること: "
+                          + (hcp or "（単位定義に human_check_point がありません）") + "\n")
+            run = c["run"] or {}
+            findings += [f"- Issue #{n} {x}" for x in (run.get("merge_audit_findings") or [])]
+        verdicts = ", ".join("#%d %s" % (c["issue"], c["merge"]["Audit-Verdict"]) for c in checked)
+        playtest = [c["issue"] for c in checked if c["playtest"]]
+        playtest_note = (
+            "### プレイ確認\n\n**必要**（Issue "
+            + ", ".join(f"#{n}" for n in playtest)
+            + "）。`dispatch --playtest` で全項目 OK の結果が無いと承認できません。"
+            "ビルドができたらコメントで知らせます。\n\n" if playtest else "")
+        body = (
+            f"**ms4: 承認依頼** — 統合 PR（`{integ}` → `{self.base}`）\n\n"
+            f"対象コミット: `{head[:8]}`（この SHA に対してだけ有効。push されると承認は外れます）\n\n"
+            "### 監査の判定\n\n" + verdicts
+            + "（合否には使っていません。ok / concern / reject 以外は、判定を読み取れなかったことを表します）\n\n"
+            + (("指摘:\n\n" + "\n".join(findings[:40]) + "\n\n") if findings else "")
+            + "### 受入テスト（分解役が書いたもの。C# から機械抽出）\n\n"
+            + "\n".join(blocks) + "\n"
+            + playtest_note
+            + "### 承認\n\n```\n"
+            f"python tools/dispatch.py --approve {project_id}#{num}\n"
+            f"python tools/dispatch.py --decline {project_id}#{num} --reason \"...\"\n```\n")
+        limit = self.cfg.get("comment_max_chars", 60000)
+        if len(body) > limit:
+            body = body[:limit] + "\n\n…（長すぎるため省略。テストファイルを直接確認してください）\n"
+        return body
+
+    def build_playtest(self, pr, sha, rec):
+        """プレイ確認（H2）が必要な統合 PR に印を付け、その head SHA から実行ファイルを作る。
 
         ビルドの失敗は、承認待ちのまま人間に見せる（遊べないものは人間が却下する）。
         環境の異常（rc=2 など）は ABORT。
@@ -1189,44 +1684,22 @@ class Scheduler:
             return
         raise Abort(f"playtest.py が rc={rc} で終了しました（環境異常）", log=log)
 
-    def approval_summary(self, n, unit, rec, sha, playtest=False):
-        """承認依頼の本文。テスト一覧は C# から機械的に抜き出す（LLM に要約させない）。"""
-        tests = rec.get("tests") or []
-        try:
-            total, md = self.fast.summarize_files(tests, root=Path(self.wt or self.repo))
-        except (OSError, ValueError) as e:
-            raise Abort(f"受入テストの一覧を作れません: {e}")
-        if total == 0:
-            raise Abort("受入テストを 1 件も読み取れません。空の一覧で承認させません: "
-                        + ", ".join(tests))
-        hcp = self.unit_field(unit, "human_check_point")
-        project_id = self.cfg.get("project_id") or self.cfg["repo_slug"]
-        playtest_note = ("### プレイ確認\n\n**必要**（`dispatch --playtest` で全項目 OK の結果が無いと、"
-                         "承認できません。ビルドができたらコメントで知らせます）\n\n" if playtest else "")
-        body = (
-            f"**ms4: 承認依頼** — Issue #{n}\n\n"
-            f"対象コミット: `{sha[:8]}`（この SHA に対してだけ有効。push されると承認は外れます）\n\n"
-            f"### 受入テスト（分解役が書いたもの。C# から機械抽出。合計 {total} 件）\n\n{md}\n\n"
-            f"### 人間が実機で見ること\n\n{hcp or '（単位定義に human_check_point がありません）'}\n\n"
-            f"{playtest_note}"
-            f"### 監査\n\n{rec.get('audit', '（記録なし）')}\n\n"
-            f"### 承認\n\n"
-            f"```\npython tools/dispatch.py --approve {project_id}#PR番号\n"
-            f"python tools/dispatch.py --decline {project_id}#PR番号 --reason \"...\"\n```\n")
-        limit = self.cfg.get("comment_max_chars", 60000)
-        if len(body) > limit:
-            body = body[:limit] + "\n\n…（長すぎるため省略。テストファイルを直接確認してください）\n"
-        return body
-
     def handle_waiting(self, item):
-        """承認待ちの PR を 1 本見る。承認済みならマージ、却下なら不合格、それ以外は待つ。"""
-        prefix = self.cfg["branch_prefix"]
+        """承認待ちの PR を 1 本見る。Issue ごとの PR はもう作らない（S24）。
+
+        承認待ちになりうるのは、GDD の PR と、統合ブランチから base への統合 PR だけ。
+        ほかのブランチの PR は人間のものなので、ラベルが付いていても触らない。
+        """
         branch = item.get("headRefName") or ""
         if GDD_BRANCH_RE.fullmatch(branch):
             return self.handle_gdd_decision(item)
-        if not branch.startswith(prefix) or not branch[len(prefix):].isdigit():
-            return "WAITING"  # スケジューラが作った PR ではない
-        n, num = int(branch[len(prefix):]), item["number"]
+        if branch == self.integration_branch():
+            return self.handle_integration_decision(item)
+        return "WAITING"
+
+    def handle_integration_decision(self, item):
+        """承認待ちの統合 PR。承認済みなら base へマージ、却下なら閉じる。"""
+        num, branch = item["number"], item["headRefName"]
         pr = self.gh.view(num, "pr")
         names = pr["labels"]
         L = {k: self.labels_name(k) for k in ("approved", "declined")}
@@ -1240,24 +1713,29 @@ class Scheduler:
                 print(f"  PR #{num}: 承認ラベルはあるが必須チェックが揃っていません: {not_ok}")
                 return "WAITING"
 
-        rec = self.new_record(issue=n, pr=num, branch=branch)
+        # マージすると base が進み、統合ブランチも消すので、積まれた Issue は先に読んでおく
+        self.git.fetch_branch(branch)
+        issues = [m["issue"] for m in self.integration_merges()]
+        rec = self.new_record(issue="integration-" + self.cfg["integration_target"],
+                              kind="integration", issues=issues, pr=num, branch=branch)
         self.touched = True
         try:
             if L["declined"] in names:
-                print(f"\n=== PR #{num}（Issue #{n}）: 却下")
+                print(f"\n=== 統合 PR #{num}: 却下")
                 self.gh.close(num, "pr")
-                self.gh.comment(n, f"ms4:{n}:declined:{pr['sha']}",
-                                f"**ms4: 人間が却下しました**（PR #{num}、`{pr['sha'][:8]}`）\n\n"
-                                "理由は PR のコメントを見てください。ブランチは残してあります。"
-                                "直すには、ブランチを消して要求を直し、`ready` を付け直してください。\n")
+                for n in issues:
+                    self.gh.comment(n, f"ms4:{n}:declined:{pr['sha']}",
+                                    f"**ms4: 人間が統合 PR #{num} を却下しました**（`{pr['sha'][:8]}`）\n\n"
+                                    f"理由は PR のコメントを見てください。統合ブランチ `{branch}` は"
+                                    "そのまま残してあります。中身を確認し、直すか捨てるかを決めてください。\n")
+                    self.gh.set_labels(n, add=["failed"], remove=["awaiting", "running", "ready"])
                 self.gh.set_labels(num, remove=["awaiting"], kind="pr")
-                self.gh.set_labels(n, add=["failed"], remove=["awaiting", "running", "ready"])
-                rec["result"] = "REJECT"
-                rec["reason"] = "declined"
+                rec["result"], rec["reason"] = "REJECT", "declined"
                 self.record_human(rec, num)
                 return "REJECT"
 
-            print(f"\n=== PR #{num}（Issue #{n}）: 承認済み。マージします")
+            print(f"\n=== 統合 PR #{num}（Issue " + ", ".join(f"#{n}" for n in issues)
+                  + f"）: 承認済み。{self.base} へマージします")
             try:
                 self.gh.merge_pr(num, pr["sha"])
             except Abort:
@@ -1272,26 +1750,31 @@ class Scheduler:
             merged = self.gh.view(num, "pr")
             rec["merge_sha"] = merged["merge_sha"]
             self.git.pull_ff()
-            self.accepted_metrics(rec, n, num, merged["merge_sha"])
             run_id = self.wait_ci(merged["merge_sha"])
             rec["ci_run"] = run_id
+            self.record_human(rec, num)
 
-            self.gh.comment(n, f"ms4:{n}:passed:{merged['merge_sha']}",
-                            f"**ms4 スケジューラ: 合格**\n\n"
-                            f"- PR #{num} をマージ: `{merged['merge_sha'][:8]}`（承認した `{pr['sha'][:8]}`）\n"
-                            f"- main の CI: run {run_id}\n"
-                            f"- 記録: `reports/TIMELINE.md` の末尾\n")
-            self.gh.close(n)
+            for n in issues:
+                self.gh.comment(n, f"ms4:{n}:passed:{merged['merge_sha']}",
+                                f"**ms4 スケジューラ: 合格**\n\n"
+                                f"- 統合 PR #{num} を {self.base} へマージ: `{merged['merge_sha'][:8]}`"
+                                f"（承認した `{pr['sha'][:8]}`）\n"
+                                f"- {self.base} の CI: run {run_id}\n"
+                                f"- 記録: `reports/TIMELINE.md` の末尾\n")
+                self.gh.close(n)
             self.gh.set_labels(num, remove=["awaiting"], kind="pr")
-            self.gh.set_labels(n, remove=["awaiting", "running", "ready"])
+            # 統合ブランチは役目を終えた。次の周が新しい base から作り直す（まとまりの区切り）
+            self.release_runner()
             if self.git.local_branch_exists(branch):
-                self.git.delete_branch(branch, force=False)
+                self.git.delete_branch(branch, force=True)
+            self.git.delete_remote_branch(branch)
             rec["result"] = "PASSED"
-            print(f"=== #{n} 合格（マージ済み）")
+            print(f"=== 統合 PR #{num} 合格（Issue " + ", ".join(f"#{n}" for n in issues) + " を閉じました）")
             return "PASSED"
         except Abort as e:
             rec["result"], rec["reason"] = "ABORT", str(e)
-            self.on_abort(n, e)
+            for n in issues:
+                self.on_abort(n, e)
             raise
         finally:
             if rec.get("result") != "WAITING":
@@ -1340,9 +1823,10 @@ class Scheduler:
         body += "\n再実行するには、原因を直し、ブランチがあれば消してから `ready` を付け直してください。\n"
         self.gh.comment(n, f"ms4:{n}:reject:{self.run_id}", body)
         self.gh.set_labels(n, add=["failed"], remove=["running", "ready"])
-        self.close_issue_worktree(rec)
+        self.wt, self.igit = None, None   # 固定 worktree は消さない。次に使う前に掃除する
         branch = rec.get("branch")
         if e.delete_branch and branch and self.git.local_branch_exists(branch):
+            self.release_runner()   # そのブランチを checkout したままでは消せない
             self.git.delete_branch(branch, force=True)
 
     def on_abort(self, n, e):
@@ -1572,9 +2056,10 @@ class Scheduler:
         try:
             try:
                 self.process(n, title, rec)
-                rec["result"] = "AWAITING"
-                print(f"=== #{n} 門を通過。PR #{rec.get('pr')} で人間の承認を待ちます")
-                return "AWAITING"
+                rec["result"] = "PASSED"
+                print(f"=== #{n} 門を通過。{rec.get('integration_branch')} へマージしました "
+                      f"（`{str(rec.get('merge_sha'))[:8]}`）")
+                return "PASSED"
             except Reject as e:
                 rec["result"], rec["reason"] = "REJECT", str(e)
                 print(f"=== #{n} 不合格: {e}")
@@ -1601,19 +2086,32 @@ class Scheduler:
         print(f"GDD の PR: {len(gdds)} 本")
         for item in gdds:
             print(f"  PR #{item['number']} {item.get('headRefName')}")
+        integ = self.integration_branch()
+        if self.git.remote_branch_exists(integ):
+            self.git.fetch_branch(integ)
+            merges = self.integration_merges()
+            print(f"統合ブランチ: {integ}（積まれた Issue {len(merges)} 本 / 上限 "
+                  f"{self.cfg['integration_max_issues']} 本、統合 PR の下限 "
+                  f"{self.cfg['integration_pr_min_issues']} 本）")
+            for m in merges:
+                print(f"  #{m['issue']} `{m['sha'][:8]}` run {m['Run-Id']} 監査 {m['Audit-Verdict']}")
+        else:
+            merges = []
+            print(f"統合ブランチ: {integ}（まだ無い。origin/{self.base} から作ります）")
         issues = self.gh.list_ready()
         print(f"対象: {len(issues)} 件（上限 {self.cfg['max_issues_per_run']}）")
         for it in issues[:self.cfg["max_issues_per_run"]]:
             n = it["number"]
             unit = self.cfg["unit_path_template"].format(number=n)
             print(f"\n#{n} {it['title']}")
-            print(f"  ブランチ: {self.cfg['branch_prefix']}{n}")
+            print(f"  ブランチ: {self.cfg['branch_prefix']}{n}（origin/{integ} から切る）")
             for name, fmt in (("decompose", {"number": n}), ("audit", {"file": unit}),
                               ("pipeline", {"unit": unit})):
                 print("  " + " ".join(a.format(python="python", harness=project.HARNESS_DIR.as_posix(),
                                                project=self.cfg.get("project_id", ""),
                                                telemetry=f"<{name}.telemetry.json>",
-                                               repo=str(self.issue_worktree(n)), **fmt)
+                                               verdict=f"<audit.verdict.json>",
+                                               repo=str(self.runner_worktree()), **fmt)
                                       for a in self.cfg["commands"][name]))
         print("\n（dry-run: 何も変更していません）")
         return 0
@@ -1653,11 +2151,22 @@ class Scheduler:
             # GDD の PR（処理済みの GDD は handle_gdd の中で飛ばす）
             for item in self.gh.list_gdd_prs():
                 results.append(self.handle_gdd(item))
+            # 1 つの統合ブランチに積む Issue は integration_max_issues 本まで。
+            # 汚染が伝わって全部を捨てることになる範囲を、人間が見られる大きさに保つ。
+            stacked = len(self.integration_merges())
+            room = self.cfg["integration_max_issues"] - stacked
             limit = max_issues or self.cfg["max_issues_per_run"]
-            issues = self.gh.list_ready()[:limit]
+            ready = self.gh.list_ready()
+            issues = ready[:max(0, min(limit, room))]
+            if room <= 0 and ready:
+                print(f"統合ブランチに {stacked} 本積まれています（上限 "
+                      f"{self.cfg['integration_max_issues']} 本）。新しい Issue には着手しません")
             print(f"対象: {len(issues)} 件")
             for it in issues:
                 results.append(self.handle(it))
+            # 周の末尾。積まれた本数が下限に達したか、対象の Issue が尽きたら統合 PR を 1 本出す
+            if self.maybe_open_integration_pr(more_ready=len(ready) > len(issues)):
+                results.append("AWAITING")
         except Abort as e:
             print(f"\nABORT: {e}")
             if e.log:
@@ -1669,7 +2178,7 @@ class Scheduler:
                 self.release_lock()  # 何も変えていないので、次回を止める理由がない
             return 2
 
-        print(f"\n完了: マージ {results.count('PASSED')} / 承認待ちへ {results.count('AWAITING')} / "
+        print(f"\n完了: 合格 {results.count('PASSED')} / 承認待ちへ {results.count('AWAITING')} / "
               f"待機中 {results.count('WAITING')} / 質問待ち {results.count('QUESTIONS')} / 不合格 {results.count('REJECT')}")
         return 1 if "REJECT" in results else 0
 

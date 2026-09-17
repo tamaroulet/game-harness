@@ -61,7 +61,7 @@ class RepoDirTests(unittest.TestCase):
     def test_audit_reads_and_writes_under_the_given_repo_dir(self):
         seen = {}
 
-        def fake_audit(path):
+        def fake_audit(path, verdict_json=None):
             seen["root"] = audit.ROOT
             return 0
         with mock.patch.object(audit, "cmd_audit", side_effect=fake_audit), \

@@ -282,6 +282,8 @@ Pure C# の実装（`impl_roots`）に対する禁止パターンを、§5 の�
 
 B-2d の着手時に、「非同期で通るところまで自走させ、後から人間がまとめて確認・マージする」運用と、今の実装が合わない点 4 つを確認した。次のとおり決めた（安全弁を含む）。実装は B-2d には含めず、C2（タスク展開）の前に独立した PR 群で行う。
 
+実装の状況: 2 と 4 は PR #15（S22・S23）と B-2d で済み。**1 と 3 は PR 2（S24）で実装済み**（§13.1）。
+
 | # | 問題 | 決定 | 安全弁 |
 |:--|:--|:--|:--|
 | 1 | Issue は main から切るので、承認待ちの先行 Issue の実装を後続が含まない（直列の依存で止まる） | **統合ブランチ方式**。まとまりごとに `integration/<まとまり>` を切り、Issue の PR は統合ブランチ向け。機械の門（F2P・P2P・静的検査）に通ればスケジューラが自動でマージし、後続は統合ブランチの先頭から切る。人間の確認（H1 の承認・H2 のプレイ確認）は、統合ブランチから main への PR で 1 回。C2 の Issue に `order` と `depends_on` を持たせ、不合格なら後続に着手しない | 1 つの統合ブランチに積む Issue は **3〜4 本まで**（汚染が伝わって全部を捨てる範囲を小さくする）。main へのマージは **squash を禁止し、マージコミット**（コミット履歴とテレメトリの対応を保つ） |
@@ -290,3 +292,28 @@ B-2d の着手時に、「非同期で通るところまで自走させ、後か
 | 4 | 錨の無い GDD v1（falling-blocks PR #3）を繋ぐと、すぐ `ms4:questions` で止まり、常駐が周のたびに LLM を呼び直す | **再処理の防止**（処理済みのマーカー）と **錨の事前検査**（LLM を呼ばない）を B-2d に入れる。GDD v2（錨と S9 の値）は、B-2d のマージ後・実機検証の前に人間が `--submit-gdd` で送り、PR #3 を自動で閉じて差し替える | - |
 
 構造化役のモデルは `claude-opus-5` に固定する（`config/spec.json`、S7）。
+
+### 13.1 S24 の実装（PR 2）
+
+1 と 3 を `harness/scheduler.py` と `harness/audit.py` に入れた。設定は `config/scheduler.json` の
+`integration_prefix` / `integration_target` / `integration_pr_min_issues` / `integration_max_issues` /
+`runner_worktree_name` と、`config/audit.json` の `verdicts` / `verdict_prompt`。
+
+| 決めたこと | 実装 |
+|:--|:--|
+| 統合ブランチ | `integration/<まとまり>`（既定 `integration/mvp`）。周の始めに無ければ `origin/main` から作って push する。統合 PR が main にマージされたら消す（次の周が新しい main から作り直す。まとまりの区切りとカウンタが同時に戻る） |
+| Issue の起点 | `origin/<統合ブランチ>`。先行 Issue の実装を含む |
+| Issue ごとの PR | **作らない**。`open_pr` / Issue の `wait_ci` / Issue の承認待ちは廃止。門に通ったら `git merge --no-ff` して `git push` |
+| マージコミット | `feat(core): implement Issue #<id> into integration/<まとまり>` と、`Issue` / `Run-Id` / `Harness-SHA` / `Contract-SHA` / `Audit-Verdict` / `Gate-Result` の 6 行（順序も固定。`MERGE_TRAILERS`） |
+| 競合 | マージの衝突も、fast-forward でない push も、リベース・競合解決を試みずに直前の状態へ戻して ABORT（自律的な競合解決は先祖返りを静かに持ち込む経路になる） |
+| Issue の状態 | 統合ブランチへ入ったら `ms4:integrated` ＋ 要約と監査判定のコメント。**閉じない**（閉じるのは統合 PR の `Closes #N`）。`list_ready` は `ms4:integrated` を対象から外す |
+| 固定 worktree | `<worktree_root>/<project>-issue-runner` を使い回す。`git reset --hard` → `git clean -fdx` → `git checkout -B ms4/issue-N origin/<統合ブランチ>`。物理削除しないので WinError 32 が原理的に起きない |
+| 統合 PR | 積まれた Issue が `integration_pr_min_issues`（3）に達するか、ready が尽きた周の末尾に 1 本。本文に `Closes #N...` と、各マージコミットの `Run-Id` を `runs.jsonl` と突き合わせた照合レポート。承認（H1）とプレイ確認（H2）はここだけ。main へは `--merge` |
+| 監査の判定 | `audit.py --verdict-json` が `{"verdict", "findings"}` を書く。判定は**合否に使わない**。実装の前（テストと単位定義）と、マージの直前（実装そのもの）の 2 回回す |
+
+判定に使う値は監査役が返す `ok` / `concern` / `reject` の 3 つ。これに加えて、判定を読み取れなかったときは
+`unknown`、監査を回していないとき（鍵が無い・対象のファイルが無い）は `skipped` を書く。
+**取れなかった判定を `ok` に畳まない**（0 と「不明」を混ぜないのと同じ理由。`worst_verdict`）。
+
+安全弁のうち、`dispatch --approve` が `reject` のときに追加確認を求める部分は dispatch 側（別リポジトリ）の
+変更なので、この PR には入っていない。ハーネス側は判定を承認依頼の先頭に出すところまで。
