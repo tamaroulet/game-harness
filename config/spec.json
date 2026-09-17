@@ -1,0 +1,27 @@
+{
+  "_comment": "構造化役（harness/spec.py）の設定。docs/design/spec_pipeline.md §2・§8。ゲームごとの値はここに置かない",
+
+  "cli": "claude",
+  "headless_flag": "-p",
+  "version_args": ["--version"],
+
+  "_model_note": "実験の条件をそろえるためモデルを固定する（S7）。CLI の JSON 出力の modelUsage に別のモデルが現れたら環境異常で止める",
+  "model_flag": "--model",
+  "model": "claude-opus-5",
+
+  "_flags_note": "プロンプトのファイルを読むためだけに Read を許す。書き込み系は渡さない（ファイルは spec.py が検査に通ったものだけ書く）",
+  "extra_flags": ["--allowedTools", "Read"],
+  "output_format_args": ["--output-format", "json"],
+  "usage_format": "claude",
+  "response_key": "result",
+
+  "_prompt_note": "claude は npm の .cmd shim なので、改行を含む引数は最初の改行で切られる（decompose.py の実測）。本体はファイルで渡し、引数は 1 行の指示だけにする",
+  "prompt_template_file": "harness/templates/spec_prompt.md",
+  "prompt_arg_template": "{prompt_file} を読み、そこに書かれた指示に厳密に従って、指定の区切りで囲んだ 2 つの文書だけを返してください。前後に説明を書かないでください。",
+
+  "_attempts_note": "検査器（gdd_check.py）が不合格なら、理由と前回の出力を渡して作り直させる。仮・質問・錨の欠落（GDD の不足）は作り直しの理由にしない",
+  "max_attempts": 3,
+  "max_feedback_problems": 40,
+
+  "ttl_seconds": { "claude": 900, "version": 60 }
+}
