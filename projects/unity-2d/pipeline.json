@@ -17,6 +17,9 @@
   "_golden_dir_note": "同じ Unity スイートに同居するゴールデンランナーは全て同じステージング先を見る。片方しか設定しないと他方が『ファイルが無い』で落ち、実装が正しくても REJECT になる",
   "golden_dir_env_vars": ["MS2_GOLDEN_DIR", "MS3_GOLDEN_DIR"],
 
+  "_golden_required_note": "ゴールデン方式の単位で、エンジン側で skip されてはいけないスイート名（旧 pipeline.py に直書きされていた）。単位固有の名前をコアに書かないため設定へ出した",
+  "golden_required_engine_suites": ["MetaPointEquivalence"],
+
   "gates": {
     "max_retry": 2
   },
@@ -105,8 +108,8 @@
   "ttl_seconds": {
     "git": 120,
     "implementer": 300,
-    "dotnet_test": 300,
-    "unity": 1800,
+    "fast_tests": 300,
+    "engine_tests": 1800,
     "gh": 600
   }
 }

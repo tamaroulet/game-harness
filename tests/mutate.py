@@ -97,8 +97,30 @@ M = [
     ("M29 承認依頼を今の SHA に紐付けない", "scheduler.py",
      'self.gh.comment(pr, f"ms4:approval-request:{sha}", summary, kind="pr")',
      'self.gh.comment(pr, "ms4:approval-request", summary, kind="pr")'),
-    ("M30 抽出器が複数行の Assert を途中で切る", "test_summary.py",
+    ("M30 抽出器が複数行の Assert を途中で切る", "adapters/csharp_tests.py",
      '            stop = scan_until(body, am.start(), ";")', '            stop = body.find("\\n", am.start())'),
+
+    # ---- エンジン別アダプタ（Step 2）
+    ("M33 Unity の結果を全部 Passed と読む", "adapters/unity.py",
+     'return {n.get("fullname"): n.get("result") for n in x.iter("test-case")}',
+     'return {n.get("fullname"): "Passed" for n in x.iter("test-case")}'),
+    ("M34 TRX でクラス名を付けない", "adapters/dotnet.py",
+     "        results[fullname.get(n, n)] = r.get(\"outcome\")",
+     "        results[n] = r.get(\"outcome\")"),
+    ("M35 GUID が違っても止めない", "adapters/unity.py",
+     "        if g_repo != g_sb:", "        if False:"),
+    ("M36 既存の付随ファイルを上書きする", "adapters/unity.py",
+     "    if dst.exists():\n        g_repo", "    if False:\n        g_repo"),
+    ("M37 知らないアダプタ名を拒否しない", "adapters/__init__.py",
+     "    if name not in KNOWN[kind]:", "    if False:"),
+    ("M38 アダプタの必要関数を確かめない", "adapters/__init__.py",
+     "    if missing:\n        raise AdapterError", "    if False:\n        raise AdapterError"),
+    ("M39 pipeline がアダプタを選べなくても止まらない", "pipeline.py",
+     '            sys.exit(f"ABORT: アダプタを選べません: {e}")', "            raise"),
+    ("M40 コアにエンジンの語を戻す", "pipeline.py",
+     'print(f"[4] {c.engine.LABEL} 受入（開示）")', 'print("[4] Unity 受入（開示）")'),
+    ("M41 project.json の adapters の形を確かめない", "project.py",
+     '    if not (isinstance(a, dict) and', '    if False and (isinstance(a, dict) and'),
 ]
 
 

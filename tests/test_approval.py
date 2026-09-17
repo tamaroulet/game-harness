@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 
-import test_summary  # noqa: E402
+from adapters import csharp_tests as test_summary  # noqa: E402
 
 GATE_PATH = ROOT / "harness" / "templates" / "game-repo" / ".github" / "scripts" / "ms4_approval_gate.py"
 spec = importlib.util.spec_from_file_location("ms4_approval_gate", GATE_PATH)
