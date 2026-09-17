@@ -30,6 +30,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import adapters
+import contract
 import fileops
 import oracle
 import project
@@ -66,6 +67,9 @@ class Ctx:
         self.ctrl_pass = self.oracle["must_pass"]
         # 実装前（base）の測定結果。establish_base が 1 回だけ埋める。無ければ判定しない。
         self.base = None
+        # 契約（.harness.toml）の [static]。main の apply_contract が 1 回だけ埋める。
+        # 無いまま静的な門に来たら止まる（contract.effective_forbidden が ContractError）。
+        self.contract = None
 
         # テレメトリ（判定には使わない）。main が --telemetry のときに差し替える。
         # cur は実行中の試行の記録、gate は試行が今いる門（self.stage はゴールデンの置き場なので
@@ -265,6 +269,20 @@ def require_unit_safe(c):
                  "正解が定義されていないため、合否を判定できません")
 
 
+def apply_contract(c):
+    """契約をゲームのリポジトリの main の先頭から 1 回だけ読む。読めなければ ABORT。"""
+    base = (c.cfg.get("project") or {}).get("base_branch")
+    if not base:
+        sys.exit("ABORT: project.json に base_branch がありません（契約の読み込みに必要）")
+    try:
+        c.contract = contract.load(c.repo, base, c.ttl["git"])
+    except contract.ContractError as e:
+        sys.exit(f"ABORT: 契約を読めません: {e}")
+    c.tel["contract_sha"] = c.contract["sha"]
+    c.tel["contract_forbidden_count"] = len(c.contract["forbidden"])
+    print(f"契約: {base} @ {c.contract['sha'][:8]}（禁止パターン {len(c.contract['forbidden'])} 件）")
+
+
 def require_repo_clean(c):
     """起動時にリポジトリがクリーンであることを要求する。
 
@@ -378,10 +396,12 @@ def gate_static_common(c):
             return f"{rel} が存在しません"
         text = p.read_text(encoding="utf-8", errors="replace")
 
-        # forbidden_patterns: [[正規表現, 説明], ...]
+        # 禁止パターン: [[正規表現, 説明], ...]
         # 新規機能ではエンジン API・グローバル時間・非決定な乱数を禁じ、
-        # 仮想時間を外から注入する形（決定論的 FSM）を強制する。何を禁じるかは単位定義が持つ。
-        for pattern, label in c.unit.get("forbidden_patterns", []):
+        # 仮想時間を外から注入する形（決定論的 FSM）を強制する。
+        # 何を禁じるかは、契約（ゲームのリポジトリの main）と単位定義の和。単位定義は足せるが、
+        # 契約のパターンは消せない（分解役が forbidden_patterns を出力して既定を差し替える穴を塞ぐ）。
+        for pattern, label in contract.effective_forbidden(c.contract, c.unit):
             if re.search(pattern, text):
                 return f"{label}: {rel} に「{pattern}」が含まれています"
 
@@ -1044,6 +1064,12 @@ def selftest(c):
         core.write_text(orig + f"\n// probe: {probe}\n", encoding="utf-8")
         ng = gate_static(c)
         check("禁止パターンを弾く", ng is not None, str(ng))
+    # 契約の probe も発火を確かめる（単位定義の probe と別の違反を宣言していることがある）
+    cprobe = (c.contract or {}).get("probe")
+    if cprobe and cprobe != probe:
+        core.write_text(orig + f"\n// probe: {cprobe}\n", encoding="utf-8")
+        ng = gate_static(c)
+        check("契約の禁止パターンを弾く", ng is not None, str(ng))
 
     core.write_text(orig + "\n" + "// filler\n" * (c.unit["max_impl_lines"] + 50),
                     encoding="utf-8")
@@ -1260,6 +1286,7 @@ def main():
         for key, cwd in (("harness_sha", project.ROOT), ("repo_head", c.repo)):
             telemetry.put(tel, key, git_head(cwd, c.ttl["git"]), f"git rev-parse が失敗: {cwd}")
         require_unit_safe(c)
+        apply_contract(c)
         require_repo_clean(c)
         rc = run_unit(c, args)
         return rc
