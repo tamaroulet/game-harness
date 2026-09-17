@@ -14,8 +14,11 @@
     "approved": { "name": "ms4:approved", "color": "0E8A16", "description": "人間が今の head SHA を承認した（push されると approval チェックが外す）" },
     "declined": { "name": "ms4:declined", "color": "B60205", "description": "人間が却下した。スケジューラが PR を閉じて Issue を ms4:failed にする" },
     "playtest": { "name": "ms4:playtest-required", "color": "5319E7", "description": "プレイ確認（H2）が必要。dispatch --playtest で全項目 OK にしないと承認できない" },
-    "gdd":      { "name": "ms4:gdd", "color": "C5DEF5", "description": "dispatch から送られた GDD。スケジューラが構造化仕様を作る" }
+    "gdd":      { "name": "ms4:gdd", "color": "C5DEF5", "description": "dispatch から送られた GDD。スケジューラが構造化仕様を作る" },
+    "questions": { "name": "ms4:questions", "color": "D876E3", "description": "構造化仕様に質問か「仮」が残っている。GDD を直して版を上げ再送するまでマージできない" }
   },
+
+  "_questions_note": "ms4:questions は構造化仕様（docs/spec/）に質問か「仮」の値が 1 つでも残っている GDD の PR に付く。人間がその値のまま承認する道は無い（docs/design/spec_pipeline.md）。付けるのはスケジューラだけ（フェーズ B-2d で接続）",
 
   "_gdd_note": "ms4:gdd を付けるのは dispatch --submit-gdd だけ（ブランチ spec/gdd-v<版> の PR）。構造化（フェーズ B-2）が入るまで、スケジューラはこのラベルの PR を扱わない",
 
