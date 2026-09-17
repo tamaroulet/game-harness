@@ -47,6 +47,11 @@
     "must_fail": "control_must_fail"
   },
 
+  "_oracle_note": "二相判定（F2P / P2P）の設定。契約 .harness.toml の [oracle]（docs/design/contract.md §3.5）が実装されるまでの暫定の置き場。制御群は unity-2d の ms3_capture_golden.ps1 が control_groups を読むので、そちらにだけ書く。quarantine は P2P から外す不安定テストで、各要素 {test, reason, approved_in}。approved_in（承認した PR 番号）の無い要素は ABORT",
+  "oracle": {
+    "quarantine": []
+  },
+
   "golden_capture": {
     "case_count_min": 30,
     "case_count_max": 90,
