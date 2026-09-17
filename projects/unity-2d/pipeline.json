@@ -6,10 +6,16 @@
     "out_dir": "C:\\src\\.local\\out\\ms3",
     "oracles_dir": "C:\\src\\.local\\oracles",
     "_sandbox_note": "実装AIの唯一の作業場。worktree なので本体に触れない",
-    "sandbox": "C:\\src\\.local\\wt\\ms3-sandbox"
+    "sandbox": "C:\\src\\.local\\wt\\ms3-sandbox",
+    "_playtest_note": "プレイ確認（H2）のビルド専用のワークツリーと出力先（harness/playtest.py）。dispatch の playtest_out_root と同じ場所を指すこと",
+    "playtest_worktree": "C:\\src\\.local\\wt\\unity-2d-playtest",
+    "playtest_out": "C:\\src\\.local\\out\\playtest"
   },
 
   "unity_exe": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.3.23f1\\Editor\\Unity.exe",
+
+  "_playtest_build_note": "プレイ確認のビルド関数（-executeMethod）。ゲーム側の Editor スクリプトが持つ（Step 7 で unity-2d に配備し、契約の playtest.build_method へ移す）。-playtestOutput に exe のパスを受け取り、EditorApplication.Exit で成否を返すこと",
+  "playtest_build_method": "Game.EditorScripts.PlaytestBuild.BuildWindows",
 
   "_skip_note": "既存の [Explicit] による skip。GameFlowControllerTests 13 / GameFlowControllerRelicTests 4 / GameMonteCarloSimulationTests 3。これを超えたら新たに無効化されたテストがある。なお -testFilter で名前空間を指定すると NUnit は [Explicit] を明示的な選択とみなして実行してしまうため、フィルタは付けない",
   "unity_skip_baseline": 20,
@@ -118,6 +124,7 @@
     "implementer": 300,
     "fast_tests": 300,
     "engine_tests": 1800,
+    "playtest_build": 3600,
     "gh": 600
   }
 }

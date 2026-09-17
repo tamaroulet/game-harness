@@ -61,6 +61,31 @@ def run_tests(c, tag):
     return parse_results(xml), None
 
 
+def build_player(c, project_root, exe_path, log_path):
+    """プレイ確認用の Windows ビルド（H2）。戻り値 (rc, 理由)。
+
+    ビルドの中身はゲーム側の Editor スクリプト（pipeline.json の playtest_build_method）が持つ。
+    ここは起動の仕方だけを決める: -playtestOutput に exe のパスを渡し、終了コードで成否を返させる。
+    設定が足りないときは AdapterError（環境の問題。ビルドの失敗とは分ける）。
+    """
+    import adapters
+    method = c.cfg.get("playtest_build_method")
+    sub = (c.cfg.get("project") or {}).get("unity_project_subdir")
+    if not method:
+        raise adapters.AdapterError("pipeline.json に playtest_build_method がありません（Unity アダプタのビルドに必要）")
+    if not sub:
+        raise adapters.AdapterError("project.json に unity_project_subdir がありません（Unity アダプタに必要）")
+    Path(exe_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+    # -quit: ビルド関数が例外で抜けて Exit を呼ばなかったときも、エディタを残さない
+    rc, out, err = run([c.cfg["unity_exe"], "-batchmode", "-nographics", "-quit",
+                        "-projectPath", str(Path(project_root) / sub),
+                        "-buildTarget", "Win64", "-executeMethod", method,
+                        "-playtestOutput", str(exe_path), "-logFile", str(log_path)],
+                       project_root, c.ttl["playtest_build"], "unity build (playtest)")
+    return rc, ("" if rc == 0 else (err or out)[:200])
+
+
 def parse_results(xml_path):
     """NUnit3 の結果 XML → {fullname: result}"""
     x = ET.parse(xml_path).getroot()

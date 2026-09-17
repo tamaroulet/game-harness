@@ -1075,7 +1075,8 @@ class Scheduler:
         self.git.push(branch)  # パイプラインが push 済みのはず。同じなら何も起きない
         sha = self.git.head_sha()
         rec["head_sha"] = sha
-        summary = self.approval_summary(n, unit, rec, sha)
+        playtest = self.unit_field(unit, "playtest") == "required"
+        summary = self.approval_summary(n, unit, rec, sha, playtest)
         self.git.switch(self.base)
 
         pr = self.gh.create_pr(
@@ -1086,8 +1087,43 @@ class Scheduler:
         self.gh.comment(pr, f"ms4:approval-request:{sha}", summary, kind="pr")
         self.gh.set_labels(pr, add=["awaiting"], kind="pr")
         self.gh.set_labels(n, add=["awaiting"], remove=["running", "ready"])
+        if playtest:
+            self.build_playtest(n, pr, sha, rec)
 
-    def approval_summary(self, n, unit, rec, sha):
+    def unit_field(self, unit, key):
+        """単位定義の値。Issue ブランチに居る間（base に戻る前）に読むこと。"""
+        try:
+            return json.loads((self.repo / unit).read_text(encoding="utf-8")).get(key)
+        except (OSError, ValueError):
+            return None
+
+    def build_playtest(self, n, pr, sha, rec):
+        """プレイ確認（H2）が必要な PR に印を付け、head SHA から実行ファイルを作る。
+
+        ビルドの失敗は、承認待ちのまま人間に見せる（遊べないものは人間が却下する）。
+        環境の異常（rc=2 など）は ABORT。
+        """
+        rec["playtest"] = "required"
+        self.gh.set_labels(pr, add=["playtest"], kind="pr")
+        rc, log = self.step(rec, "playtest", pr=pr, sha=sha)
+        project_id = self.cfg.get("project_id") or self.cfg["repo_slug"]
+        if rc == 0:
+            self.gh.comment(pr, f"ms4:playtest-build:{sha}",
+                            f"**ms4: プレイ確認用のビルドができました**（`{sha[:8]}`）\n\n"
+                            f"```\npython tools/dispatch.py --playtest {project_id}#{pr}\n```\n\n"
+                            "全項目 OK の結果が無いと、この PR は承認できません。\n", kind="pr")
+            return
+        if rc == 1:
+            self.gh.comment(pr, f"ms4:playtest-build:{sha}",
+                            f"**ms4: プレイ確認用のビルドに失敗しました**（`{sha[:8]}`）\n\n"
+                            f"遊べないので、確認できません。内容を見て却下してください。\n\n"
+                            f"ログ: `{log}`\n\n```\n{tail_of(log, self.cfg['comment_log_tail_chars'])}\n```\n",
+                            kind="pr")
+            rec["playtest_build"] = "failed"
+            return
+        raise Abort(f"playtest.py が rc={rc} で終了しました（環境異常）", log=log)
+
+    def approval_summary(self, n, unit, rec, sha, playtest=False):
         """承認依頼の本文。テスト一覧は C# から機械的に抜き出す（LLM に要約させない）。"""
         tests = rec.get("tests") or []
         try:
@@ -1097,16 +1133,16 @@ class Scheduler:
         if total == 0:
             raise Abort("受入テストを 1 件も読み取れません。空の一覧で承認させません: "
                         + ", ".join(tests))
-        try:
-            hcp = json.loads((self.repo / unit).read_text(encoding="utf-8")).get("human_check_point")
-        except (OSError, ValueError):
-            hcp = None
+        hcp = self.unit_field(unit, "human_check_point")
         project_id = self.cfg.get("project_id") or self.cfg["repo_slug"]
+        playtest_note = ("### プレイ確認\n\n**必要**（`dispatch --playtest` で全項目 OK の結果が無いと、"
+                         "承認できません。ビルドができたらコメントで知らせます）\n\n" if playtest else "")
         body = (
             f"**ms4: 承認依頼** — Issue #{n}\n\n"
             f"対象コミット: `{sha[:8]}`（この SHA に対してだけ有効。push されると承認は外れます）\n\n"
             f"### 受入テスト（分解役が書いたもの。C# から機械抽出。合計 {total} 件）\n\n{md}\n\n"
             f"### 人間が実機で見ること\n\n{hcp or '（単位定義に human_check_point がありません）'}\n\n"
+            f"{playtest_note}"
             f"### 監査\n\n{rec.get('audit', '（記録なし）')}\n\n"
             f"### 承認\n\n"
             f"```\npython tools/dispatch.py --approve {project_id}#PR番号\n"

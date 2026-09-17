@@ -13,7 +13,7 @@
 
 各アダプタが持つもの（tests/test_adapters.py が機械で確かめる）:
   engine: LABEL, PASSED, FAILED, SKIPPED, run_tests, parse_results, skip_baseline,
-          is_companion, companions, carry_companion
+          is_companion, companions, carry_companion, build_player
   fast:   LABEL, PASSED, FAILED, run_tests, parse_results, STUB_SOURCE, test_file_glob,
           TEST_PATH_RE, build_output_globs, summarize_files
 """
@@ -26,7 +26,7 @@ KNOWN = {
 
 REQUIRED = {
     "engine": ("LABEL", "PASSED", "FAILED", "SKIPPED", "run_tests", "parse_results",
-               "skip_baseline", "is_companion", "companions", "carry_companion"),
+               "skip_baseline", "is_companion", "companions", "carry_companion", "build_player"),
     "fast": ("LABEL", "PASSED", "FAILED", "run_tests", "parse_results", "STUB_SOURCE",
              "test_file_glob", "TEST_PATH_RE", "build_output_globs", "summarize_files"),
 }
