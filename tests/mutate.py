@@ -9,6 +9,7 @@
 
 元のファイルはバイト列で退避し、finally で書き戻す（git checkout は使わない）。
 """
+import os
 import re
 import subprocess
 import sys
@@ -25,8 +26,8 @@ M = [
      '        if rc == 1:\n            raise Reject("実装パイプライン',
      '        if rc in (1, 2):\n            raise Reject("実装パイプライン'),
     ("M2 不合格時の汚れ検査を外す", "scheduler.py",
-     '        dirty = self.git.changed_paths()\n        if dirty:\n            raise Abort("不合格の後始末',
-     '        dirty = self.git.changed_paths()\n        if False:\n            raise Abort("不合格の後始末'),
+     '        dirty = (self.igit or self.git).changed_paths()\n        if dirty:\n            raise Abort("不合格の後始末',
+     '        dirty = (self.igit or self.git).changed_paths()\n        if False:\n            raise Abort("不合格の後始末'),
     ("M3 再試行前の読み直しを外す", "scheduler.py",
      "if done is not None and done():", "if False:"),
     ("M4 文字列 exit を 1 にする", "exitcode.py",
@@ -84,16 +85,18 @@ M = [
     ("M23 squash でマージする", "scheduler.py",
      '"--merge", "--match-head-commit", sha]', '"--squash", "--match-head-commit", sha]'),
     ("M24 必須チェックを見ない", "scheduler.py",
-     '            not_ok = {k: v for k, v in states.items() if v != "success"}', "            not_ok = {}"),
+     '            not_ok = {k: v for k, v in states.items() if v != "success"}\n            if not_ok:\n                print(f"  PR #{num}: 承認ラベル',
+     '            not_ok = {}\n            if not_ok:\n                print(f"  PR #{num}: 承認ラベル'),
     ("M25 同名 check-run の古いほうを採る", "scheduler.py",
      'r["id"] > latest[name]["id"]', 'r["id"] < latest[name]["id"]'),
     ("M26 空のテスト一覧でも承認依頼を出す", "scheduler.py",
      "        if total == 0:", "        if False:"),
     ("M27 承認後の push を ABORT 扱いにする", "scheduler.py",
-     '                if now["state"] != "MERGED" and now["sha"] != pr["sha"]:', "                if False:"),
+     '                if now["state"] != "MERGED" and now["sha"] != pr["sha"]:\n                    print(f"  承認後に push されました（{pr[\'sha\'][:8]} → {now[\'sha\'][:8]}）。承認待ちに戻します")\n                    rec["result"] = "WAITING"',
+     '                if False:\n                    print(f"  承認後に push されました（{pr[\'sha\'][:8]} → {now[\'sha\'][:8]}）。承認待ちに戻します")\n                    rec["result"] = "WAITING"'),
     ("M28 承認を待たずに PR を出した直後にマージする", "scheduler.py",
-     "        if L[\"declined\"] not in names and L[\"approved\"] not in names:\n            return \"WAITING\"",
-     "        if False:\n            return \"WAITING\""),
+     "        if L[\"declined\"] not in names and L[\"approved\"] not in names:\n            return \"WAITING\"\n        if L[\"declined\"] not in names:",
+     "        if False:\n            return \"WAITING\"\n        if L[\"declined\"] not in names:"),
     ("M29 承認依頼を今の SHA に紐付けない", "scheduler.py",
      'self.gh.comment(pr, f"ms4:approval-request:{sha}", summary, kind="pr")',
      'self.gh.comment(pr, "ms4:approval-request", summary, kind="pr")'),
@@ -316,6 +319,34 @@ M = [
     ('M108 事前検査で座標の組を数えない', 'gdd_check.py',
      '    if pairs < pc["min_coordinate_pairs"]:',
      '    if False:'),
+    # ---- 門と持ち出し先（PR 1: S22・S23）
+    ('M109 未追跡をフォルダにまとめて読む', 'pipeline.py',
+     '"--untracked-files=all"], cwd, ttl, "status")',
+     '"--untracked-files=normal"], cwd, ttl, "status")'),
+    ('M110 無関係な .meta を許す', 'pipeline.py',
+     '            if not (owner and is_new):',
+     '            if not is_new:'),
+    ('M111 既存の .meta の変更を許す', 'pipeline.py',
+     '            is_new = code == "??" or code[0] == "A"',
+     '            is_new = True'),
+    ('M112 改名元のパスを読み捨てない', 'pipeline.py',
+     '        if code[0] in "RC" and i < len(parts):',
+     '        if False:'),
+    ('M113 実装パイプラインを本体の clone で動かす', 'scheduler.py',
+     '        rc, log = self.step(rec, "pipeline", cwd=wt, unit=unit)',
+     '        rc, log = self.step(rec, "pipeline", unit=unit)'),
+    ('M114 PR を作った後に worktree を消さない', 'scheduler.py',
+     '        summary = self.approval_summary(n, unit, rec, sha, playtest)\n        self.close_issue_worktree(rec)\n',
+     '        summary = self.approval_summary(n, unit, rec, sha, playtest)\n'),
+    ('M115 pipeline が --repo-dir を無視する', 'pipeline.py',
+     '        if args.repo_dir:\n            proj["repo_dir"] = args.repo_dir',
+     '        if False:\n            proj["repo_dir"] = args.repo_dir'),
+    ('M116 decompose が --repo-dir を無視する', 'decompose.py',
+     '    if repo_dir:\n        p["repo_dir"] = repo_dir',
+     '    if False:\n        p["repo_dir"] = repo_dir'),
+    ('M117 audit が --repo-dir を無視する', 'audit.py',
+     '    ROOT = Path(a.repo_dir or project.load(a.project)["repo_dir"])',
+     '    ROOT = Path(project.load(a.project)["repo_dir"])'),
 ]
 
 
@@ -332,9 +363,12 @@ def main(only):
             return 2
         try:
             p.write_bytes(text.replace(old, new).encode("utf-8"))
+            # 変異の実行中は、変異表そのものを確かめるテストを飛ばす（ソースが書き換わっていて
+            # 必ず赤になり、どの変異も無条件に「検出」になってしまう）
+            env = {**os.environ, "HARNESS_MUTATING": "1"}
             r = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests"],
                                cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8",
-                               errors="replace", timeout=900)
+                               errors="replace", timeout=900, env=env)
             fails = sorted(set(re.findall(r"^(?:FAIL|ERROR): (\w+)", r.stderr, re.M)))
             red = r.returncode != 0
             print(f"{name}: {'赤' if red else '緑（検出できず）'} {fails}")

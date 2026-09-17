@@ -24,6 +24,7 @@
     3. ready の Issue
          ready → ms4:running
          ブランチ ms4/issue-N を切る（既にあれば不合格。前回の残骸か人間の作業中）
+         作業は使い捨ての worktree（<worktree_root>/<project>-issue-N）で行う。本体の clone は main のまま触らない
          decompose.py   0 → 次 / 1 → 不合格 / それ以外 → ABORT
          生成物をコミット（想定外のパスがあれば ABORT）
          audit.py       キーが無ければスキップ。結果は合否に使わない（required=false のとき）
@@ -301,12 +302,6 @@ class Git:
         out = self._net("ls-remote", "--heads", "origin", branch) or ""
         return bool(out.strip())
 
-    def switch_new(self, branch):
-        self._git("switch", "-c", branch)
-
-    def switch(self, branch):
-        self._git("switch", branch)
-
     def delete_branch(self, branch, force):
         self._git("branch", "-D" if force else "-d", branch)
 
@@ -334,9 +329,10 @@ class Git:
         rc, out, _ = self._git("show", f"{ref}:{path}", check=False)
         return out if rc == 0 else None
 
-    def worktree_add(self, path, branch, start):
+    def worktree_add(self, path, branch, start, new_branch=False):
+        """new_branch=True は -b（既にあれば失敗）、False は -B（あれば start に合わせ直す）。"""
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self._git("worktree", "add", "-B", branch, str(path), start)
+        self._git("worktree", "add", "-b" if new_branch else "-B", branch, str(path), start)
 
     def worktree_remove(self, path):
         """使い捨ての worktree を消す。消せたら True。
@@ -712,6 +708,7 @@ class Scheduler:
         self.lock = Path(cfg.get("lock_path") or self.out / "scheduler.lock")
         self.stop_path = self.lock.parent / "scheduler.stop"
         self.touched = False
+        self.wt, self.igit = None, None   # 処理中の Issue の worktree と、その Git
         self._wd_stop = threading.Event()
         self._exit = os._exit
         # 記録に残すハーネスの版。取れなければ null（記録のためだけなので止めない）。
@@ -945,18 +942,20 @@ class Scheduler:
         with (self.out / "runs.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
-    def step(self, rec, name, tag=None, **fmt):
+    def step(self, rec, name, tag=None, cwd=None, **fmt):
         log = self.out / f"issue_{rec['issue']}" / (f"{name}_{tag}.log" if tag else f"{name}.log")
         # 道具が書くテレメトリ。前回の残りを読まないよう、実行前に消す。
         tel_path = log.with_name(log.stem + ".telemetry.json")
         fileops.unlink(tel_path)
+        cwd = Path(cwd or self.repo)
         args = [a.format(python=sys.executable, harness=project.HARNESS_DIR.as_posix(),
-                         project=self.cfg.get("project_id", ""), telemetry=str(tel_path), **fmt)
+                         project=self.cfg.get("project_id", ""), telemetry=str(tel_path),
+                         repo=str(cwd), **fmt)
                 for a in self.cfg["commands"][name]]
         print(f"  [{name}{' ' + tag if tag else ''}] 実行中… ログ: {log}")
         t0 = time.monotonic()
         self.hb.beat(state="running", step=name, issue=rec["issue"], child_pid=None, reason=None)
-        rc = run_logged(args, self.repo, self.cfg["ttl_seconds"][name], log, self.env,
+        rc = run_logged(args, cwd, self.cfg["ttl_seconds"][name], log, self.env,
                         on_wait=lambda pid: self.hb.beat(child_pid=pid), tick=self.tick)
         self.hb.beat(child_pid=None)
         secs = round(time.monotonic() - t0, 1)
@@ -1034,7 +1033,14 @@ class Scheduler:
         dirty = self.git.changed_paths()
         if dirty:
             raise Abort("作業ツリーが汚れています: " + ", ".join(dirty[:5]))
+        self.git._git("worktree", "prune", check=False)
         self.git.pull_ff()
+
+    def worktree_root(self):
+        return Path(self.cfg.get("worktree_root") or self.out / "worktrees")
+
+    def issue_worktree(self, n):
+        return self.worktree_root() / f"{self.cfg.get('project_id') or 'project'}-issue-{n}"
 
     def require_only(self, changed, allowed, phase):
         bad = [p for p in changed if not any(a(p) for a in allowed)]
@@ -1052,17 +1058,23 @@ class Scheduler:
         if self.git.local_branch_exists(branch) or self.git.remote_branch_exists(branch):
             raise Reject(f"ブランチ `{branch}` が既にあります。前回の残骸か、人間の作業中です。"
                          "中身を確認してブランチを消し、`ready` を付け直してください。")
-        self.git.switch_new(branch)
+        wt = self.issue_worktree(n)
+        if wt.exists() and not self.git.worktree_remove(wt):
+            raise Abort(f"前回の worktree の残骸を消せません（ファイルが掴まれている可能性）: {wt}")
+        # 本体の clone（repo_dir）は main のまま触らない。分解・監査・実装・コミット・push は worktree で行う
+        self.git.worktree_add(wt, branch, f"origin/{self.base}", new_branch=True)
+        self.wt, self.igit = wt, Git(wt, self.cfg, self.pause)
+        rec["worktree"] = str(wt)
 
         # ---- 分解
-        rc, log = self.step(rec, "decompose", number=n)
+        rc, log = self.step(rec, "decompose", cwd=wt, number=n)
         if rc == 1:
             raise Reject("分解役の出力が要件を満たしませんでした（何も書き出していません）。",
                          log=log, delete_branch=True)
         if rc != 0:
             raise Abort(f"decompose.py が rc={rc} で終了しました（環境異常）", log=log)
 
-        changed = self.git.changed_paths()
+        changed = self.igit.changed_paths()
         if unit not in changed:
             raise Abort(f"decompose.py は rc=0 ですが単位定義 {unit} がありません", log=log)
         in_tests = lambda p: p.startswith(self.test_dir + "/")
@@ -1071,21 +1083,21 @@ class Scheduler:
         if not tests:
             raise Abort("decompose.py は rc=0 ですがテストファイルがありません", log=log)
         rec["tests"] = tests
-        self.git.add_commit(changed, f"test(ms4): acceptance tests for issue #{n}")
+        self.igit.add_commit(changed, f"test(ms4): acceptance tests for issue #{n}")
 
         # ---- 監査
         audit_failed = self.audit(rec, [unit] + tests)
-        changed = self.git.changed_paths()
+        changed = self.igit.changed_paths()
         if changed:
             self.require_only(changed, [lambda p: p.startswith(self.audit_dir + "/")], "audit.py")
-            self.git.add_commit(changed, f"docs(audit): audit reports for issue #{n}")
+            self.igit.add_commit(changed, f"docs(audit): audit reports for issue #{n}")
         if audit_failed and self.cfg["audit"]["required"]:
             raise Reject("監査が必須の設定ですが、監査が完了しませんでした: " + rec["audit"])
 
-        self.git.push_upstream(branch)
+        self.igit.push_upstream(branch)
 
         # ---- 実装
-        rc, log = self.step(rec, "pipeline", unit=unit)
+        rc, log = self.step(rec, "pipeline", cwd=wt, unit=unit)
         self.lift_attempt_metrics(rec)
         if rc == 1:
             raise Reject("実装パイプラインが不合格でした（全試行で門を通りませんでした）。"
@@ -1104,7 +1116,7 @@ class Scheduler:
             return True
         failed = []
         for f in files:
-            rc, _ = self.step(rec, "audit", tag=Path(f).stem, file=f)
+            rc, _ = self.step(rec, "audit", tag=Path(f).stem, cwd=self.wt, file=f)
             if rc != 0:
                 failed.append(f"{f} rc={rc}")
         rec["audit"] = "failed: " + "; ".join(failed) if failed else "done"
@@ -1116,15 +1128,15 @@ class Scheduler:
         承認は最終的な head SHA に対して 1 回だけ行う。承認後に push すると
         必須チェック approval が承認を外すので、承認の前に実装を済ませておく。
         """
-        dirty = self.git.changed_paths()
+        dirty = self.igit.changed_paths()
         if dirty:
             raise Abort("パイプラインは合格ですが作業ツリーが汚れています: " + ", ".join(dirty[:5]))
-        self.git.push(branch)  # パイプラインが push 済みのはず。同じなら何も起きない
-        sha = self.git.head_sha()
+        self.igit.push(branch)  # パイプラインが push 済みのはず。同じなら何も起きない
+        sha = self.igit.head_sha()
         rec["head_sha"] = sha
         playtest = self.unit_field(unit, "playtest") == "required"
         summary = self.approval_summary(n, unit, rec, sha, playtest)
-        self.git.switch(self.base)
+        self.close_issue_worktree(rec)
 
         pr = self.gh.create_pr(
             branch, self.base, f"#{n}: {title}",
@@ -1137,10 +1149,17 @@ class Scheduler:
         if playtest:
             self.build_playtest(n, pr, sha, rec)
 
+    def close_issue_worktree(self, rec):
+        """Issue の worktree を消す（ブランチは残す）。消せなければ記録して続ける（WinError 32 で止まらない）。"""
+        if self.wt is not None and not self.git.worktree_remove(self.wt):
+            rec["worktree_left"] = str(self.wt)
+            print(f"  worktree を消せませんでした（次に使う前に消し直します）: {self.wt}")
+        self.wt, self.igit = None, None
+
     def unit_field(self, unit, key):
-        """単位定義の値。Issue ブランチに居る間（base に戻る前）に読むこと。"""
+        """単位定義の値。Issue の worktree がある間（消す前）に読むこと。"""
         try:
-            return json.loads((self.repo / unit).read_text(encoding="utf-8")).get(key)
+            return json.loads((Path(self.wt or self.repo) / unit).read_text(encoding="utf-8")).get(key)
         except (OSError, ValueError):
             return None
 
@@ -1174,7 +1193,7 @@ class Scheduler:
         """承認依頼の本文。テスト一覧は C# から機械的に抜き出す（LLM に要約させない）。"""
         tests = rec.get("tests") or []
         try:
-            total, md = self.fast.summarize_files(tests, root=self.repo)
+            total, md = self.fast.summarize_files(tests, root=Path(self.wt or self.repo))
         except (OSError, ValueError) as e:
             raise Abort(f"受入テストの一覧を作れません: {e}")
         if total == 0:
@@ -1309,7 +1328,7 @@ class Scheduler:
 
     # ---- 結末
     def on_reject(self, n, e, rec):
-        dirty = self.git.changed_paths()
+        dirty = (self.igit or self.git).changed_paths()
         if dirty:
             raise Abort("不合格の後始末の時点で作業ツリーが汚れています（掃除しません）: "
                         + ", ".join(dirty[:5]), log=e.log)
@@ -1321,8 +1340,7 @@ class Scheduler:
         body += "\n再実行するには、原因を直し、ブランチがあれば消してから `ready` を付け直してください。\n"
         self.gh.comment(n, f"ms4:{n}:reject:{self.run_id}", body)
         self.gh.set_labels(n, add=["failed"], remove=["running", "ready"])
-        if self.git.current_branch() != self.base:
-            self.git.switch(self.base)
+        self.close_issue_worktree(rec)
         branch = rec.get("branch")
         if e.delete_branch and branch and self.git.local_branch_exists(branch):
             self.git.delete_branch(branch, force=True)
@@ -1385,7 +1403,7 @@ class Scheduler:
     def structure_gdd(self, num, branch, version, sha, marker, rec):
         """使い捨ての worktree で構造化役を動かし、docs/spec の 2 ファイルだけを PR にコミットする。"""
         tag = f"gdd-v{version}-{sha[:8]}"
-        wt = Path(self.cfg.get("worktree_root") or self.out / "worktrees") / tag
+        wt = self.worktree_root() / f"{self.cfg.get('project_id') or 'project'}-{tag}"
         work = self.out / "spec" / tag
         work.mkdir(parents=True, exist_ok=True)
         prev_path = ""
@@ -1547,6 +1565,7 @@ class Scheduler:
 
     def handle(self, issue):
         n, title = issue["number"], issue["title"]
+        self.wt, self.igit = None, None
         rec = self.new_record(issue=n, title=title)
         print(f"\n=== Issue #{n}: {title}")
         self.touched = True
@@ -1593,7 +1612,8 @@ class Scheduler:
                               ("pipeline", {"unit": unit})):
                 print("  " + " ".join(a.format(python="python", harness=project.HARNESS_DIR.as_posix(),
                                                project=self.cfg.get("project_id", ""),
-                                               telemetry=f"<{name}.telemetry.json>", **fmt)
+                                               telemetry=f"<{name}.telemetry.json>",
+                                               repo=str(self.issue_worktree(n)), **fmt)
                                       for a in self.cfg["commands"][name]))
         print("\n（dry-run: 何も変更していません）")
         return 0
@@ -1631,7 +1651,6 @@ class Scheduler:
             for item in waiting:
                 results.append(self.handle_waiting(item))
             # GDD の PR（処理済みの GDD は handle_gdd の中で飛ばす）
-            self.git._git("worktree", "prune", check=False)
             for item in self.gh.list_gdd_prs():
                 results.append(self.handle_gdd(item))
             limit = max_issues or self.cfg["max_issues_per_run"]
