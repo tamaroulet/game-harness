@@ -18,9 +18,9 @@
     "questions": { "name": "ms4:questions", "color": "D876E3", "description": "構造化仕様に質問か「仮」が残っている。GDD を直して版を上げ再送するまでマージできない" }
   },
 
-  "_questions_note": "ms4:questions は構造化仕様（docs/spec/）に質問か「仮」の値が 1 つでも残っている GDD の PR に付く。人間がその値のまま承認する道は無い（docs/design/spec_pipeline.md）。付けるのはスケジューラだけ（フェーズ B-2d で接続）",
+  "_questions_note": "ms4:questions は構造化仕様（docs/spec/）に質問か「仮」の値が 1 つでも残っている GDD の PR に付く。人間がその値のまま承認する道は無い（docs/design/spec_pipeline.md）。付けるのはスケジューラだけ（handle_gdd）",
 
-  "_gdd_note": "ms4:gdd を付けるのは dispatch --submit-gdd だけ（ブランチ spec/gdd-v<版> の PR）。構造化（フェーズ B-2）が入るまで、スケジューラはこのラベルの PR を扱わない",
+  "_gdd_note": "ms4:gdd を付けるのは dispatch --submit-gdd だけ（ブランチ spec/gdd-v<版> の PR）。スケジューラは、その head の GDD（docs/gdd/source.md）の sha256 に処理済みのマーカー（ms4:gdd-processed）が無い PR だけを構造化する（再処理しない）",
 
   "_approved_note": "スケジューラ自身は ms4:approved を付けない。付けるのは人間（dispatch --approve）だけ",
 
@@ -32,7 +32,8 @@
     "decompose": ["{python}", "{harness}/decompose.py", "--project", "{project}", "--issue", "{number}", "--telemetry", "{telemetry}"],
     "audit":     ["{python}", "{harness}/audit.py", "--project", "{project}", "--file", "{file}"],
     "pipeline":  ["{python}", "{harness}/pipeline.py", "--project", "{project}", "--unit", "{unit}", "--telemetry", "{telemetry}"],
-    "playtest":  ["{python}", "{harness}/playtest.py", "--project", "{project}", "--pr", "{pr}", "--sha", "{sha}", "--telemetry", "{telemetry}"]
+    "playtest":  ["{python}", "{harness}/playtest.py", "--project", "{project}", "--pr", "{pr}", "--sha", "{sha}", "--telemetry", "{telemetry}"],
+    "spec":      ["{python}", "{harness}/spec.py", "--project", "{project}", "--gdd", "{gdd}", "--out-dir", "{out_dir}", "--work-dir", "{work_dir}", "--previous-spec", "{previous_spec}", "--telemetry", "{telemetry}"]
   },
 
   "_condition_note": "runs.jsonl の condition。比較実験で、門番の無い再試行ループ（loop-no-gate）の記録と区別する（docs/design/telemetry.md）",
@@ -44,6 +45,7 @@
     "key_env": "OPENAI_API_KEY"
   },
 
+  "_spec_note": "構造化役は Claude CLI を最大 3 回（config/spec.json の claude TTL 900s × 3 と CLI のバージョン確認）",
   "_ttl_note": "pipeline は自己検査の Unity 実行と 3 試行（各 Unity 最大 1800s + CI 待ち）を含む。途中で殺すと Unity が孤児になるので長めに取る",
   "ttl_seconds": {
     "git": 180,
@@ -51,7 +53,8 @@
     "decompose": 1200,
     "audit": 900,
     "pipeline": 18000,
-    "playtest": 3900
+    "playtest": 3900,
+    "spec": 3000
   },
 
   "_ci_note": "Actions のキュー待ちで run がまだ生成されていない間は ABORT しない。見つけるまでと、完了するまでを分けて待つ",

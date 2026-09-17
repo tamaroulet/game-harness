@@ -15,7 +15,13 @@
                          → main の CI を待つ → Issue をクローズ
                          承認後に push されていたら、マージせず待ちに戻す
          それ以外      → 待つ
-    2. ready の Issue
+    2. GDD の PR（ms4:gdd、ブランチ spec/gdd-v<版>。docs/design/spec_pipeline.md §2）
+         その head の GDD（docs/gdd/source.md）の sha256 に処理済みのマーカーがあれば触らない
+         錨の事前検査（LLM を呼ばない）で足りなければ → ms4:questions
+         使い捨ての worktree で spec.py → docs/spec の 2 ファイルだけをコミットして push
+         マージ可 → 承認依頼と ms4:awaiting-approval / マージ不可 → ms4:questions
+         spec.py 1 → ms4:failed / それ以外 → ABORT
+    3. ready の Issue
          ready → ms4:running
          ブランチ ms4/issue-N を切る（既にあれば不合格。前回の残骸か人間の作業中）
          decompose.py   0 → 次 / 1 → 不合格 / それ以外 → ABORT
@@ -51,8 +57,10 @@ ms4:failed を付け、ログ末尾をコメントし、main に戻って次の 
 その時点で作業ツリーが汚れていたら、それはもう不合格ではなく ABORT に格上げする。
 """
 import argparse
+import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -64,10 +72,14 @@ from pathlib import Path
 import adapters
 import exitcode
 import fileops
+import gdd_check
 import project
 import telemetry
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+GDD_BRANCH_RE = re.compile(r"spec/gdd-v([1-9][0-9]*)")
+GDD_PATH = "docs/gdd/source.md"
+SPEC_FILES = ("docs/spec/spec.md", "docs/spec/questions.md")
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -314,6 +326,33 @@ class Git:
     def head_sha(self):
         return self._git("rev-parse", "HEAD")[1].strip()
 
+    def fetch_branch(self, branch):
+        self._net("fetch", "origin", f"+refs/heads/{branch}:refs/remotes/origin/{branch}")
+
+    def show(self, ref, path):
+        """ref にある path の本文。無ければ None（作業ツリーは見ない）。"""
+        rc, out, _ = self._git("show", f"{ref}:{path}", check=False)
+        return out if rc == 0 else None
+
+    def worktree_add(self, path, branch, start):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        self._git("worktree", "add", "-B", branch, str(path), start)
+
+    def worktree_remove(self, path):
+        """使い捨ての worktree を消す。消せたら True。
+
+        Windows ではファイルが掴まれていて消せないことがある（WinError 32）。間を空けて数回試し、
+        それでも残れば諦めて False を返す（ここで止まらない。残骸は次に同じ場所を使う前に消し直す）。
+        """
+        for delay in (0,) + fileops.DELAYS:
+            if delay:
+                self.sleep(delay)
+            self._git("worktree", "remove", "--force", str(path), check=False)
+            if not Path(path).exists():
+                break
+        self._git("worktree", "prune", check=False)
+        return not Path(path).exists()
+
     def added_lines(self, merge_sha, exclude_prefixes):
         """マージコミットで第 1 親から増えた行数（除外する接頭辞のパスを除く）。(行数, 理由)。"""
         rc, out, err = self._git("diff", "--numstat", f"{merge_sha}^1", merge_sha, check=False)
@@ -457,6 +496,14 @@ class GitHub:
             if not names & skip:
                 picked.append({"number": it["number"], "title": it["title"]})
         return sorted(picked, key=lambda x: x["number"])
+
+    def list_gdd_prs(self):
+        if "gdd" not in self.labels:
+            return []
+        items = self.read_json(["pr", "list", "--label", self.labels["gdd"]["name"],
+                                "--state", "open", "--limit", "100",
+                                "--json", "number,headRefName"])
+        return sorted(items or [], key=lambda x: x["number"])
 
     def list_waiting_prs(self):
         items = self.read_json(["pr", "list", "--label", self.labels["awaiting"]["name"],
@@ -1156,6 +1203,8 @@ class Scheduler:
         """承認待ちの PR を 1 本見る。承認済みならマージ、却下なら不合格、それ以外は待つ。"""
         prefix = self.cfg["branch_prefix"]
         branch = item.get("headRefName") or ""
+        if GDD_BRANCH_RE.fullmatch(branch):
+            return self.handle_gdd_decision(item)
         if not branch.startswith(prefix) or not branch[len(prefix):].isdigit():
             return "WAITING"  # スケジューラが作った PR ではない
         n, num = int(branch[len(prefix):]), item["number"]
@@ -1290,6 +1339,212 @@ class Scheduler:
         except Exception as ce:  # 報告の失敗で本来の ABORT 理由を覆い隠さない
             print(f"  Issue への ABORT 報告に失敗: {ce}")
 
+    # ---- GDD の PR（フェーズ B-2d。docs/design/spec_pipeline.md §2・§7）
+    def handle_gdd(self, item):
+        """ms4:gdd の PR を 1 本見る。処理済み（同じ GDD の sha256 のマーカーがある）なら触らない。"""
+        num, branch = item["number"], item.get("headRefName") or ""
+        m = GDD_BRANCH_RE.fullmatch(branch)
+        if not m:
+            print(f"  GDD の PR #{num}: ブランチ {branch} は spec/gdd-v<版> ではないので扱いません")
+            return "WAITING"
+        version = int(m.group(1))
+        self.git.fetch_branch(branch)
+        text = self.git.show(f"origin/{branch}", GDD_PATH)
+        if text is None:
+            print(f"  GDD の PR #{num}: {GDD_PATH} がありません。扱いません")
+            return "WAITING"
+        sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        marker = f"ms4:gdd-processed:{sha}"
+        if any(marker in c for c in self.gh.view(num, "pr")["comments"]):
+            return "WAITING"   # この GDD は処理済み。再処理しない（周のたびに LLM を呼ばない）
+
+        rec = self.new_record(issue=f"gdd-v{version}", kind="gdd", pr=num, branch=branch, gdd_sha256=sha)
+        self.touched = True
+        print(f"\n=== GDD の PR #{num}（v{version}、`{sha[:8]}`）")
+        try:
+            if gdd_check.CFG is None:
+                try:
+                    gdd_check.CFG = gdd_check.load_config()
+                except gdd_check.ConfigError as e:
+                    raise Abort(str(e))
+            missing = gdd_check.precheck(text)
+            if missing:
+                rec["precheck_missing"] = missing
+                self.gh.comment(num, marker, self.gdd_precheck_report(version, sha, missing), kind="pr")
+                self.gh.set_labels(num, add=["questions"], kind="pr")
+                rec["result"], rec["reason"] = "QUESTIONS", "錨の事前検査（LLM は呼んでいない）"
+                print(f"=== GDD v{version}: 錨が足りません（構造化役は呼ばずに ms4:questions）")
+                return "QUESTIONS"
+            return self.structure_gdd(num, branch, version, sha, marker, rec)
+        except Abort as e:
+            rec["result"], rec["reason"] = "ABORT", str(e)
+            raise
+        finally:
+            self.record(rec)
+
+    def structure_gdd(self, num, branch, version, sha, marker, rec):
+        """使い捨ての worktree で構造化役を動かし、docs/spec の 2 ファイルだけを PR にコミットする。"""
+        tag = f"gdd-v{version}-{sha[:8]}"
+        wt = Path(self.cfg.get("worktree_root") or self.out / "worktrees") / tag
+        work = self.out / "spec" / tag
+        work.mkdir(parents=True, exist_ok=True)
+        prev_path = ""
+        prev = self.git.show(f"origin/{self.base}", SPEC_FILES[0])
+        if prev is not None:
+            (work / "previous_spec.md").write_bytes(prev.encode("utf-8"))
+            prev_path = str(work / "previous_spec.md")
+        if wt.exists() and not self.git.worktree_remove(wt):
+            raise Abort(f"前回の worktree の残骸を消せません（ファイルが掴まれている可能性）: {wt}")
+        self.git.worktree_add(wt, branch, f"origin/{branch}")
+        wgit = Git(wt, self.cfg, self.pause)
+        try:
+            rc, log = self.step(rec, "spec", gdd=str(wt / GDD_PATH), out_dir=str(wt / "docs" / "spec"),
+                                work_dir=str(work), previous_spec=prev_path)
+            if rc == 1:
+                tail = tail_of(log, self.cfg["comment_log_tail_chars"]).replace("```", "\'\'\'")
+                self.gh.comment(num, marker,
+                                f"**ms4: 構造化に失敗しました**（GDD v{version}、`{sha[:8]}`）\n\n"
+                                "構造化役の出力が、全試行で網羅検査に通りませんでした（何もコミットしていません）。"
+                                "この GDD は再処理しません。GDD を直して版を上げ、`dispatch --submit-gdd` で送り直してください。\n\n"
+                                f"記録: `{work}`\n\n<details><summary>ログ末尾</summary>\n\n```\n{tail}\n```\n</details>\n",
+                                kind="pr")
+                self.gh.set_labels(num, add=["failed"], kind="pr")
+                rec["result"], rec["reason"] = "REJECT", "構造化役の出力が全試行で不合格"
+                return "REJECT"
+            if rc != 0:
+                raise Abort(f"spec.py が rc={rc} で終了しました（環境異常）", log=log)
+            changed = wgit.changed_paths()
+            bad = [c for c in changed if c not in SPEC_FILES]
+            if bad:
+                raise Abort("構造化で docs/spec の 2 ファイル以外が変わりました: " + ", ".join(bad[:5]), log=log)
+            try:
+                summary = json.loads((work / "summary.json").read_text(encoding="utf-8"))["summary"]
+            except (OSError, ValueError, KeyError) as e:
+                raise Abort(f"spec.py は rc=0 ですが要約（{work / 'summary.json'}）を読めません: {e}", log=log)
+            if changed:
+                wgit.add_commit(changed, f"docs(spec): structured spec for GDD v{version}")
+                wgit.push(branch)
+            head = wgit.head_sha()
+        finally:
+            if not self.git.worktree_remove(wt):
+                rec["worktree_left"] = str(wt)
+                print(f"  worktree を消せませんでした（次に使う前に消し直します）: {wt}")
+            self.git._git("branch", "-D", branch, check=False)
+
+        rec.update(head_sha=head, mergeable=summary["mergeable"], provisional=len(summary["provisional"]),
+                   questions=len(summary["questions"]), anchors_missing=summary["anchors_missing"])
+        self.gh.comment(num, marker, self.gdd_report(version, sha, head, summary, work), kind="pr")
+        if summary["mergeable"]:
+            self.gh.comment(num, f"ms4:approval-request:{head}",
+                            self.gdd_approval_request(num, version, sha, head, summary), kind="pr")
+            self.gh.set_labels(num, add=["awaiting"], kind="pr")
+            rec["result"] = "AWAITING"
+            print(f"=== GDD v{version}: 構造化仕様はマージ可。PR #{num} で人間の承認を待ちます")
+            return "AWAITING"
+        self.gh.set_labels(num, add=["questions"], kind="pr")
+        rec["result"], rec["reason"] = "QUESTIONS", "仮・質問・錨の欠落あり"
+        print(f"=== GDD v{version}: 仮・質問・錨の欠落があります（ms4:questions）")
+        return "QUESTIONS"
+
+    def gdd_precheck_report(self, version, sha, missing):
+        return (f"**ms4: GDD の錨が足りません**（GDD v{version}、`{sha[:8]}`）\n\n"
+                "構造化役（LLM）は呼んでいません。錨が GDD に無いと、構造化しても必ずマージできないためです"
+                "（`docs/design/spec_pipeline.md` §5・§7）。\n\n### 足りないもの\n\n"
+                + "\n".join(f"- {x}" for x in missing)
+                + "\n\n### 次にすること\n\nGDD に書き足して `<!-- version: -->` を上げ、"
+                "`python tools/dispatch.py --submit-gdd drafts/gdd/<project>.md` で送り直してください"
+                "（この PR は自動で閉じられます）。この GDD は再処理しません。\n")
+
+    def gdd_report(self, version, sha, head, s, work):
+        def rows(items, fmt):
+            return "\n".join(fmt(x) for x in items) or "（なし）"
+        heads = lambda x: " › ".join(x.get("headings") or [])
+        body = (f"**ms4: 構造化仕様の検査結果**（GDD v{version}、`{sha[:8]}` → コミット `{head[:8]}`）\n\n"
+                f"- 判定: **{'マージ可' if s['mergeable'] else 'マージ不可（GDD の不足）'}**\n"
+                f"- GDD: {s['gdd']['lines']} 行（網羅の対象 {s['gdd']['target_lines']} 行）\n"
+                "- 件数: " + ", ".join(f"{k} {v}" for k, v in s["counts"].items()) + "\n"
+                f"- 記録: `{work}`\n\n"
+                "### 仮の値\n\n" + rows(s["provisional"], lambda x: f"- {x['id']} {x['name']} = {x['value']}（{x['refs']}、{heads(x)}）")
+                + "\n\n### 質問\n\n" + rows(s["questions"], lambda x: f"- {x['id']} {x['question']}（{x['refs']}、{heads(x)}）")
+                + "\n\n### 錨の欠落\n\n" + rows(s["anchors_missing"], lambda x: f"- {x}")
+                + "\n\n### 人間確認・演出（HC）\n\n" + rows(s["human_checks"], lambda x: f"- {x['id']} {x['content']}（{x['refs']}）")
+                + "\n\n### GDD に無い、機能名らしい語（候補。合否には使っていない）\n\n"
+                + (", ".join(s["term_candidates"]) or "（なし）"))
+        if s.get("id_changes"):
+            c = s["id_changes"]
+            body += ("\n\n### 前の版からの ID の変化\n\n"
+                     f"- 変わった: {', '.join(c['changed']) or 'なし'}\n- 消えた: {', '.join(c['removed']) or 'なし'}\n"
+                     f"- 新しい: {', '.join(c['added']) or 'なし'}")
+        if not s["mergeable"]:
+            body += ("\n\n### 次にすること\n\n仮・質問・錨の欠落は、GDD に書かれていないことを表します。"
+                     "値を決めて GDD に書き足し、`<!-- version: -->` を上げて `dispatch --submit-gdd` で送り直してください。"
+                     "仮のまま承認する道はありません（§7）。この GDD は再処理しません。")
+        return body + "\n"
+
+    def gdd_approval_request(self, num, version, sha, head, s):
+        project_id = self.cfg.get("project_id") or self.cfg["repo_slug"]
+        return (f"**ms4: 承認依頼** — GDD v{version} の構造化仕様（PR #{num}）\n\n"
+                f"対象コミット: `{head[:8]}`（この SHA に対してだけ有効。push されると承認は外れます）\n\n"
+                f"GDD `{sha[:8]}` から構造化役が作り、網羅検査に合格しました。仮 0・質問 0・錨の欠落 0。"
+                "内容は直前の「構造化仕様の検査結果」と、PR の `docs/spec/spec.md` を見てください。\n\n"
+                "### 人間が実機で見ること\n\n（GDD の構造化仕様のため、実機での確認はありません）\n\n"
+                "### 承認\n\n```\n"
+                f"python tools/dispatch.py --approve {project_id}#{num}\n"
+                f"python tools/dispatch.py --decline {project_id}#{num} --reason \"...\"\n```\n")
+
+    def handle_gdd_decision(self, item):
+        """承認待ちの GDD の PR。承認済み・必須チェック緑ならマージ、却下なら閉じる。Issue は無い。"""
+        num, branch = item["number"], item["headRefName"]
+        pr = self.gh.view(num, "pr")
+        names = pr["labels"]
+        L = {k: self.labels_name(k) for k in ("approved", "declined")}
+        if L["declined"] not in names and L["approved"] not in names:
+            return "WAITING"
+        if "questions" in self.cfg["labels"] and self.labels_name("questions") in names:
+            print(f"  GDD の PR #{num}: ms4:questions が付いているのでマージしません")
+            return "WAITING"
+        if L["declined"] not in names:
+            states = self.gh.check_states(pr["sha"], self.cfg["required_checks"])
+            not_ok = {k: v for k, v in states.items() if v != "success"}
+            if not_ok:
+                print(f"  GDD の PR #{num}: 承認ラベルはあるが必須チェックが揃っていません: {not_ok}")
+                return "WAITING"
+        rec = self.new_record(issue=branch.replace("spec/", ""), kind="gdd", pr=num, branch=branch)
+        self.touched = True
+        try:
+            if L["declined"] in names:
+                print(f"\n=== GDD の PR #{num}: 却下")
+                self.gh.close(num, "pr")
+                self.gh.set_labels(num, remove=["awaiting"], kind="pr")
+                rec["result"], rec["reason"] = "REJECT", "declined"
+                self.record_human(rec, num)
+                return "REJECT"
+            print(f"\n=== GDD の PR #{num}: 承認済み。マージします")
+            try:
+                self.gh.merge_pr(num, pr["sha"])
+            except Abort:
+                now = self.gh.view(num, "pr")
+                if now["state"] != "MERGED" and now["sha"] != pr["sha"]:
+                    print(f"  承認後に push されました（{pr['sha'][:8]} → {now['sha'][:8]}）。承認待ちに戻します")
+                    rec["result"], rec["reason"] = "WAITING", "head moved after approval"
+                    return "WAITING"
+                if now["state"] != "MERGED":
+                    raise
+            merged = self.gh.view(num, "pr")
+            rec["merge_sha"] = merged["merge_sha"]
+            self.git.pull_ff()
+            self.gh.set_labels(num, remove=["awaiting"], kind="pr")
+            self.record_human(rec, num)
+            rec["result"] = "PASSED"
+            print(f"=== GDD の PR #{num} をマージしました")
+            return "PASSED"
+        except Abort as e:
+            rec["result"], rec["reason"] = "ABORT", str(e)
+            raise
+        finally:
+            if rec.get("result") != "WAITING":
+                self.record(rec)
+
     def handle(self, issue):
         n, title = issue["number"], issue["title"]
         rec = self.new_record(issue=n, title=title)
@@ -1323,6 +1578,10 @@ class Scheduler:
             mark = ("却下" if self.labels_name("declined") in pr["labels"] else
                     "承認済み" if self.labels_name("approved") in pr["labels"] else "未承認")
             print(f"  PR #{item['number']} {item.get('headRefName')} `{(pr['sha'] or '')[:8]}` {mark}")
+        gdds = self.gh.list_gdd_prs()
+        print(f"GDD の PR: {len(gdds)} 本")
+        for item in gdds:
+            print(f"  PR #{item['number']} {item.get('headRefName')}")
         issues = self.gh.list_ready()
         print(f"対象: {len(issues)} 件（上限 {self.cfg['max_issues_per_run']}）")
         for it in issues[:self.cfg["max_issues_per_run"]]:
@@ -1371,6 +1630,10 @@ class Scheduler:
                 print(f"承認待ちの PR: {len(waiting)} 本")
             for item in waiting:
                 results.append(self.handle_waiting(item))
+            # GDD の PR（処理済みの GDD は handle_gdd の中で飛ばす）
+            self.git._git("worktree", "prune", check=False)
+            for item in self.gh.list_gdd_prs():
+                results.append(self.handle_gdd(item))
             limit = max_issues or self.cfg["max_issues_per_run"]
             issues = self.gh.list_ready()[:limit]
             print(f"対象: {len(issues)} 件")
@@ -1388,7 +1651,7 @@ class Scheduler:
             return 2
 
         print(f"\n完了: マージ {results.count('PASSED')} / 承認待ちへ {results.count('AWAITING')} / "
-              f"待機中 {results.count('WAITING')} / 不合格 {results.count('REJECT')}")
+              f"待機中 {results.count('WAITING')} / 質問待ち {results.count('QUESTIONS')} / 不合格 {results.count('REJECT')}")
         return 1 if "REJECT" in results else 0
 
 

@@ -57,6 +57,9 @@ def load_config():
         re.compile(cfg["hc_forbidden_regex"])
         re.compile(cfg["anchors"]["if_forbidden_time_regex"])
         re.compile(cfg["anchors"]["forbidden_rng_regex"])
+        re.compile(cfg["precheck"]["coordinate_regex"])
+        int(cfg["precheck"]["min_coordinate_pairs"])
+        list(cfg["precheck"]["words"])
         for rx in cfg["candidate_regexes"]:
             re.compile(rx)
     except (KeyError, TypeError, re.error) as e:
@@ -117,6 +120,23 @@ def headings_of(lines, n):
             level = len(m.group(1))
             chain = [h for h in chain if len(h.split(" ", 1)[0]) < level] + [line.strip()]
     return chain
+
+
+def precheck(gdd_text):
+    """LLM を呼ぶ前の錨の事前検査（B-2d）。GDD の本文だけを見る。足りないものの一覧（空なら構造化に進む）。
+
+    構造化役に作らせても、錨が GDD に無ければ必ず仮・質問・錨の欠落になり、マージできない（§5・§7）。
+    そうと分かっている GDD で LLM を呼ばない（クレジットを使わず、すぐ人間に返す）。
+    ここで見るのは「語があるか」「座標の組が足りているか」だけで、構造化後の検査（check）の代わりにはならない。
+    """
+    cfg, _ = CFG
+    pc = cfg["precheck"]
+    missing = [f"「{w}」の記述が GDD にありません" for w in pc["words"] if w not in gdd_text]
+    pairs = len(re.findall(pc["coordinate_regex"], gdd_text))
+    if pairs < pc["min_coordinate_pairs"]:
+        missing.append(f"形状の座標 (x, y) が {pairs} 組しかありません（7 種 × 4 方向 × 4 ブロック = "
+                       f"{pc['min_coordinate_pairs']} 組が要ります）")
+    return missing
 
 
 # ============================================================ 表

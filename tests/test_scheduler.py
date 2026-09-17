@@ -14,6 +14,7 @@
 一時ディレクトリは C:\\src\\.local\\out\\harness\\selftest\\ の下（リポジトリ直下に置かない）。
 環境変数 HARNESS_SELFTEST_DIR で差し替えられる（CI のランナー用）。
 """
+import hashlib
 import io
 import json
 import os
@@ -138,6 +139,28 @@ if role == "pipeline":
 
 if role == "playtest":
     sys.exit({"ok": 0, "fail": 1, "abort": 2}[mode])
+
+if role == "spec":
+    out_dir, work_dir = Path(sys.argv[4]), Path(sys.argv[5])
+    Path(plan["spec_calls"]).open("a", encoding="utf-8").write(json.dumps(sys.argv[2:]) + "\n")
+    if mode in ("ok", "questions", "stray"):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "spec.md").write_text("# spec\n", encoding="utf-8")
+        (out_dir / "questions.md").write_text("# questions\n", encoding="utf-8")
+        q = [{"id": "Q-01", "question": "何倍か", "refs": "L7", "why": "無い", "headings": ["# 仕様"]}] if mode == "questions" else []
+        summary = {"gdd": {"lines": 10, "target_lines": 8}, "counts": {"LP": 1, "Q": len(q)},
+                   "provisional": [], "questions": q, "human_checks": [], "anchors_missing": [],
+                   "term_candidates": [], "id_changes": None, "passed": True, "mergeable": mode != "questions"}
+        work_dir.mkdir(parents=True, exist_ok=True)
+        (work_dir / "summary.json").write_text(json.dumps({"problems": [], "summary": summary}), encoding="utf-8")
+        if mode == "stray":
+            (out_dir.parent.parent / "stray.txt").write_text("x", encoding="utf-8")
+        sys.exit(0)
+    if mode == "fail":
+        print("全試行で不合格")
+        sys.exit(1)
+    if mode == "abort":
+        sys.exit(2)
 
 print("stub: 未知のモード")
 sys.exit(9)
@@ -1112,6 +1135,202 @@ class SchedulerTests(Base):
 # ============================================================ 常駐（Step 5）
 
 RATE_LIMITED = "HTTP 403: API rate limit exceeded for user ID 1. (https://docs.github.com/rest/overview/rate-limits)"
+
+
+GDD_WITH_ANCHORS = ("<!-- project: fb -->\n<!-- version: 1 -->\n# 仕様\n"
+                    "- 1 ティックは 1/60 秒。乱数は XorShift32、シードを注入する。\n"
+                    "- 不変条件: 消去ライン数 × 10 ＋ 盤面のブロック数 ＝ 4 × ロック数\n"
+                    + "".join(f"- 形状 {s} 向き {r}: (0, 0) (1, 0) (2, 0) (3, 0)\n"
+                              for s in "IOTSZJL" for r in ("0", "R", "2", "L")))
+GDD_WITHOUT_ANCHORS = "<!-- project: fb -->\n<!-- version: 1 -->\n# 仕様\n- 幅 10 × 高さ 20。\n"
+
+
+class GddPrTests(Base):
+    """GDD の PR（B-2d）。構造化役はスタブ。GDD はヘルパーの clone から本物の git で push する。"""
+
+    def setUp(self):
+        super().setUp()
+        stub = str(self.tmp / "stub.py")
+        self.cfg["labels"].update({
+            "gdd": {"name": "ms4:gdd", "color": "C5DEF5", "description": "g"},
+            "questions": {"name": "ms4:questions", "color": "D876E3", "description": "q"}})
+        self.cfg["commands"]["spec"] = ["{python}", stub, "spec", "{gdd}", "{telemetry}", "{out_dir}",
+                                        "{work_dir}", "{previous_spec}"]
+        self.cfg["ttl_seconds"]["spec"] = 60
+        self.plan["spec_calls"] = str(self.tmp / "spec_calls.jsonl")
+
+    def push_gdd(self, text, branch="spec/gdd-v1"):
+        h = self.helper
+        git(h, "fetch", "-q", "origin")
+        git(h, "checkout", "-q", "-B", branch, "origin/main")
+        (h / "docs" / "gdd").mkdir(parents=True, exist_ok=True)
+        (h / "docs" / "gdd" / "source.md").write_bytes(text.encode("utf-8"))
+        git(h, "add", "docs/gdd/source.md")
+        git(h, "commit", "-q", "-m", "docs(gdd): v1")
+        git(h, "push", "-q", "-f", "origin", branch)
+        git(h, "checkout", "-q", "main")
+
+    def gdd_pr(self, gh, text, branch="spec/gdd-v1", num=200):
+        self.push_gdd(text, branch)
+        gh.helper = self.helper   # run_scheduler の前に head を読むため
+        gh.prs[num] = {"branch": branch, "base": "main", "title": "GDD v1", "body": "", "state": "OPEN",
+                       "labels": {"ms4:gdd"}, "comments": [], "merge_sha": None}
+        gh.labels |= {"ms4:gdd"}
+        return num
+
+    def spec_calls(self):
+        p = Path(self.plan["spec_calls"])
+        return p.read_text(encoding="utf-8").splitlines() if p.exists() else []
+
+    def sha(self, text):
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def assert_clean_after(self):
+        self.assertEqual(self.branch(), "main")
+        self.assertEqual(self.dirty(), "")
+        self.assertFalse(self.local_has_branch("spec/gdd-v1"), "作業用のローカルブランチを残さない")
+        wt = self.out / "worktrees"
+        self.assertTrue(not wt.exists() or not any(wt.iterdir()), "使い捨ての worktree を残さない")
+        self.assertEqual(git(self.work, "worktree", "list").count("\n"), 0, "worktree の登録を残さない")
+
+    def test_missing_anchors_returns_questions_without_calling_the_structurer(self):
+        gh = FakeGH([])
+        num = self.gdd_pr(gh, GDD_WITHOUT_ANCHORS)
+        self.plan["spec"] = {"*": "abort"}      # 呼ばれたら ABORT になる
+        self.assertEqual(self.run_scheduler(gh), 0)
+        pr = gh.prs[num]
+        self.assertEqual(pr["labels"], {"ms4:gdd", "ms4:questions"})
+        marker = f"ms4:gdd-processed:{self.sha(GDD_WITHOUT_ANCHORS)}"
+        self.assertEqual(sum(marker in c for c in pr["comments"]), 1)
+        self.assertIn("「ティック」の記述が GDD にありません", pr["comments"][0])
+        self.assertIn("0 組しかありません", pr["comments"][0])
+        self.assertEqual(self.spec_calls(), [], "錨が足りない GDD では構造化役（LLM）を呼ばない")
+        self.assertEqual(self.runs()[-1]["result"], "QUESTIONS")
+        self.assert_clean_after()
+
+        writes = len(gh.writes())
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(len(gh.writes()), writes, "処理済みの GDD は再処理しない")
+
+    def test_mergeable_spec_is_committed_to_the_pr_and_approval_is_requested(self):
+        gh = FakeGH([])
+        num = self.gdd_pr(gh, GDD_WITH_ANCHORS)
+        before = gh.head_of("spec/gdd-v1")
+        self.assertEqual(self.run_scheduler(gh), 0)
+        head = gh.head_of("spec/gdd-v1")
+        self.assertNotEqual(head, before)
+        git(self.helper, "fetch", "-q", "origin")
+        changed = git(self.helper, "diff", "--name-only", before, head).splitlines()
+        self.assertEqual(sorted(changed), ["docs/spec/questions.md", "docs/spec/spec.md"])
+        pr = gh.prs[num]
+        self.assertEqual(pr["labels"], {"ms4:gdd", "ms4:awaiting-approval"})
+        self.assertEqual(sum(f"ms4:approval-request:{head}" in c for c in pr["comments"]), 1)
+        self.assertTrue(any(f"ms4:gdd-processed:{self.sha(GDD_WITH_ANCHORS)}" in c and "マージ可" in c
+                            for c in pr["comments"]))
+        call = json.loads(self.spec_calls()[0])
+        self.assertTrue(call[0].endswith("docs\\gdd\\source.md") or call[0].endswith("docs/gdd/source.md"))
+        self.assertEqual(call[-1], "", "main に前の版の spec が無ければ --previous-spec は空")
+        rec = self.runs()[-1]
+        self.assertEqual((rec["kind"], rec["result"], rec["head_sha"]), ("gdd", "AWAITING", head))
+        self.assert_clean_after()
+
+        self.plan["spec"] = {"*": "abort"}
+        writes = len(gh.writes())
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual((len(self.spec_calls()), len(gh.writes())), (1, writes),
+                         "自分の push で head が変わっても、同じ GDD は再処理しない")
+
+    def test_questions_label_without_approval_request(self):
+        gh = FakeGH([])
+        num = self.gdd_pr(gh, GDD_WITH_ANCHORS)
+        self.plan["spec"] = {"*": "questions"}
+        self.assertEqual(self.run_scheduler(gh), 0)
+        pr = gh.prs[num]
+        self.assertEqual(pr["labels"], {"ms4:gdd", "ms4:questions"})
+        self.assertFalse(any("ms4:approval-request" in c for c in pr["comments"]))
+        self.assertTrue(any("Q-01 何倍か" in c for c in pr["comments"]))
+        self.assert_clean_after()
+
+    def test_structurer_failure_is_marked_and_not_retried(self):
+        gh = FakeGH([])
+        num = self.gdd_pr(gh, GDD_WITH_ANCHORS)
+        before = gh.head_of("spec/gdd-v1")
+        self.plan["spec"] = {"*": "fail"}
+        self.assertEqual(self.run_scheduler(gh), 1)
+        self.assertEqual(gh.prs[num]["labels"], {"ms4:gdd", "ms4:failed"})
+        self.assertEqual(gh.head_of("spec/gdd-v1"), before, "何もコミットしない")
+        self.assert_clean_after()
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(len(self.spec_calls()), 1)
+
+    def test_structurer_abort_leaves_no_marker_and_stops(self):
+        gh = FakeGH([])
+        num = self.gdd_pr(gh, GDD_WITH_ANCHORS)
+        self.plan["spec"] = {"*": "abort"}
+        self.assertEqual(self.run_scheduler(gh), 2)
+        self.assertFalse(any("ms4:gdd-processed" in c for c in gh.prs[num]["comments"]),
+                         "環境異常では処理済みにしない（直してから再処理できるように）")
+        self.assertEqual(self.dirty(), "")
+
+    def test_changes_outside_docs_spec_abort_without_pushing(self):
+        gh = FakeGH([])
+        num = self.gdd_pr(gh, GDD_WITH_ANCHORS)
+        before = gh.head_of("spec/gdd-v1")
+        self.plan["spec"] = {"*": "stray"}
+        self.assertEqual(self.run_scheduler(gh), 2)
+        self.assertEqual(gh.head_of("spec/gdd-v1"), before)
+        self.assertEqual(self.dirty(), "")
+        self.assertFalse((self.out / "worktrees").exists() and any((self.out / "worktrees").iterdir()))
+
+    def test_other_branch_names_are_ignored(self):
+        gh = FakeGH([])
+        num = self.gdd_pr(gh, GDD_WITH_ANCHORS, branch="feature/gdd")
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(gh.prs[num]["comments"], [])
+        self.assertEqual(self.spec_calls(), [])
+
+    def test_approved_gdd_pr_is_merged_with_a_merge_commit(self):
+        gh = FakeGH([])
+        num = self.gdd_pr(gh, GDD_WITH_ANCHORS)
+        self.assertEqual(self.run_scheduler(gh), 0)
+        head = gh.head_of("spec/gdd-v1")
+        gh.approve(num)
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(gh.prs[num]["state"], "MERGED")
+        self.assertIn("--merge", gh.merge_args[0])
+        self.assertEqual(gh.merge_args[0][gh.merge_args[0].index("--match-head-commit") + 1], head)
+        self.assertIn("docs/spec/spec.md", self.remote_main_files())
+        self.assertEqual(self.runs()[-1]["result"], "PASSED")
+        self.assertEqual(git(self.work, "rev-parse", "HEAD"), gh.prs[num]["merge_sha"])
+
+    def test_approved_gdd_pr_waits_for_green_checks(self):
+        gh = FakeGH([])
+        num = self.gdd_pr(gh, GDD_WITH_ANCHORS)
+        self.assertEqual(self.run_scheduler(gh), 0)
+        gh.approve(num)
+        gh.check_override = {"test": ("completed", "failure")}
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(gh.merge_args, [])
+        self.assertEqual(gh.prs[num]["state"], "OPEN")
+
+    def test_declined_gdd_pr_is_closed(self):
+        gh = FakeGH([])
+        num = self.gdd_pr(gh, GDD_WITH_ANCHORS)
+        self.assertEqual(self.run_scheduler(gh), 0)
+        gh.prs[num]["labels"].add("ms4:declined")
+        self.assertEqual(self.run_scheduler(gh), 1)
+        self.assertEqual(gh.prs[num]["state"], "CLOSED")
+        self.assertEqual(gh.merge_args, [])
+
+    def test_questions_pr_is_never_merged_even_if_approved(self):
+        gh = FakeGH([])
+        num = self.gdd_pr(gh, GDD_WITH_ANCHORS)
+        self.plan["spec"] = {"*": "questions"}
+        self.assertEqual(self.run_scheduler(gh), 0)
+        gh.prs[num]["labels"] |= {"ms4:approved", "ms4:awaiting-approval"}
+        self.assertEqual(self.run_scheduler(gh), 0)
+        self.assertEqual(gh.merge_args, [])
+        self.assertEqual(gh.prs[num]["state"], "OPEN")
 
 
 class ResidentTests(Base):
