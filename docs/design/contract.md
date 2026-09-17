@@ -108,6 +108,14 @@ v1 では、契約に任意のシェルコマンドを書く道を作らない�
 | `playtest.scene` | str | 任意 | — | 起動シーン。自動的に禁止に加わる |
 | `playtest.build_method` | str | 任意 | — | `-executeMethod` に渡す非破壊のビルド関数 |
 
+**プレイ確認ビルドの非破壊（Step 7 の実測、unity-2d PR #4）**
+
+- **現象**: Standalone 向けに初めてビルドすると、Unity が `ProjectSettings/ProjectSettings.asset` の `PlayerSettings.m_BuildTargetBatching` に Standalone の既定値（`m_StaticBatching: 1` / `m_DynamicBatching: 0`）を書き足す。ビルド関数は PlayerSettings に触れていない（ログでは `BuildPlayer` の開始後に asset が再インポートされている）
+- **影響**: プレイ確認用のワークツリーはビルドのたびに `reset --hard` で戻るので、そのままでは毎回 `playtest.py` の非破壊検査で rc=2 になる。検査の側に例外を作って緩めない
+- **対策**: Unity が書いた差分をそのまま（ワークツリーの `git diff` を `git apply`）ゲームのリポジトリに、人間の承認つき PR でコミットする。値は暗黙の既定値と同じなので、ビルドの挙動は変わらない（unity-2d `22a91e2`）
+- **ビルド関数の `.meta` も同じ理由でコミットする**。無いとワークツリーで Unity が生成し、未追跡ファイルとして rc=2 になる
+- 新しいゲームのリポジトリでは、テンプレートに最初から Standalone の行と `.meta` を入れておく。ほかのプラットフォームや設定でも同じことが起こりうるので、初回ビルドの rc=2 は、まずワークツリーの `git diff` を見て、エンジンが既定値を書き出しただけかを確かめる
+
 ### 3.8 unity-2d の場合（移行後の見本）
 
 ```toml
