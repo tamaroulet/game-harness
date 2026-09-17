@@ -207,6 +207,21 @@ class ApprovalGateTests(unittest.TestCase):
         self.assertRegex(wf, r"(?m)^\s*approval:\s*$", "必須チェック名はジョブ名 approval")
 
 
+class InstalledGateMatchesTemplateTests(unittest.TestCase):
+    """harness 自身に入れた承認ゲートが、配布元の雛形と同じであること。
+
+    写しが雛形とずれると、「検証済みの門」と「実際に動いている門」が別物になる。
+    直すときは雛形を直し、写しを置き直す（写しを直接直さない）。
+    """
+
+    def test_installed_copy_is_byte_identical(self):
+        template = ROOT / "harness" / "templates" / "game-repo" / ".github"
+        installed = ROOT / ".github"
+        for rel in ("workflows/approval.yml", "scripts/ms4_approval_gate.py", "ms4-approvers"):
+            with self.subTest(rel):
+                self.assertEqual((installed / rel).read_bytes(), (template / rel).read_bytes())
+
+
 class RulesetTemplateTests(unittest.TestCase):
     """A4 で適用するルールセットの雛形。適用前に中身を機械で確かめる。"""
 
