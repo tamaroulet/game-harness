@@ -29,7 +29,10 @@
     "headless_flag": "-p",
     "auto_approve_flag": "--dangerously-skip-permissions",
     "model_flag": "--model",
-    "model_name": "gemini-3.8-flash-high"
+    "model_name": "gemini-3.8-flash-high",
+    "_usage_note": "テレメトリ用（判定には使わない）。--output-format json の形は harness/telemetry.py の USAGE_FORMATS に実測で書いてある",
+    "output_format_args": ["--output-format", "json"],
+    "usage_format": "agy"
   },
 
   "rel": {

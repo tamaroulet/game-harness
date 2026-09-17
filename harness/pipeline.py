@@ -19,6 +19,7 @@
 エンジン・言語に固有の処理は adapters/ にある（engine と fast）。ここには置かない。
 """
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -31,6 +32,7 @@ from types import SimpleNamespace
 import adapters
 import oracle
 import project
+import telemetry
 from proc import resolve_cli, run
 
 
@@ -63,6 +65,15 @@ class Ctx:
         self.ctrl_pass = self.oracle["must_pass"]
         # 実装前（base）の測定結果。establish_base が 1 回だけ埋める。無ければ判定しない。
         self.base = None
+
+        # テレメトリ（判定には使わない）。main が --telemetry のときに差し替える。
+        # cur は実行中の試行の記録、gate は試行が今いる門（self.stage はゴールデンの置き場なので
+        # 別の名前にしている）、line_sets は試行ごとの追加行（retry_entropy 用。書き出さない）。
+        self.tel = {"attempts": []}
+        self.tel_path = None
+        self.cur = None
+        self.gate = None
+        self.line_sets = []
         # 単位には 2 種類ある。
         #   リファクタリング: 既存実装から採取したゴールデンが正解（MS1〜3）
         #   新規機能        : 既存の正解が無い。分解役が先に書いたテストが正解
@@ -294,7 +305,15 @@ def call_implementer(c, feedback=""):
     args = resolve_cli(imp["cli"]) + [imp["headless_flag"], prompt,
                                       imp["auto_approve_flag"],
                                       imp["model_flag"], imp["model_name"]]
+    # 利用量を取るための出力形式。無ければ利用量は不明（null）として記録するだけで、判定は変えない。
+    args += imp.get("output_format_args", [])
+    t0 = time.monotonic()
     rc, out, err = run(args, c.sandbox, c.ttl["implementer"], "実装AI")
+    if c.cur is not None:
+        usage = (telemetry.cli_usage(out, imp["usage_format"])
+                 if imp.get("usage_format") and imp.get("output_format_args")
+                 else telemetry.usage_unknown("implementer に output_format_args / usage_format が無い"))
+        c.cur["implementer"] = {"rc": rc, "seconds": round(time.monotonic() - t0, 1), "usage": usage}
     if rc != 0:
         return False, f"実装AI が異常終了 (rc={rc}): {(err or out)[:400]}"
     return True, ""
@@ -592,6 +611,10 @@ def check_p2p(c, fast, engine):
     broken = (oracle.p2p(c.base.fast_p2p, fast, c.fast, q)
               + oracle.p2p(c.base.engine, engine, c.engine, q))
     c.metrics["p2p_kept"] = c.metrics.get("p2p_base", 0) - len(broken)
+    if isinstance(getattr(c, "cur", None), dict):
+        # 同じ試行で開示・非開示の 2 回判定することがある。多いほうを残す。
+        c.cur["p2p_broken"] = max(c.cur.get("p2p_broken") or 0, len(broken))
+        c.cur["p2p_base"] = c.metrics.get("p2p_base")
     if broken:
         return f"先祖返り（P2P 破壊）{len(broken)} 件: " + ", ".join(broken[:3])
     return None
@@ -713,36 +736,65 @@ def check_acceptance(c, fast, engine, expect_holdout):
 
 # ============================================================ 1 周
 
+def capture_diff(c):
+    """実装役の差分を記録する（テレメトリ。判定には使わない）。
+
+    記録するのはハッシュと追加行の件数だけ。追加行の集合はメモリに持ち、
+    retry_entropy の計算にだけ使う（実装の中身をログへ書き出さない）。
+    """
+    if c.cur is None:
+        return
+    wl = c.unit["whitelist"]
+    run(["git", "add", "-N", "--"] + wl, c.sandbox, c.ttl["git"], "intent-to-add (telemetry)")
+    rc, out, err = run(["git", "diff", "HEAD", "--"] + wl, c.sandbox, c.ttl["git"], "diff (telemetry)")
+    if rc != 0:
+        telemetry.put(c.cur, "diff_sha256", None, f"git diff が失敗: {(err or out)[:120]}")
+        telemetry.put(c.cur, "added_lines", None, "git diff が失敗")
+        return
+    lines = telemetry.added_lines(out)
+    c.line_sets.append(lines)
+    c.cur["diff_sha256"] = telemetry.sha256_text(out)
+    c.cur["added_lines"] = len(lines)
+
+
 def attempt(c, feedback):
     sandbox_reset(c)
 
     print("[1] 実装AI")
+    c.gate = "implementer"
     ok, msg = call_implementer(c, feedback)
     if not ok:
         return "RETRY", msg
 
+    c.gate = "escape"
     escaped = gate_repo_untouched(c)
     if escaped:
         return "ABORT", ("実装AIがサンドボックス外（本体リポジトリ）を書き換えました: "
                          + ", ".join(escaped[:5]))
+    capture_diff(c)
 
     print("[2] 静的機械判定")
+    c.gate = "whitelist"
     bad = gate_whitelist(c)
     if bad:
         return "RETRY", "許可外のファイル変更: " + ", ".join(bad[:5])
+    c.gate = "static"
     ng = gate_static(c)
     if ng:
         return "RETRY", ng
+    c.gate = "diff"
     ng = gate_diff_lines(c)
     if ng:
         return "RETRY", ng
 
     print(f"[3] 高速検査（{c.fast.LABEL}）")
+    c.gate = "fast"
     fast, err = run_fast_tests(c, "impl_fast")
     if err:
         return "ABORT", err
 
     print(f"[4] {c.engine.LABEL} 受入（開示）")
+    c.gate = "acceptance"
     stage_golden(c, with_holdout=False)
     engine, err = run_engine_tests(c, "impl_disclosed")
     if err:
@@ -756,11 +808,13 @@ def attempt(c, feedback):
     if c.test_driven:
         print("[5] 非開示ゴールデンは無し（テスト駆動の単位）")
     else:
+        c.gate = "holdout"
         failed = attempt_holdout(c, fast)
         if failed:
             return failed
 
     print("[6] 持ち出し")
+    c.gate = "carry"
     return carry_out_and_ci(c)
 
 
@@ -822,6 +876,7 @@ def carry_out_and_ci(c):
         return "ABORT", f"push できません: {(err or out)[:300]}"
 
     print("[7] CI 完了検知")
+    c.gate = "ci"
     rc, ci_msg = wait_for_ci(c)
     if rc != 0:
         print(f"    {ci_msg}")
@@ -1051,33 +1106,63 @@ def selftest(c):
 
 # ============================================================ エントリ
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--project", required=True, help="projects/<id>（harness のプロジェクト ID）")
-    ap.add_argument("--unit", required=True, help="単位定義 JSON（制約 1）")
-    ap.add_argument("--selftest", action="store_true")
-    ap.add_argument("--skip-selftest", action="store_true")
-    args = ap.parse_args()
+def save_telemetry(c):
+    if c.tel_path is None:
+        return
+    telemetry.summarize_attempts(c.tel, c.line_sets)
+    telemetry.write(c.tel_path, c.tel)
 
-    proj = project.load(args.project)
-    unit_path = Path(args.unit)
-    if not unit_path.is_absolute() and not unit_path.exists():
-        unit_path = Path(proj["repo_dir"]) / args.unit
-    c = Ctx(project.pipeline_config(proj), unit_path)
-    require_unit_safe(c)
-    require_repo_clean(c)
 
+def record_attempt(c, n, verdict, msg, seconds, feedback):
+    """1 試行を記録する。SUCCESS でも不合格でも ABORT でも残す（生存者バイアスを作らない）。"""
+    a = c.cur or {}
+    reason = "" if msg is None else str(msg)
+    entry = {"n": n, "verdict": verdict, "stage": c.gate, "reason": reason[:500],
+             "reason_sha256": telemetry.sha256_text(reason), "seconds": seconds,
+             "feedback_chars": len(feedback)}
+    if "implementer" in a:
+        entry["implementer"] = a["implementer"]
+    else:
+        telemetry.put(entry, "implementer", None, "実装役を呼ぶ前に終了した")
+    for key, why in (("diff_sha256", "差分を取る前に終了した"),
+                     ("added_lines", "差分を取る前に終了した"),
+                     ("p2p_broken", "受入判定まで到達していない"),
+                     ("p2p_base", "受入判定まで到達していない")):
+        if key in a:
+            entry[key] = a[key]
+            if a[key] is None and key + "_null_reason" in a:
+                entry[key + "_null_reason"] = a[key + "_null_reason"]
+        else:
+            telemetry.put(entry, key, None, why)
+    c.tel["attempts"].append(entry)
+    c.cur = None
+    save_telemetry(c)
+
+
+def run_unit(c, args):
     if args.selftest:
         return selftest(c)
 
     if not args.skip_selftest:
+        t0 = time.monotonic()
         rc = selftest(c)
+        c.tel["selftest"] = {"rc": rc, "seconds": round(time.monotonic() - t0, 1)}
+        save_telemetry(c)
         if rc != 0:
             print("\n自己検査が通らないため本番を実行しません。")
             return rc
         print()
+    else:
+        telemetry.put(c.tel, "selftest", None, "--skip-selftest で省略した")
 
+    t0 = time.monotonic()
     verdict, msg = establish_base(c)
+    c.tel["base"] = {"verdict": verdict or "OK", "seconds": round(time.monotonic() - t0, 1),
+                     "reason": (msg or "")[:500]}
+    if c.base is not None:
+        c.tel["base"].update(fast_built=c.base.fast is not None, p2p_base=c.metrics.get("p2p_base"),
+                             quarantined=c.metrics.get("quarantined"))
+    save_telemetry(c)
     if verdict == "ABORT":
         print(f"\nABORT（検査系の故障）: {msg}")
         return 2
@@ -1092,7 +1177,16 @@ def main():
     for i in range(max_retry + 1):
         print(f"=== 試行 {i + 1}/{max_retry + 1} ===")
         c.metrics["attempt"] = i + 1
-        verdict, msg = attempt(c, feedback)
+        c.cur, c.gate = {}, None
+        t0 = time.monotonic()
+        verdict, msg = "ABORT", "例外か sys.exit で試行が中断した"
+        try:
+            verdict, msg = attempt(c, feedback)
+        except SystemExit as e:
+            msg = f"sys.exit で中断: {e.code}"
+            raise
+        finally:
+            record_attempt(c, i + 1, verdict, msg, round(time.monotonic() - t0, 1), feedback)
         history.append((verdict, msg))
 
         if verdict == "SUCCESS":
@@ -1113,6 +1207,51 @@ def main():
         print(f"  試行{i}: {v}  {m}")
     sandbox_reset(c)
     return 1
+
+
+def git_head(cwd, ttl):
+    rc, out, _ = run(["git", "rev-parse", "HEAD"], cwd, ttl, "rev-parse (telemetry)")
+    return out.strip() if rc == 0 and out.strip() else None
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--project", required=True, help="projects/<id>（harness のプロジェクト ID）")
+    ap.add_argument("--unit", required=True, help="単位定義 JSON（制約 1）")
+    ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--skip-selftest", action="store_true")
+    ap.add_argument("--telemetry", help="テレメトリの書き出し先（JSON）。判定には使わない")
+    args = ap.parse_args()
+
+    tel = {"schema": telemetry.SCHEMA, "tool": "pipeline",
+           "started": datetime.now().isoformat(timespec="seconds"), "attempts": []}
+    tel_path = Path(args.telemetry) if args.telemetry else None
+    t_start = time.monotonic()
+    rc, c = None, None
+    try:
+        proj = project.load(args.project)
+        unit_path = Path(args.unit)
+        if not unit_path.is_absolute() and not unit_path.exists():
+            unit_path = Path(proj["repo_dir"]) / args.unit
+        c = Ctx(project.pipeline_config(proj), unit_path)
+        c.tel, c.tel_path = tel, tel_path
+        imp = c.cfg["implementer"]
+        tel.update(unit_id=c.unit.get("id"),
+                   unit_sha256=hashlib.sha256(unit_path.read_bytes()).hexdigest(),
+                   implementer={"cli": imp["cli"], "model_name": imp["model_name"]})
+        for key, cwd in (("harness_sha", project.ROOT), ("repo_head", c.repo)):
+            telemetry.put(tel, key, git_head(cwd, c.ttl["git"]), f"git rev-parse が失敗: {cwd}")
+        require_unit_safe(c)
+        require_repo_clean(c)
+        rc = run_unit(c, args)
+        return rc
+    finally:
+        telemetry.put(tel, "exit_code", rc,
+                      "sys.exit か例外で終了した（終了コードは呼び出し側の記録を見る）")
+        tel["total_seconds"] = round(time.monotonic() - t_start, 1)
+        if tel_path is not None:
+            telemetry.summarize_attempts(tel, c.line_sets if c is not None else [])
+            telemetry.write(tel_path, tel)
 
 
 if __name__ == "__main__":

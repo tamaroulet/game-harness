@@ -20,12 +20,15 @@
   "_clis_note": "前提検査で PATH にあることを確かめる。無ければ全 Issue が同じ理由で落ちるので、着手前に止める",
   "required_clis": ["git", "gh", "claude", "agy"],
 
-  "_commands_note": "{python} は実行中の Python、{harness} は harness/ の絶対パス、{project} はプロジェクト ID。cwd はゲームのリポジトリ。テストではここをスタブに差し替える",
+  "_commands_note": "{python} は実行中の Python、{harness} は harness/ の絶対パス、{project} はプロジェクト ID、{telemetry} はログの隣のテレメトリ JSON。cwd はゲームのリポジトリ。テストではここをスタブに差し替える",
   "commands": {
-    "decompose": ["{python}", "{harness}/decompose.py", "--project", "{project}", "--issue", "{number}"],
+    "decompose": ["{python}", "{harness}/decompose.py", "--project", "{project}", "--issue", "{number}", "--telemetry", "{telemetry}"],
     "audit":     ["{python}", "{harness}/audit.py", "--project", "{project}", "--file", "{file}"],
-    "pipeline":  ["{python}", "{harness}/pipeline.py", "--project", "{project}", "--unit", "{unit}"]
+    "pipeline":  ["{python}", "{harness}/pipeline.py", "--project", "{project}", "--unit", "{unit}", "--telemetry", "{telemetry}"]
   },
+
+  "_condition_note": "runs.jsonl の condition。比較実験で、門番の無い再試行ループ（loop-no-gate）の記録と区別する（docs/design/telemetry.md）",
+  "experiment_condition": "harness",
 
   "audit": {
     "_required_note": "false: キーが無ければスキップ、失敗しても記録のみ。監査結果は合否に使わない（人間の決定 2026-09-13）",

@@ -63,6 +63,7 @@ from pathlib import Path
 import adapters
 import exitcode
 import project
+import telemetry
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -244,6 +245,21 @@ class Git:
     def head_sha(self):
         return self._git("rev-parse", "HEAD")[1].strip()
 
+    def added_lines(self, merge_sha, exclude_prefixes):
+        """マージコミットで第 1 親から増えた行数（除外する接頭辞のパスを除く）。(行数, 理由)。"""
+        rc, out, err = self._git("diff", "--numstat", f"{merge_sha}^1", merge_sha, check=False)
+        if rc != 0:
+            return None, f"git diff --numstat が失敗: {(err or out)[:160]}"
+        total = 0
+        for line in out.splitlines():
+            parts = line.split("\t")
+            if len(parts) < 3 or any(parts[2].startswith(p) for p in exclude_prefixes):
+                continue
+            if parts[0] == "-":
+                return None, f"バイナリの差分があり行数を数えられない: {parts[2]}"
+            total += int(parts[0])
+        return total, None
+
 
 # ============================================================ GitHub
 
@@ -292,6 +308,36 @@ class GitHub:
             raise Abort(f"gh api {path} の出力が JSON ではありません: {out[:200]}")
 
     # ---- 読み取り
+    def decision_wait(self, number, awaiting, decided):
+        """最後に awaiting が付いてから、最初に decided のどれかが付くまでの秒数。(秒, 付けた人, 理由)。"""
+        events, page = [], 1
+        while True:
+            batch = self.api_json(f"repos/{self.slug}/issues/{number}/events"
+                                  f"?per_page=100&page={page}") or []
+            events += batch
+            if len(batch) < 100:
+                break
+            page += 1
+        start = end = None
+        for ev in events:
+            if ev.get("event") != "labeled":
+                continue
+            name = (ev.get("label") or {}).get("name")
+            if name == awaiting:
+                start, end = ev, None
+            elif name in decided and start is not None and end is None:
+                end = ev
+        if start is None or end is None:
+            return None, None, "承認待ちのラベルと、その後の承認・却下のラベルの組が見つからない"
+
+        def at(ev):
+            return datetime.fromisoformat(ev["created_at"].replace("Z", "+00:00"))
+        try:
+            secs = (at(end) - at(start)).total_seconds()
+        except (KeyError, ValueError, AttributeError) as e:
+            return None, None, f"イベントの時刻を読めない: {e}"
+        return round(secs, 1), (end.get("actor") or {}).get("login"), None
+
     def list_ready(self):
         items = self.read_json(["issue", "list", "--label", self.labels["ready"]["name"],
                                 "--state", "open", "--limit", "100",
@@ -443,6 +489,9 @@ class Scheduler:
         self.run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.lock = Path(cfg.get("lock_path") or self.out / "scheduler.lock")
         self.touched = False
+        # 記録に残すハーネスの版。取れなければ null（記録のためだけなので止めない）。
+        rc, out, _ = run_cmd(["git", "rev-parse", "HEAD"], project.ROOT, cfg["ttl_seconds"]["git"])
+        self.harness_sha = out.strip() if rc == 0 and out.strip() else None
 
         self.test_dir = cfg["test_dir"].strip("/")
         self.audit_dir = cfg["audit_dir"].strip("/")
@@ -472,23 +521,106 @@ class Scheduler:
             pass
 
     # ---- 記録
+    # 査読用の指標。算出する行の種類が決まっているので、ほかの行では null ＋理由で枠だけ置く
+    # （キーが無いのと null を区別できるように、どの行にも必ずある形にする）。
+    METRICS = {
+        "p2p_violation_rate": "実装を試した行（AWAITING / REJECT）でだけ算出する",
+        "retry_entropy": "実装を試した行（AWAITING / REJECT）でだけ算出する",
+        "token_to_accepted_loc": "マージした行（PASSED）でだけ算出する",
+        "human_active_intervention_time": "承認・却下を処理した行でだけ記録する",
+    }
+
+    def new_record(self, **fields):
+        rec = {"run_id": self.run_id, "condition": self.cfg.get("experiment_condition"),
+               "harness_sha": self.harness_sha, **fields, "steps": [],
+               "started": datetime.now().isoformat(timespec="seconds")}
+        rec["_t0"] = time.monotonic()
+        return rec
+
     def record(self, rec):
         rec["finished"] = datetime.now().isoformat(timespec="seconds")
+        t0 = rec.pop("_t0", None)
+        if t0 is not None:
+            rec["total_seconds"] = round(time.monotonic() - t0, 1)
+        for key, why in self.METRICS.items():
+            if key not in rec:
+                telemetry.put(rec, key, None, why)
         with (self.out / "runs.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
     def step(self, rec, name, tag=None, **fmt):
-        args = [a.format(python=sys.executable, harness=project.HARNESS_DIR.as_posix(),
-                         project=self.cfg.get("project_id", ""), **fmt)
-                for a in self.cfg["commands"][name]]
         log = self.out / f"issue_{rec['issue']}" / (f"{name}_{tag}.log" if tag else f"{name}.log")
+        # 道具が書くテレメトリ。前回の残りを読まないよう、実行前に消す。
+        tel_path = log.with_name(log.stem + ".telemetry.json")
+        tel_path.unlink(missing_ok=True)
+        args = [a.format(python=sys.executable, harness=project.HARNESS_DIR.as_posix(),
+                         project=self.cfg.get("project_id", ""), telemetry=str(tel_path), **fmt)
+                for a in self.cfg["commands"][name]]
         print(f"  [{name}{' ' + tag if tag else ''}] 実行中… ログ: {log}")
         t0 = time.monotonic()
         rc = run_logged(args, self.repo, self.cfg["ttl_seconds"][name], log, self.env)
         secs = round(time.monotonic() - t0, 1)
-        rec["steps"].append({"name": name, "tag": tag, "rc": rc, "seconds": secs, "log": str(log)})
+        entry = {"name": name, "tag": tag, "rc": rc, "seconds": secs, "log": str(log)}
+        data, why = telemetry.read(tel_path)
+        telemetry.put(entry, "telemetry", data, why)
+        rec["steps"].append(entry)
         print(f"  [{name}{' ' + tag if tag else ''}] rc={rc} ({secs}s)")
         return rc, log
+
+    def lift_attempt_metrics(self, rec):
+        """pipeline のテレメトリにある試行の指標を、runs.jsonl の行の最上位へ写す。"""
+        tel = rec["steps"][-1].get("telemetry")
+        for key in ("p2p_violation_rate", "retry_entropy"):
+            if tel is None:
+                telemetry.put(rec, key, None, "pipeline のテレメトリが無い: "
+                              + str(rec["steps"][-1].get("telemetry_null_reason")))
+            else:
+                telemetry.put(rec, key, tel.get(key),
+                              tel.get(key + "_null_reason", "pipeline のテレメトリにキーが無い"))
+        if tel is not None:
+            rec["attempts_judged"] = tel.get("attempts_judged")
+            rec["retry_same_failure_repeats"] = tel.get("retry_same_failure_repeats")
+
+    def accepted_metrics(self, rec, n, pr_number, merge_sha):
+        """マージした Issue の token_to_accepted_loc と、人間の待ち時間。失敗しても処理は止めない。"""
+        records = []
+        try:
+            with (self.out / "runs.jsonl").open(encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        r = json.loads(line)
+                    except ValueError:
+                        continue
+                    if r.get("issue") == n:
+                        records.append(r)
+        except OSError:
+            pass
+        tokens, t_why = telemetry.tokens_total(records)
+        units_dir = self.cfg["unit_path_template"].rsplit("/", 1)[0] + "/"
+        exclude = [self.test_dir + "/", units_dir, self.audit_dir + "/", "reports/"]
+        loc, l_why = self.git.added_lines(merge_sha, exclude)
+        telemetry.put(rec, "tokens_total", tokens, t_why)
+        telemetry.put(rec, "accepted_loc", loc, l_why)
+        value, why = telemetry.token_to_accepted_loc(tokens, t_why, loc, l_why)
+        telemetry.put(rec, "token_to_accepted_loc", value, why)
+        self.record_human(rec, pr_number)
+
+    def record_human(self, rec, pr_number):
+        human = {}
+        try:
+            wait, who, why = self.gh.decision_wait(pr_number, self.labels_name("awaiting"),
+                                                   {self.labels_name("approved"),
+                                                    self.labels_name("declined")})
+        except Abort as e:   # テレメトリで承認・マージを止めない
+            wait, who, why = None, None, f"issue events を読めない: {e}"[:200]
+        telemetry.put(human, "wait_seconds", wait, why)
+        human["decided_by"] = who
+        telemetry.put(human, "active_seconds", None, "dispatch 未計測（Step 4 は harness 側だけ）")
+        rec["human"] = human
+        active = human["active_seconds"]
+        telemetry.put(rec, "human_active_intervention_time",
+                      None if active is None else round(active / 60, 2),
+                      "human.active_seconds が不明: " + str(human.get("active_seconds_null_reason")))
 
     # ---- 前提
     def preflight(self):
@@ -554,6 +686,7 @@ class Scheduler:
 
         # ---- 実装
         rc, log = self.step(rec, "pipeline", unit=unit)
+        self.lift_attempt_metrics(rec)
         if rc == 1:
             raise Reject("実装パイプラインが不合格でした（全試行で門を通りませんでした）。"
                          f"ブランチ `{branch}` は残してあります。", log=log)
@@ -650,8 +783,7 @@ class Scheduler:
                 print(f"  PR #{num}: 承認ラベルはあるが必須チェックが揃っていません: {not_ok}")
                 return "WAITING"
 
-        rec = {"run_id": self.run_id, "issue": n, "pr": num, "branch": branch, "steps": [],
-               "started": datetime.now().isoformat(timespec="seconds")}
+        rec = self.new_record(issue=n, pr=num, branch=branch)
         self.touched = True
         try:
             if L["declined"] in names:
@@ -665,6 +797,7 @@ class Scheduler:
                 self.gh.set_labels(n, add=["failed"], remove=["awaiting", "running", "ready"])
                 rec["result"] = "REJECT"
                 rec["reason"] = "declined"
+                self.record_human(rec, num)
                 return "REJECT"
 
             print(f"\n=== PR #{num}（Issue #{n}）: 承認済み。マージします")
@@ -682,6 +815,7 @@ class Scheduler:
             merged = self.gh.view(num, "pr")
             rec["merge_sha"] = merged["merge_sha"]
             self.git.pull_ff()
+            self.accepted_metrics(rec, n, num, merged["merge_sha"])
             run_id = self.wait_ci(merged["merge_sha"])
             rec["ci_run"] = run_id
 
@@ -769,8 +903,7 @@ class Scheduler:
 
     def handle(self, issue):
         n, title = issue["number"], issue["title"]
-        rec = {"run_id": self.run_id, "issue": n, "title": title, "steps": [],
-               "started": datetime.now().isoformat(timespec="seconds")}
+        rec = self.new_record(issue=n, title=title)
         print(f"\n=== Issue #{n}: {title}")
         self.touched = True
         try:
@@ -810,7 +943,9 @@ class Scheduler:
             print(f"  ブランチ: {self.cfg['branch_prefix']}{n}")
             for name, fmt in (("decompose", {"number": n}), ("audit", {"file": unit}),
                               ("pipeline", {"unit": unit})):
-                print("  " + " ".join(a.format(python="python", **fmt)
+                print("  " + " ".join(a.format(python="python", harness=project.HARNESS_DIR.as_posix(),
+                                               project=self.cfg.get("project_id", ""),
+                                               telemetry=f"<{name}.telemetry.json>", **fmt)
                                       for a in self.cfg["commands"][name]))
         print("\n（dry-run: 何も変更していません）")
         return 0

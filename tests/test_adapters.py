@@ -25,7 +25,8 @@ from adapters import dotnet, unity  # noqa: E402
 
 FIX = ROOT / "tests" / "fixtures"
 
-CORE_FILES = ["pipeline.py", "scheduler.py", "project.py", "proc.py", "exitcode.py", "oracle.py"]
+CORE_FILES = ["pipeline.py", "scheduler.py", "project.py", "proc.py", "exitcode.py", "oracle.py",
+              "telemetry.py"]
 
 # コアに現れてはいけない語。プロジェクト ID の "unity-2d" は使用例として許す
 #（\bUnity\b は大文字始まりだけ、\bunity_ はキー名だけを捕まえる）。
@@ -136,6 +137,17 @@ class DotnetAdapterTests(unittest.TestCase):
         for p in ("Game/Assets/Core/BossChargeState.cs", "Game/Assets/Features/Boss/View.cs"):
             with self.subTest(p):
                 self.assertNotRegex(p, dotnet.TEST_PATH_RE)
+
+    def test_run_tests_disables_msbuild_node_reuse(self):
+        """/nr:false が無いと MSBuild のワーカーが常駐し、.dll を掴んで次のビルドを落としうる。"""
+        with tempfile.TemporaryDirectory() as d:
+            c = types.SimpleNamespace(out=Path(d), sandbox=Path(d), unit={"fast_test_project": "p.csproj"},
+                                      ttl={"fast_tests": 1}, metrics={})
+            with mock.patch.object(dotnet, "run", return_value=(0, "", "")) as run:
+                dotnet.run_tests(c, "t")
+        args = run.call_args[0][0]
+        self.assertEqual(args[:2], ["dotnet", "test"])
+        self.assertIn("/nr:false", args)
 
     def test_stub_and_globs(self):
         self.assertIn("namespace", dotnet.STUB_SOURCE)

@@ -30,14 +30,19 @@ import json
 import re
 import subprocess
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 
 import project
+import telemetry
 
 # main() が --project から決める。共通設定（config/decompose.json）に、
 # ゲーム固有の値（リポジトリ・テスト置き場など）を project.json から差し込む。
 ROOT = None
 CFG = None
+# テレメトリ（判定には使わない）。--telemetry のとき、終了時に書き出す。
+TEL = {"schema": telemetry.SCHEMA, "tool": "decompose"}
 
 
 def configure(project_id):
@@ -127,10 +132,24 @@ def call_claude(prompt):
 
     args = [resolve_cli(CFG["cli"]), CFG["headless_flag"],
             CFG["prompt_arg_template"].format(prompt_file=pf)] + CFG["extra_flags"]
+    # 利用量を取るため JSON で受け取り、本文だけを取り出す（テレメトリ。判定には使わない）。
+    args += CFG.get("output_format_args", [])
+    t0 = time.monotonic()
     rc, out, err = run(args, CFG["ttl_seconds"]["claude"], "claude")
+    TEL["seconds"] = round(time.monotonic() - t0, 1)
+    if not CFG.get("output_format_args"):
+        TEL["usage"] = telemetry.usage_unknown("config/decompose.json に output_format_args が無い")
+    else:
+        TEL["usage"] = telemetry.cli_usage(out, CFG["usage_format"])
     if rc != 0:
         sys.exit(f"分解役が異常終了 (rc={rc}): {(err or out)[:500]}")
-    return out
+    if not CFG.get("output_format_args"):
+        return out
+    # 封筒（CLI の JSON）が読めないのは CLI 側の異常。LLM の出力不良（rc=1）とは分けて rc=2 にする。
+    text, why = telemetry.response_text(out, CFG["response_key"])
+    if text is None:
+        sys.exit(f"分解役の CLI の出力を読めません（{why}）: {out[:300]}")
+    return text
 
 
 def reject(msg):
@@ -241,7 +260,22 @@ def main():
     g.add_argument("--issue", type=int, help="対象の Issue 番号")
     g.add_argument("--file", help="Issue の代わりにローカルの文書を使う（試験用）")
     ap.add_argument("--id", help="単位 ID。--file のときは必須")
+    ap.add_argument("--telemetry", help="テレメトリの書き出し先（JSON）。判定には使わない")
     a = ap.parse_args()
+    TEL["started"] = datetime.now().isoformat(timespec="seconds")
+    rc = None
+    try:
+        rc = decompose(a)
+        return rc
+    finally:
+        if "usage" not in TEL:
+            TEL["usage"] = telemetry.usage_unknown("分解役を呼ぶ前に終了した")
+        telemetry.put(TEL, "exit_code", rc, "sys.exit か例外で終了した（終了コードは呼び出し側の記録を見る）")
+        if a.telemetry:
+            telemetry.write(a.telemetry, TEL)
+
+
+def decompose(a):
     configure(a.project)
 
     if a.issue:

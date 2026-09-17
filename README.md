@@ -24,6 +24,7 @@ harness/
   scheduler.py    ready の Issue → 分解 → 監査 → 実装 → PR → 承認 → マージ
   pipeline.py     1 単位を実装して門を通す（終了コード 0 / 1 / 2）
   oracle.py       二相判定（F2P / P2P）・制御群・quarantine の検証。テスト名単位で判定する
+  telemetry.py    runs.jsonl に載せる実測値（CLI の利用量・試行の指標）。取れない値は null ＋理由（docs/design/telemetry.md）
   decompose.py    Issue → 受入テスト + 単位定義
   audit.py        独立監査
   proc.py         子プロセスの起動（TTL 必須・窓を出さない）
@@ -45,6 +46,7 @@ tests/
   test_approval.py    抽出器と承認ゲート
   test_adapters.py    アダプタの選択・結果ファイルの読み取り（実物）・コアに固有の語が無いこと
   test_oracle.py      二相判定（偽テスト・入れ替わり・消えたテスト・制御群・quarantine の承認）
+  test_telemetry.py   テレメトリ（null と 0 の区別、実測した CLI の JSON、査読用の指標の手計算）
   mutate.py           判定をわざと壊して、テストが赤になるかを確かめる
 ```
 
