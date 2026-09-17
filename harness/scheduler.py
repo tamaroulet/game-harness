@@ -56,12 +56,14 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
 
 import adapters
 import exitcode
+import fileops
 import project
 import telemetry
 
@@ -104,14 +106,21 @@ def run_cmd(args, cwd, ttl):
         return 127, "", f"コマンドが見つかりません: {e}"
 
 
+def kill_pid_tree(pid):
+    """pid の木ごと止める（Windows）。taskkill 自体が固まったら False。"""
+    try:
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)],
+                       capture_output=True, stdin=subprocess.DEVNULL,
+                       creationflags=_NO_WINDOW, timeout=60)
+        return True
+    except subprocess.TimeoutExpired:
+        return False
+
+
 def kill_tree(proc):
     """子だけ殺すと孫（エンジンのエディタ・agy）が孤児になって走り続ける。木ごと止める。"""
     if sys.platform == "win32":
-        try:
-            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)],
-                           capture_output=True, stdin=subprocess.DEVNULL,
-                           creationflags=_NO_WINDOW, timeout=60)
-        except subprocess.TimeoutExpired:
+        if not kill_pid_tree(proc.pid):
             proc.kill()  # taskkill 自体が固まったら、せめて直下の子は止める
     else:
         proc.kill()
@@ -121,11 +130,44 @@ def kill_tree(proc):
         pass
 
 
-def run_logged(args, cwd, ttl, log_path, env):
+def pid_alive(pid):
+    """プロセスが生きているか。分からなければ生きているとみなす（ロックを消さない側に倒す）。
+
+    Windows で os.kill(pid, 0) を使ってはいけない。シグナル 0 は TerminateProcess になり、
+    確かめたい相手を終了させてしまう。OpenProcess と GetExitCodeProcess で見る。
+    pid が別のプロセスに再利用されていれば生きていると判定される（安全側）。
+    """
+    if sys.platform != "win32":
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except OSError:
+            return True
+        return True
+    import ctypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    PROCESS_QUERY_LIMITED_INFORMATION, STILL_ACTIVE, ERROR_INVALID_PARAMETER = 0x1000, 259, 87
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+    if not handle:
+        return ctypes.get_last_error() != ERROR_INVALID_PARAMETER  # 87 = その pid は無い
+    try:
+        code = ctypes.c_ulong()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return True
+        return code.value == STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def run_logged(args, cwd, ttl, log_path, env, on_wait=None, tick=30):
     """長い子プロセス（decompose / audit / pipeline）。出力は逐次ファイルへ。
 
     pipeline は 1 時間を超えうる。メモリに溜めて最後に書くと、途中で何が
     起きているか誰にも見えず、殺されたときに何も残らない。
+
+    TTL まで一度に待たず、tick 秒ごとに on_wait(pid) を呼ぶ（ハートビート）。
+    待ちが長くても、外から「生きて待っている」ことが分かるようにするため。
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("wb") as f:
@@ -138,12 +180,20 @@ def run_logged(args, cwd, ttl, log_path, env):
         except FileNotFoundError as e:
             f.write(f"コマンドが見つかりません: {e}\n".encode("utf-8"))
             return 127
-        try:
-            return proc.wait(timeout=ttl)
-        except subprocess.TimeoutExpired:
-            kill_tree(proc)
-            f.write(f"\n\nTTL超過 ({ttl}s)。プロセス木ごと停止しました\n".encode("utf-8"))
-            return 124
+        if on_wait is not None:
+            on_wait(proc.pid)   # 自己監視が固まった子を止められるよう、pid をすぐ知らせる
+        deadline = time.monotonic() + ttl
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                kill_tree(proc)
+                f.write(f"\n\nTTL超過 ({ttl}s)。プロセス木ごと停止しました\n".encode("utf-8"))
+                return 124
+            try:
+                return proc.wait(timeout=min(tick, remaining))
+            except subprocess.TimeoutExpired:
+                if on_wait is not None:
+                    on_wait(proc.pid)
 
 
 def tail_of(log_path, chars):
@@ -156,23 +206,42 @@ def tail_of(log_path, chars):
 
 # ============================================================ ネットワーク再試行
 
-def with_retries(attempt, done, retries, interval, sleep, what):
+RATE_LIMIT_WORDS = ("rate limit", "http 429", "abuse detection")
+
+
+def is_rate_limited(detail):
+    text = str(detail).lower()
+    return any(w in text for w in RATE_LIMIT_WORDS)
+
+
+def with_retries(attempt, done, retries, interval, sleep, what, on_limited=None):
     """attempt() -> (ok, detail)。失敗したら interval 待って再試行する。
 
     書き込みは「失敗と表示されたが実は反映されていた」がありうる（応答だけ落ちた）。
     そのまま重ねるとコメントが二重に付くので、再試行の前に done() で読み直し、
     反映済みなら何もしない。読み取りは done=None。
+
+    レート制限（on_limited があるとき）は数十分単位で続くので、5 秒の再試行では抜けられない。
+    on_limited(待った合計, 回数) が返す秒数だけ待つ。上限を超えるなら on_limited が Abort を上げる。
+    この待ちは retries の回数に数えない。
     """
     detail = ""
-    for i in range(retries + 1):
-        if i > 0:
-            sleep(interval)
-            if done is not None and done():
-                return None
+    failures, waited, limited = 0, 0, 0
+    while True:
         ok, detail = attempt()
         if ok:
             return detail
-    raise Abort(f"{what} が {retries + 1} 回とも失敗しました: {str(detail)[:300]}")
+        if on_limited is not None and is_rate_limited(detail):
+            secs = on_limited(waited, limited)
+            waited, limited = waited + secs, limited + 1
+            sleep(secs)
+        else:
+            if failures >= retries:
+                raise Abort(f"{what} が {retries + 1} 回とも失敗しました: {str(detail)[:300]}")
+            failures += 1
+            sleep(interval)
+        if done is not None and done():
+            return None
 
 
 # ============================================================ git
@@ -266,7 +335,7 @@ class Git:
 class GitHub:
     """gh の呼び出しはすべてここを通す。テストでは run を偽物に差し替える。"""
 
-    def __init__(self, cfg, run, sleep):
+    def __init__(self, cfg, run, sleep, clock=time.time, on_limited=None):
         self.slug = cfg["repo_slug"]
         self.ttl = cfg["ttl_seconds"]["gh"]
         self.retries = cfg["net_retries"]
@@ -275,14 +344,53 @@ class GitHub:
         self.run = run
         self.sleep = sleep
         self.cwd = cfg["repo_dir"]
+        self.clock = clock
+        self.rl_margin = cfg.get("rate_limit_margin_seconds", 30)
+        self.rl_max_wait = cfg.get("rate_limit_max_wait_seconds", 3600)
+        self.on_limited = on_limited   # (秒, リセット時刻) を受け取る（ハートビート）
 
     def _once(self, args):
         rc, out, err = self.run(["gh"] + args + ["--repo", self.slug], self.cwd, self.ttl)
         return rc == 0, out if rc == 0 else (err or out or f"rc={rc}")
 
+    # ---- レート制限
+    def rate_limit(self):
+        """{"core": {remaining, reset}, "graphql": {...}}。読めなければ None。この呼び出しは残量を使わない。"""
+        rc, out, _ = self.run(["gh", "api", "rate_limit"], self.cwd, self.ttl)
+        if rc != 0:
+            return None
+        try:
+            res = json.loads(out)["resources"]
+            return {k: {"remaining": int(res[k]["remaining"]), "reset": int(res[k]["reset"])}
+                    for k in ("core", "graphql")}
+        except (ValueError, KeyError, TypeError):
+            return None
+
+    def rate_limit_wait(self, waited, count):
+        """レート制限に当たったときに待つ秒数。待ちの合計が上限を超えるなら Abort。"""
+        info = self.rate_limit()
+        exhausted = [v for v in (info or {}).values() if v["remaining"] == 0]
+        reset = None
+        if exhausted:
+            reset = max(v["reset"] for v in exhausted)
+            secs = max(reset - self.clock(), 0) + self.rl_margin
+            kind = "一次制限（残量 0）"
+        else:
+            # 残量があるのに断られた = セカンダリ制限（短時間の呼びすぎ）。指数的に待つ
+            secs = min(60 * 2 ** count, 240)
+            kind = "セカンダリ制限"
+        secs = int(secs)
+        if waited + secs > self.rl_max_wait:
+            raise Abort(f"GitHub API のレート制限（{kind}）: 待ちの合計が上限 {self.rl_max_wait}s を超えます"
+                        f"（待機済み {waited}s、さらに {secs}s）")
+        print(f"  GitHub API のレート制限（{kind}）。{secs}s 待ちます")
+        if self.on_limited is not None:
+            self.on_limited(secs, reset)
+        return secs
+
     def read(self, args):
         return with_retries(lambda: self._once(args), None, self.retries, self.interval,
-                            self.sleep, "gh " + " ".join(args[:2]))
+                            self.sleep, "gh " + " ".join(args[:2]), self.rate_limit_wait)
 
     def read_json(self, args):
         out = self.read(args)
@@ -293,7 +401,7 @@ class GitHub:
 
     def write(self, args, done):
         with_retries(lambda: self._once(args), done, self.retries, self.interval,
-                     self.sleep, "gh " + " ".join(args[:2]))
+                     self.sleep, "gh " + " ".join(args[:2]), self.rate_limit_wait)
 
     def api_json(self, path):
         """gh api は --repo を取らないので、パスにリポジトリを入れて呼ぶ。"""
@@ -301,7 +409,7 @@ class GitHub:
             rc, out, err = self.run(["gh", "api", path], self.cwd, self.ttl)
             return rc == 0, out if rc == 0 else (err or out or f"rc={rc}")
         out = with_retries(attempt, None, self.retries, self.interval, self.sleep,
-                           "gh api " + path.split("?")[0])
+                           "gh api " + path.split("?")[0], self.rate_limit_wait)
         try:
             return json.loads(out or "null")
         except ValueError:
@@ -477,18 +585,88 @@ class GitHub:
 
 # ============================================================ スケジューラ
 
+class Heartbeat:
+    """<out_dir>/heartbeat.json。主スレッドが生きていることを、外（--status・自己監視）へ示す。
+
+    書き込みに失敗しても止めない（記録のためのもの）。置き換えは fileops 経由で、
+    読み手が掴んでいる間は待って再試行する。
+    """
+
+    def __init__(self, path, clock=time.monotonic):
+        self.path = Path(path)
+        self.clock = clock
+        self.state = {"pid": os.getpid(), "state": "starting", "step": None, "issue": None,
+                      "child_pid": None, "reason": None, "rate_limit_reset": None}
+        self.last = clock()
+        self._lock = threading.Lock()
+
+    def beat(self, **fields):
+        with self._lock:
+            self.state.update(fields)
+            self.state["updated"] = datetime.now().isoformat(timespec="seconds")
+            self.last = self.clock()
+            data = dict(self.state)
+        try:
+            telemetry.write(self.path, data)
+        except OSError as e:
+            print(f"  ハートビートを書けません: {e}")
+
+    def age(self):
+        return self.clock() - self.last
+
+
+class DailyLog:
+    """stdout / stderr を <out_dir>/scheduler-YYYYMMDD.log へ付け替える。
+
+    pythonw では sys.stdout が None で、print が黙って消える。常駐では誰も画面を見ないので、
+    日付ごとのファイルに残す。日付の切り替えは周の区切りで行う（ensure）。
+    """
+
+    def __init__(self, out_dir):
+        self.dir = Path(out_dir)
+        self.date = None
+        self.f = None
+
+    def ensure(self):
+        today = datetime.now().strftime("%Y%m%d")
+        if today == self.date:
+            return
+        self.dir.mkdir(parents=True, exist_ok=True)
+        old = self.f
+        self.f = open(self.dir / f"scheduler-{today}.log", "a", encoding="utf-8", buffering=1)
+        sys.stdout = sys.stderr = self.f
+        self.date = today
+        if old is not None:
+            old.close()
+
+    def close(self):
+        if self.f is not None:
+            self.f.close()
+            self.f = None
+
+
 class Scheduler:
     def __init__(self, cfg, gh_run=run_cmd, sleep=time.sleep):
         self.cfg = cfg
         self.repo = Path(cfg["repo_dir"])
         self.out = Path(cfg["out_dir"])
         self.base = cfg["base_branch"]
-        self.sleep = sleep
-        self.git = Git(self.repo, cfg, sleep)
-        self.gh = GitHub(cfg, gh_run, sleep)
+        self.hb = Heartbeat(self.out / "heartbeat.json")
+        self.tick = cfg.get("heartbeat_seconds", 30)
+        # 待つときは tick ごとにハートビートを更新する（レート制限の待ちは数十分になりうる）
+        self.raw_sleep = sleep
+        self.sleep = self.pause
+        self.git = Git(self.repo, cfg, self.pause)
+        self.gh = GitHub(cfg, gh_run, self.pause,
+                         on_limited=lambda secs, reset: self.hb.beat(
+                             state="rate_limited", rate_limit_reset=reset,
+                             reason=f"GitHub API のレート制限で {secs}s 待機"))
         self.run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.lock = Path(cfg.get("lock_path") or self.out / "scheduler.lock")
+        self.stop_path = self.lock.parent / "scheduler.stop"
         self.touched = False
+        self._wd_stop = threading.Event()
+        self._exit = os._exit
         # 記録に残すハーネスの版。取れなければ null（記録のためだけなので止めない）。
         rc, out, _ = run_cmd(["git", "rev-parse", "HEAD"], project.ROOT, cfg["ttl_seconds"]["git"])
         self.harness_sha = out.strip() if rc == 0 and out.strip() else None
@@ -504,8 +682,18 @@ class Scheduler:
         self.env["PYTHONIOENCODING"] = "utf-8"
         self.env["PYTHONUTF8"] = "1"
 
+    # ---- 待機
+    def pause(self, seconds):
+        """tick ごとに区切って待ち、そのたびにハートビートを更新する。"""
+        left = seconds
+        while left > 0:
+            chunk = min(left, self.tick)
+            self.raw_sleep(chunk)
+            left -= chunk
+            self.hb.beat()
+
     # ---- ロック
-    def acquire_lock(self):
+    def _create_lock(self):
         try:
             fd = os.open(str(self.lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
@@ -514,11 +702,173 @@ class Scheduler:
             f.write(json.dumps({"pid": os.getpid(), "run_id": self.run_id}) + "\n")
         return True
 
-    def release_lock(self):
+    def acquire_lock(self):
+        if self._create_lock():
+            return True
+        why = self.stale_lock_reason()
+        if why is None:
+            return False
+        print(f"死んだロックを解放します（{why}）: {self.lock}")
+        fileops.unlink(self.lock)
+        return self._create_lock()
+
+    def stale_lock_reason(self):
+        """自動で消してよい死んだロックなら理由を返す。少しでも疑わしければ None（消さない）。
+
+        消すのは「形が {pid, run_id} で、ABORT の記録が無く、pid が生きていない」ときだけ。
+        原因が記録された停止（aborted）は、人間が理由を見てから消す。
+        """
         try:
-            self.lock.unlink()
-        except FileNotFoundError:
-            pass
+            lines = [l for l in self.lock.read_text(encoding="utf-8").splitlines() if l.strip()]
+            records = [json.loads(l) for l in lines]
+        except (OSError, ValueError):
+            return None
+        if not records or not all(isinstance(r, dict) for r in records):
+            return None
+        pid = records[0].get("pid")
+        if not isinstance(pid, int) or isinstance(pid, bool):
+            return None
+        if any("aborted" in r for r in records):
+            return None
+        if pid_alive(pid):
+            return None
+        return f"pid {pid} は終了していて、ABORT の記録も無い"
+
+    def release_lock(self):
+        fileops.unlink(self.lock)
+
+    # ---- 常駐
+    def stop_requested(self):
+        return self.stop_path.exists()
+
+    def request_stop(self):
+        self.stop_path.parent.mkdir(parents=True, exist_ok=True)
+        self.stop_path.write_text(datetime.now().isoformat(timespec="seconds") + "\n", encoding="utf-8")
+        print(f"停止を依頼しました: {self.stop_path}（常駐は周の区切りか待機中に止まります。"
+              "実行中の子プロセスは止めません）")
+        return 0
+
+    def wait_or_stop(self, seconds):
+        """5 秒刻みで待つ。停止ファイルがあれば True。"""
+        left = seconds
+        while left > 0:
+            if self.stop_requested():
+                return True
+            chunk = min(5, left)
+            self.raw_sleep(chunk)
+            left -= chunk
+            self.hb.beat()
+        return self.stop_requested()
+
+    def stop_watch(self):
+        fileops.unlink(self.stop_path)
+        self.release_lock()
+        self.hb.beat(state="stopped", step=None, issue=None, reason="停止ファイルで停止")
+        print("停止ファイルを見つけたので、常駐を終了します")
+        return 0
+
+    def start_watchdog(self):
+        limit = self.cfg.get("watchdog_seconds", 900)
+
+        def loop():
+            while not self._wd_stop.wait(min(30, limit / 4)):
+                if self.watchdog_check(limit):
+                    return
+        threading.Thread(target=loop, name="watchdog", daemon=True).start()
+
+    def watchdog_check(self, limit):
+        """ハートビートが limit 秒更新されていなければ、子の木を止めて終了する。
+
+        TTL の外で主処理が固まった場合の最後の手段。aborted を書かないので、
+        次の起動で死んだロックとして自動解放される（作業ツリーが汚れていれば起動時検査が止める）。
+        """
+        age = self.hb.age()
+        if age <= limit:
+            return False
+        pid = self.hb.state.get("child_pid")
+        if pid:
+            if sys.platform == "win32":
+                kill_pid_tree(pid)
+            else:
+                os.kill(pid, 9)
+        reason = f"自己監視: {int(age)}s ハートビートが更新されなかった（主処理が固まった）"
+        self.hb.beat(state="stopped", child_pid=None, reason=reason)
+        print(reason)
+        self._exit(2)
+        return True
+
+    def watch(self, interval, max_issues=None, log=None):
+        """1 周 → 待機 → 1 周。ロックは常駐の間ずっと持つ。ABORT で抜ける。停止ファイルで止まる。"""
+        self.out.mkdir(parents=True, exist_ok=True)
+        self.lock.parent.mkdir(parents=True, exist_ok=True)
+        if not self.acquire_lock():
+            print(f"ABORT: ロック {self.lock} があります。別のスケジューラが動いているか、"
+                  "前回が ABORT で止まっています。確認してから消してください。")
+            return 2
+        self.start_watchdog()
+        min_remaining = self.cfg.get("rate_limit_min_remaining", 300)
+        try:
+            while True:
+                if log is not None:
+                    log.ensure()
+                if self.stop_requested():
+                    return self.stop_watch()
+                # 周の前に API の残量を確かめる。着手の途中で使い切ると ABORT になるので、
+                # 足りなければ Issue に触る前にリセットまで待つ。
+                low = [v for v in (self.gh.rate_limit() or {}).values() if v["remaining"] < min_remaining]
+                if low:
+                    reset = max(v["reset"] for v in low)
+                    secs = max(int(reset - self.gh.clock()), 0) + self.gh.rl_margin
+                    print(f"GitHub API の残量が {min_remaining} 未満です。着手せず {secs}s 待ちます")
+                    self.hb.beat(state="rate_limited", step=None, issue=None, rate_limit_reset=reset,
+                                 reason="API の残量不足で着手を見送り")
+                    if self.wait_or_stop(secs):
+                        return self.stop_watch()
+                    continue
+                self.hb.beat(state="running", step="cycle", reason=None, rate_limit_reset=None)
+                rc = self.cycle(max_issues)
+                if rc == 2:
+                    self.hb.beat(state="stopped", step=None, child_pid=None,
+                                 reason="ABORT（理由はログと Issue のコメント）")
+                    return 2
+                self.hb.beat(state="waiting", step=None, issue=None)
+                if self.wait_or_stop(interval):
+                    return self.stop_watch()
+        finally:
+            self._wd_stop.set()
+
+    def status(self):
+        """ロック・ハートビート・停止ファイルを表示する。何も変えない。"""
+        print(f"ロック: {self.lock}")
+        if self.lock.exists():
+            text = self.lock.read_text(encoding="utf-8", errors="replace")
+            for line in text.splitlines():
+                print(f"  {line}")
+            try:
+                pid = json.loads(text.splitlines()[0])["pid"]
+                print(f"  pid {pid}: {'生きている' if pid_alive(pid) else '終了している'}")
+            except (ValueError, KeyError, IndexError, TypeError):
+                print("  （形が違うので pid を確かめられません）")
+            why = self.stale_lock_reason()
+            print(f"  次の起動で自動解放: {'する（' + why + '）' if why else 'しない'}")
+        else:
+            print("  なし")
+        hb, why = telemetry.read(self.out / "heartbeat.json")
+        print(f"ハートビート: {self.out / 'heartbeat.json'}")
+        if hb is None:
+            print(f"  {why}")
+        else:
+            try:
+                age = (datetime.now() - datetime.fromisoformat(hb["updated"])).total_seconds()
+                print(f"  最終更新: {age / 60:.1f} 分前（{hb['updated']}）")
+            except (KeyError, ValueError, TypeError):
+                print("  最終更新: 不明")
+            for key in ("state", "step", "issue", "child_pid", "reason"):
+                print(f"  {key}: {hb.get(key)}")
+            if hb.get("rate_limit_reset"):
+                print(f"  rate_limit_reset: {datetime.fromtimestamp(hb['rate_limit_reset']).isoformat()}")
+        print(f"停止ファイル: {'あり' if self.stop_requested() else 'なし'}（{self.stop_path}）")
+        return 0
 
     # ---- 記録
     # 査読用の指標。算出する行の種類が決まっているので、ほかの行では null ＋理由で枠だけ置く
@@ -552,13 +902,16 @@ class Scheduler:
         log = self.out / f"issue_{rec['issue']}" / (f"{name}_{tag}.log" if tag else f"{name}.log")
         # 道具が書くテレメトリ。前回の残りを読まないよう、実行前に消す。
         tel_path = log.with_name(log.stem + ".telemetry.json")
-        tel_path.unlink(missing_ok=True)
+        fileops.unlink(tel_path)
         args = [a.format(python=sys.executable, harness=project.HARNESS_DIR.as_posix(),
                          project=self.cfg.get("project_id", ""), telemetry=str(tel_path), **fmt)
                 for a in self.cfg["commands"][name]]
         print(f"  [{name}{' ' + tag if tag else ''}] 実行中… ログ: {log}")
         t0 = time.monotonic()
-        rc = run_logged(args, self.repo, self.cfg["ttl_seconds"][name], log, self.env)
+        self.hb.beat(state="running", step=name, issue=rec["issue"], child_pid=None, reason=None)
+        rc = run_logged(args, self.repo, self.cfg["ttl_seconds"][name], log, self.env,
+                        on_wait=lambda pid: self.hb.beat(child_pid=pid), tick=self.tick)
+        self.hb.beat(child_pid=None)
         secs = round(time.monotonic() - t0, 1)
         entry = {"name": name, "tag": tag, "rc": rc, "seconds": secs, "log": str(log)}
         data, why = telemetry.read(tel_path)
@@ -964,7 +1317,14 @@ class Scheduler:
             print(f"ABORT: ロック {self.lock} があります。別のスケジューラが動いているか、"
                   "前回が ABORT で止まっています。確認してから消してください。")
             return 2
+        rc = self.cycle(max_issues)
+        if rc != 2:
+            self.release_lock()
+        return rc
 
+    def cycle(self, max_issues=None):
+        """1 周。ロックは呼び出し側が持っている。ABORT のときのロックの扱いはここで決める。"""
+        self.touched = False
         results = []
         try:
             self.preflight()
@@ -991,7 +1351,6 @@ class Scheduler:
                 self.release_lock()  # 何も変えていないので、次回を止める理由がない
             return 2
 
-        self.release_lock()
         print(f"\n完了: マージ {results.count('PASSED')} / 承認待ちへ {results.count('AWAITING')} / "
               f"待機中 {results.count('WAITING')} / 不合格 {results.count('REJECT')}")
         return 1 if "REJECT" in results else 0
@@ -1038,13 +1397,35 @@ def main(argv=None, gh_run=run_cmd, sleep=time.sleep):
     src.add_argument("--config", help="平らな設定 JSON を直接渡す（テスト用）")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--max-issues", type=int)
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--watch", action="store_true", help="常駐する（1 周 → 待機 → 1 周）")
+    mode.add_argument("--stop", action="store_true", help="常駐に停止を依頼する（停止ファイルを置く）")
+    mode.add_argument("--status", action="store_true", help="ロック・ハートビートを表示する（何も変えない）")
+    ap.add_argument("--interval", type=int, help="常駐の待機秒数（既定は watch_interval_seconds）")
     a = ap.parse_args(argv)
     if a.project:
         cfg = build_config(a.project)
     else:
         cfg = json.loads(Path(a.config).read_text(encoding="utf-8"))
-    return Scheduler(cfg, gh_run=gh_run, sleep=sleep).run(dry_run=a.dry_run,
-                                                          max_issues=a.max_issues)
+    s = Scheduler(cfg, gh_run=gh_run, sleep=sleep)
+    if a.stop:
+        return s.request_stop()
+    if a.status:
+        return s.status()
+
+    # pythonw（sys.stdout が None）と常駐では、出力をファイルへ付け替える
+    log = DailyLog(cfg["out_dir"]) if (a.watch or sys.stdout is None) else None
+    saved = (sys.stdout, sys.stderr)
+    try:
+        if log is not None:
+            log.ensure()
+        if a.watch:
+            return s.watch(a.interval or cfg.get("watch_interval_seconds", 120), a.max_issues, log)
+        return s.run(dry_run=a.dry_run, max_issues=a.max_issues)
+    finally:
+        if log is not None:
+            sys.stdout, sys.stderr = saved
+            log.close()
 
 
 if __name__ == "__main__":

@@ -9,8 +9,9 @@
 """
 import hashlib
 import json
-import os
 from pathlib import Path
+
+import fileops
 
 SCHEMA = 1
 
@@ -67,7 +68,7 @@ def write(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    fileops.replace(tmp, path)
 
 
 def read(path):

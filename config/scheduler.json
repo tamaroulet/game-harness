@@ -54,6 +54,16 @@
   "net_retries": 2,
   "net_retry_interval_seconds": 5,
 
+  "_rate_limit_note": "GitHub API のレート制限。当たったら残量 0 の資源のリセットまで待つ（残量があるのに断られたらセカンダリ制限として 60→120→240s）。1 回の操作で待つ合計が max を超えたら ABORT。常駐では周の前に残量を見て、min 未満なら着手せずに待つ",
+  "rate_limit_min_remaining": 300,
+  "rate_limit_margin_seconds": 30,
+  "rate_limit_max_wait_seconds": 3600,
+
+  "_resident_note": "常駐（--watch）。heartbeat_seconds ごとに heartbeat.json を更新する（子を待つ間も）。watchdog_seconds 更新が止まったら、主処理が TTL の外で固まったとみなし、子の木を止めて rc=2 で終わる。正常時に更新が止まるのは git / gh の 1 回の呼び出し（TTL 180s / 90s）の間だけ",
+  "watch_interval_seconds": 120,
+  "heartbeat_seconds": 30,
+  "watchdog_seconds": 900,
+
   "comment_log_tail_chars": 1500,
   "max_issues_per_run": 5
 }

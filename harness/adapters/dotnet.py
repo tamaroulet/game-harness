@@ -10,6 +10,7 @@
 import re
 import xml.etree.ElementTree as ET
 
+import fileops
 from proc import run
 
 from adapters import csharp_tests
@@ -49,7 +50,7 @@ def run_tests(c, tag):
     """`dotnet test` を実行し、(結果, エラー) を返す。件数は c.metrics の fast_* に入れる。"""
     trx = c.out / f"{tag}.trx"
     if trx.exists():
-        trx.unlink()
+        fileops.unlink(trx)
     # /nr:false: MSBuild のワーカー（ノード再利用）を常駐させない。常駐すると終了後も
     # ビルド出力の .dll を掴み続け、次のビルドやサンドボックスのリセットが
     # ファイルロック（WinError 32）で落ちうる。

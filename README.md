@@ -24,6 +24,7 @@ harness/
   scheduler.py    ready の Issue → 分解 → 監査 → 実装 → PR → 承認 → マージ
   pipeline.py     1 単位を実装して門を通す（終了コード 0 / 1 / 2）
   oracle.py       二相判定（F2P / P2P）・制御群・quarantine の検証。テスト名単位で判定する
+  fileops.py      ファイルの削除・置き換えの再試行（Windows のファイルロック対策）
   telemetry.py    runs.jsonl に載せる実測値（CLI の利用量・試行の指標）。取れない値は null ＋理由（docs/design/telemetry.md）
   decompose.py    Issue → 受入テスト + 単位定義
   audit.py        独立監査
@@ -46,6 +47,7 @@ tests/
   test_approval.py    抽出器と承認ゲート
   test_adapters.py    アダプタの選択・結果ファイルの読み取り（実物）・コアに固有の語が無いこと
   test_oracle.py      二相判定（偽テスト・入れ替わり・消えたテスト・制御群・quarantine の承認）
+  test_fileops.py     ファイルロックの再試行（実物の共有違反）・サンドボックスのリセットの確認
   test_telemetry.py   テレメトリ（null と 0 の区別、実測した CLI の JSON、査読用の指標の手計算）
   mutate.py           判定をわざと壊して、テストが赤になるかを確かめる
 ```
@@ -76,6 +78,21 @@ python tests/mutate.py
 
 `--unit` と `--file` は、ゲームのリポジトリからの相対パス。
 
+## 常駐
+
+```
+python harness/scheduler.py --project unity-2d --watch [--interval 120]   # 1 周 → 待機 → 1 周
+python harness/scheduler.py --project unity-2d --status                   # ロック・ハートビート（何も変えない）
+python harness/scheduler.py --project unity-2d --stop                     # 停止を依頼（周の区切りか待機中に止まる）
+```
+
+- **登録**（ログオン時に pythonw で起動）: `harness/templates/resident/register-task.ps1 -Project unity-2d`。OS に設定が残るので、`-WhatIf` で内容を確かめてから人間が実行する
+- **出力**: `<out_dir>/scheduler-YYYYMMDD.log`（pythonw では画面が無いので付け替える）
+- **ハートビート**: `<out_dir>/heartbeat.json` を 30 秒ごとに更新する（子を待つ間も）。900 秒更新が止まったら、自己監視が子の木を止めて rc=2 で終わる
+- **ロック**: 常駐の間ずっと持つ。pid が終了していて ABORT の記録が無いロックは、次の起動で自動解放する。ABORT の記録があるロックは、人間が理由を見てから消す
+- **GitHub API のレート制限**: 残量 0 ならリセットまで待つ（セカンダリ制限は 60→120→240 秒）。1 回の操作の待ちが 3600 秒を超えたら ABORT。常駐では周の前に残量を見て、300 未満なら着手しない
+- **ファイルロック（WinError 32 など）**: 削除・置き換えは `harness/fileops.py` で待って再試行する。サンドボックスのリセットは、作業ツリーが空になったことを確かめ、空にならなければ ABORT
+
 ## 終了コード
 
 すべての道具で共通。
@@ -97,4 +114,5 @@ python tests/mutate.py
 - **Unity の受入はこの PC でしか走らない。** GitHub の必須チェックは Pure C# の `dotnet test` だけ。Unity 受入を通したことは、スケジューラが保証している（GitHub 側では強制されない）
 - **承認者とスケジューラは同じ GitHub アカウントで動いている。** スケジューラは `ms4:approved` を付けないように作り、テストで確かめているが、approval チェックは両者を区別できない。区別するには、スケジューラを別アカウント（machine user）のトークンで動かす必要がある
 - **ブランチ保護はまだ無い（A4 で設定）。** それまでは必須チェックも「スケジューラが確かめている」だけで、GitHub 側では強制されない。approval.yml もまだゲームのリポジトリに配っていない
-- 計画中: ブランチ保護、常駐（`C:\Users\tamar\.claude\plans\glistening-wobbling-dijkstra.md` のフェーズ A4・A6）
+- **常駐の仕組み（`--watch`）はあるが、タスクスケジューラへの登録はまだしていない**（OS に設定が残るため、人間の許可を得てから行う）。dispatch の `--inbox` へのハートビート表示と `--resume` も未実装
+- **自己監視は「ハートビートが止まった」ことしか見ない。** 子プロセス（pipeline など）の中で固まった場合は、子の TTL（`ttl_seconds`）で止まる
