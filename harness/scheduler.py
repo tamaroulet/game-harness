@@ -60,9 +60,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import adapters
 import exitcode
 import project
-import test_summary
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -104,7 +104,7 @@ def run_cmd(args, cwd, ttl):
 
 
 def kill_tree(proc):
-    """子だけ殺すと孫（Unity・agy）が孤児になって走り続ける。木ごと止める。"""
+    """子だけ殺すと孫（エンジンのエディタ・agy）が孤児になって走り続ける。木ごと止める。"""
     if sys.platform == "win32":
         try:
             subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)],
@@ -446,6 +446,9 @@ class Scheduler:
 
         self.test_dir = cfg["test_dir"].strip("/")
         self.audit_dir = cfg["audit_dir"].strip("/")
+        # 承認依頼に載せる受入テスト一覧は、言語ごとの抽出器で作る（fast アダプタ）。
+        # 設定に無ければ例外で止まる（既定の言語を仮定しない）。
+        self.fast = adapters.load("fast", cfg["adapters"]["fast"])
 
         self.env = dict(os.environ)
         # 子の Python がパイプへ CP932 で書くと、ログとコメントが化ける（実測）。
@@ -602,7 +605,7 @@ class Scheduler:
         """承認依頼の本文。テスト一覧は C# から機械的に抜き出す（LLM に要約させない）。"""
         tests = rec.get("tests") or []
         try:
-            total, md = test_summary.summarize_files(tests, root=self.repo)
+            total, md = self.fast.summarize_files(tests, root=self.repo)
         except (OSError, ValueError) as e:
             raise Abort(f"受入テストの一覧を作れません: {e}")
         if total == 0:
@@ -860,7 +863,7 @@ class Scheduler:
 
 
 PROJECT_KEYS = ("project_id", "repo_slug", "repo_dir", "base_branch", "out_dir",
-                "test_dir", "audit_dir", "unit_path_template", "required_checks")
+                "test_dir", "audit_dir", "unit_path_template", "required_checks", "adapters")
 
 
 def build_config(project_id):
@@ -885,6 +888,7 @@ def build_config(project_id):
         audit_dir=project.config("audit")["out_dir"],
         unit_path_template=p["units_dir"].rstrip("/") + "/issue_{number}.json",
         required_checks=p.get("required_checks") or [],
+        adapters=p["adapters"],
     )
     if not cfg["required_checks"]:
         raise project.ProjectError(f"{p['dir']}\\project.json に required_checks がありません。"

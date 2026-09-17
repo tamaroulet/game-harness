@@ -25,8 +25,12 @@ harness/
   pipeline.py     1 単位を実装して門を通す（終了コード 0 / 1 / 2）
   decompose.py    Issue → 受入テスト + 単位定義
   audit.py        独立監査
-  test_summary.py 受入テストの一覧（名前・期待値・メッセージ）を C# から機械抽出
+  proc.py         子プロセスの起動（TTL 必須・窓を出さない）
   exitcode.py     sys.exit("ABORT") と未捕捉例外を rc=2 にそろえる
+  adapters/       エンジン・言語に固有の処理はここにだけ置く（コアに固有の語が無いことをテストで確認）
+    unity.py         Editor のバッチ実行、NUnit3 結果、.meta の GUID 保護
+    dotnet.py        dotnet test、TRX、C# のスタブ・テストの探し方
+    csharp_tests.py  受入テストの一覧（名前・期待値・メッセージ）を C# から機械抽出
   templates/game-repo/   ゲームのリポジトリに配るもの
     .github/workflows/approval.yml       必須チェック approval（pull_request_target）
     .github/scripts/ms4_approval_gate.py その判定
@@ -38,6 +42,7 @@ projects/<id>/
 tests/
   test_scheduler.py   状態遷移・異常系（git は本物、GitHub は偽物、子はスタブ）
   test_approval.py    抽出器と承認ゲート
+  test_adapters.py    アダプタの選択・結果ファイルの読み取り（実物）・コアに固有の語が無いこと
   mutate.py           判定をわざと壊して、テストが赤になるかを確かめる
 ```
 

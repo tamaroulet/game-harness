@@ -365,6 +365,7 @@ class Base(unittest.TestCase):
                 "declined": {"name": "ms4:declined", "color": "B60205", "description": "d"},
             },
             "required_checks": ["test", "approval"],
+            "adapters": {"engine": "unity", "fast": "dotnet"},
             "required_clis": ["git"],
             "commands": {
                 "decompose": ["{python}", stub, "decompose", "{number}"],
@@ -502,7 +503,9 @@ class ProjectConfigTests(unittest.TestCase):
         p = project.load("unity-2d")
         cfg = project.pipeline_config(p)
         self.assertEqual(cfg["paths"]["repo"], p["repo_dir"])
-        self.assertEqual(cfg["paths"]["unity_project_subdir"], "Game")
+        self.assertEqual(cfg["adapters"], {"engine": "unity", "fast": "dotnet"})
+        self.assertEqual(cfg["project"]["unity_project_subdir"], "Game",
+                         "エンジン固有のキーは project 経由でアダプタに渡る")
 
         real = project._read
         def restated(path):
@@ -535,7 +538,7 @@ class ProjectConfigTests(unittest.TestCase):
         """
         import ast
         offenders = []
-        for py in sorted(HERE.glob("*.py")):
+        for py in sorted(HERE.rglob("*.py")):
             tree = ast.parse(py.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)

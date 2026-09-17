@@ -1,0 +1,1313 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="197" result="Failed(Child)" total="197" passed="176" failed="1" inconclusive="0" skipped="20" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.2279082">
+  <test-suite type="TestSuite" id="1000" name="Game" fullname="Game" runstate="Runnable" testcasecount="197" result="Failed" site="Child" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.227908" total="197" passed="176" failed="1" inconclusive="0" skipped="20" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1215" name="Game.Tests.EditMode.dll" fullname="C:/src/.local/wt/ms3-sandbox/Game/Library/ScriptAssemblies/Game.Tests.EditMode.dll" runstate="Runnable" testcasecount="197" result="Failed" site="Child" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.223137" total="197" passed="176" failed="1" inconclusive="0" skipped="20" asserts="0">
+      <properties>
+        <property name="_PID" value="16440" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1216" name="Game" fullname="Game" runstate="Runnable" testcasecount="197" result="Failed" site="Child" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.222909" total="197" passed="176" failed="1" inconclusive="0" skipped="20" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1217" name="Tests" fullname="Game.Tests" runstate="Runnable" testcasecount="197" result="Failed" site="Child" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.222809" total="197" passed="176" failed="1" inconclusive="0" skipped="20" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1218" name="EditMode" fullname="Game.Tests.EditMode" runstate="Runnable" testcasecount="197" result="Failed" site="Child" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.222622" total="197" passed="176" failed="1" inconclusive="0" skipped="20" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1001" name="AutoBattleResolverTests" fullname="Game.Tests.EditMode.AutoBattleResolverTests" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" testcasecount="24" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.031278" total="24" passed="24" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1020" name="BossCatalogSO_FindById_ReturnsMatchingBoss" fullname="Game.Tests.EditMode.AutoBattleResolverTests.BossCatalogSO_FindById_ReturnsMatchingBoss" methodname="BossCatalogSO_FindById_ReturnsMatchingBoss" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="1165762955" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.010588" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1021" name="BossCatalogSO_FindById_ReturnsNullWhenNotFound" fullname="Game.Tests.EditMode.AutoBattleResolverTests.BossCatalogSO_FindById_ReturnsNullWhenNotFound" methodname="BossCatalogSO_FindById_ReturnsNullWhenNotFound" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="1029805287" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000394" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1019" name="BossSO_CreateInitialState_BuildsFullHpStateAtBattleTurnOne" fullname="Game.Tests.EditMode.AutoBattleResolverTests.BossSO_CreateInitialState_BuildsFullHpStateAtBattleTurnOne" methodname="BossSO_CreateInitialState_BuildsFullHpStateAtBattleTurnOne" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="283104179" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000446" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1022" name="DecidePlayerAction_LowStamina_ChoosesDefend" fullname="Game.Tests.EditMode.AutoBattleResolverTests.DecidePlayerAction_LowStamina_ChoosesDefend" methodname="DecidePlayerAction_LowStamina_ChoosesDefend" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="1842041266" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000874" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1023" name="DecidePlayerAction_SufficientStaminaAndMental_ChoosesAttack" fullname="Game.Tests.EditMode.AutoBattleResolverTests.DecidePlayerAction_SufficientStaminaAndMental_ChoosesAttack" methodname="DecidePlayerAction_SufficientStaminaAndMental_ChoosesAttack" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="399984283" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000338" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1024" name="ResolveFullBattle_HighSkillBuild_AchievesVictoryWithinFewTurns" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveFullBattle_HighSkillBuild_AchievesVictoryWithinFewTurns" methodname="ResolveFullBattle_HighSkillBuild_AchievesVictoryWithinFewTurns" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="226052344" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.002107" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1025" name="ResolveFullBattle_LowSkillBuild_SuffersDefeatDueToExhaustion" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveFullBattle_LowSkillBuild_SuffersDefeatDueToExhaustion" methodname="ResolveFullBattle_LowSkillBuild_SuffersDefeatDueToExhaustion" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="1286507527" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000310" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1016" name="ResolveTurn_AlreadyDefeatedBoss_ReturnsUnchangedStateAsVictory" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_AlreadyDefeatedBoss_ReturnsUnchangedStateAsVictory" methodname="ResolveTurn_AlreadyDefeatedBoss_ReturnsUnchangedStateAsVictory" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="1873601959" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000453" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1017" name="ResolveTurn_AlreadyDefeatedPlayer_ReturnsUnchangedStateAsDefeat" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_AlreadyDefeatedPlayer_ReturnsUnchangedStateAsDefeat" methodname="ResolveTurn_AlreadyDefeatedPlayer_ReturnsUnchangedStateAsDefeat" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="253275781" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000289" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1003" name="ResolveTurn_Attack_DamageIsAbsorbedByShieldBeforeHp" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_Attack_DamageIsAbsorbedByShieldBeforeHp" methodname="ResolveTurn_Attack_DamageIsAbsorbedByShieldBeforeHp" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="198818477" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000291" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1002" name="ResolveTurn_Attack_DealsSkillDamageAndCostsStaminaThenBossCounterAttacks" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_Attack_DealsSkillDamageAndCostsStaminaThenBossCounterAttacks" methodname="ResolveTurn_Attack_DealsSkillDamageAndCostsStaminaThenBossCounterAttacks" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="1582205082" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000363" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1006" name="ResolveTurn_Attack_IgnoresRelicsWithNonCommandExecutedTrigger" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_Attack_IgnoresRelicsWithNonCommandExecutedTrigger" methodname="ResolveTurn_Attack_IgnoresRelicsWithNonCommandExecutedTrigger" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="272305300" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000514" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1004" name="ResolveTurn_Attack_SkillIsBoostedByRelicSkillDeltaBonus" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_Attack_SkillIsBoostedByRelicSkillDeltaBonus" methodname="ResolveTurn_Attack_SkillIsBoostedByRelicSkillDeltaBonus" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="1929593837" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000375" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1005" name="ResolveTurn_Attack_StacksMultipleRelicBonusesAndCostMultipliers" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_Attack_StacksMultipleRelicBonusesAndCostMultipliers" methodname="ResolveTurn_Attack_StacksMultipleRelicBonusesAndCostMultipliers" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="25712048" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000318" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1011" name="ResolveTurn_BossActionCyclesThroughPatternByBattleTurn" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_BossActionCyclesThroughPatternByBattleTurn" methodname="ResolveTurn_BossActionCyclesThroughPatternByBattleTurn" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="849407559" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000244" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1012" name="ResolveTurn_BossActionFallsBackToAttackWhenPatternIsEmpty" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_BossActionFallsBackToAttackWhenPatternIsEmpty" methodname="ResolveTurn_BossActionFallsBackToAttackWhenPatternIsEmpty" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="941520847" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000286" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1014" name="ResolveTurn_BossAttackDefeatsPlayer_ReturnsDefeat" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_BossAttackDefeatsPlayer_ReturnsDefeat" methodname="ResolveTurn_BossAttackDefeatsPlayer_ReturnsDefeat" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="53262642" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000285" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1009" name="ResolveTurn_BossMentalPressure_DamagesMentalDirectlyAndClamps" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_BossMentalPressure_DamagesMentalDirectlyAndClamps" methodname="ResolveTurn_BossMentalPressure_DamagesMentalDirectlyAndClamps" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="1564496242" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000259" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1010" name="ResolveTurn_BossSpecialAttack_DealsMultipliedDamageMitigatedByMental" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_BossSpecialAttack_DealsMultipliedDamageMitigatedByMental" methodname="ResolveTurn_BossSpecialAttack_DealsMultipliedDamageMitigatedByMental" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="1327738328" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000333" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1007" name="ResolveTurn_Defend_RecoversStaminaClampedAtMaxAndBossGuardsSimultaneously" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_Defend_RecoversStaminaClampedAtMaxAndBossGuardsSimultaneously" methodname="ResolveTurn_Defend_RecoversStaminaClampedAtMaxAndBossGuardsSimultaneously" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="382455418" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000278" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1018" name="ResolveTurn_DoesNotMutateOriginalPlayerOrBossStateInstances" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_DoesNotMutateOriginalPlayerOrBossStateInstances" methodname="ResolveTurn_DoesNotMutateOriginalPlayerOrBossStateInstances" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="2037296343" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000284" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1008" name="ResolveTurn_MentalFocus_RecoversMentalClampedAtMaxAndNegatesBossAttackAtFullShield" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_MentalFocus_RecoversMentalClampedAtMaxAndNegatesBossAttackAtFullShield" methodname="ResolveTurn_MentalFocus_RecoversMentalClampedAtMaxAndNegatesBossAttackAtFullShield" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="1509394574" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000286" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1013" name="ResolveTurn_PlayerAttackDefeatsBoss_ReturnsVictoryWithoutBossCounterAttack" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_PlayerAttackDefeatsBoss_ReturnsVictoryWithoutBossCounterAttack" methodname="ResolveTurn_PlayerAttackDefeatsBoss_ReturnsVictoryWithoutBossCounterAttack" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="1327696039" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000322" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1015" name="ResolveTurn_PlayerOverspendsStaminaOnAttack_ReturnsDefeatWithoutBossAction" fullname="Game.Tests.EditMode.AutoBattleResolverTests.ResolveTurn_PlayerOverspendsStaminaOnAttack_ReturnsDefeatWithoutBossAction" methodname="ResolveTurn_PlayerOverspendsStaminaOnAttack_ReturnsDefeatWithoutBossAction" classname="Game.Tests.EditMode.AutoBattleResolverTests" runstate="Runnable" seed="2064994620" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000322" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1026" name="CommandResolverSOTests" fullname="Game.Tests.EditMode.CommandResolverSOTests" classname="Game.Tests.EditMode.CommandResolverSOTests" runstate="Runnable" testcasecount="11" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.006844" total="11" passed="11" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1032" name="AdvancesTurnByOneWhenCommandIsApplied" fullname="Game.Tests.EditMode.CommandResolverSOTests.AdvancesTurnByOneWhenCommandIsApplied" methodname="AdvancesTurnByOneWhenCommandIsApplied" classname="Game.Tests.EditMode.CommandResolverSOTests" runstate="Runnable" seed="1710305956" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000899" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1027" name="ChangesStaminaSkillMentalAccordingToTrainEffect" fullname="Game.Tests.EditMode.CommandResolverSOTests.ChangesStaminaSkillMentalAccordingToTrainEffect" methodname="ChangesStaminaSkillMentalAccordingToTrainEffect" classname="Game.Tests.EditMode.CommandResolverSOTests" runstate="Runnable" seed="1695579928" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000301" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1029" name="ClampsSkillAtUpperBoundWhenDeltaExceedsRemainingCapacity" fullname="Game.Tests.EditMode.CommandResolverSOTests.ClampsSkillAtUpperBoundWhenDeltaExceedsRemainingCapacity" methodname="ClampsSkillAtUpperBoundWhenDeltaExceedsRemainingCapacity" classname="Game.Tests.EditMode.CommandResolverSOTests" runstate="Runnable" seed="1598647832" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000225" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1030" name="ClampsStaminaAtLowerBoundWhenDeltaExceedsRemainingStamina" fullname="Game.Tests.EditMode.CommandResolverSOTests.ClampsStaminaAtLowerBoundWhenDeltaExceedsRemainingStamina" methodname="ClampsStaminaAtLowerBoundWhenDeltaExceedsRemainingStamina" classname="Game.Tests.EditMode.CommandResolverSOTests" runstate="Runnable" seed="1536009398" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000253" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1028" name="DoesNotMutateOriginalGameStateInstance" fullname="Game.Tests.EditMode.CommandResolverSOTests.DoesNotMutateOriginalGameStateInstance" methodname="DoesNotMutateOriginalGameStateInstance" classname="Game.Tests.EditMode.CommandResolverSOTests" runstate="Runnable" seed="229334971" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000288" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1034" name="EndsInGameOverAndDoesNotAdvanceTurnWhenMentalReachesZero" fullname="Game.Tests.EditMode.CommandResolverSOTests.EndsInGameOverAndDoesNotAdvanceTurnWhenMentalReachesZero" methodname="EndsInGameOverAndDoesNotAdvanceTurnWhenMentalReachesZero" classname="Game.Tests.EditMode.CommandResolverSOTests" runstate="Runnable" seed="429671174" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000269" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1037" name="EndsNormallyAtTurnTwentyFourAfterTwentyFourConsecutiveRests" fullname="Game.Tests.EditMode.CommandResolverSOTests.EndsNormallyAtTurnTwentyFourAfterTwentyFourConsecutiveRests" methodname="EndsNormallyAtTurnTwentyFourAfterTwentyFourConsecutiveRests" classname="Game.Tests.EditMode.CommandResolverSOTests" runstate="Runnable" seed="690947959" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001041" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1033" name="EndsNormallyWhenCommandAppliedOnFinalTurn" fullname="Game.Tests.EditMode.CommandResolverSOTests.EndsNormallyWhenCommandAppliedOnFinalTurn" methodname="EndsNormallyWhenCommandAppliedOnFinalTurn" classname="Game.Tests.EditMode.CommandResolverSOTests" runstate="Runnable" seed="336526630" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000346" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1035" name="PrioritizesGameOverWhenNormalEndWouldAlsoApply" fullname="Game.Tests.EditMode.CommandResolverSOTests.PrioritizesGameOverWhenNormalEndWouldAlsoApply" methodname="PrioritizesGameOverWhenNormalEndWouldAlsoApply" classname="Game.Tests.EditMode.CommandResolverSOTests" runstate="Runnable" seed="825342014" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000333" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1031" name="RejectsCommandAndLeavesStateUnchangedWhenStaminaInsufficient" fullname="Game.Tests.EditMode.CommandResolverSOTests.RejectsCommandAndLeavesStateUnchangedWhenStaminaInsufficient" methodname="RejectsCommandAndLeavesStateUnchangedWhenStaminaInsufficient" classname="Game.Tests.EditMode.CommandResolverSOTests" runstate="Runnable" seed="1147600210" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000307" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1036" name="ResolveWithCommandDataSO_ProducesSameResultAsResolveWithEffect" fullname="Game.Tests.EditMode.CommandResolverSOTests.ResolveWithCommandDataSO_ProducesSameResultAsResolveWithEffect" methodname="ResolveWithCommandDataSO_ProducesSameResultAsResolveWithEffect" classname="Game.Tests.EditMode.CommandResolverSOTests" runstate="Runnable" seed="2114371627" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000661" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1038" name="EndingResolverSOTests" fullname="Game.Tests.EditMode.EndingResolverSOTests" classname="Game.Tests.EditMode.EndingResolverSOTests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.007341" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1045" name="ChangingWeightsChangesResolvedEnding" fullname="Game.Tests.EditMode.EndingResolverSOTests.ChangingWeightsChangesResolvedEnding" methodname="ChangingWeightsChangesResolvedEnding" classname="Game.Tests.EditMode.EndingResolverSOTests" runstate="Runnable" seed="2117106553" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001871" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1040" name="DoesNotReturnTrueEndingWhenScoreIsOneBelowThreshold" fullname="Game.Tests.EditMode.EndingResolverSOTests.DoesNotReturnTrueEndingWhenScoreIsOneBelowThreshold" methodname="DoesNotReturnTrueEndingWhenScoreIsOneBelowThreshold" classname="Game.Tests.EditMode.EndingResolverSOTests" runstate="Runnable" seed="1160678080" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000420" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1042" name="ReturnsMentalEndingWhenMentalIsMax" fullname="Game.Tests.EditMode.EndingResolverSOTests.ReturnsMentalEndingWhenMentalIsMax" methodname="ReturnsMentalEndingWhenMentalIsMax" classname="Game.Tests.EditMode.EndingResolverSOTests" runstate="Runnable" seed="24362635" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000482" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1044" name="ReturnsSkillEndingWhenSkillAndMentalTieForMaxAccordingToPriorityOrder" fullname="Game.Tests.EditMode.EndingResolverSOTests.ReturnsSkillEndingWhenSkillAndMentalTieForMaxAccordingToPriorityOrder" methodname="ReturnsSkillEndingWhenSkillAndMentalTieForMaxAccordingToPriorityOrder" classname="Game.Tests.EditMode.EndingResolverSOTests" runstate="Runnable" seed="1274051558" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000666" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1041" name="ReturnsSkillEndingWhenSkillIsMax" fullname="Game.Tests.EditMode.EndingResolverSOTests.ReturnsSkillEndingWhenSkillIsMax" methodname="ReturnsSkillEndingWhenSkillIsMax" classname="Game.Tests.EditMode.EndingResolverSOTests" runstate="Runnable" seed="384004415" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000604" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1043" name="ReturnsStaminaEndingWhenStaminaIsMax" fullname="Game.Tests.EditMode.EndingResolverSOTests.ReturnsStaminaEndingWhenStaminaIsMax" methodname="ReturnsStaminaEndingWhenStaminaIsMax" classname="Game.Tests.EditMode.EndingResolverSOTests" runstate="Runnable" seed="653284803" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000571" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1039" name="ReturnsTrueEndingWhenScoreEqualsThreshold" fullname="Game.Tests.EditMode.EndingResolverSOTests.ReturnsTrueEndingWhenScoreEqualsThreshold" methodname="ReturnsTrueEndingWhenScoreEqualsThreshold" classname="Game.Tests.EditMode.EndingResolverSOTests" runstate="Runnable" seed="1710387007" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000459" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1046" name="EventChannelSOTests" fullname="Game.Tests.EditMode.EventChannelSOTests" classname="Game.Tests.EditMode.EventChannelSOTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.008842" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1047" name="CallsSubscriberOnceWhenRaised" fullname="Game.Tests.EditMode.EventChannelSOTests.CallsSubscriberOnceWhenRaised" methodname="CallsSubscriberOnceWhenRaised" classname="Game.Tests.EditMode.EventChannelSOTests" runstate="Runnable" seed="1347156112" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001086" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1050" name="DoesNotCallHandlerAfterUnsubscribe" fullname="Game.Tests.EditMode.EventChannelSOTests.DoesNotCallHandlerAfterUnsubscribe" methodname="DoesNotCallHandlerAfterUnsubscribe" classname="Game.Tests.EditMode.EventChannelSOTests" runstate="Runnable" seed="1442314262" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.003826" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1049" name="DoesNotThrowWhenRaisedWithNoSubscribers" fullname="Game.Tests.EditMode.EventChannelSOTests.DoesNotThrowWhenRaisedWithNoSubscribers" methodname="DoesNotThrowWhenRaisedWithNoSubscribers" classname="Game.Tests.EditMode.EventChannelSOTests" runstate="Runnable" seed="1096329715" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001309" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1051" name="NotifiesAllSubscribersWhenRaised" fullname="Game.Tests.EditMode.EventChannelSOTests.NotifiesAllSubscribersWhenRaised" methodname="NotifiesAllSubscribersWhenRaised" classname="Game.Tests.EditMode.EventChannelSOTests" runstate="Runnable" seed="208547650" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000423" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1048" name="PassesRaisedValueToSubscriber" fullname="Game.Tests.EditMode.EventChannelSOTests.PassesRaisedValueToSubscriber" methodname="PassesRaisedValueToSubscriber" classname="Game.Tests.EditMode.EventChannelSOTests" runstate="Runnable" seed="1521294334" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000213" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1052" name="EventResolverSOTests" fullname="Game.Tests.EditMode.EventResolverSOTests" classname="Game.Tests.EditMode.EventResolverSOTests" runstate="Runnable" testcasecount="9" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.009469" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1060" name="ClampsParameterAtLowerBoundAfterApplyingEffect" fullname="Game.Tests.EditMode.EventResolverSOTests.ClampsParameterAtLowerBoundAfterApplyingEffect" methodname="ClampsParameterAtLowerBoundAfterApplyingEffect" classname="Game.Tests.EditMode.EventResolverSOTests" runstate="Runnable" seed="461220702" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.003494" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1059" name="ClampsParameterAtUpperBoundAfterApplyingEffect" fullname="Game.Tests.EditMode.EventResolverSOTests.ClampsParameterAtUpperBoundAfterApplyingEffect" methodname="ClampsParameterAtUpperBoundAfterApplyingEffect" classname="Game.Tests.EditMode.EventResolverSOTests" runstate="Runnable" seed="1022250151" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000459" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1054" name="DoesNotChangeStateWhenNoEventConditionIsMet" fullname="Game.Tests.EditMode.EventResolverSOTests.DoesNotChangeStateWhenNoEventConditionIsMet" methodname="DoesNotChangeStateWhenNoEventConditionIsMet" classname="Game.Tests.EditMode.EventResolverSOTests" runstate="Runnable" seed="1919913850" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000307" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1061" name="DoesNotMutateOriginalGameStateInstance" fullname="Game.Tests.EditMode.EventResolverSOTests.DoesNotMutateOriginalGameStateInstance" methodname="DoesNotMutateOriginalGameStateInstance" classname="Game.Tests.EditMode.EventResolverSOTests" runstate="Runnable" seed="1790511559" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001245" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1055" name="DoesNotRefireAlreadyFiredEvent" fullname="Game.Tests.EditMode.EventResolverSOTests.DoesNotRefireAlreadyFiredEvent" methodname="DoesNotRefireAlreadyFiredEvent" classname="Game.Tests.EditMode.EventResolverSOTests" runstate="Runnable" seed="1959863338" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000361" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1053" name="FiresEventWhenSingleEventConditionIsMet" fullname="Game.Tests.EditMode.EventResolverSOTests.FiresEventWhenSingleEventConditionIsMet" methodname="FiresEventWhenSingleEventConditionIsMet" classname="Game.Tests.EditMode.EventResolverSOTests" runstate="Runnable" seed="95370443" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000319" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1056" name="FiresOnlyHigherPriorityEventWhenTwoEventsWithDifferentPriorityMatch" fullname="Game.Tests.EditMode.EventResolverSOTests.FiresOnlyHigherPriorityEventWhenTwoEventsWithDifferentPriorityMatch" methodname="FiresOnlyHigherPriorityEventWhenTwoEventsWithDifferentPriorityMatch" classname="Game.Tests.EditMode.EventResolverSOTests" runstate="Runnable" seed="2114225950" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000559" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1057" name="FiresSmallerIdEventWhenTwoEventsWithSamePriorityMatch" fullname="Game.Tests.EditMode.EventResolverSOTests.FiresSmallerIdEventWhenTwoEventsWithSamePriorityMatch" methodname="FiresSmallerIdEventWhenTwoEventsWithSamePriorityMatch" classname="Game.Tests.EditMode.EventResolverSOTests" runstate="Runnable" seed="595481739" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000413" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1058" name="SetsCorrespondingBitInFiredEventMaskAfterFiring" fullname="Game.Tests.EditMode.EventResolverSOTests.SetsCorrespondingBitInFiredEventMaskAfterFiring" methodname="SetsCorrespondingBitInFiredEventMaskAfterFiring" classname="Game.Tests.EditMode.EventResolverSOTests" runstate="Runnable" seed="831782056" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000371" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1062" name="GameEventTurnConflictTests" fullname="Game.Tests.EditMode.GameEventTurnConflictTests" classname="Game.Tests.EditMode.GameEventTurnConflictTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.021500" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1063" name="EventCatalog_TurnEvents_DoNotConflictWithBossBattleTurns" fullname="Game.Tests.EditMode.GameEventTurnConflictTests.EventCatalog_TurnEvents_DoNotConflictWithBossBattleTurns" methodname="EventCatalog_TurnEvents_DoNotConflictWithBossBattleTurns" classname="Game.Tests.EditMode.GameEventTurnConflictTests" runstate="Runnable" seed="737440960" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.020250" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1064" name="GameFlowControllerRelicTests" fullname="Game.Tests.EditMode.GameFlowControllerRelicTests" classname="Game.Tests.EditMode.GameFlowControllerRelicTests" runstate="Explicit" testcasecount="4" result="Skipped" label="Explicit" site="SetUp" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.004283" total="4" passed="0" failed="0" inconclusive="0" skipped="4" asserts="0">
+              <properties>
+                <property name="_SKIPREASON" value="PlayMode 曳光弾で置換予定" />
+              </properties>
+              <reason>
+                <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+              </reason>
+              <test-case id="1067" name="BeginTurn_WithTurnStartRelic_AppliesPassiveBonus" fullname="Game.Tests.EditMode.GameFlowControllerRelicTests.BeginTurn_WithTurnStartRelic_AppliesPassiveBonus" methodname="BeginTurn_WithTurnStartRelic_AppliesPassiveBonus" classname="Game.Tests.EditMode.GameFlowControllerRelicTests" runstate="Runnable" seed="122555436" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1068" name="ExecuteCommand_WithCommandRelic_AppliesModifiedEffect" fullname="Game.Tests.EditMode.GameFlowControllerRelicTests.ExecuteCommand_WithCommandRelic_AppliesModifiedEffect" methodname="ExecuteCommand_WithCommandRelic_AppliesModifiedEffect" classname="Game.Tests.EditMode.GameFlowControllerRelicTests" runstate="Runnable" seed="1870346827" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1066" name="OnRelicAcquired_AddsRelicToActiveListAndUpdatesGameState" fullname="Game.Tests.EditMode.GameFlowControllerRelicTests.OnRelicAcquired_AddsRelicToActiveListAndUpdatesGameState" methodname="OnRelicAcquired_AddsRelicToActiveListAndUpdatesGameState" classname="Game.Tests.EditMode.GameFlowControllerRelicTests" runstate="Runnable" seed="2043955194" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1065" name="StartGame_WithNoRelics_InitializesEmptyActiveRelics" fullname="Game.Tests.EditMode.GameFlowControllerRelicTests.StartGame_WithNoRelics_InitializesEmptyActiveRelics" methodname="StartGame_WithNoRelics_InitializesEmptyActiveRelics" classname="Game.Tests.EditMode.GameFlowControllerRelicTests" runstate="Runnable" seed="1975071638" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1069" name="GameFlowControllerTests" fullname="Game.Tests.EditMode.GameFlowControllerTests" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Explicit" testcasecount="13" result="Skipped" label="Explicit" site="SetUp" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.003184" total="13" passed="0" failed="0" inconclusive="0" skipped="13" asserts="0">
+              <properties>
+                <property name="_SKIPREASON" value="PlayMode 曳光弾で置換予定" />
+              </properties>
+              <reason>
+                <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+              </reason>
+              <test-case id="1073" name="AdvanceTurn_OnGameOverOrClear_AccumulatesMetaPointsAndAppliesUnlockBonusOnNextRun" fullname="Game.Tests.EditMode.GameFlowControllerTests.AdvanceTurn_OnGameOverOrClear_AccumulatesMetaPointsAndAppliesUnlockBonusOnNextRun" methodname="AdvanceTurn_OnGameOverOrClear_AccumulatesMetaPointsAndAppliesUnlockBonusOnNextRun" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="792007613" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1075" name="ExecuteCommand_AppliesEffectAndReturnsToWaitingInputWhenGameContinues" fullname="Game.Tests.EditMode.GameFlowControllerTests.ExecuteCommand_AppliesEffectAndReturnsToWaitingInputWhenGameContinues" methodname="ExecuteCommand_AppliesEffectAndReturnsToWaitingInputWhenGameContinues" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="1312309878" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1076" name="ExecuteCommand_IsIgnoredAndStateUnchangedWhenStaminaInsufficient" fullname="Game.Tests.EditMode.GameFlowControllerTests.ExecuteCommand_IsIgnoredAndStateUnchangedWhenStaminaInsufficient" methodname="ExecuteCommand_IsIgnoredAndStateUnchangedWhenStaminaInsufficient" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="832477563" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1072" name="ExecuteCommand_IsIgnoredWhilePhaseIsShowingEvent" fullname="Game.Tests.EditMode.GameFlowControllerTests.ExecuteCommand_IsIgnoredWhilePhaseIsShowingEvent" methodname="ExecuteCommand_IsIgnoredWhilePhaseIsShowingEvent" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="716760365" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1081" name="ExecuteCommand_TransitionsToGameClearAndRaisesEndingDecidedChannelOnFinalTurn" fullname="Game.Tests.EditMode.GameFlowControllerTests.ExecuteCommand_TransitionsToGameClearAndRaisesEndingDecidedChannelOnFinalTurn" methodname="ExecuteCommand_TransitionsToGameClearAndRaisesEndingDecidedChannelOnFinalTurn" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="1728355333" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1082" name="ExecuteCommand_TransitionsToGameOverAndRaisesEndingDecidedChannelWithDefeatWhenMentalDepleted" fullname="Game.Tests.EditMode.GameFlowControllerTests.ExecuteCommand_TransitionsToGameOverAndRaisesEndingDecidedChannelWithDefeatWhenMentalDepleted" methodname="ExecuteCommand_TransitionsToGameOverAndRaisesEndingDecidedChannelWithDefeatWhenMentalDepleted" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="835161756" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1077" name="ExecuteCommand_TransitionsToGameOverWithoutRaisingEndingWhenMentalReachesZero" fullname="Game.Tests.EditMode.GameFlowControllerTests.ExecuteCommand_TransitionsToGameOverWithoutRaisingEndingWhenMentalReachesZero" methodname="ExecuteCommand_TransitionsToGameOverWithoutRaisingEndingWhenMentalReachesZero" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="1794945074" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1074" name="OnEventDismissed_TransitionsFromShowingEventToWaitingInput" fullname="Game.Tests.EditMode.GameFlowControllerTests.OnEventDismissed_TransitionsFromShowingEventToWaitingInput" methodname="OnEventDismissed_TransitionsFromShowingEventToWaitingInput" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="41756540" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1071" name="StartGame_FiresMatchingEventAtTurnStartAndTransitionsToShowingEvent" fullname="Game.Tests.EditMode.GameFlowControllerTests.StartGame_FiresMatchingEventAtTurnStartAndTransitionsToShowingEvent" methodname="StartGame_FiresMatchingEventAtTurnStartAndTransitionsToShowingEvent" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="1585719866" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1080" name="StartGame_ProgressesThroughAllFourActs_DefeatsAllBossesAndReachesGameClear" fullname="Game.Tests.EditMode.GameFlowControllerTests.StartGame_ProgressesThroughAllFourActs_DefeatsAllBossesAndReachesGameClear" methodname="StartGame_ProgressesThroughAllFourActs_DefeatsAllBossesAndReachesGameClear" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="412971942" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1070" name="StartGame_TransitionsToWaitingInputAndRaisesInitialStateWhenNoEventFires" fullname="Game.Tests.EditMode.GameFlowControllerTests.StartGame_TransitionsToWaitingInputAndRaisesInitialStateWhenNoEventFires" methodname="StartGame_TransitionsToWaitingInputAndRaisesInitialStateWhenNoEventFires" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="1632524066" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1079" name="StartGame_TriggersBossBattleAtBossTurn_AndTransitionsToGameOverOnDefeat" fullname="Game.Tests.EditMode.GameFlowControllerTests.StartGame_TriggersBossBattleAtBossTurn_AndTransitionsToGameOverOnDefeat" methodname="StartGame_TriggersBossBattleAtBossTurn_AndTransitionsToGameOverOnDefeat" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="904609158" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1078" name="StartGame_TriggersBossBattleAtBossTurn_AndTransitionsToShowingRelicDraftOnVictory" fullname="Game.Tests.EditMode.GameFlowControllerTests.StartGame_TriggersBossBattleAtBossTurn_AndTransitionsToShowingRelicDraftOnVictory" methodname="StartGame_TriggersBossBattleAtBossTurn_AndTransitionsToShowingRelicDraftOnVictory" classname="Game.Tests.EditMode.GameFlowControllerTests" runstate="Runnable" seed="195562841" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1083" name="GameMonteCarloSimulationTests" fullname="Game.Tests.EditMode.GameMonteCarloSimulationTests" classname="Game.Tests.EditMode.GameMonteCarloSimulationTests" runstate="Explicit" testcasecount="3" result="Skipped" label="Explicit" site="SetUp" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001059" total="3" passed="0" failed="0" inconclusive="0" skipped="3" asserts="0">
+              <properties>
+                <property name="_SKIPREASON" value="PlayMode 曳光弾で置換予定" />
+              </properties>
+              <reason>
+                <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+              </reason>
+              <test-case id="1084" name="MonteCarlo_1000Runs_RandomPolicy_RunsWithoutExceptionsAndProducesValidOutcomes" fullname="Game.Tests.EditMode.GameMonteCarloSimulationTests.MonteCarlo_1000Runs_RandomPolicy_RunsWithoutExceptionsAndProducesValidOutcomes" methodname="MonteCarlo_1000Runs_RandomPolicy_RunsWithoutExceptionsAndProducesValidOutcomes" classname="Game.Tests.EditMode.GameMonteCarloSimulationTests" runstate="Runnable" seed="1844782162" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1085" name="MonteCarlo_1000Runs_WithBossBattle_RandomAndGreedyPolicies_VerifyStability" fullname="Game.Tests.EditMode.GameMonteCarloSimulationTests.MonteCarlo_1000Runs_WithBossBattle_RandomAndGreedyPolicies_VerifyStability" methodname="MonteCarlo_1000Runs_WithBossBattle_RandomAndGreedyPolicies_VerifyStability" classname="Game.Tests.EditMode.GameMonteCarloSimulationTests" runstate="Runnable" seed="1583525233" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1086" name="MonteCarlo_1000Runs_WithMetaProgression_VerifiesPointAccumulationAndUnlockProgression" fullname="Game.Tests.EditMode.GameMonteCarloSimulationTests.MonteCarlo_1000Runs_WithMetaProgression_VerifiesPointAccumulationAndUnlockProgression" methodname="MonteCarlo_1000Runs_WithMetaProgression_VerifiesPointAccumulationAndUnlockProgression" classname="Game.Tests.EditMode.GameMonteCarloSimulationTests" runstate="Runnable" seed="1028003096" result="Skipped" label="Explicit" site="Parent" start-time="0001-01-01 00:00:00Z" end-time="0001-01-01 00:00:00Z" duration="0.000000" asserts="0">
+                <properties />
+                <reason>
+                  <message><![CDATA[PlayMode 曳光弾で置換予定]]></message>
+                </reason>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1087" name="GameRulesSOTests" fullname="Game.Tests.EditMode.GameRulesSOTests" classname="Game.Tests.EditMode.GameRulesSOTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.002344" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1088" name="ReturnsInitialStateMatchingConfiguredValues" fullname="Game.Tests.EditMode.GameRulesSOTests.ReturnsInitialStateMatchingConfiguredValues" methodname="ReturnsInitialStateMatchingConfiguredValues" classname="Game.Tests.EditMode.GameRulesSOTests" runstate="Runnable" seed="803295737" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001099" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1089" name="GoldenMasterEquivalenceTests" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" testcasecount="20" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.060253" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1090" name="AlwaysPasses_ControlGroup" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.AlwaysPasses_ControlGroup" methodname="AlwaysPasses_ControlGroup" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="597904487" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.005627" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <reason>
+                  <message><![CDATA[]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1091" name="GoldenMasterEquivalence_SourceIsPresent" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.GoldenMasterEquivalence_SourceIsPresent" methodname="GoldenMasterEquivalence_SourceIsPresent" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="2018314700" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.015901" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="1110" name="MatchesGoldenMaster" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" testcasecount="18" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.035183" total="18" passed="18" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1092" name="golden_disclosed_turn_0" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_turn_0" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="282633595" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001151" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1093" name="golden_disclosed_stamina_0" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_stamina_0" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="880712883" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000320" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1094" name="golden_disclosed_mental_0" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_mental_0" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="476617996" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000250" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1095" name="golden_disclosed_turn_1" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_turn_1" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="881419895" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000824" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1096" name="golden_disclosed_skill_1" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_skill_1" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="856550724" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000327" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1097" name="golden_disclosed_mental_1" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_mental_1" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="300187731" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000237" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1098" name="golden_disclosed_stamina_2" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_stamina_2" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="2066786167" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000287" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1099" name="golden_disclosed_skill_2" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_skill_2" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="1103778191" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000225" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1100" name="golden_disclosed_turn_3" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_turn_3" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="307801729" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000151" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1101" name="golden_disclosed_stamina_3" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_stamina_3" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="1031627294" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000363" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1102" name="golden_disclosed_mental_3" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_mental_3" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="849196585" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000526" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1103" name="golden_disclosed_turn_4" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_turn_4" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="30845639" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000513" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1104" name="golden_disclosed_skill_4" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_skill_4" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="592597233" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001769" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1105" name="golden_disclosed_mental_4" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_mental_4" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="1576863449" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.002597" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1106" name="golden_disclosed_stamina_5" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_stamina_5" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="1220251926" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001987" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1107" name="golden_disclosed_skill_5" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_skill_5" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="1995881166" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000833" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1108" name="golden_disclosed_unused_pmin" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_unused_pmin" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="1782184761" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000555" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1109" name="golden_disclosed_unused_pmax" fullname="Game.Tests.EditMode.GoldenMasterEquivalenceTests.golden_disclosed_unused_pmax" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.GoldenMasterEquivalenceTests" runstate="Runnable" seed="1758142835" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001673" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+              </test-suite>
+            </test-suite>
+            <test-suite type="TestFixture" id="1111" name="MetaPointEquivalenceTests" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" testcasecount="60" result="Failed" site="Child" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.017515" total="60" passed="59" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1112" name="AlwaysPasses_ControlGroup" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.AlwaysPasses_ControlGroup" methodname="AlwaysPasses_ControlGroup" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="170268325" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000205" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <reason>
+                  <message><![CDATA[]]></message>
+                </reason>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="1172" name="MatchesGoldenMaster" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" testcasecount="58" result="Failed" site="Child" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.011380" total="58" passed="57" failed="1" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <failure>
+                  <message><![CDATA[One or more child tests had errors]]></message>
+                </failure>
+                <test-case id="1114" name="golden_metapoint_disclosed_calc_null_state" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_null_state" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="815846812" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000897" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1115" name="golden_metapoint_disclosed_calc_not_clear" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_not_clear" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="137678634" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000280" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1116" name="golden_metapoint_disclosed_calc_turn_0" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_turn_0" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1306733006" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000074" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1117" name="golden_metapoint_disclosed_calc_skill_0" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_skill_0" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1201303804" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000069" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1118" name="golden_metapoint_disclosed_calc_turn_1" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_turn_1" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="452595346" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000057" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1119" name="golden_metapoint_disclosed_calc_skill_1" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_skill_1" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1717224126" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000055" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1120" name="golden_metapoint_disclosed_calc_turn_2" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_turn_2" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="210077069" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000052" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1121" name="golden_metapoint_disclosed_calc_skill_2" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_skill_2" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1070856594" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000047" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1122" name="golden_metapoint_disclosed_calc_turn_3" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_turn_3" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="736851206" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000046" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1123" name="golden_metapoint_disclosed_calc_skill_3" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_skill_3" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="98106229" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000044" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1124" name="golden_metapoint_disclosed_calc_turn_4" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_turn_4" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="161344767" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000050" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1125" name="golden_metapoint_disclosed_calc_skill_4" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_skill_4" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="30151128" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000050" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1126" name="golden_metapoint_disclosed_calc_turn_5" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_turn_5" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1537530234" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000071" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1127" name="golden_metapoint_disclosed_calc_skill_5" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_skill_5" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1720171621" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000046" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1128" name="golden_metapoint_disclosed_calc_coeff_turn" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_coeff_turn" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1551498894" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000045" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1129" name="golden_metapoint_disclosed_calc_coeff_skill" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_coeff_skill" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="61537886" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000044" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1130" name="golden_metapoint_disclosed_calc_coeff_clear" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_coeff_clear" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1375632443" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000041" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1131" name="golden_metapoint_disclosed_calc_coeff_edge_0" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_calc_coeff_edge_0" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1908960687" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000042" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1132" name="golden_metapoint_disclosed_apply_base" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_base" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1273873107" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000657" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1133" name="golden_metapoint_disclosed_apply_null_profile" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_null_profile" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1357641093" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000117" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1134" name="golden_metapoint_disclosed_apply_total_0" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_total_0" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1674220503" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000075" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1135" name="golden_metapoint_disclosed_apply_runs_0" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_runs_0" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1266685430" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000066" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1136" name="golden_metapoint_disclosed_apply_avail_1" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_avail_1" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="474563630" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000086" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1137" name="golden_metapoint_disclosed_apply_total_1" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_total_1" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="158224168" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000081" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1138" name="golden_metapoint_disclosed_apply_earned_1" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_earned_1" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1813480036" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000070" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1139" name="golden_metapoint_disclosed_apply_avail_2" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_avail_2" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="654165756" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000089" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1140" name="golden_metapoint_disclosed_apply_runs_2" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_runs_2" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1197767411" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000072" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1141" name="golden_metapoint_disclosed_apply_earned_2" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_earned_2" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1086962803" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000065" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1142" name="golden_metapoint_disclosed_apply_total_3" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_total_3" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1865735917" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000061" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1143" name="golden_metapoint_disclosed_apply_runs_3" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_runs_3" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1982635058" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000064" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1144" name="golden_metapoint_disclosed_apply_avail_4" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_avail_4" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="490073733" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000065" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1145" name="golden_metapoint_disclosed_apply_total_4" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_total_4" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="49070018" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000062" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1146" name="golden_metapoint_disclosed_apply_earned_4" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_earned_4" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1832722078" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000061" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1147" name="golden_metapoint_disclosed_apply_avail_5" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_avail_5" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1720765941" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000064" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1148" name="golden_metapoint_disclosed_apply_runs_5" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_runs_5" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="821297915" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000059" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1149" name="golden_metapoint_disclosed_apply_earned_5" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_earned_5" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="179048352" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000061" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1150" name="golden_metapoint_disclosed_apply_unlocked_one" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_unlocked_one" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1943453170" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000064" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1151" name="golden_metapoint_disclosed_apply_unlocked_dup" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_disclosed_apply_unlocked_dup" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="126681358" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000063" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1152" name="golden_metapoint_holdout_calc_base" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_calc_base" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1810115617" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000056" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1153" name="golden_metapoint_holdout_calc_all_nonpositive" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_calc_all_nonpositive" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1168112472" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000050" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1154" name="golden_metapoint_holdout_calc_boss_0" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_calc_boss_0" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="616748337" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000046" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1155" name="golden_metapoint_holdout_calc_boss_1" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_calc_boss_1" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1460243556" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000049" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1156" name="golden_metapoint_holdout_calc_boss_2" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_calc_boss_2" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="2005861886" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000053" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1157" name="golden_metapoint_holdout_calc_boss_3" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_calc_boss_3" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="683737579" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000050" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1158" name="golden_metapoint_holdout_calc_boss_4" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_calc_boss_4" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1991728957" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000077" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1159" name="golden_metapoint_holdout_calc_boss_5" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_calc_boss_5" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1448454163" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000069" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1160" name="golden_metapoint_holdout_calc_coeff_boss" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_calc_coeff_boss" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="540034055" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000052" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1161" name="golden_metapoint_holdout_calc_coeff_edge_1" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_calc_coeff_edge_1" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1327075444" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000051" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1162" name="golden_metapoint_holdout_apply_avail_0" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_apply_avail_0" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1601964225" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000056" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1163" name="golden_metapoint_holdout_apply_earned_0" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_apply_earned_0" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="948587460" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000062" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1164" name="golden_metapoint_holdout_apply_runs_1" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_apply_runs_1" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="545396162" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000060" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1165" name="golden_metapoint_holdout_apply_total_2" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_apply_total_2" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1623972136" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000060" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1166" name="golden_metapoint_holdout_apply_avail_3" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_apply_avail_3" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="970340750" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000058" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1167" name="golden_metapoint_holdout_apply_earned_3" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_apply_earned_3" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="120028146" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000063" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1168" name="golden_metapoint_holdout_apply_runs_4" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_apply_runs_4" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="582178288" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000211" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1169" name="golden_metapoint_holdout_apply_total_5" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_apply_total_5" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1696645029" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000235" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1170" name="golden_metapoint_holdout_apply_unlocked_empty" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_apply_unlocked_empty" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1810598651" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000427" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1171" name="golden_metapoint_holdout_control_must_fail" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.golden_metapoint_holdout_control_must_fail" methodname="MatchesGoldenMaster" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="1148508838" result="Failed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001601" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <failure>
+                    <message><![CDATA[  points
+  Expected: 521
+  But was:  520
+]]></message>
+                    <stack-trace><![CDATA[at Game.Tests.EditMode.MetaPointEquivalenceTests.MatchesGoldenMaster (Game.Tests.EditMode.MetaPointEquivalenceTests+Case c) [0x00085] in C:\src\.local\wt\ms3-sandbox\Game\Assets\Tests\MetaPointEquivalenceTests.cs:99
+]]></stack-trace>
+                  </failure>
+                </test-case>
+              </test-suite>
+              <test-case id="1113" name="MetaPointEquivalence_SourceIsPresent" fullname="Game.Tests.EditMode.MetaPointEquivalenceTests.MetaPointEquivalence_SourceIsPresent" methodname="MetaPointEquivalence_SourceIsPresent" classname="Game.Tests.EditMode.MetaPointEquivalenceTests" runstate="Runnable" seed="505864932" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.004712" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1173" name="MetaPointResolverTests" fullname="Game.Tests.EditMode.MetaPointResolverTests" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" testcasecount="30" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.025380" total="30" passed="30" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1180" name="ApplyRunResult_AddsEarnedPointsAndIncrementsRunCount" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyRunResult_AddsEarnedPointsAndIncrementsRunCount" methodname="ApplyRunResult_AddsEarnedPointsAndIncrementsRunCount" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="2021622925" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000865" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1183" name="ApplyRunResult_DoesNotMutateOriginalProfile" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyRunResult_DoesNotMutateOriginalProfile" methodname="ApplyRunResult_DoesNotMutateOriginalProfile" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="653756141" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000240" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1181" name="ApplyRunResult_WithNegativeEarnedPoints_DoesNotReducePoints" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyRunResult_WithNegativeEarnedPoints_DoesNotReducePoints" methodname="ApplyRunResult_WithNegativeEarnedPoints_DoesNotReducePoints" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="245629112" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000233" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1182" name="ApplyRunResult_WithNullProfile_ReturnsNull" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyRunResult_WithNullProfile_ReturnsNull" methodname="ApplyRunResult_WithNullProfile_ReturnsNull" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1977244348" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000193" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1191" name="ApplyUnlock_DoesNotMutateOriginalProfileOnSuccess" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlock_DoesNotMutateOriginalProfileOnSuccess" methodname="ApplyUnlock_DoesNotMutateOriginalProfileOnSuccess" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="625218357" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001339" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1187" name="ApplyUnlock_WhenAlreadyUnlocked_FailsAndDoesNotDoubleCharge" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlock_WhenAlreadyUnlocked_FailsAndDoesNotDoubleCharge" methodname="ApplyUnlock_WhenAlreadyUnlocked_FailsAndDoesNotDoubleCharge" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="449245423" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001037" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1185" name="ApplyUnlock_WithExactCost_ReducesAvailablePointsToZero" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlock_WithExactCost_ReducesAvailablePointsToZero" methodname="ApplyUnlock_WithExactCost_ReducesAvailablePointsToZero" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="727107724" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000887" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1186" name="ApplyUnlock_WithInsufficientPoints_FailsAndLeavesProfileUnchanged" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlock_WithInsufficientPoints_FailsAndLeavesProfileUnchanged" methodname="ApplyUnlock_WithInsufficientPoints_FailsAndLeavesProfileUnchanged" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="916256561" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000741" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1188" name="ApplyUnlock_WithNegativeCostData_IsRejected" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlock_WithNegativeCostData_IsRejected" methodname="ApplyUnlock_WithNegativeCostData_IsRejected" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="653072563" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001109" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1190" name="ApplyUnlock_WithNullProfile_FailsGracefully" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlock_WithNullProfile_FailsGracefully" methodname="ApplyUnlock_WithNullProfile_FailsGracefully" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="217339520" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000347" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1189" name="ApplyUnlock_WithNullUnlock_FailsAndReturnsOriginalProfile" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlock_WithNullUnlock_FailsAndReturnsOriginalProfile" methodname="ApplyUnlock_WithNullUnlock_FailsAndReturnsOriginalProfile" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="560370483" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000614" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1184" name="ApplyUnlock_WithSufficientPoints_DeductsCostAndAddsId" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlock_WithSufficientPoints_DeductsCostAndAddsId" methodname="ApplyUnlock_WithSufficientPoints_DeductsCostAndAddsId" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1258325890" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.003096" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1194" name="ApplyUnlockedStatBonuses_AggregatesAllThreeStatKindsAndClamps" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlockedStatBonuses_AggregatesAllThreeStatKindsAndClamps" methodname="ApplyUnlockedStatBonuses_AggregatesAllThreeStatKindsAndClamps" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="405838942" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.002065" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1195" name="ApplyUnlockedStatBonuses_IgnoresUnlockRelicKind" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlockedStatBonuses_IgnoresUnlockRelicKind" methodname="ApplyUnlockedStatBonuses_IgnoresUnlockRelicKind" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1680288039" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000436" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1196" name="ApplyUnlockedStatBonuses_WithDuplicateUnlockedIds_DoesNotDoubleCount" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlockedStatBonuses_WithDuplicateUnlockedIds_DoesNotDoubleCount" methodname="ApplyUnlockedStatBonuses_WithDuplicateUnlockedIds_DoesNotDoubleCount" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1292476859" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000366" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1198" name="ApplyUnlockedStatBonuses_WithNullArguments_ReturnsBaseStateUnchanged" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlockedStatBonuses_WithNullArguments_ReturnsBaseStateUnchanged" methodname="ApplyUnlockedStatBonuses_WithNullArguments_ReturnsBaseStateUnchanged" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1913037233" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000207" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1197" name="ApplyUnlockedStatBonuses_WithUnlockIdMissingFromCatalog_IsSkipped" fullname="Game.Tests.EditMode.MetaPointResolverTests.ApplyUnlockedStatBonuses_WithUnlockIdMissingFromCatalog_IsSkipped" methodname="ApplyUnlockedStatBonuses_WithUnlockIdMissingFromCatalog_IsSkipped" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1741965372" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000447" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1174" name="CalculateEarnedPoints_CombinesAllBonusesUsingDefaultFormula" fullname="Game.Tests.EditMode.MetaPointResolverTests.CalculateEarnedPoints_CombinesAllBonusesUsingDefaultFormula" methodname="CalculateEarnedPoints_CombinesAllBonusesUsingDefaultFormula" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="217992792" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000241" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1179" name="CalculateEarnedPoints_WithNegativeBossDefeatedCount_ClampsToZero" fullname="Game.Tests.EditMode.MetaPointResolverTests.CalculateEarnedPoints_WithNegativeBossDefeatedCount_ClampsToZero" methodname="CalculateEarnedPoints_WithNegativeBossDefeatedCount_ClampsToZero" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1092964066" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000208" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1178" name="CalculateEarnedPoints_WithNegativeTurnAndSkill_ClampsIndividualTermsToZero" fullname="Game.Tests.EditMode.MetaPointResolverTests.CalculateEarnedPoints_WithNegativeTurnAndSkill_ClampsIndividualTermsToZero" methodname="CalculateEarnedPoints_WithNegativeTurnAndSkill_ClampsIndividualTermsToZero" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1526375318" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000192" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1177" name="CalculateEarnedPoints_WithNullFinalState_ReturnsZero" fullname="Game.Tests.EditMode.MetaPointResolverTests.CalculateEarnedPoints_WithNullFinalState_ReturnsZero" methodname="CalculateEarnedPoints_WithNullFinalState_ReturnsZero" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="374393846" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000216" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1175" name="CalculateEarnedPoints_WithoutGameClear_ExcludesClearBonus" fullname="Game.Tests.EditMode.MetaPointResolverTests.CalculateEarnedPoints_WithoutGameClear_ExcludesClearBonus" methodname="CalculateEarnedPoints_WithoutGameClear_ExcludesClearBonus" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1937473612" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000192" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1176" name="CalculateEarnedPoints_WithZeroBossDefeatedCount_ExcludesBossBonus" fullname="Game.Tests.EditMode.MetaPointResolverTests.CalculateEarnedPoints_WithZeroBossDefeatedCount_ExcludesBossBonus" methodname="CalculateEarnedPoints_WithZeroBossDefeatedCount_ExcludesBossBonus" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="2077632950" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000171" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1192" name="MetaUnlockCatalogSO_FindById_ReturnsMatchingUnlock" fullname="Game.Tests.EditMode.MetaPointResolverTests.MetaUnlockCatalogSO_FindById_ReturnsMatchingUnlock" methodname="MetaUnlockCatalogSO_FindById_ReturnsMatchingUnlock" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="16574461" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000287" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1193" name="MetaUnlockCatalogSO_FindById_ReturnsNullWhenNotFound" fullname="Game.Tests.EditMode.MetaPointResolverTests.MetaUnlockCatalogSO_FindById_ReturnsNullWhenNotFound" methodname="MetaUnlockCatalogSO_FindById_ReturnsNullWhenNotFound" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1261151961" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000188" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1200" name="ResolveUnlockedRelics_IgnoresNonRelicKindUnlocks" fullname="Game.Tests.EditMode.MetaPointResolverTests.ResolveUnlockedRelics_IgnoresNonRelicKindUnlocks" methodname="ResolveUnlockedRelics_IgnoresNonRelicKindUnlocks" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1279442718" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001274" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1199" name="ResolveUnlockedRelics_ReturnsRelicsMatchingTargetRelicId" fullname="Game.Tests.EditMode.MetaPointResolverTests.ResolveUnlockedRelics_ReturnsRelicsMatchingTargetRelicId" methodname="ResolveUnlockedRelics_ReturnsRelicsMatchingTargetRelicId" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1467737930" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001227" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1201" name="ResolveUnlockedRelics_WithDuplicateTargetRelicId_ReturnsRelicOnlyOnce" fullname="Game.Tests.EditMode.MetaPointResolverTests.ResolveUnlockedRelics_WithDuplicateTargetRelicId_ReturnsRelicOnlyOnce" methodname="ResolveUnlockedRelics_WithDuplicateTargetRelicId_ReturnsRelicOnlyOnce" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="479130724" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000470" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1202" name="ResolveUnlockedRelics_WithMissingRelicInRelicCatalog_IsSkipped" fullname="Game.Tests.EditMode.MetaPointResolverTests.ResolveUnlockedRelics_WithMissingRelicInRelicCatalog_IsSkipped" methodname="ResolveUnlockedRelics_WithMissingRelicInRelicCatalog_IsSkipped" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="1201261478" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000431" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1203" name="ResolveUnlockedRelics_WithNullArguments_ReturnsEmptyList" fullname="Game.Tests.EditMode.MetaPointResolverTests.ResolveUnlockedRelics_WithNullArguments_ReturnsEmptyList" methodname="ResolveUnlockedRelics_WithNullArguments_ReturnsEmptyList" classname="Game.Tests.EditMode.MetaPointResolverTests" runstate="Runnable" seed="193445166" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000270" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1204" name="MetaProfileStoreTests" fullname="Game.Tests.EditMode.MetaProfileStoreTests" classname="Game.Tests.EditMode.MetaProfileStoreTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.004108" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1206" name="MetaProfileStore_CorruptedJsonOrUnknownVersion_ReturnsFreshProfileWithoutException" fullname="Game.Tests.EditMode.MetaProfileStoreTests.MetaProfileStore_CorruptedJsonOrUnknownVersion_ReturnsFreshProfileWithoutException" methodname="MetaProfileStore_CorruptedJsonOrUnknownVersion_ReturnsFreshProfileWithoutException" classname="Game.Tests.EditMode.MetaProfileStoreTests" runstate="Runnable" seed="916818372" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.002813" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[MetaProfileStore] Failed to parse profile JSON. Returning fresh profile. Error: JSON parse error: Missing a name for object member.
+]]></output>
+              </test-case>
+              <test-case id="1205" name="MetaProfileStore_RoundTrip_PreservesAllProperties" fullname="Game.Tests.EditMode.MetaProfileStoreTests.MetaProfileStore_RoundTrip_PreservesAllProperties" methodname="MetaProfileStore_RoundTrip_PreservesAllProperties" classname="Game.Tests.EditMode.MetaProfileStoreTests" runstate="Runnable" seed="550925813" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000680" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1207" name="RelicResolverSOTests" fullname="Game.Tests.EditMode.RelicResolverSOTests" classname="Game.Tests.EditMode.RelicResolverSOTests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.004072" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1212" name="ApplyTurnEndRelics_AppliesMentalBonusAndClamps" fullname="Game.Tests.EditMode.RelicResolverSOTests.ApplyTurnEndRelics_AppliesMentalBonusAndClamps" methodname="ApplyTurnEndRelics_AppliesMentalBonusAndClamps" classname="Game.Tests.EditMode.RelicResolverSOTests" runstate="Runnable" seed="70032197" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.001012" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1208" name="ApplyTurnStartRelics_AppliesStaminaAndSkillBonusesAndClamps" fullname="Game.Tests.EditMode.RelicResolverSOTests.ApplyTurnStartRelics_AppliesStaminaAndSkillBonusesAndClamps" methodname="ApplyTurnStartRelics_AppliesStaminaAndSkillBonusesAndClamps" classname="Game.Tests.EditMode.RelicResolverSOTests" runstate="Runnable" seed="907484252" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000508" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1209" name="ApplyTurnStartRelics_WithNoRelics_ReturnsOriginalState" fullname="Game.Tests.EditMode.RelicResolverSOTests.ApplyTurnStartRelics_WithNoRelics_ReturnsOriginalState" methodname="ApplyTurnStartRelics_WithNoRelics_ReturnsOriginalState" classname="Game.Tests.EditMode.RelicResolverSOTests" runstate="Runnable" seed="657348237" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000224" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1210" name="ModifyCommandEffect_AppliesDeltaBonusesAndCostMultiplier" fullname="Game.Tests.EditMode.RelicResolverSOTests.ModifyCommandEffect_AppliesDeltaBonusesAndCostMultiplier" methodname="ModifyCommandEffect_AppliesDeltaBonusesAndCostMultiplier" classname="Game.Tests.EditMode.RelicResolverSOTests" runstate="Runnable" seed="926882926" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000443" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1211" name="ModifyCommandEffect_StacksMultipleRelics" fullname="Game.Tests.EditMode.RelicResolverSOTests.ModifyCommandEffect_StacksMultipleRelics" methodname="ModifyCommandEffect_StacksMultipleRelics" classname="Game.Tests.EditMode.RelicResolverSOTests" runstate="Runnable" seed="828154522" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000276" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1213" name="RelicCatalogSO_FindById_ReturnsMatchingRelic" fullname="Game.Tests.EditMode.RelicResolverSOTests.RelicCatalogSO_FindById_ReturnsMatchingRelic" methodname="RelicCatalogSO_FindById_ReturnsMatchingRelic" classname="Game.Tests.EditMode.RelicResolverSOTests" runstate="Runnable" seed="2090038126" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000360" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1214" name="RelicCatalogSO_FindById_ReturnsNullWhenNotFound" fullname="Game.Tests.EditMode.RelicResolverSOTests.RelicCatalogSO_FindById_ReturnsNullWhenNotFound" methodname="RelicCatalogSO_FindById_ReturnsNullWhenNotFound" classname="Game.Tests.EditMode.RelicResolverSOTests" runstate="Runnable" seed="2098448354" result="Passed" start-time="2026-09-17 02:35:40Z" end-time="2026-09-17 02:35:40Z" duration="0.000245" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: C:/Users/tamar/AppData/LocalLow/DefaultCompany/Game\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

@@ -15,60 +15,21 @@
   5. 1 プロセス = 1 単位。グローバル状態を持ち越さない
   6. サンドボックス初期化は冪等
   7. TTL は設定から注入する
+
+エンジン・言語に固有の処理は adapters/ にある（engine と fast）。ここには置かない。
 """
 import argparse
 import json
 import re
 import shutil
-import subprocess
 import sys
 import time
-import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
+import adapters
 import project
-
-TRX_NS = "{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}"
-
-# Windows でサブプロセスがコンソールウィンドウを開かないようにする。
-# 非 Windows では属性が無いので 0 になり、無害に無視される。
-# 効くのは git / dotnet / gh / agy（コンソールアプリ）。Unity.exe は GUI
-# サブシステムなので効かないが、-batchmode -nographics で元々出ない。
-_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-
-# creationflags だけでは足りない。agy のように内部でさらに子を起こす
-# プロセスは conhost.exe を一瞬立ち上げてフォーカスを奪う（実測）。
-# STARTUPINFO で SW_HIDE を渡し、最初のウィンドウ表示自体を抑える。
-_STARTUPINFO = None
-if sys.platform == "win32":
-    _STARTUPINFO = subprocess.STARTUPINFO()
-    _STARTUPINFO.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    _STARTUPINFO.wShowWindow = 0  # SW_HIDE
-
-
-# ============================================================ 基本
-
-def run(args, cwd, ttl, label, env=None):
-    """shell=False。stdin は塞ぐ（制約 2）。ウィンドウも出さない。"""
-    try:
-        r = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True,
-                           timeout=ttl, encoding="utf-8", errors="replace",
-                           stdin=subprocess.DEVNULL, env=env,
-                           creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
-        return r.returncode, r.stdout or "", r.stderr or ""
-    except subprocess.TimeoutExpired:
-        return 124, "", f"TTL超過 ({ttl}s): {label}"
-    except FileNotFoundError as e:
-        return 127, "", f"コマンドが見つかりません: {e}"
-
-
-def resolve_cli(name):
-    for cand in (name + ".cmd", name + ".exe", name):
-        p = shutil.which(cand)
-        if p:
-            return [p]
-    sys.exit(f"ABORT: {name} CLI が PATH にありません")
+from proc import resolve_cli, run
 
 
 class Ctx:
@@ -80,7 +41,11 @@ class Ctx:
 
         p = self.cfg["paths"]
         self.repo = Path(p["repo"])
-        self.proj_sub = p["unity_project_subdir"]
+        try:
+            self.engine = adapters.load("engine", self.cfg["adapters"]["engine"])
+            self.fast = adapters.load("fast", self.cfg["adapters"]["fast"])
+        except (KeyError, adapters.AdapterError) as e:
+            sys.exit(f"ABORT: アダプタを選べません: {e}")
         self.out = Path(p["out_dir"]) / "pipeline"
         self.sandbox = Path(p.get("sandbox", r"C:\src\.local\wt\ms3-sandbox"))
         self.stage = self.out / "golden"
@@ -106,18 +71,14 @@ class Ctx:
     def sb(self, rel):
         return self.sandbox / rel.replace("/", "\\")
 
-    @property
-    def unity_proj(self):
-        return self.sandbox / self.proj_sub
-
 
 # ============================================================ サンドボックス
 
 def sandbox_reset(c):
     """冪等（制約 6）。中断が残っていても自力で復帰する。
 
-    git clean -fd は ignored を消さないので Library は残る。消すと Unity の
-    フルインポート（実測 11.9 分）が毎回走る。
+    git clean -fd は ignored を消さないので、エンジンのキャッシュ（ignored）は残る。
+    消すとエンジンのフルインポート（実測 11.9 分）が毎回走る。
     """
     if not (c.sandbox / ".git").exists():
         c.sandbox.parent.mkdir(parents=True, exist_ok=True)
@@ -156,17 +117,6 @@ def sandbox_reset(c):
         sys.exit(f"ABORT: サンドボックスに開示ゴールデンがありません: {c.g['disclosed_rel']}")
 
 
-def guid_of(meta_path):
-    """.meta から guid を取り出す。読めなければ None。"""
-    try:
-        for line in meta_path.read_text(encoding="utf-8", errors="replace").splitlines():
-            if line.startswith("guid:"):
-                return line.split(":", 1)[1].strip()
-    except OSError:
-        pass
-    return None
-
-
 def append_timeline(c, sha):
     """CI が緑になったときだけ、末尾に 1 件追記する。
 
@@ -190,8 +140,8 @@ def append_timeline(c, sha):
         f"- **Status**: PASSED — commit `{sha[:8]}` / CI run {g('ci_run_id')}\n"
         f"- **差分**: {g('diff_lines')} 行（上限 {c.unit['max_impl_lines']}）\n"
         f"- **高速検査**: {g('fast_total')} 件 / 失敗 {g('fast_failed')} / skip {g('fast_notExecuted')}\n"
-        f"- **Unity**: 総数 {g('unity_total')} / skip {g('unity_skipped')} / "
-        f"開示 {g('unity_disclosed')} / 非開示 {g('unity_holdout')} / "
+        f"- **{c.engine.LABEL}**: 総数 {g('engine_total')} / skip {g('engine_skipped')} / "
+        f"開示 {g('engine_disclosed')} / 非開示 {g('engine_holdout')} / "
         f"control_must_fail={g('ctrl_fail')}\n"
         f"- **試行**: {g('attempt')} 回目で合格\n"
         f"- **Human Check Point**: {hcp}\n"
@@ -255,16 +205,6 @@ def heads_match(c):
     return r.strip(), s.strip(), (r.strip() == s.strip() and bool(r.strip()))
 
 
-TEST_PATH_RE = re.compile(r"(Tests?\.cs$|[/\\][Tt]ests?[/\\]|golden.*\.json$)")
-
-# 自己検査が [A] で一時的に書き込む中身。実装を消して赤が出ることを確かめるため。
-# 残っていたら selftest が異常終了している。
-STUB_MARKER = (
-    "// selftest が一時的に置いたスタブ。残っていたら selftest が途中で死んでいる。\n"
-    "namespace SelftestStub { public class Placeholder { } }\n"
-)
-
-
 def require_unit_safe(c):
     """単位定義そのものを検査する。
 
@@ -273,7 +213,7 @@ def require_unit_safe(c):
     通せる（報酬ハッキング）。単位定義も LLM が生成するので、
     **監査に任せず機械で弾く。** これは推奨ではなく前提条件。
     """
-    bad = [p for p in c.unit["whitelist"] if TEST_PATH_RE.search(p)]
+    bad = [p for p in c.unit["whitelist"] if c.fast.TEST_PATH_RE.search(p)]
     if bad:
         sys.exit("ABORT: ホワイトリストにテストまたはゴールデンが含まれています。"
                  "実装役がオラクルを書き換えられるため実行しません: " + ", ".join(bad))
@@ -306,9 +246,9 @@ def purge_holdout(c):
     if c.test_driven:
         return []          # この単位には非開示が無い
     removed = []
-    for p in [c.sb(c.g["holdout_rel"])] + \
-             list(c.sandbox.glob("tests/**/bin/**/" + Path(c.g["holdout_rel"]).name)) + \
-             list(c.stage.glob(Path(c.g["holdout_rel"]).name)):
+    name = Path(c.g["holdout_rel"]).name
+    copies = [p for g in c.fast.build_output_globs(name) for p in c.sandbox.glob(g)]
+    for p in [c.sb(c.g["holdout_rel"])] + copies + list(c.stage.glob(name)):
         if p.exists():
             p.unlink()
             removed.append(str(p))
@@ -375,7 +315,7 @@ def gate_whitelist(c):
         if " -> " in path:
             path = path.split(" -> ")[-1].strip().strip('"')
         path = path.replace("\\", "/")
-        if path.endswith(".meta"):
+        if c.engine.is_companion(path):
             continue
         if path not in allowed:
             bad.append(path)
@@ -392,8 +332,8 @@ def gate_static_common(c):
         text = p.read_text(encoding="utf-8", errors="replace")
 
         # forbidden_patterns: [[正規表現, 説明], ...]
-        # 新規機能では UnityEngine / Time.deltaTime / MonoBehaviour を禁じ、
-        # 仮想時間を外から注入する形（決定論的 FSM）を強制する。
+        # 新規機能ではエンジン API・グローバル時間・非決定な乱数を禁じ、
+        # 仮想時間を外から注入する形（決定論的 FSM）を強制する。何を禁じるかは単位定義が持つ。
         for pattern, label in c.unit.get("forbidden_patterns", []):
             if re.search(pattern, text):
                 return f"{label}: {rel} に「{pattern}」が含まれています"
@@ -428,24 +368,25 @@ def gate_static(c):
     core_t = core.read_text(encoding="utf-8", errors="replace")
     so_t = so.read_text(encoding="utf-8", errors="replace")
 
-    # --- Game.Core 側を先に見る。
-    # コンパイル可否に直結するもの（Mathf の残存）を、配線の問題（委譲）より先に
-    # 報告する。逆順にすると、委譲が未配線の間は Mathf の門に到達できず、
+    # --- core 側（エンジン非依存の純粋な実装）を先に見る。
+    # コンパイル可否に直結するもの（core で使えない API の残存）を、配線の問題（委譲）より
+    # 先に報告する。逆順にすると、委譲が未配線の間はこの門に到達できず、
     # 門が効いているかを確かめられない（自己検査で実測した）。
     missing = [s for s in c.unit["required_symbols"] if s not in core_t]
     if missing:
         return "シグネチャが壊れています: " + ", ".join(missing)
 
     if re.search(c.unit["forbidden_in_core_regex"], core_t):
-        return "Game.Core 側に Mathf が残っています（noEngineReferences で通りません）"
+        return (f"core 側に使えない API が残っています"
+                f"（{c.unit['forbidden_in_core_regex']}。core のアセンブリでは通りません）")
 
     if c.unit["forbidden_leftover"] in core_t:
         return f"{c.unit['forbidden_leftover']} が残っています（{c.unit['core_impl']}）"
 
-    # --- SO 側
+    # --- ラッパー側（エンジンの型から core へ委譲する側）
     so_missing = [s for s in c.unit["so_required_symbols"] if s not in so_t]
     if so_missing:
-        return "インスペクタ結合が壊れています: " + ", ".join(so_missing)
+        return "ラッパー側の結合（シリアライズされる項目など）が壊れています: " + ", ".join(so_missing)
 
     if c.unit["so_required_delegation"] not in so_t:
         return f"委譲されていません（{c.unit['so_required_delegation']} が無い）"
@@ -485,75 +426,16 @@ def gate_diff_lines(c, verbose=True):
     return None
 
 
-# ============================================================ 高速検査（Pure C#）
+# ============================================================ テストの実行（アダプタ）
 
 def run_fast_tests(c, tag):
-    trx = c.out / f"{tag}.trx"
-    if trx.exists():
-        trx.unlink()
-    run(["dotnet", "test", c.unit["fast_test_project"],
-         "--nologo", "--logger", f"trx;LogFileName={tag}.trx",
-         "--results-directory", str(c.out)],
-        c.sandbox, c.ttl["dotnet_test"], f"dotnet test ({tag})")
-    if not trx.exists():
-        return None, "検査系故障: TRX が生成されませんでした（ビルド失敗の可能性）"
-
-    root = ET.parse(trx).getroot()
-
-    # TRX の testName はメソッド名だけで、クラス名は別要素の className にある。
-    # required_tests はクラス名で書かれるので、メソッド名だけを探すと
-    # 「1 件も実行されていない」と誤判定する（実測。実装は成功していた）。
-    # className.methodName の形に組み立ててから照合する。
-    fullname = {}
-    for ut in root.iter(f"{TRX_NS}UnitTest"):
-        tm = ut.find(f"{TRX_NS}TestMethod")
-        if tm is not None and ut.get("name"):
-            fullname[ut.get("name")] = f"{tm.get('className', '')}.{ut.get('name')}"
-
-    results = {}
-    for r in root.iter(f"{TRX_NS}UnitTestResult"):
-        n = r.get("testName")
-        results[fullname.get(n, n)] = r.get("outcome")
-
-    counters = root.find(f"{TRX_NS}ResultSummary/{TRX_NS}Counters")
-    if counters is not None:
-        for k in ("total", "passed", "failed", "notExecuted"):
-            c.metrics[f"fast_{k}"] = int(counters.get(k, 0))
-    return results, None
+    """高速検査（純粋なコードのテスト）。実体は fast アダプタ。"""
+    return c.fast.run_tests(c, tag)
 
 
-# ============================================================ Unity 受入
-
-def run_unity_tests(c, tag):
-    xml = c.out / f"{tag}.xml"
-    log = c.out / f"{tag}.log"
-    if xml.exists():
-        xml.unlink()
-
-    import os
-    env = dict(os.environ)
-    # 同居する全ランナーが同じステージング先を見る。片方しか設定しないと
-    # 他方が「ファイルが無い」で落ちる。
-    for var in c.cfg["golden_dir_env_vars"]:
-        env[var] = str(c.stage)
-
-    # -testFilter は付けない。名前空間を指定すると NUnit が [Explicit] を
-    # 「明示的な選択」とみなして実行してしまい、Skip されるはずの 20 件が
-    # 走って落ちる（実測で発生した）。無指定なら正しく Skip される。
-    unity = c.cfg["unity_exe"]
-    rc, _, err = run([unity, "-batchmode", "-nographics",
-                      "-projectPath", str(c.unity_proj),
-                      "-runTests", "-testPlatform", "EditMode",
-                      "-testResults", str(xml), "-logFile", str(log)],
-                     c.sandbox, c.ttl["unity"], f"unity ({tag})", env=env)
-    if not xml.exists():
-        return None, f"検査系故障: 結果 XML が生成されませんでした（rc={rc} {err[:200]} log={log}）"
-
-    x = ET.parse(xml).getroot()
-    results = {}
-    for n in x.iter("test-case"):
-        results[n.get("fullname")] = n.get("result")
-    return results, None
+def run_engine_tests(c, tag):
+    """エンジンの受入テスト。実体は engine アダプタ。"""
+    return c.engine.run_tests(c, tag)
 
 
 # ============================================================ 判定
@@ -584,8 +466,8 @@ def golden_count(c, rel_or_abs):
 def stage_golden(c, with_holdout):
     """開示ゴールデンを「全部」置く。
 
-    この単位のゴールデンだけを置くと、同じ Unity スイートに同居する他の
-    ゴールデンランナー（MS2 の GoldenMasterEquivalenceTests など）が
+    この単位のゴールデンだけを置くと、同じエンジンのテストスイートに同居する他の
+    ゴールデンランナー（MS2 のゴールデン等価テストなど）が
     「ファイルが無い」で落ち、実装が正しくても REJECT になる（実測で発生した）。
     ステージング先は 1 つで、そこを全ランナーが見る。
     """
@@ -607,7 +489,7 @@ def stage_golden(c, with_holdout):
     return staged
 
 
-def check_acceptance_test_driven(c, fast, unity):
+def check_acceptance_test_driven(c, fast, engine):
     """新規機能の判定。正解は分解役が先に書いたテスト。
 
     ゴールデンが無いので「既存挙動と一致するか」は問えない。代わりに
@@ -618,90 +500,94 @@ def check_acceptance_test_driven(c, fast, unity):
     ng = []
     required = c.unit["acceptance"]["required_tests"]
 
+    E, F = c.engine, c.fast
     for name in required:
-        hits = names_with(fast, name) + names_with(unity, name)
+        hits = names_with(fast, name) + names_with(engine, name)
         if not hits:
             return [f"検査系故障: 新規テスト {name} が 1 件も実行されていない"], True
-        bad = [n for n in hits if (fast.get(n) or unity.get(n)) not in ("Passed",)]
+        bad = [n for n in hits
+               if not (fast.get(n) == F.PASSED or engine.get(n) == E.PASSED)]
         if bad:
             ng.append(f"新規テスト {name} が通っていない（{len(bad)} 件）")
 
-    if outcome_of(unity, c.ctrl_pass) != "Passed":
+    if outcome_of(engine, c.ctrl_pass) != E.PASSED:
         return ["検査系故障: 必ず通る対照群が通らなかった"], True
 
-    skipped = [n for n, o in unity.items() if o in ("Skipped", "Inconclusive")]
+    skipped = [n for n, o in engine.items() if o in E.SKIPPED]
     for name in required:
         if [n for n in skipped if name in n]:
             return [f"検査系故障: 新規テスト {name} が skip されている"], True
-    if len(skipped) > c.cfg["unity_skip_baseline"]:
-        ng.append(f"skip が既知の {c.cfg['unity_skip_baseline']} 件を超えた（{len(skipped)}）")
+    if len(skipped) > E.skip_baseline(c):
+        ng.append(f"skip が既知の {E.skip_baseline(c)} 件を超えた（{len(skipped)}）")
 
-    f_fail = [n for n, o in fast.items() if o == "Failed"]
-    u_fail = [n for n, o in unity.items() if o == "Failed"]
+    f_fail = [n for n, o in fast.items() if o == F.FAILED]
+    e_fail = [n for n, o in engine.items() if o == E.FAILED]
     if f_fail:
         ng.append(f"高速検査の失敗 {len(f_fail)} 件: " + ", ".join(f_fail[:3]))
-    if u_fail:
-        ng.append(f"Unity の失敗 {len(u_fail)} 件: " + ", ".join(u_fail[:3]))
+    if e_fail:
+        ng.append(f"{E.LABEL} の失敗 {len(e_fail)} 件: " + ", ".join(e_fail[:3]))
 
-    c.metrics["unity_total"] = len(unity)
-    c.metrics["unity_skipped"] = len(skipped)
-    c.metrics["new_tests"] = sum(len(names_with(fast, n) + names_with(unity, n)) for n in required)
+    c.metrics["engine_total"] = len(engine)
+    c.metrics["engine_skipped"] = len(skipped)
+    c.metrics["new_tests"] = sum(len(names_with(fast, n) + names_with(engine, n)) for n in required)
     return ng, False
 
 
-def check_acceptance(c, fast, unity, expect_holdout):
+def check_acceptance(c, fast, engine, expect_holdout):
     """終了コードではなく個別結果で判定する。"""
     if c.test_driven:
-        return check_acceptance_test_driven(c, fast, unity)
+        return check_acceptance_test_driven(c, fast, engine)
+    E, F = c.engine, c.fast
     ng = []
     d_tag, h_tag = c.g["disclosed_tag"], c.g["holdout_tag"]
     want_d = golden_count(c, c.g["disclosed_rel"])
 
-    # --- Pure C# 側（純粋クラス直）
+    # --- 高速検査側（純粋クラスを直接）
     hit = len(names_with(fast, d_tag + "_"))
     if hit < want_d:
         ng.append(f"高速検査で {d_tag} が {hit}/{want_d} 件しか実行されていない")
-    f_fail = real_failures(fast, c.ctrl_fail, "Failed")
+    f_fail = real_failures(fast, c.ctrl_fail, F.FAILED)
     if f_fail:
         ng.append(f"高速検査の不一致 {len(f_fail)} 件: " + ", ".join(f_fail[:3]))
 
-    # --- Unity 側（SO 経由）
-    if outcome_of(unity, c.ctrl_pass) != "Passed":
+    # --- エンジン側（ラッパー経由）
+    if outcome_of(engine, c.ctrl_pass) != E.PASSED:
         return ["検査系故障: 必ず通る対照群が通らなかった"], True
-    hit_u = len(names_with(unity, d_tag + "_"))
-    if hit_u < want_d:
-        return [f"検査系故障: Unity で {d_tag} が {hit_u}/{want_d} 件しか実行されていない"], True
+    hit_e = len(names_with(engine, d_tag + "_"))
+    if hit_e < want_d:
+        return [f"検査系故障: {E.LABEL} で {d_tag} が {hit_e}/{want_d} 件しか実行されていない"], True
 
-    skipped = [n for n, o in unity.items() if o in ("Skipped", "Inconclusive")]
-    for req in (d_tag, "MetaPointEquivalence"):
+    skipped = [n for n, o in engine.items() if o in E.SKIPPED]
+    # skip されてはいけないスイート。単位固有の名前はコアに書かず、設定から受け取る。
+    for req in [d_tag] + list(c.cfg.get("golden_required_engine_suites", [])):
         if [n for n in skipped if req in n]:
             return [f"検査系故障: {req} が skip されている"], True
-    if len(skipped) > c.cfg["unity_skip_baseline"]:
-        ng.append(f"skip が既知の {c.cfg['unity_skip_baseline']} 件を超えた（{len(skipped)}）")
+    if len(skipped) > E.skip_baseline(c):
+        ng.append(f"skip が既知の {E.skip_baseline(c)} 件を超えた（{len(skipped)}）")
 
-    leaked = names_with(unity, h_tag + "_")
+    leaked = names_with(engine, h_tag + "_")
     if not expect_holdout and leaked:
         return [f"検査系故障: 非開示が漏れ込んでいる（{len(leaked)} 件）"], True
     if expect_holdout:
         if not leaked:
             return ["検査系故障: 非開示が実行されていない"], True
-        o = outcome_of(unity, c.ctrl_fail)
+        o = outcome_of(engine, c.ctrl_fail)
         if o is None:
             return ["検査系故障: 必ず落ちる対照群が実行されていない"], True
-        if o != "Failed":
+        if o != E.FAILED:
             return [f"検査系故障: 必ず落ちる対照群が落ちなかった（{o}）"], True
 
-    u_fail = real_failures(unity, c.ctrl_fail, "Failed")
-    if u_fail:
-        ng.append(f"Unity の不一致 {len(u_fail)} 件: " + ", ".join(u_fail[:3]))
+    e_fail = real_failures(engine, c.ctrl_fail, E.FAILED)
+    if e_fail:
+        ng.append(f"{E.LABEL} の不一致 {len(e_fail)} 件: " + ", ".join(e_fail[:3]))
 
     # TIMELINE に載せる実測値。判定に使った数をそのまま残す。
-    c.metrics["unity_total"] = len(unity)
-    c.metrics["unity_skipped"] = len(skipped)
-    c.metrics["unity_disclosed"] = hit_u
+    c.metrics["engine_total"] = len(engine)
+    c.metrics["engine_skipped"] = len(skipped)
+    c.metrics["engine_disclosed"] = hit_e
     if expect_holdout:
-        c.metrics["unity_holdout"] = len(leaked)
-        c.metrics["ctrl_fail"] = outcome_of(unity, c.ctrl_fail)
+        c.metrics["engine_holdout"] = len(leaked)
+        c.metrics["ctrl_fail"] = outcome_of(engine, c.ctrl_fail)
 
     return ng, False
 
@@ -732,17 +618,17 @@ def attempt(c, feedback):
     if ng:
         return "RETRY", ng
 
-    print("[3] 高速検査（Pure C#）")
+    print(f"[3] 高速検査（{c.fast.LABEL}）")
     fast, err = run_fast_tests(c, "impl_fast")
     if err:
         return "ABORT", err
 
-    print("[4] Unity 受入（開示）")
+    print(f"[4] {c.engine.LABEL} 受入（開示）")
     stage_golden(c, with_holdout=False)
-    unity, err = run_unity_tests(c, "impl_disclosed")
+    engine, err = run_engine_tests(c, "impl_disclosed")
     if err:
         return "ABORT", err
-    ng, fatal = check_acceptance(c, fast, unity, expect_holdout=False)
+    ng, fatal = check_acceptance(c, fast, engine, expect_holdout=False)
     if fatal:
         return "ABORT", "; ".join(ng)
     if ng:
@@ -761,13 +647,13 @@ def attempt(c, feedback):
 
 def attempt_holdout(c, fast):
     """非開示ゴールデンの検査。合格なら None、不合格なら (verdict, msg)。"""
-    print("[5] Unity 受入（非開示）")
+    print(f"[5] {c.engine.LABEL} 受入（非開示）")
     try:
         stage_golden(c, with_holdout=True)
-        unity2, err = run_unity_tests(c, "impl_holdout")
+        engine2, err = run_engine_tests(c, "impl_holdout")
         if err:
             return "ABORT", err
-        ng, fatal = check_acceptance(c, fast, unity2, expect_holdout=True)
+        ng, fatal = check_acceptance(c, fast, engine2, expect_holdout=True)
         if fatal:
             return "ABORT", "; ".join(ng)
         if ng:
@@ -780,10 +666,10 @@ def attempt_holdout(c, fast):
 
 def carry_out_and_ci(c):
     """ホワイトリストのファイルだけを本体へ運び、CI まで見届ける。"""
-    # .meta を同伴させる。gate_whitelist は .meta を素通しにしてあるのに
-    # 持ち出し側が運んでいなかった。その非対称のせいで、本体で次に Unity を
-    # 起動した瞬間に .meta が生えて作業ツリーが汚れ、require_repo_clean が
-    # ABORT する（Step 1 のマージ時に顕在化した）。
+    # エンジンの付随ファイルを同伴させる。gate_whitelist は付随ファイルを素通しに
+    # してあるのに持ち出し側が運んでいなかった。その非対称のせいで、本体で次に
+    # エンジンを起動した瞬間に付随ファイルが生えて作業ツリーが汚れ、
+    # require_repo_clean が ABORT する（実測）。運ぶかどうかの規則は engine アダプタが持つ。
     carried = []
     for rel in c.unit["whitelist"]:
         src = c.sb(rel)
@@ -793,23 +679,15 @@ def carry_out_and_ci(c):
             shutil.copyfile(src, dst)
             carried.append(rel)
 
-        # .meta は GUID を持つ。無条件に上書きすると、そのクラスを参照する
-        # Prefab / Scene / .asset がすべて Missing (MonoScript) になる。
-        #   - 本体に既にある場合は触らない（新規作成時だけ運ぶ）
-        #   - ただし GUID がずれていたらそれ自体が事故なので ABORT する
-        meta_src = c.sb(rel + ".meta")
-        meta_dst = c.repo / (rel + ".meta").replace("/", "\\")
-        if not meta_src.exists():
-            continue              # tools/ 配下など .meta を持たないものもある
-        if meta_dst.exists():
-            g_repo, g_sb = guid_of(meta_dst), guid_of(meta_src)
-            if g_repo != g_sb:
-                return "ABORT", (f"GUID 不一致: {rel}.meta "
-                                 f"(repo={g_repo} sandbox={g_sb})。"
-                                 "上書きすると参照が壊れるため中止します")
-            continue              # 一致しているなら上書きしない
-        shutil.copyfile(meta_src, meta_dst)
-        carried.append(rel + ".meta")
+        for comp in c.engine.companions(rel):
+            comp_src = c.sb(comp)
+            comp_dst = c.repo / comp.replace("/", "\\")
+            action, why = c.engine.carry_companion(comp_src, comp_dst)
+            if action == "abort":
+                return "ABORT", why
+            if action == "copy":
+                shutil.copyfile(comp_src, comp_dst)
+                carried.append(comp)
     print(f"    {len(carried)} ファイル: " + ", ".join(Path(x).name for x in carried))
     run(["git", "add", "--"] + carried, c.repo, c.ttl["git"], "add")
     run(["git", "commit", "-m",
@@ -880,7 +758,7 @@ def selftest(c):
 
         missing_tests = []
         for t in c.unit["acceptance"]["required_tests"]:
-            found = list(c.sandbox.rglob(f"*{t}*.cs"))
+            found = list(c.sandbox.rglob(c.fast.test_file_glob(t)))
             if not found:
                 missing_tests.append(t)
         check("受入テストがサンドボックスに置かれている",
@@ -891,7 +769,7 @@ def selftest(c):
         if err:
             check("実装が無いので赤", True, "ビルドが失敗（実装が無いので当然）")
         else:
-            red = len(real_failures(fast, c.ctrl_fail, "Failed"))
+            red = len(real_failures(fast, c.ctrl_fail, c.fast.FAILED))
             check("実装が無いので赤", red > 0, f"{red} 件 Failed")
     else:
         # 既存の実装がある単位。自分でスタブを書き、赤が出ることを確かめてから戻す。
@@ -902,14 +780,14 @@ def selftest(c):
         for rel in existing:
             p = c.sb(rel)
             stubbed.append((p, p.read_text(encoding="utf-8")))
-            p.write_text(STUB_MARKER, encoding="utf-8")
+            p.write_text(c.fast.STUB_SOURCE, encoding="utf-8")
 
         fast, err = run_fast_tests(c, "self_fast")
         if err:
             # スタブはコンパイルを壊すので、ビルド失敗も「赤が出た」に含める
             check("スタブで赤が出る", True, "ビルドが失敗（想定どおり）")
         else:
-            red = len(real_failures(fast, c.ctrl_fail, "Failed"))
+            red = len(real_failures(fast, c.ctrl_fail, c.fast.FAILED))
             check("スタブで赤が出る", red > 0, f"{red} 件 Failed")
 
         for p, orig in stubbed:
@@ -925,8 +803,8 @@ def selftest(c):
             want_d = golden_count(c, c.g["disclosed_rel"])
             hit = len(names_with(fast, d_tag + "_"))
             check("開示ゴールデンが実行されている", hit >= want_d, f"{hit}/{want_d}")
-        check("復元後は緑に戻る", len(real_failures(fast, c.ctrl_fail, "Failed")) == 0,
-              f"{len(real_failures(fast, c.ctrl_fail, 'Failed'))} 件 Failed")
+        check("復元後は緑に戻る", len(real_failures(fast, c.ctrl_fail, c.fast.FAILED)) == 0,
+              f"{len(real_failures(fast, c.ctrl_fail, c.fast.FAILED))} 件 Failed")
 
     print("[B] ゲートの発火確認（わざと違反させます）")
     # 同期のずれを検出できるか。sandbox_reset を呼ばずに直接比較する
@@ -989,25 +867,25 @@ def selftest(c):
 
     if c.test_driven:
         # この単位には非開示ゴールデンが無い。[C][D] は非開示の投入と残留の検査
-        # なので、成立しない。代わりに「新規テストが Unity 側でも実行されること」
-        # を確かめる。ここを飛ばすと、Unity 側で 1 件も走らなくても気づけない。
-        # 新規テストは tests/Core.Tests（dotnet 側）にある。Unity はそこを
-        # コンパイルしないので、Unity 結果に現れないのが正常（実測で確認）。
-        # Unity 側の役目はこの単位では非回帰だけ。実装前に既存が壊れていない
-        # ことを確かめる。ここを飛ばすと、新規ファイルが Unity を巻き込んで
+        # なので、成立しない。
+        # 新規テストは高速検査側にある。エンジンはそこをコンパイルしないので、
+        # エンジンの結果に現れないのが正常（実測で確認）。
+        # エンジン側の役目はこの単位では非回帰だけ。実装前に既存が壊れていない
+        # ことを確かめる。ここを飛ばすと、新規ファイルがエンジン側を巻き込んで
         # 壊していても気づけない。
-        print("[C] 非開示は無し。Unity 側の非回帰だけを見る")
+        E = c.engine
+        print(f"[C] 非開示は無し。{E.LABEL} 側の非回帰だけを見る")
         stage_golden(c, with_holdout=False)
-        unity, err = run_unity_tests(c, "self_td")
+        engine, err = run_engine_tests(c, "self_td")
         if err:
-            check("Unity が実行できる", False, err)
+            check(f"{E.LABEL} が実行できる", False, err)
         else:
-            failed = [n for n, o in unity.items() if o == "Failed"]
-            skipped = [n for n, o in unity.items() if o in ("Skipped", "Inconclusive")]
-            check("実装前でも Unity は緑", len(failed) == 0,
-                  f"{len(failed)} 件 Failed / {len(unity)} 件中")
-            check("skip が既定どおり", len(skipped) <= c.cfg["unity_skip_baseline"],
-                  f"{len(skipped)} / 上限 {c.cfg['unity_skip_baseline']}")
+            failed = [n for n, o in engine.items() if o == E.FAILED]
+            skipped = [n for n, o in engine.items() if o in E.SKIPPED]
+            check(f"実装前でも {E.LABEL} は緑", len(failed) == 0,
+                  f"{len(failed)} 件 Failed / {len(engine)} 件中")
+            check("skip が既定どおり", len(skipped) <= E.skip_baseline(c),
+                  f"{len(skipped)} / 上限 {E.skip_baseline(c)}")
         sandbox_reset(c)
         ng_count = sum(1 for ok in log if not ok)
         print()
@@ -1020,26 +898,26 @@ def selftest(c):
     print("[C] 非開示の投入")
     try:
         stage_golden(c, with_holdout=True)
-        unity, err = run_unity_tests(c, "self_holdout")
+        engine, err = run_engine_tests(c, "self_holdout")
         if err:
             check("非開示の実行", False, err)
         else:
             h_tag = c.g["holdout_tag"]
-            check("非開示が実行されている", len(names_with(unity, h_tag + "_")) > 0,
-                  f"{len(names_with(unity, h_tag + '_'))} 件")
+            check("非開示が実行されている", len(names_with(engine, h_tag + "_")) > 0,
+                  f"{len(names_with(engine, h_tag + '_'))} 件")
             check("必ず落ちる対照群が発見されている",
-                  outcome_of(unity, c.ctrl_fail) is not None,
-                  str(outcome_of(unity, c.ctrl_fail)))
+                  outcome_of(engine, c.ctrl_fail) is not None,
+                  str(outcome_of(engine, c.ctrl_fail)))
     finally:
         purge_holdout(c)
 
     print("[D] 非開示の残留が無いこと")
     stage_golden(c, with_holdout=False)
-    unity, err = run_unity_tests(c, "self_after_purge")
+    engine, err = run_engine_tests(c, "self_after_purge")
     if err:
         check("消去後の実行", False, err)
     else:
-        leaked = names_with(unity, c.g["holdout_tag"] + "_")
+        leaked = names_with(engine, c.g["holdout_tag"] + "_")
         check("非開示が残留していない", len(leaked) == 0, f"{len(leaked)} 件")
     sandbox_reset(c)
 

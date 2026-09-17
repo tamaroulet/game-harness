@@ -19,7 +19,9 @@ from pathlib import Path
 HARNESS_DIR = Path(__file__).resolve().parent
 ROOT = HARNESS_DIR.parent
 
-REQUIRED_KEYS = ["id", "repo_slug", "repo_dir", "base_branch", "unity_project_subdir",
+# エンジン固有のキー（例: エンジンのプロジェクトの場所）はここに書かない。
+# アダプタが pipeline_config の cfg["project"] から読み、無ければアダプタが止める。
+REQUIRED_KEYS = ["id", "repo_slug", "repo_dir", "base_branch", "adapters",
                  "test_dir", "impl_dir", "fast_test_project", "units_dir", "out_dir",
                  "required_checks"]
 
@@ -52,17 +54,30 @@ def load(project_id):
         raise ProjectError(f"{d / 'project.json'} に必須キーがありません: {', '.join(missing)}")
     if p["id"] != project_id:
         raise ProjectError(f"{d / 'project.json'} の id が {p['id']} です（ディレクトリ名は {project_id}）")
+    a = p["adapters"]
+    if not (isinstance(a, dict) and isinstance(a.get("engine"), str) and isinstance(a.get("fast"), str)):
+        raise ProjectError(f"{d / 'project.json'} の adapters は "
+                           '{"engine": "<名前>", "fast": "<名前>"} の形で書いてください')
     p["dir"] = str(d)
     return p
 
 
 def pipeline_config(project):
-    """pipeline.json に、リポジトリの位置を project.json から差し込んで返す。"""
+    """pipeline.json に、project.json の値を差し込んで返す。
+
+    差し込むもの: paths.repo（リポジトリの位置）/ adapters / project（project.json 全体。
+    エンジン固有のキーはアダプタがここから読む）。
+    pipeline.json 側に同じものが書かれていたら止める（2 か所に書くと片方だけ直して食い違う）。
+    """
     cfg = _read(Path(project["dir"]) / "pipeline.json")
     paths = cfg.setdefault("paths", {})
-    for k in ("repo", "unity_project_subdir"):
+    for k in ("repo", "repo_dir"):
         if k in paths:
             raise ProjectError(f"pipeline.json の paths.{k} は project.json にだけ書いてください")
+    for k in ("adapters", "project"):
+        if k in cfg:
+            raise ProjectError(f"pipeline.json の {k} は project.json から差し込まれます。書かないでください")
     paths["repo"] = project["repo_dir"]
-    paths["unity_project_subdir"] = project["unity_project_subdir"]
+    cfg["adapters"] = dict(project["adapters"])
+    cfg["project"] = dict(project)
     return cfg
