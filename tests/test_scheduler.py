@@ -14,6 +14,7 @@
 一時ディレクトリは C:\\src\\.local\\out\\harness\\selftest\\ の下（リポジトリ直下に置かない）。
 環境変数 HARNESS_SELFTEST_DIR で差し替えられる（CI のランナー用）。
 """
+import io
 import json
 import os
 import re
@@ -41,7 +42,12 @@ import json, os, subprocess, sys, time
 from pathlib import Path
 
 role, arg = sys.argv[1], sys.argv[2]
+tel_path = sys.argv[3] if len(sys.argv) > 3 else None   # {telemetry} を渡されたときだけ書く
 plan = json.loads(Path(os.environ["STUB_PLAN"]).read_text(encoding="utf-8"))
+
+def write_tel(obj):
+    if tel_path:
+        Path(tel_path).write_text(json.dumps(obj), encoding="utf-8")
 
 def number():
     if role == "decompose":
@@ -74,6 +80,7 @@ if role == "decompose":
                   '[Test] public void Works() { Assert.AreEqual(1, Answer(), "答えは 1"); }\n')
         if mode == "stray":
             write("Game/Assets/Core/Sneaky.cs", "// not allowed\n")
+        write_tel({"schema": 1, "tool": "decompose", "usage": {"total_tokens": 100}})
         sys.exit(0)
     if mode == "reject":
         print("不合格の理由: 自明アサーション")
@@ -99,6 +106,10 @@ if role == "pipeline":
         git("add", "--", f"Game/Assets/Core/Issue{n}.cs")
         git("commit", "-m", f"impl {n}")
         git("push")
+        write_tel({"schema": 1, "tool": "pipeline", "attempts_judged": 2,
+                   "p2p_violation_rate": 50.0, "retry_entropy": 0.25, "retry_same_failure_repeats": 0,
+                   "attempts": [{"implementer": {"usage": {"total_tokens": 30}}},
+                                {"implementer": {"usage": {"total_tokens": 20}}}]})
         sys.exit(0)
     if mode == "reject":
         print("試行3: REJECT テストが赤")
@@ -157,6 +168,7 @@ class FakeGH:
         self.extra_check_runs = []
         self.before_merge = None
         self.merge_args = []
+        self.label_events = {}  # PR 番号 -> issue events（テレメトリ用）
 
     def writes(self):
         verbs = {"edit", "comment", "close", "create", "merge"}
@@ -318,6 +330,12 @@ class FakeGH:
                 runs.append({"id": 2000 + i, "name": name, "status": status, "conclusion": conclusion})
             runs += self.extra_check_runs
             return 0, json.dumps({"check_runs": runs}), ""
+        if key.startswith("api repos/") and "/events" in key:
+            # テレメトリ（承認待ち時間）用。既定は空で、テストが label_events に置いた分だけ返す
+            num = int(key.split("/issues/")[1].split("/")[0])
+            page = int(key.split("page=")[-1]) if "page=" in key else 1
+            events = self.label_events.get(num, [])
+            return 0, json.dumps(events[(page - 1) * 100:page * 100]), ""
         return 1, "", f"FakeGH: 未対応 {a}"
 
 
@@ -483,7 +501,7 @@ class ProjectConfigTests(unittest.TestCase):
         for name, script in (("decompose", "decompose.py"), ("audit", "audit.py"),
                              ("pipeline", "pipeline.py")):
             args = [a.format(python="py", harness=project.HARNESS_DIR.as_posix(),
-                             project="unity-2d", number=5, file="f", unit="u")
+                             project="unity-2d", number=5, file="f", unit="u", telemetry="t.json")
                     for a in cfg["commands"][name]]
             self.assertTrue(Path(args[1]).name == script and Path(args[1]).exists(), args)
             self.assertEqual(args[2:4], ["--project", "unity-2d"])
@@ -616,6 +634,69 @@ class SchedulerTests(Base):
         self.assertIn("skipped", runs[0]["audit"])
         self.assertEqual([s["name"] for s in runs[0]["steps"]], ["decompose", "pipeline"])
         self.assertTrue(runs[1]["ci_run"])
+
+    def test_telemetry_reaches_runs_jsonl_with_research_metrics(self):
+        """Step 4: 道具のテレメトリが runs.jsonl に載り、査読用の 4 指標が算出されること。"""
+        for name in ("decompose", "pipeline"):
+            self.cfg["commands"][name].append("{telemetry}")
+        self.cfg["experiment_condition"] = "harness"
+        gh = FakeGH([(5, "タメ")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        pr_num = gh.pr_for_issue(5)
+        gh.approve(pr_num)
+        gh.label_events[pr_num] = [
+            {"event": "labeled", "label": {"name": "ms4:awaiting-approval"},
+             "created_at": "2026-09-17T06:00:00Z", "actor": {"login": "scheduler"}},
+            {"event": "labeled", "label": {"name": "ms4:approved"},
+             "created_at": "2026-09-17T06:02:30Z", "actor": {"login": "human"}},
+        ]
+        self.assertEqual(self.run_scheduler(gh), 0)
+
+        awaiting, passed = self.runs()
+        self.assertEqual(awaiting["condition"], "harness")
+        self.assertEqual(awaiting["steps"][0]["telemetry"]["usage"]["total_tokens"], 100)
+        self.assertIsNone(awaiting["steps"][0].get("telemetry_null_reason"))
+        self.assertEqual(awaiting["p2p_violation_rate"], 50.0)
+        self.assertEqual(awaiting["attempts_judged"], 2)
+        self.assertEqual(awaiting["retry_entropy"], 0.25)
+        self.assertIsNone(awaiting["token_to_accepted_loc"])
+        self.assertIn("token_to_accepted_loc_null_reason", awaiting)
+
+        self.assertEqual(passed["tokens_total"], 150)
+        self.assertEqual(passed["accepted_loc"], 1, "Issue5.cs の 1 行だけ（テスト・単位定義は数えない）")
+        self.assertEqual(passed["token_to_accepted_loc"], 150.0)
+        self.assertEqual(passed["human"]["wait_seconds"], 150.0)
+        self.assertEqual(passed["human"]["decided_by"], "human")
+        self.assertIsNone(passed["human"]["active_seconds"])
+        self.assertIsNone(passed["human_active_intervention_time"])
+        self.assertIn("human_active_intervention_time_null_reason", passed)
+        self.assertIn("total_seconds", passed)
+        self.assertNotIn("_t0", passed)
+
+    def test_dry_run_expands_every_placeholder(self):
+        """本番の commands（{harness} {project} {telemetry} を含む）で、対象の Issue があっても落ちない。"""
+        self.cfg["commands"] = ms4.build_config("unity-2d")["commands"]
+        gh = FakeGH([(5, "a")])
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.assertEqual(self.run_scheduler(gh, "--dry-run"), 0)
+        self.assertIn("--telemetry <pipeline.telemetry.json>", out.getvalue())
+        self.assertEqual(gh.writes(), [])
+
+    def test_missing_telemetry_is_null_with_reason_not_zero(self):
+        """テレメトリを書かない道具（{telemetry} を渡していない）でも、0 や {} にしない。"""
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+        gh.approve(gh.pr_for_issue(5))
+        self.assertEqual(self.run_scheduler(gh), 0)
+        awaiting, passed = self.runs()
+        for s in awaiting["steps"]:
+            self.assertIsNone(s["telemetry"], s)
+            self.assertTrue(s["telemetry_null_reason"])
+        self.assertIsNone(awaiting["p2p_violation_rate"])
+        self.assertIsNone(passed["tokens_total"])
+        self.assertIsNone(passed["token_to_accepted_loc"])
+        self.assertIsNone(passed["human"]["wait_seconds"], "イベントが無ければ不明")
+        self.assertEqual(gh.prs[gh.pr_for_issue(5)]["state"], "MERGED", "テレメトリでマージを止めない")
 
     def test_scheduler_never_applies_the_approval_label(self):
         gh = FakeGH([(5, "a")])

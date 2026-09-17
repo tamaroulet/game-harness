@@ -7,6 +7,11 @@
   "_flags_note": "読み取りだけを許す。書き込み系を渡さないので、分解役はファイルを直接作れない。JSON を返させ、書き出しは decompose.py が検査を通してから行う。plan モードは対話的な計画提示に寄るため使わない",
   "extra_flags": ["--allowedTools", "Read,Grep,Glob"],
 
+  "_usage_note": "テレメトリ用（判定には使わない）。JSON で受け取り、本文は response_key から取り出す。形は harness/telemetry.py の USAGE_FORMATS に実測で書いてある",
+  "output_format_args": ["--output-format", "json"],
+  "usage_format": "claude",
+  "response_key": "result",
+
   "_prompt_file_note": "改行を含む長文を引数で渡すと cmd.exe が最初の改行で切る（実測）。ファイルで渡す。リポジトリの外に置き、作業ツリーを汚さない",
   "prompt_file": "C:\\src\\.local\\out\\harness\\{project}\\decompose\\prompt.md",
   "prompt_arg_template": "{prompt_file} を読み、そこに書かれた指示に厳密に従って JSON だけを返してください。前後に説明を書かないでください。",

@@ -50,8 +50,11 @@ def run_tests(c, tag):
     trx = c.out / f"{tag}.trx"
     if trx.exists():
         trx.unlink()
+    # /nr:false: MSBuild のワーカー（ノード再利用）を常駐させない。常駐すると終了後も
+    # ビルド出力の .dll を掴み続け、次のビルドやサンドボックスのリセットが
+    # ファイルロック（WinError 32）で落ちうる。
     run(["dotnet", "test", c.unit["fast_test_project"],
-         "--nologo", "--logger", f"trx;LogFileName={tag}.trx",
+         "--nologo", "/nr:false", "--logger", f"trx;LogFileName={tag}.trx",
          "--results-directory", str(c.out)],
         c.sandbox, c.ttl["fast_tests"], f"dotnet test ({tag})")
     if not trx.exists():

@@ -158,6 +158,14 @@ M = [
      '    if broken:\n        return f"先祖返り', '    if False:\n        return f"先祖返り'),
     ("M56 受入テストのファイルを重複排除しない", "pipeline.py",
      "    return sorted(set(found))", "    return sorted(found)"),
+
+    # ---- テレメトリ（Step 4。レビューの方針により要所の 2 件だけ）
+    ("M57 取れない利用量を 0 にする", "telemetry.py",
+     "    return v if ok and not isinstance(v, bool) else None",
+     "    return v if ok and not isinstance(v, bool) else 0"),
+    ("M58 テレメトリの無いステップを空の辞書にする", "scheduler.py",
+     '        telemetry.put(entry, "telemetry", data, why)',
+     '        telemetry.put(entry, "telemetry", data or {}, why)'),
 ]
 
 
