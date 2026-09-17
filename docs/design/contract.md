@@ -80,6 +80,16 @@ v1 では、契約に任意のシェルコマンドを書く道を作らない�
 | `control_must_fail` | str | 必須 | — | 必ず落ちる対照群のテスト名（毒饅頭） |
 | `quarantine` | list[table] | 任意 | `[]` | P2P から外す不安定テスト。各要素 `{ test, reason, approved_in }`。**`approved_in`（PR 番号）の無い要素は ABORT** |
 
+**Step 3 時点の暫定（契約の読み込みは未実装）**: 検証は `harness/oracle.py` の `load` が行い、契約に移しても同じ関数を使う。
+値の置き場は harness の `projects/<id>/pipeline.json`。制御群は `control_groups.must_pass` / `must_fail`（unity-2d の `tools/ms3_capture_golden.ps1` が同じキーを読むため、名前を変えない）、quarantine は `oracle.quarantine`。
+`oracle` に `quarantine` 以外のキーがあれば ABORT（制御群を 2 か所に書かせない）。
+照合は、完全一致か「.」区切りの末尾一致だけ（部分一致にすると、短い名前で多数のテストが外れる）。
+
+判定（`harness/pipeline.py` の `establish_base` と `check_acceptance*`）:
+- base（実装前）を 1 回だけ測る。受入テストが base で Passed なら偽テストとして REJECT（rc=1、再試行しない）。base がビルドできない（実装がまだ無い）ときは、受入テストのファイルを除いてビルドできることを確かめ、その結果を P2P の基準にする
+- F2P: 受入テストの各件が実装後に Passed。P2P: base で Passed だった全件が実装後も Passed（消えたものも破壊）。quarantine は P2P と想定外の失敗からだけ外し、F2P からは外さない
+- 制御群: 必ず通るものは両スイートで実行されて Passed。必ず落ちるものは、現れたら Failed（Passed なら ABORT）。非開示を投入した実行でだけ、現れることも必須
+
 ### 3.6 `[limits]` と `[static]`
 
 | キー | 型 | 必須 | 既定 | 説明 |
@@ -297,7 +307,8 @@ glob の規則（`tomllib` と同じく標準ライブラリだけで実装す�
 | `unity_exe` | マシン | `machine.toml` `[unity.editors]."6000.3.23f1"`（契約の `editor_version` で引く） |
 | `unity_skip_baseline` | 契約 | `[engine.unity].skipped_baseline` |
 | `golden_dir_env_vars` | 契約 | `[engine.unity].golden_dir_env_vars` |
-| `control_groups.must_pass` / `must_fail` | 契約 | `oracle.control_must_pass` / `control_must_fail` |
+| `control_groups.must_pass` / `must_fail` | 契約 | `oracle.control_must_pass` / `control_must_fail`（採取スクリプトの読み先を変えてから） |
+| `oracle.quarantine`（Step 3 で追加） | 契約 | `oracle.quarantine` |
 | `oracle_filenames.holdout` / `disclosed` | 移管 | capture スクリプトだけが使う。harness のコードに参照は無い（pipeline は単位定義の `golden.holdout_rel` 等を使う。grep で確認） |
 | `rel.capture_test` / `rel.disclosed_golden` | 移管 | 同上 |
 | `golden_capture.*`（13 キー） | 移管 | 同上（MS3 のゴールデン採取の係数。harness のコードでは未使用） |

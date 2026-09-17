@@ -26,8 +26,10 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import adapters
+import oracle
 import project
 from proc import resolve_cli, run
 
@@ -53,8 +55,14 @@ class Ctx:
         self.ttl = self.cfg["ttl_seconds"]
         self.ttl.update(self.unit.get("ttl_seconds", {}))  # 単位側で上書き可（制約 7）
 
-        self.ctrl_fail = self.cfg["control_groups"]["must_fail"]
-        self.ctrl_pass = self.cfg["control_groups"]["must_pass"]
+        try:
+            self.oracle = oracle.load(self.cfg.get("control_groups"), self.cfg.get("oracle"))
+        except oracle.OracleError as e:
+            sys.exit(f"ABORT: オラクル設定が不正です: {e}")
+        self.ctrl_fail = self.oracle["must_fail"]
+        self.ctrl_pass = self.oracle["must_pass"]
+        # 実装前（base）の測定結果。establish_base が 1 回だけ埋める。無ければ判定しない。
+        self.base = None
         # 単位には 2 種類ある。
         #   リファクタリング: 既存実装から採取したゴールデンが正解（MS1〜3）
         #   新規機能        : 既存の正解が無い。分解役が先に書いたテストが正解
@@ -143,6 +151,8 @@ def append_timeline(c, sha):
         f"- **{c.engine.LABEL}**: 総数 {g('engine_total')} / skip {g('engine_skipped')} / "
         f"開示 {g('engine_disclosed')} / 非開示 {g('engine_holdout')} / "
         f"control_must_fail={g('ctrl_fail')}\n"
+        f"- **二相判定**: F2P {g('f2p_tests', '-')} 件 / P2P 維持 {g('p2p_kept')}/{g('p2p_base')} / "
+        f"隔離 {g('quarantined')}\n"
         f"- **試行**: {g('attempt')} 回目で合格\n"
         f"- **Human Check Point**: {hcp}\n"
     )
@@ -441,7 +451,7 @@ def run_engine_tests(c, tag):
 # ============================================================ 判定
 
 def names_with(results, needle):
-    return [n for n in results if n and needle in n]
+    return oracle.hits(results, needle)
 
 
 def outcome_of(results, needle):
@@ -489,39 +499,143 @@ def stage_golden(c, with_holdout):
     return staged
 
 
+def new_test_files(c):
+    """受入テストのファイル（サンドボックス内）。
+
+    1 つのファイルに複数の受入テストが書かれうるので、パスの集合にしてから返す。
+    受入テストごとに消すと、2 件目で「もう無い」に当たって誤って ABORT する。
+    """
+    found = [p.resolve()
+             for t in c.unit["acceptance"]["required_tests"]
+             for p in c.sandbox.rglob(c.fast.test_file_glob(t))]
+    return sorted(set(found))
+
+
+def establish_base(c):
+    """実装前（base）を 1 回だけ測る。戻り値 (None | "REJECT" | "ABORT", 理由)。
+
+    base はリポジトリの HEAD。テスト駆動の単位では、分解役の受入テストは入っていて
+    実装はまだ無い。ここで決めるもの:
+      - F2P の前半: 受入テストが base で通っていないこと。通っていれば偽テスト
+        （実装役には直せないので、試行ループに入る前に REJECT する）
+      - P2P の基準 P_base: base で Passed だった全テストの名前
+      - base が健全であること: 制御群が正しく、想定外の失敗が無いこと（無ければ ABORT）
+
+    エンジンの受入は 1 回に数分かかるので、試行ごとではなく 1 回だけ測る
+    （base はコミットで決まり、試行のあいだ変わらない）。
+    """
+    E, F, o = c.engine, c.fast, c.oracle
+    required = c.unit["acceptance"]["required_tests"] if c.test_driven else []
+    print("[0] base（実装前）の測定")
+    sandbox_reset(c)
+    try:
+        fast, fast_err = run_fast_tests(c, "base_fast")
+        fast_p2p = fast
+        if fast_err:
+            if not c.test_driven:
+                return "ABORT", f"base の高速検査が実行できません: {fast_err}"
+            # 実装がまだ無いので、受入テストはビルドできない（Passed ではありえない）。
+            # ただし環境の故障によるビルド失敗と区別できないので、受入テストを除いた
+            # base がビルドできることを確かめ、その結果を P2P の基準にする。
+            files = new_test_files(c)
+            if not files:
+                return "ABORT", ("base がビルドできず、除くべき受入テストのファイルも"
+                                 f"見つかりません: {fast_err}")
+            for p in files:
+                p.unlink()
+            print(f"    base は未ビルド。受入テスト {len(files)} ファイルを除いて測り直します")
+            fast_p2p, isolated_err = run_fast_tests(c, "base_fast_isolated")
+            if isolated_err:
+                return "ABORT", ("受入テストを除いても base がビルドできません"
+                                 f"（受入テスト以外の故障）: {isolated_err}")
+            left = [n for t in required for n in oracle.hits(fast_p2p, t)]
+            if left:
+                return "ABORT", "受入テストを除いたのに実行されています: " + ", ".join(left[:3])
+            sandbox_reset(c)   # 除いた受入テストを戻す
+
+        stage_golden(c, with_holdout=False)
+        engine, err = run_engine_tests(c, "base_engine")
+        if err:
+            return "ABORT", f"base の {E.LABEL} が実行できません: {err}"
+
+        q = o["quarantine"]
+        aborts = (oracle.controls(fast_p2p, F, o["must_pass"], o["must_fail"], False)
+                  + oracle.controls(engine, E, o["must_pass"], o["must_fail"], False))
+        broken = (oracle.unexpected_failures(fast_p2p, F, o["must_fail"], q, required)
+                  + oracle.unexpected_failures(engine, E, o["must_fail"], q, required))
+        if broken:
+            aborts.append(f"base（実装前）で既に失敗しているテスト {len(broken)} 件: "
+                          + ", ".join(broken[:3]))
+        fast_base = None if fast_err else fast
+        fake, f2p_aborts = oracle.f2p_base(required, [(F, fast_base), (E, engine)])
+        aborts += f2p_aborts
+        if aborts:
+            return "ABORT", "検査系故障（base）: " + "; ".join(aborts)
+        if fake:
+            return "REJECT", (f"偽テスト: 実装前から通っている受入テスト {len(fake)} 件: "
+                              + ", ".join(fake[:5]))
+
+        c.base = SimpleNamespace(fast=fast_base, fast_p2p=fast_p2p, engine=engine)
+        c.metrics["p2p_base"] = (oracle.p2p_count(fast_p2p, F, q)
+                                 + oracle.p2p_count(engine, E, q))
+        c.metrics["quarantined"] = len(q)
+        state = "未ビルド" if fast_base is None else "Failed"
+        print(f"    P_base {c.metrics['p2p_base']} 件 / 受入テストの base: {state}")
+        return None, ""
+    finally:
+        sandbox_reset(c)
+
+
+def check_p2p(c, fast, engine):
+    """P2P。base で Passed だった全件が、今も Passed か（消えたものも破壊）。"""
+    q = c.oracle["quarantine"]
+    broken = (oracle.p2p(c.base.fast_p2p, fast, c.fast, q)
+              + oracle.p2p(c.base.engine, engine, c.engine, q))
+    c.metrics["p2p_kept"] = c.metrics.get("p2p_base", 0) - len(broken)
+    if broken:
+        return f"先祖返り（P2P 破壊）{len(broken)} 件: " + ", ".join(broken[:3])
+    return None
+
+
 def check_acceptance_test_driven(c, fast, engine):
     """新規機能の判定。正解は分解役が先に書いたテスト。
 
-    ゴールデンが無いので「既存挙動と一致するか」は問えない。代わりに
-      1. 指定された新規テストが実際に実行され、全件通っていること
-      2. 既存のテストが 1 件も壊れていないこと（非回帰）
-    を要求する。1 が無いと「何も測っていない緑」になる。
+    ゴールデンが無いので「既存挙動と一致するか」は問えない。代わりに、テスト名ごとに
+      1. F2P: 受入テストの各件が、base で通っておらず（establish_base）、今は Passed
+      2. P2P: base で Passed だった全件が、今も Passed（quarantine だけ除外できる）
+      3. 制御群: 必ず通るものが通り、必ず落ちるものが（あれば）落ちている
+    を要求する。件数の合算では入れ替わり（1 件直して 1 件壊す）を見逃す。
     """
-    ng = []
+    if c.base is None:
+        return ["検査系故障: base（実装前）が測定されていない"], True
+    E, F, o = c.engine, c.fast, c.oracle
+    q = o["quarantine"]
     required = c.unit["acceptance"]["required_tests"]
 
-    E, F = c.engine, c.fast
-    for name in required:
-        hits = names_with(fast, name) + names_with(engine, name)
-        if not hits:
-            return [f"検査系故障: 新規テスト {name} が 1 件も実行されていない"], True
-        bad = [n for n in hits
-               if not (fast.get(n) == F.PASSED or engine.get(n) == E.PASSED)]
-        if bad:
-            ng.append(f"新規テスト {name} が通っていない（{len(bad)} 件）")
+    aborts = (oracle.controls(fast, F, o["must_pass"], o["must_fail"], False)
+              + oracle.controls(engine, E, o["must_pass"], o["must_fail"], False))
+    if aborts:
+        return ["検査系故障: " + a for a in aborts], True
 
-    if outcome_of(engine, c.ctrl_pass) != E.PASSED:
-        return ["検査系故障: 必ず通る対照群が通らなかった"], True
+    not_passed, aborts = oracle.f2p_impl(required, [(F, c.base.fast, fast),
+                                                    (E, c.base.engine, engine)])
+    if aborts:
+        return ["検査系故障: " + a for a in aborts], True
 
-    skipped = [n for n, o in engine.items() if o in E.SKIPPED]
-    for name in required:
-        if [n for n in skipped if name in n]:
-            return [f"検査系故障: 新規テスト {name} が skip されている"], True
+    ng = []
+    if not_passed:
+        ng.append(f"受入テストが通っていない {len(not_passed)} 件: " + ", ".join(not_passed[:3]))
+
+    skipped = [n for n, x in engine.items() if x in E.SKIPPED]
     if len(skipped) > E.skip_baseline(c):
         ng.append(f"skip が既知の {E.skip_baseline(c)} 件を超えた（{len(skipped)}）")
 
-    f_fail = [n for n, o in fast.items() if o == F.FAILED]
-    e_fail = [n for n, o in engine.items() if o == E.FAILED]
+    msg = check_p2p(c, fast, engine)
+    if msg:
+        ng.append(msg)
+
+    f_fail = oracle.unexpected_failures(fast, F, o["must_fail"], q)
+    e_fail = oracle.unexpected_failures(engine, E, o["must_fail"], q)
     if f_fail:
         ng.append(f"高速検査の失敗 {len(f_fail)} 件: " + ", ".join(f_fail[:3]))
     if e_fail:
@@ -529,7 +643,7 @@ def check_acceptance_test_driven(c, fast, engine):
 
     c.metrics["engine_total"] = len(engine)
     c.metrics["engine_skipped"] = len(skipped)
-    c.metrics["new_tests"] = sum(len(names_with(fast, n) + names_with(engine, n)) for n in required)
+    c.metrics["f2p_tests"] = sum(len(names_with(fast, n) + names_with(engine, n)) for n in required)
     return ng, False
 
 
@@ -537,27 +651,34 @@ def check_acceptance(c, fast, engine, expect_holdout):
     """終了コードではなく個別結果で判定する。"""
     if c.test_driven:
         return check_acceptance_test_driven(c, fast, engine)
-    E, F = c.engine, c.fast
+    if c.base is None:
+        return ["検査系故障: base（実装前）が測定されていない"], True
+    E, F, o = c.engine, c.fast, c.oracle
+    q = o["quarantine"]
     ng = []
     d_tag, h_tag = c.g["disclosed_tag"], c.g["holdout_tag"]
     want_d = golden_count(c, c.g["disclosed_rel"])
+
+    # --- 制御群。必ず落ちる対照群は非開示に入っているので、非開示を投入したときだけ必須
+    aborts = (oracle.controls(fast, F, o["must_pass"], o["must_fail"], False)
+              + oracle.controls(engine, E, o["must_pass"], o["must_fail"], expect_holdout))
+    if aborts:
+        return ["検査系故障: " + a for a in aborts], True
 
     # --- 高速検査側（純粋クラスを直接）
     hit = len(names_with(fast, d_tag + "_"))
     if hit < want_d:
         ng.append(f"高速検査で {d_tag} が {hit}/{want_d} 件しか実行されていない")
-    f_fail = real_failures(fast, c.ctrl_fail, F.FAILED)
+    f_fail = oracle.unexpected_failures(fast, F, o["must_fail"], q)
     if f_fail:
         ng.append(f"高速検査の不一致 {len(f_fail)} 件: " + ", ".join(f_fail[:3]))
 
     # --- エンジン側（ラッパー経由）
-    if outcome_of(engine, c.ctrl_pass) != E.PASSED:
-        return ["検査系故障: 必ず通る対照群が通らなかった"], True
     hit_e = len(names_with(engine, d_tag + "_"))
     if hit_e < want_d:
         return [f"検査系故障: {E.LABEL} で {d_tag} が {hit_e}/{want_d} 件しか実行されていない"], True
 
-    skipped = [n for n, o in engine.items() if o in E.SKIPPED]
+    skipped = [n for n, x in engine.items() if x in E.SKIPPED]
     # skip されてはいけないスイート。単位固有の名前はコアに書かず、設定から受け取る。
     for req in [d_tag] + list(c.cfg.get("golden_required_engine_suites", [])):
         if [n for n in skipped if req in n]:
@@ -568,18 +689,16 @@ def check_acceptance(c, fast, engine, expect_holdout):
     leaked = names_with(engine, h_tag + "_")
     if not expect_holdout and leaked:
         return [f"検査系故障: 非開示が漏れ込んでいる（{len(leaked)} 件）"], True
-    if expect_holdout:
-        if not leaked:
-            return ["検査系故障: 非開示が実行されていない"], True
-        o = outcome_of(engine, c.ctrl_fail)
-        if o is None:
-            return ["検査系故障: 必ず落ちる対照群が実行されていない"], True
-        if o != E.FAILED:
-            return [f"検査系故障: 必ず落ちる対照群が落ちなかった（{o}）"], True
+    if expect_holdout and not leaked:
+        return ["検査系故障: 非開示が実行されていない"], True
 
-    e_fail = real_failures(engine, c.ctrl_fail, E.FAILED)
+    e_fail = oracle.unexpected_failures(engine, E, o["must_fail"], q)
     if e_fail:
         ng.append(f"{E.LABEL} の不一致 {len(e_fail)} 件: " + ", ".join(e_fail[:3]))
+
+    msg = check_p2p(c, fast, engine)
+    if msg:
+        ng.append(msg)
 
     # TIMELINE に載せる実測値。判定に使った数をそのまま残す。
     c.metrics["engine_total"] = len(engine)
@@ -957,6 +1076,15 @@ def main():
             print("\n自己検査が通らないため本番を実行しません。")
             return rc
         print()
+
+    verdict, msg = establish_base(c)
+    if verdict == "ABORT":
+        print(f"\nABORT（検査系の故障）: {msg}")
+        return 2
+    if verdict == "REJECT":
+        # 偽テストは実装役には直せない。試行を回さずに不合格にする。
+        print(f"\nREJECT: {msg}")
+        return 1
 
     history = []
     feedback = ""
