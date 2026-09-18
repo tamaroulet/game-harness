@@ -429,6 +429,10 @@ M = [
     ('M132 積む本数の上限を見ない', 'scheduler.py',
      '            issues = ready[:max(0, min(limit, room))]',
      '            issues = ready[:limit]'),
+    # ---- 実装役の観測（docs/design/spec_pipeline.md）
+    ('M144 実装役のログを rc != 0 のときだけ書く', 'pipeline.py',
+     '    write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err)',
+     '    if rc != 0:\n        write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err)'),
 ]
 
 
