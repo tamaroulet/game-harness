@@ -108,28 +108,88 @@ def cli_version(cfg):
     return (out or err).strip()[:80] if rc == 0 else None
 
 
+def model_usage(out):
+    """CLI の JSON にある modelUsage。({モデル: 利用量}, None) か (None, 理由)。"""
+    try:
+        doc = json.loads(out)
+    except ValueError as e:
+        return None, f"CLI の出力を JSON として読めません: {e}"
+    if not isinstance(doc, dict):
+        return None, "CLI の出力が表ではありません"
+    got = doc.get("modelUsage")
+    if not isinstance(got, dict):
+        return None, "CLI の出力に modelUsage がありません（この CLI の版は報告しない）"
+    return got, None
+
+
+def auxiliary_prefixes(cfg):
+    """CLI の内部処理用として許すモデルの接頭辞。設定が無い・形が違うなら止める。
+
+    既定値をコード側に持たない。持つと、設定を消したときに黙って「haiku は許す」に戻り、
+    どの版で何を許していたかが設定から読めなくなる（判定の出所は 1 か所に保つ）。
+    """
+    aux = cfg.get("auxiliary_models")
+    if (not isinstance(aux, list) or not aux
+            or not all(isinstance(x, str) and x.strip() for x in aux)):
+        raise Env("config/spec.json の auxiliary_models が、空でない文字列の配列ではありません"
+                  "（CLI の内部処理用として許すモデルの接頭辞。例: [\"claude-haiku-\"]）")
+    bad = [x for x in aux if cfg["model"].startswith(x)]
+    if bad:
+        raise Env(f"auxiliary_models の {bad} が、固定したモデル {cfg['model']} に当たります"
+                  "（固定したモデル自身を内部処理用に数えると、使われたかどうかを確かめられません）")
+    return tuple(aux)
+
+
+def check_models(cfg, used):
+    """固定したモデルが実際に使われ、ほかは CLI の内部処理用だけであることを確かめる。
+
+    **なぜ「全部が固定モデル」ではないのか**: CLI は、要求したモデルのほかに自分の内部処理
+    （要約・見出しの生成など）で小型のモデルを呼ぶ。実測では claude 2.1.258 の -p が
+    claude-opus-5 の要求に対して claude-haiku-4-5 を併用した。それを「別のモデルが使われた」と
+    数えると、構造化役を 1 度も動かせない。
+
+    **それでも緩めていない点**: 固定したモデルが modelUsage に**現れないこと**は止める
+    （要求したのに使われていない。誰が書いたのか分からない）。設定に挙げていないモデルが
+    混ざることも止める（sonnet で書かれていても通る、という穴を開けない）。
+
+    **許す接頭辞はコードに直書きしない。** CLI の版が上がって別の小型モデルを使い始めたら、
+    ここは止まる。そのとき attempt_N/cli.json で実測を確かめ、config/spec.json に 1 行足せば
+    復旧できる（コードの PR も単体テストの再実行も挟まない）。
+    """
+    aux = auxiliary_prefixes(cfg)
+    if used is None:
+        return   # modelUsage を報告しない CLI の版。判定材料が無い（理由はテレメトリに残す）
+    models = sorted(used)
+    if not any(m.startswith(cfg["model"]) for m in models):
+        raise Env(f"固定したモデル {cfg['model']} が使われていません: {models}"
+                  "（要求したモデルで書かれていないので止めます）")
+    stray = [m for m in models if not m.startswith(cfg["model"]) and not m.startswith(aux)]
+    if stray:
+        raise Env(f"固定したモデル {cfg['model']} と、CLI の内部処理用（{', '.join(aux)}）以外が"
+                  f"使われました: {stray}（実験の条件がずれるので止めます）")
+
+
 def call_cli(cfg, prompt_path):
-    """(本文, 利用量, 使われたモデル)。CLI の異常は Env。"""
+    """(本文, 利用量, 使われたモデル, その理由)。CLI の異常は Env。"""
     args = (resolve_cli(cfg["cli"]) + [cfg["headless_flag"], cfg["prompt_arg_template"].format(prompt_file=prompt_path),
                                        cfg["model_flag"], cfg["model"]]
             + cfg["extra_flags"] + cfg["output_format_args"])
     rc, out, err = run(args, project.ROOT, cfg["ttl_seconds"]["claude"], "claude (spec)")
+    # 生の応答をまず残す。ここから先で止まっても、誰が何を書いたかを後から追えるようにする
+    # （モデルの判定で ABORT したとき、modelUsage が残っていなくて原因を追えなかった実例がある）
+    try:
+        Path(prompt_path).with_name("cli.json").write_text(out, encoding="utf-8")
+    except OSError as e:
+        print(f"CLI の生の応答を保存できません（処理は続けます）: {e}")
     usage = telemetry.cli_usage(out, cfg["usage_format"])
     if rc != 0:
         raise Env(f"構造化役の CLI が異常終了しました (rc={rc}): {(err or out)[:300]}")
     text, why = telemetry.response_text(out, cfg["response_key"])
     if text is None:
         raise Env(f"構造化役の CLI の出力を読めません（{why}）: {out[:300]}")
-    models = None
-    try:
-        doc = json.loads(out)
-        if isinstance(doc.get("modelUsage"), dict):
-            models = sorted(doc["modelUsage"])
-    except (ValueError, AttributeError):
-        pass
-    if models is not None and not all(m.startswith(cfg["model"]) for m in models):
-        raise Env(f"固定したモデル {cfg['model']} 以外が使われました: {models}（実験の条件がずれるので止めます）")
-    return text, usage, models
+    used, used_why = model_usage(out)
+    check_models(cfg, used)
+    return text, usage, used, used_why
 
 
 # ============================================================ 本体
@@ -153,10 +213,13 @@ def structure(cfg, project_id, gdd_text, terms, previous_spec, work_dir, tel):
         prompt = build_prompt(cfg, gdd_text, terms, previous_spec, feedback)
         (d / "prompt.md").write_text(prompt, encoding="utf-8")
         t0 = time.monotonic()
-        text, usage, models = call_cli(cfg, d / "prompt.md")
+        text, usage, used, used_why = call_cli(cfg, d / "prompt.md")
         (d / "response.txt").write_text(text, encoding="utf-8")
         att = {"n": n, "prompt_sha256": sha256(prompt), "response_sha256": sha256(text),
-               "seconds": round(time.monotonic() - t0, 1), "usage": usage, "models_used": models}
+               "seconds": round(time.monotonic() - t0, 1), "usage": usage}
+        # 使われたモデルは実験の条件そのもの。取れなければ 0 件にせず、理由を残す
+        telemetry.put(att, "models_used", sorted(used) if used is not None else None, used_why)
+        att["model_usage"] = used
         tel["attempts"].append(att)
 
         spec_body, q_body = between(text, SPEC_MARK), between(text, QUESTIONS_MARK)
