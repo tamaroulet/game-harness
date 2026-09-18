@@ -15,8 +15,11 @@
     "declined": { "name": "ms4:declined", "color": "B60205", "description": "人間が却下した。スケジューラが PR を閉じて Issue を ms4:failed にする" },
     "playtest": { "name": "ms4:playtest-required", "color": "5319E7", "description": "プレイ確認（H2）が必要。dispatch --playtest で全項目 OK にしないと承認できない" },
     "gdd":      { "name": "ms4:gdd", "color": "C5DEF5", "description": "dispatch から送られた GDD。スケジューラが構造化仕様を作る" },
-    "questions": { "name": "ms4:questions", "color": "D876E3", "description": "構造化仕様に質問か「仮」が残っている。GDD を直して版を上げ再送するまでマージできない" }
+    "questions": { "name": "ms4:questions", "color": "D876E3", "description": "構造化仕様に質問か「仮」が残っている。GDD を直して版を上げ再送するまでマージできない" },
+    "integrated": { "name": "ms4:integrated", "color": "0052CC", "description": "門を通り統合ブランチへマージ済み。統合 PR がマージされるまで Issue は開いたまま。スケジューラは再処理しない" }
   },
+
+  "_integrated_note": "ms4:integrated を付けるのはスケジューラだけ（統合ブランチへの push が成功した直後）。Issue はここでは閉じない。閉じるのは統合 PR の本文の Closes #N（main へのマージ時）。list_ready はこのラベルの付いた Issue を対象から外す（二重処理の防止）",
 
   "_questions_note": "ms4:questions は構造化仕様（docs/spec/）に質問か「仮」の値が 1 つでも残っている GDD の PR に付く。人間がその値のまま承認する道は無い（docs/design/spec_pipeline.md）。付けるのはスケジューラだけ（handle_gdd）",
 
@@ -27,13 +30,13 @@
   "_clis_note": "前提検査で PATH にあることを確かめる。無ければ全 Issue が同じ理由で落ちるので、着手前に止める",
   "required_clis": ["git", "gh", "claude", "agy"],
 
-  "_worktree_note": "Issue と GDD の PR の作業は、この下の使い捨ての worktree（<project>-issue-N / <project>-gdd-v<版>-<sha8>）で行う。本体の clone（repo_dir）には書き込まない（docs/design/spec_pipeline.md §13）",
+  "_worktree_note": "作業はこの下の worktree で行う。Issue は固定の <project>-issue-runner を使い回し（物理削除しない。runner_worktree_name）、GDD の PR は使い捨ての <project>-gdd-v<版>-<sha8> を使う。本体の clone（repo_dir）には書き込まない（docs/design/spec_pipeline.md §13）",
   "worktree_root": "C:\\src\\.local\\wt",
 
-  "_commands_note": "{python} は実行中の Python、{harness} は harness/ の絶対パス、{project} はプロジェクト ID、{telemetry} はログの隣のテレメトリ JSON、{repo} は作業する worktree（cwd も同じ）。テストではここをスタブに差し替える",
+  "_commands_note": "{python} は実行中の Python、{harness} は harness/ の絶対パス、{project} はプロジェクト ID、{telemetry} はログの隣のテレメトリ JSON、{verdict} は監査の判定の書き出し先、{repo} は作業する worktree（cwd も同じ）。テストではここをスタブに差し替える",
   "commands": {
     "decompose": ["{python}", "{harness}/decompose.py", "--project", "{project}", "--issue", "{number}", "--repo-dir", "{repo}", "--telemetry", "{telemetry}"],
-    "audit":     ["{python}", "{harness}/audit.py", "--project", "{project}", "--file", "{file}", "--repo-dir", "{repo}"],
+    "audit":     ["{python}", "{harness}/audit.py", "--project", "{project}", "--file", "{file}", "--repo-dir", "{repo}", "--verdict-json", "{verdict}"],
     "pipeline":  ["{python}", "{harness}/pipeline.py", "--project", "{project}", "--unit", "{unit}", "--repo-dir", "{repo}", "--telemetry", "{telemetry}"],
     "playtest":  ["{python}", "{harness}/playtest.py", "--project", "{project}", "--pr", "{pr}", "--sha", "{sha}", "--telemetry", "{telemetry}"],
     "spec":      ["{python}", "{harness}/spec.py", "--project", "{project}", "--gdd", "{gdd}", "--out-dir", "{out_dir}", "--work-dir", "{work_dir}", "--previous-spec", "{previous_spec}", "--telemetry", "{telemetry}"]
@@ -80,5 +83,16 @@
   "watchdog_seconds": 900,
 
   "comment_log_tail_chars": 1500,
-  "max_issues_per_run": 5
+  "max_issues_per_run": 5,
+
+  "_integration_note": "統合ブランチ方式（docs/design/spec_pipeline.md §13 の 1）。Issue ごとの PR は作らない。門（F2P/P2P/静的検査/改変ブロック）に通った Issue は、固定 worktree の中で integration_prefix + integration_target へ --no-ff でローカルマージし、そのまま push する。人間の承認（H1）とプレイ確認（H2）は、統合ブランチから main への統合 PR 1 本でだけ受ける",
+  "integration_prefix": "integration/",
+  "integration_target": "mvp",
+
+  "_integration_count_note": "1 つの統合ブランチに積む Issue は integration_max_issues 本まで（汚染が伝わって捨てる範囲を小さくする）。周の末尾で、積まれた本数が integration_pr_min_issues 以上になるか、ready の Issue が尽きたら統合 PR を 1 本作る",
+  "integration_pr_min_issues": 3,
+  "integration_max_issues": 4,
+
+  "_runner_note": "Issue の作業は、この固定 worktree を使い回す（<worktree_root>/<project>-issue-runner）。物理削除しないので、Windows のファイルロック衝突（WinError 32）が原理的に起きない。使う前に reset --hard と clean -fdx で掃除し、checkout -B で統合ブランチの先頭から切り直す",
+  "runner_worktree_name": "issue-runner"
 }
