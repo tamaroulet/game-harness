@@ -138,6 +138,30 @@ class DotnetAdapterTests(unittest.TestCase):
             with self.subTest(p):
                 self.assertNotRegex(p, dotnet.TEST_PATH_RE)
 
+    def test_test_file_glob_finds_the_file_from_a_fully_qualified_name(self):
+        """完全修飾クラス名でも単純名でも、同じファイルに当たること。
+
+        ファイル名は名前空間を含まない。完全修飾名をそのまま glob にすると 1 件も当たらず、
+        「受入テストがサンドボックスに置かれていない」と誤判定して門が止まる（実測）。
+        """
+        self.assertEqual(dotnet.test_file_glob("StandaloneCore.Tests.InitialStateTests"),
+                         "*InitialStateTests*.cs")
+        self.assertEqual(dotnet.test_file_glob("InitialStateTests"), "*InitialStateTests*.cs")
+
+    def test_test_file_glob_matches_the_real_file_names(self):
+        """実際のファイル名に当たることを、fnmatch で確かめる（glob の形だけでは分からない）。"""
+        import fnmatch
+        cases = {
+            "StandaloneCore.Tests.InitialStateTests": "InitialStateTests.cs",
+            "InitialStateTests": "InitialStateTests.cs",
+            "A.B.Cls": "A.B.Cls.cs",            # 完全修飾名そのままのファイル名も拾える
+            "Core.Tests.BossChargeStateTests": "BossChargeStateTests.cs",
+        }
+        for name, filename in cases.items():
+            with self.subTest(name):
+                self.assertTrue(fnmatch.fnmatch(filename, dotnet.test_file_glob(name)),
+                                f"{filename} が {dotnet.test_file_glob(name)} に当たらない")
+
     def test_run_tests_disables_msbuild_node_reuse(self):
         """/nr:false が無いと MSBuild のワーカーが常駐し、.dll を掴んで次のビルドを落としうる。"""
         with tempfile.TemporaryDirectory() as d:
