@@ -183,6 +183,48 @@ class RefTests(Base):
         self.assertEqual(r["problems"], [])
 
 
+class OriginTests(Base):
+    """根拠列の `[Origin: CWA]`（閉世界仕様化プロトコルから演繹した行）。
+
+    人間が決めたことと、基盤の規約が決めたことの境目を、承認する人間に見せるための印。
+    合否には使わない（マージは止めない）が、**印を付けたからといって根拠は省けない**。
+    """
+
+    def test_a_row_derived_from_the_protocol_passes_and_is_reported(self):
+        r = run(spec(lp=["| LP-01 | 盤面は幅 10 × 高さ 20 | L6 [Origin: CWA] |"]))
+        self.assertEqual(r["problems"], [])
+        self.assertEqual(r["summary"]["derived"],
+                         [{"id": "LP-01", "origin": "CWA", "refs": "L6 [Origin: CWA]"}])
+
+    def test_the_tag_does_not_change_whether_it_can_be_merged(self):
+        """規約で決めた行はマージを止めない（止めると質問の無限後退に戻る）。"""
+        self.assertEqual(run(spec(lp=["| LP-01 | a | L6 [Origin: CWA] |"]))["summary"]["mergeable"],
+                         run()["summary"]["mergeable"])
+
+    def test_rows_without_the_tag_are_not_reported(self):
+        self.assertEqual(run()["summary"]["derived"], [], "GDD に直接書かれた行は出所を持たない")
+
+    def test_an_unknown_origin_is_ng(self):
+        """出所の名前は設定にあるものだけ。勝手な出所を名乗らせない。"""
+        self.assertNG(run(spec(lp=["| LP-01 | a | L6 [Origin: GUESS] |"])), "許されていません")
+
+    def test_the_tag_cannot_replace_the_line_numbers(self):
+        """規約が当てはまる GDD の箇所を必ず指す。これが無いと根拠の無い行を作れてしまう。"""
+        self.assertNG(run(spec(lp=["| LP-01 | a | [Origin: CWA] |"])), "出所だけでは根拠になりません")
+
+    def test_the_range_is_still_checked_with_a_tag(self):
+        self.assertNG(run(spec(lp=["| LP-01 | a | L99 [Origin: CWA] |"])), "範囲")
+        self.assertNG(run(spec(lp=["| LP-01 | a | L5 [Origin: CWA] |"])), "分母から外した行")
+
+    def test_a_tagged_range_still_counts_for_coverage(self):
+        r = run(spec(lp=["| LP-01 | 盤面 | L5-L7 [Origin: CWA] |"]))
+        self.assertEqual(r["problems"], [])
+
+    def test_origins_are_configured_not_hardcoded(self):
+        """出所を増やすのに、コードの変更も単体テストの再実行も要らないようにする。"""
+        self.assertIn("CWA", project.config("gdd_check")["origins"])
+
+
 EXTRA = GDD + "- ネクストは 3 個表示する。\n"   # L20（どの行にも引かれていない対象行）
 
 

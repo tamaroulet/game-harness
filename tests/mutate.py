@@ -260,6 +260,17 @@ M = [
     ('M89 ID の重複を許す', "gdd_check.py",
      '        if r["ID"] in ids:',
      '        if False:'),
+    # ---- 出所の明示（CWA。docs/design/spec_pipeline.md §14）
+    ('M139 知らない出所を名乗っても通す', "gdd_check.py",
+     '        if origin not in origins:',
+     '        if False:'),
+    ('M140 出所つきの行を要約に出さない', "gdd_check.py",
+     '        if origin:\n            derived.append(',
+     '        if False:\n            derived.append('),
+    ('M141 出所タグだけで根拠を省けるようにする', "gdd_check.py",
+     '        if not value:\n            problems.append(f"{where}: 根拠がありません（出所だけでは根拠になりません。"',
+     '        if False:\n            problems.append(f"{where}: 根拠がありません（出所だけでは根拠になりません。"'),
+
     # ---- 構造化役（docs/design/spec_pipeline.md §2・§8）
     ('M90 不合格の理由を次の試行に渡さない', "spec.py",
      '        feedback = (problems[:cfg["max_feedback_problems"]], text)',

@@ -1969,6 +1969,8 @@ class Scheduler:
                 "### 仮の値\n\n" + rows(s["provisional"], lambda x: f"- {x['id']} {x['name']} = {x['value']}（{x['refs']}、{heads(x)}）")
                 + "\n\n### 質問\n\n" + rows(s["questions"], lambda x: f"- {x['id']} {x['question']}（{x['refs']}、{heads(x)}）")
                 + "\n\n### 錨の欠落\n\n" + rows(s["anchors_missing"], lambda x: f"- {x}")
+                + "\n\n### 基盤の規約から決めた行（GDD の散文ではなく CWA から演繹した行）\n\n"
+                + rows(s.get("derived") or [], lambda x: f"- {x['id']} `[{x['origin']}]`（{x['refs']}）")
                 + "\n\n### 人間確認・演出（HC）\n\n" + rows(s["human_checks"], lambda x: f"- {x['id']} {x['content']}（{x['refs']}）")
                 + "\n\n### GDD に無い、機能名らしい語（候補。合否には使っていない）\n\n"
                 + (", ".join(s["term_candidates"]) or "（なし）"))
@@ -1985,10 +1987,15 @@ class Scheduler:
 
     def gdd_approval_request(self, num, version, sha, head, s):
         project_id = self.cfg.get("project_id") or self.cfg["repo_slug"]
+        derived = s.get("derived") or []
         return (f"**ms4: 承認依頼** — GDD v{version} の構造化仕様（PR #{num}）\n\n"
                 f"対象コミット: `{head[:8]}`（この SHA に対してだけ有効。push されると承認は外れます）\n\n"
-                f"GDD `{sha[:8]}` から構造化役が作り、網羅検査に合格しました。仮 0・質問 0・錨の欠落 0。"
-                "内容は直前の「構造化仕様の検査結果」と、PR の `docs/spec/spec.md` を見てください。\n\n"
+                f"GDD `{sha[:8]}` から構造化役が作り、網羅検査に合格しました。仮 0・質問 0・錨の欠落 0。\n\n"
+                + (f"**うち {len(derived)} 行は、GDD の散文ではなく基盤の規約（CWA）から機械的に決めた行です**"
+                   "（直前の検査結果に一覧があります）。人間が決めたことと機械が決めたことの境目は、"
+                   "そこで確認してください。\n\n" if derived else
+                   "すべての行が GDD の記述に直接もとづいています（規約から決めた行はありません）。\n\n")
+                + "内容は直前の「構造化仕様の検査結果」と、PR の `docs/spec/spec.md` を見てください。\n\n"
                 "### 人間が実機で見ること\n\n（GDD の構造化仕様のため、実機での確認はありません）\n\n"
                 "### 承認\n\n```\n"
                 f"python tools/dispatch.py --approve {project_id}#{num}\n"
