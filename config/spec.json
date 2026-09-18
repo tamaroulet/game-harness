@@ -5,9 +5,12 @@
   "headless_flag": "-p",
   "version_args": ["--version"],
 
-  "_model_note": "実験の条件をそろえるためモデルを固定する（S7）。CLI の JSON 出力の modelUsage に別のモデルが現れたら環境異常で止める",
+  "_model_note": "実験の条件をそろえるためモデルを固定する（S7）。CLI の JSON 出力の modelUsage を見て、固定したモデルが実際に使われたこと、ほかは auxiliary_models だけであることを確かめる。違えば環境異常で止める",
   "model_flag": "--model",
   "model": "claude-opus-5",
+
+  "_auxiliary_note": "CLI は、要求したモデルのほかに自分の内部処理（要約・見出しの生成など）で小型のモデルを呼ぶ。実測: claude 2.1.258 の -p は claude-opus-5 の要求に対して claude-haiku-4-5-20251001 を併用した（2026-09-18、GDD v2 の処理で ABORT）。ここに挙げた接頭辞のモデルは「構造化仕様を書いた者」として数えない。挙げていないモデルが混ざったら、誰が書いたか分からないので止める",
+  "auxiliary_models": ["claude-haiku-"],
 
   "_flags_note": "プロンプトのファイルを読むためだけに Read を許す。書き込み系は渡さない（ファイルは spec.py が検査に通ったものだけ書く）",
   "extra_flags": ["--allowedTools", "Read"],

@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 import gdd_check  # noqa: E402
 import project  # noqa: E402
 import spec  # noqa: E402
+from spec import auxiliary_prefixes  # noqa: E402
 import test_gdd_check as fx  # noqa: E402
 
 
@@ -57,7 +58,7 @@ class FakeCli:
                "usage": {"input_tokens": 10, "output_tokens": 20, "cache_read_input_tokens": 0,
                          "cache_creation_input_tokens": 0}}
         if self.models is not None:
-            doc["modelUsage"] = {m: {} for m in self.models}
+            doc["modelUsage"] = {m: {"outputTokens": 20} for m in self.models}
         return 0, json.dumps(doc), ""
 
 
@@ -168,6 +169,63 @@ class PromptTests(Base):
         self.assertNotIn("$", p.replace("$gdd", ""))   # 置き換え漏れが無い
 
 
+class ModelTests(Base):
+    """CLI が内部処理で呼ぶ小型モデル（実測: claude 2.1.258 の -p は haiku を併用）を止めない。
+
+    これを「別のモデルが使われた」と数えると構造化役を 1 度も動かせない。一方で、
+    要求したモデルが使われていない場合と、許していないモデルが混ざった場合は止める。
+    """
+
+    def test_an_auxiliary_model_alongside_the_pinned_one_is_allowed(self):
+        fake = FakeCli([response()], models=["claude-haiku-4-5-20251001", "claude-opus-5"])
+        self.assertEqual(self.main(fake), 0)
+        att = self.telemetry()["attempts"][0]
+        self.assertEqual(att["models_used"], ["claude-haiku-4-5-20251001", "claude-opus-5"],
+                         "併用したモデルも記録に残す（条件を後から検証できるように）")
+        self.assertIsNone(att.get("models_used_null_reason"))
+        self.assertEqual(att["model_usage"]["claude-opus-5"], {"outputTokens": 20})
+
+    def test_a_cli_without_model_usage_is_recorded_as_unknown_not_empty(self):
+        """modelUsage を報告しない CLI の版。判定材料が無いことを 0 件と混ぜない。"""
+        fake = FakeCli([response()], models=None)
+        self.assertEqual(self.main(fake), 0)
+        att = self.telemetry()["attempts"][0]
+        self.assertIsNone(att["models_used"])
+        self.assertIn("modelUsage", att["models_used_null_reason"])
+
+    def test_the_raw_cli_response_is_kept_for_every_attempt(self):
+        """モデルの判定で止まっても、誰が何を書いたかを後から追えるようにする。"""
+        fake = FakeCli([response()], models=["claude-opus-5", "claude-sonnet-5"])
+        self.assertEqual(self.main(fake), 2)
+        saved = self.work / "attempt_1" / "cli.json"
+        self.assertTrue(saved.exists(), "ABORT した試行でも生の応答が残る")
+        self.assertIn("claude-sonnet-5", saved.read_text(encoding="utf-8"))
+
+
+class ConfigModelTests(unittest.TestCase):
+    def test_auxiliary_models_are_listed_and_do_not_swallow_the_pinned_one(self):
+        """値そのものは固定しない。接頭辞の追記だけで復旧できるようにするため。"""
+        cfg = project.config("spec")
+        self.assertTrue(cfg["auxiliary_models"], "内部処理用として許す接頭辞を明示する")
+        self.assertEqual(auxiliary_prefixes(cfg), tuple(cfg["auxiliary_models"]))
+
+    def test_a_missing_or_broken_setting_stops_with_a_readable_reason(self):
+        """素の KeyError で落とさない。「設定を足せば直る」と読める形で止める。"""
+        base = project.config("spec")
+        cases = {
+            "キーが無い": {k: v for k, v in base.items() if k != "auxiliary_models"},
+            "空の配列": {**base, "auxiliary_models": []},
+            "配列でない": {**base, "auxiliary_models": "claude-haiku-"},
+            "空文字が混ざる": {**base, "auxiliary_models": ["claude-haiku-", " "]},
+            "固定モデル自身を飲み込む": {**base, "auxiliary_models": ["claude-"]},
+        }
+        for label, cfg in cases.items():
+            with self.subTest(label):
+                with self.assertRaises(spec.Env) as ctx:
+                    auxiliary_prefixes(cfg)
+                self.assertIn("auxiliary_models", str(ctx.exception))
+
+
 class EnvTests(Base):
     def test_cli_failure_is_env_and_writes_nothing(self):
         self.assertEqual(self.main(FakeCli([], rc=1)), 2)
@@ -176,8 +234,17 @@ class EnvTests(Base):
     def test_unreadable_envelope_is_env(self):
         self.assertEqual(self.main(FakeCli([], envelope="not json")), 2)
 
-    def test_other_model_is_env(self):
+    def test_another_primary_model_is_env(self):
+        """許していないモデルが混ざったら止める（誰が書いたのか分からない）。"""
+        fake = FakeCli([response()], models=["claude-opus-5", "claude-sonnet-5"])
+        self.assertEqual(self.main(fake), 2)
+        self.assertFalse(self.out.exists())
+
+    def test_the_pinned_model_must_actually_be_used(self):
+        """要求したモデルが modelUsage に現れない。内部処理用のモデルだけでは通さない。"""
         self.assertEqual(self.main(FakeCli([response()], models=["claude-haiku-4-5-20251001"])), 2)
+        self.assertFalse(self.out.exists())
+        self.assertEqual(self.main(FakeCli([response()], models=[])), 2, "modelUsage が空でも通さない")
         self.assertFalse(self.out.exists())
 
     def test_gdd_without_metadata_or_other_project_is_env(self):
