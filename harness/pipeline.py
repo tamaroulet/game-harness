@@ -565,6 +565,13 @@ def stage_golden(c, with_holdout):
     ゴールデンランナー（MS2 のゴールデン等価テストなど）が
     「ファイルが無い」で落ち、実装が正しくても REJECT になる（実測で発生した）。
     ステージング先は 1 つで、そこを全ランナーが見る。
+
+    **1 本も無いことを異常とするのは、リファクタリングの単位だけ。** テスト駆動の単位には
+    ゴールデンがそもそも無い（正解は分解役が書いたテスト）。ここで一律に止めると、
+    Pure C# のプロジェクトは 1 単位も通せない（falling-blocks Issue #12、2026-09-18）。
+
+    **それでも掃除は必ず行う。** 「テスト駆動なら何もせず戻る」と書くと、前のランの
+    ゴールデンが staging に残り、全ランナーがそれを拾う。ここを飛ばしてよい理由は無い。
     """
     c.stage.mkdir(parents=True, exist_ok=True)
     for p in c.stage.glob("golden_*.json"):
@@ -575,7 +582,7 @@ def stage_golden(c, with_holdout):
     for p in sorted(src_dir.glob("golden_*.json")):
         shutil.copyfile(p, c.stage / p.name)
         staged.append(p.name)
-    if not staged:
+    if not staged and not c.test_driven:
         sys.exit(f"ABORT: 開示ゴールデンが 1 本もありません: {src_dir}")
 
     if with_holdout:
