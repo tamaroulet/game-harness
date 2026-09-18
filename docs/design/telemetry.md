@@ -16,9 +16,15 @@
 |:--|:--|:--|
 | `decompose.py --telemetry` | ログの隣の `decompose.telemetry.json` | 分解役（claude）の利用量、秒数 |
 | `pipeline.py --telemetry` | `pipeline.telemetry.json` | ハーネスと base の SHA、自己検査、base、**全試行**（落ちた門・理由・秒数・フィードバックの長さ・実装役の利用量・差分のハッシュ・P2P 破壊件数） |
+| `pipeline.py`（常時） | テレメトリの隣の `implementer_attempt_<n>.log` | 実装役に渡したプロンプトと、返ってきた stdout / stderr の**生のまま**。`--telemetry` が無ければ `<out_dir>/pipeline/` に落ちる |
 | `scheduler.py` | `runs.jsonl` | 上の 2 つを `steps[].telemetry` に取り込み、Issue 単位の指標を計算する |
 
 監査役（`audit.py`）はテレメトリを書かない（`telemetry: null`）。トークンの合計にも含めない。
+
+`implementer_attempt_<n>.log` は **rc が 0 でも書く**。実装役が「なぜ実装を書かなかったか」を
+書くのは応答本文だけで、終了コードにも差分にも出ないため。2026-09-18 の Issue #12 は 3 試行とも
+rc=0・差分ゼロで不合格になったが、当時は rc=0 の応答を捨てていて、実行記録からは理由を追えなかった。
+判定には使わない。書けなくても実行は止めない。
 
 ## 3. CLI の利用量（2026-09-17 に 1 回ずつ実測）
 

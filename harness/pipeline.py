@@ -314,6 +314,50 @@ def purge_holdout(c):
 
 # ============================================================ 実装AI
 
+def implementer_log_dir(c):
+    """実装役の生ログの置き場。テレメトリと同じ所に置く（1 回の実行の記録をばらさない）。"""
+    return c.tel_path.parent if c.tel_path is not None else c.out
+
+
+def write_implementer_log(c, n, prompt, rc, out, err):
+    """実装役に渡した指示と返ってきた生出力を、試行ごとにそのまま残す。
+
+    **rc == 0 でも捨てない。** 実装役が「なぜ書かなかったか」を書くのは応答本文だけで、
+    終了コードにも差分にも出ない。2026-09-18 の Issue #12 は 3 試行とも rc=0・差分ゼロで
+    落ちたが、応答を捨てていたため実行記録からは理由を追えなかった（実装役の常駐規約が
+    ファイル編集を禁じていて、実装をチャット本文に貼るだけで終わっていた）。
+
+    観測のための機能であって判定には使わない。書けなくても実行は止めない。
+    """
+    imp = c.cfg["implementer"]
+    body = "\n".join([
+        f"# 実装役 試行 {n}",
+        f"- cli: {imp['cli']}",
+        f"- model: {imp['model_name']}",
+        f"- rc: {rc}",
+        f"- cwd: {c.sandbox}",
+        "",
+        "=== プロンプト ===",
+        prompt,
+        "",
+        "=== stdout ===",
+        out,
+        "",
+        "=== stderr ===",
+        err,
+        "",
+    ])
+    path = implementer_log_dir(c) / f"implementer_attempt_{n}.log"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+    except OSError as e:
+        print(f"    実装役のログを書けませんでした（判定には影響しません）: {e}")
+        return None
+    print(f"    実装役の応答: {path}")
+    return path
+
+
 def call_implementer(c, feedback=""):
     # 相対パスで渡すと、実装AIが本体リポジトリを編集しうる（実測で発生した）。
     # サンドボックスの絶対パスに展開して曖昧さを消す。ただしこれは
@@ -345,6 +389,7 @@ def call_implementer(c, feedback=""):
     args += imp.get("output_format_args", [])
     t0 = time.monotonic()
     rc, out, err = run(args, c.sandbox, c.ttl["implementer"], "実装AI")
+    write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err)
     if c.cur is not None:
         usage = (telemetry.cli_usage(out, imp["usage_format"])
                  if imp.get("usage_format") and imp.get("output_format_args")
