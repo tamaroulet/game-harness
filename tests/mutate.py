@@ -349,6 +349,9 @@ M = [
      '    if pairs < pc["min_coordinate_pairs"]:',
      '    if False:'),
     # ---- 門と持ち出し先（PR 1: S22・S23）
+    ('M143 ゴールデンの無いテスト駆動の単位でも ABORT する', 'pipeline.py',
+     '    if not staged and not c.test_driven:',
+     '    if not staged:'),
     ('M109 未追跡をフォルダにまとめて読む', 'pipeline.py',
      '"--untracked-files=all"], cwd, ttl, "status")',
      '"--untracked-files=normal"], cwd, ttl, "status")'),
