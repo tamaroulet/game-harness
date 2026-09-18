@@ -39,6 +39,8 @@ SPEC_META = [re.compile(r"<!-- project: ([a-z0-9][a-z0-9-]*) -->"),
 GDD_META = [re.compile(r"<!-- project: ([a-z0-9][a-z0-9-]*) -->"),
             re.compile(r"<!-- version: ([1-9][0-9]*) -->")]
 REF_RE = re.compile(r"^L(\d+)(?:-L(\d+))?$")
+# 根拠列の末尾に付く出所。`L98-L101 [Origin: CWA]` の形だけを受ける
+ORIGIN_RE = re.compile(r"\s*\[Origin:\s*([A-Za-z0-9_-]+)\s*\]\s*$")
 ID_TOKEN_RE = re.compile(r"\b(LP|ST|RL|IF|PR|HC)-(\d{2,})\b|\bQ-(\d{2,})\b")
 COORD_RE = re.compile(r"\(\s*(-?\d+)\s*,\s*(-?\d+)\s*\)")
 PIVOT_RE = re.compile(r"^\(\s*(-?\d+(?:\.5)?)\s*,\s*(-?\d+(?:\.5)?)\s*\)$")
@@ -205,12 +207,31 @@ def parse_doc(text, meta_res, sections, name, problems):
     return meta, tables
 
 
-def parse_refs(value, nlines, targets, where, problems):
-    """根拠の列 → 行番号の集合。形・範囲・対象行を含むかを検査する。"""
-    cited = set()
+def parse_refs(value, nlines, targets, where, problems, origins=()):
+    """根拠の列 → (行番号の集合, 出所)。形・範囲・対象行を含むかを検査する。
+
+    末尾の `[Origin: <名前>]` は、その行が GDD の散文ではなく、基盤が定めた規約
+    （閉世界仕様化プロトコル = CWA）から演繹されたことを表す（docs/design/spec_pipeline.md §14）。
+
+    **出所を書いても行番号は省けない。** 規約が当てはまる GDD の箇所（その操作や状態を
+    記述した行）を必ず指す。省けるようにすると、どの記述に対する規約の適用なのかが
+    追えなくなり、「根拠の無い行」を作る抜け道になる。
+    """
+    cited, origin = set(), None
     if not value or value == "-":
         problems.append(f"{where}: 根拠がありません")
-        return cited
+        return cited, origin
+    m = ORIGIN_RE.search(value)
+    if m:
+        origin, value = m.group(1), value[:m.start()].strip()
+        if origin not in origins:
+            problems.append(f"{where}: 出所 [Origin: {origin}] は許されていません"
+                            f"（config/gdd_check.json の origins: {', '.join(origins) or '（なし）'}）")
+            origin = None
+        if not value:
+            problems.append(f"{where}: 根拠がありません（出所だけでは根拠になりません。"
+                            "規約が当てはまる GDD の行を指してください）")
+            return cited, origin
     for part in value.split(", "):
         m = REF_RE.fullmatch(part)
         if not m:
@@ -225,7 +246,7 @@ def parse_refs(value, nlines, targets, where, problems):
         if not span & targets:
             problems.append(f"{where}: 根拠 {part} は分母から外した行（見出し・空行など）だけを指しています")
         cited |= span
-    return cited
+    return cited, origin
 
 
 # ============================================================ 語
@@ -266,7 +287,8 @@ def check(gdd_text, spec_text, questions_text, terms, previous_spec_text=None):
             rows.append(("spec", prefix, head, r))
     for r in qdoc.get("## 質問", []):
         rows.append(("questions", "Q", "## 質問", r))
-    cited_all = set()
+    cited_all, derived = set(), []
+    origins = tuple(cfg.get("origins") or ())
     for doc, prefix, head, r in rows:
         where = f"{'spec.md' if doc == 'spec' else 'questions.md'} {r['ID']}（{r['_line']} 行目）"
         if r["ID"] == NONE_ROW:
@@ -277,8 +299,10 @@ def check(gdd_text, spec_text, questions_text, terms, previous_spec_text=None):
         if r["ID"] in ids:
             problems.append(f"{where}: ID が重複しています（{ids[r['ID']]} 行目）")
         ids[r["ID"]] = r["_line"]
-        r["_cited"] = parse_refs(r["根拠"], nlines, targets, where, problems)
+        r["_cited"], origin = parse_refs(r["根拠"], nlines, targets, where, problems, origins)
         cited_all |= r["_cited"]
+        if origin:
+            derived.append({"id": r["ID"], "origin": origin, "refs": r["根拠"]})
 
     real_rows = [x for x in rows if x[3]["ID"] != NONE_ROW]
 
@@ -413,6 +437,7 @@ def check(gdd_text, spec_text, questions_text, terms, previous_spec_text=None):
         "provisional": provisional,
         "questions": questions,
         "human_checks": human,
+        "derived": derived,
         "anchors_missing": anchors_missing,
         "term_candidates": sorted(candidates),
         "id_changes": id_changes,
