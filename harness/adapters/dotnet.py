@@ -34,7 +34,18 @@ STUB_SOURCE = (
 
 
 def test_file_glob(test_name):
-    return f"*{test_name}*.cs"
+    """受入テストの名前から、それが書かれているファイルを探す glob。
+
+    受入テストの名前は完全修飾クラス名でも単純名でもよい（オラクルの照合は部分一致なので、
+    どちらも結果に当たる）。一方でファイル名は名前空間を含まないので、完全修飾名をそのまま
+    glob にすると 1 件も当たらない。実測: `StandaloneCore.Tests.InitialStateTests` に対して
+    ファイルは `InitialStateTests.cs`（falling-blocks Issue #12、2026-09-18）。
+
+    **「ファイル名はクラスの単純名から決まる」は C# の慣習なので、ここで吸収する。**
+    `*<単純名>*.cs` は `NS.Cls.cs` のような名前のファイルにも当たるので、完全修飾名の
+    ファイルを別に探す必要はない。
+    """
+    return f"*{test_name.split('.')[-1]}*.cs"
 
 
 def build_output_globs(filename):
