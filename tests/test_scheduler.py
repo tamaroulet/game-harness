@@ -109,9 +109,13 @@ if role == "audit":
         sys.exit(1)
 
 if role == "pipeline":
-    if mode == "ok":
+    if mode in ("ok", "companion"):
         write(f"Game/Assets/Core/Issue{n}.cs", "// impl\n")
         git("add", "--", f"Game/Assets/Core/Issue{n}.cs")
+        if mode == "companion":
+            # エンジンが自動で作る付随ファイル（本体と一緒に持ち出される）
+            write(f"Game/Assets/Core/Issue{n}.cs.meta", "fileFormatVersion: 2\nguid: 0123456789ab\n")
+            git("add", "--", f"Game/Assets/Core/Issue{n}.cs.meta")
         git("commit", "-m", f"impl {n}")
         git("push")
         write_tel({"schema": 1, "tool": "pipeline", "attempts_judged": 2,
@@ -1279,6 +1283,32 @@ class SchedulerTests(Base):
                          "マージ直前の監査は実装だけを見る（テスト・単位定義・レポートは外す）")
         self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "ok")
         self.assertEqual(issue["merge_audit_verdict"], "ok")
+
+    def test_the_pre_merge_audit_skips_engine_companion_files(self):
+        """エンジンが自動で作る付随ファイルは、監査の対象にしない。
+
+        人が書いた実装ではないし、中身は機械が振った識別子だけで、読ませても指摘は出るが
+        意味が無い。実測では 59 文字の付随ファイル 6 件に監査役が約 6 分かけ、そのそれぞれに
+        「指摘 7 件」を返していた（2026-09-19 の Issue #12。マージ直前の監査は当時の
+        最大の時間項で、その半分が付随ファイルに使われていた）。
+
+        外すのは監査の対象からだけで、付随ファイル自体はマージには載る。
+        """
+        os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
+        self.plan["pipeline"] = {"5": "companion"}
+        gh = FakeGH([(5, "a")])
+        self.assertEqual(self.run_scheduler(gh), 0)
+
+        issue = self.runs()[0]
+        self.assertEqual(issue["impl_files"], ["Game/Assets/Core/Issue5.cs"],
+                         "付随ファイルは実装として数えない")
+
+        files = self.remote_files(self.INTEG)
+        self.assertIn("Game/Assets/Core/Issue5.cs.meta", files,
+                      "外すのは監査からだけ。付随ファイルはマージに載る")
+        self.assertIn("reports/audits/audit_Issue5.md", files, "実装そのものは監査する")
+        self.assertNotIn("reports/audits/audit_Issue5.cs.md", files,
+                         "付随ファイルの監査レポートは作られない")
 
     def test_an_unreadable_verdict_is_unknown_not_ok(self):
         """監査役が決められた形で返さなかった。判定を ok に畳まない。"""
