@@ -486,6 +486,37 @@ def gate_static_common(c):
     return None
 
 
+# 修飾名（`Foo.Bar`）と見なす形。ドットで繋がった識別子だけで、空白や記号を含むものは外す。
+# required_symbols には識別子のほかに、宣言の一行をそのまま写したコード片も書ける
+# （属性つきフィールドなど。実運用にある）。角括弧を含むそれらを正規表現として解釈すると
+# 文字クラスになって壊れるので、修飾名以外は今までどおり生の部分一致で照合する。
+QUALIFIED_SYMBOL = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+\Z")
+
+
+def symbol_found(symbol, text):
+    """required_symbols の 1 件が text にあるか。
+
+    既定は生の部分一致（宣言の一行をそのまま書ける）。ただし `Foo.Bar` のような**修飾名だけ**は、
+    宣言側のソースにその並びが現れない。型の中に要素を書く言語では、`Foo` の宣言の内側に `Bar` が
+    あるだけで、`Foo.Bar` とは並ばないからである。そこで、ドットで分けた各識別子が語として
+    出ているかで見る。分解役が修飾名で書いた単位が、実装が正しくても必ず落ちるという取り違えが
+    実測で起きた（2026-09-18 の Issue #12。実装役が回した受入テストは 37 件すべて通っていた）。
+
+    **測っていないもの**: その要素が本当にその型の中で宣言されているかは見ない。
+    ここは受入テストの前に置く粗い篩で、正解を決めるのは分解役が書いたテストである。
+    """
+    if symbol in text:
+        return True
+    if not QUALIFIED_SYMBOL.match(symbol):
+        return False
+    return all(re.search(r"\b" + re.escape(part) + r"\b", text)
+               for part in symbol.split("."))
+
+
+def missing_symbols(required, text):
+    return [s for s in required if not symbol_found(s, text)]
+
+
 def gate_static(c):
     if c.test_driven:
         ng = gate_static_common(c)
@@ -493,7 +524,7 @@ def gate_static(c):
             return ng
         impls = c.unit.get("impl_files") or c.unit["whitelist"]
         text = "\n".join(c.sb(r).read_text(encoding="utf-8", errors="replace") for r in impls)
-        missing = [s for s in c.unit["required_symbols"] if s not in text]
+        missing = missing_symbols(c.unit["required_symbols"], text)
         if missing:
             return "シグネチャが揃っていません: " + ", ".join(missing)
         return None
@@ -512,7 +543,7 @@ def gate_static(c):
     # コンパイル可否に直結するもの（core で使えない API の残存）を、配線の問題（委譲）より
     # 先に報告する。逆順にすると、委譲が未配線の間はこの門に到達できず、
     # 門が効いているかを確かめられない（自己検査で実測した）。
-    missing = [s for s in c.unit["required_symbols"] if s not in core_t]
+    missing = missing_symbols(c.unit["required_symbols"], core_t)
     if missing:
         return "シグネチャが壊れています: " + ", ".join(missing)
 
@@ -524,7 +555,7 @@ def gate_static(c):
         return f"{c.unit['forbidden_leftover']} が残っています（{c.unit['core_impl']}）"
 
     # --- ラッパー側（エンジンの型から core へ委譲する側）
-    so_missing = [s for s in c.unit["so_required_symbols"] if s not in so_t]
+    so_missing = missing_symbols(c.unit["so_required_symbols"], so_t)
     if so_missing:
         return "ラッパー側の結合（シリアライズされる項目など）が壊れています: " + ", ".join(so_missing)
 
