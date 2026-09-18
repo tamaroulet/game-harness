@@ -29,9 +29,9 @@
          origin/<統合ブランチ>。本体の clone は main のまま触らない
          decompose.py   0 → 次 / 1 → 不合格 / それ以外 → ABORT
          生成物をコミット（想定外のパスがあれば ABORT）
-         audit.py       キーが無ければスキップ。結果は合否に使わない（required=false のとき）
+         audit.py       単位定義と受入テスト（＝オラクル）だけを見る。キーが無ければスキップ。
+                        結果は合否に使わない（required=false のとき）。実装そのものは監査しない
          pipeline.py    0 → 統合ブランチへマージ / 1 → 不合格 / それ以外 → ABORT
-         マージの直前にもう一度 audit.py（今度は実装そのもの）。判定を記録する
          統合ブランチへ --no-ff でローカルマージし、そのまま push。Issue に ms4:integrated
     4. 周の末尾。積まれた Issue が下限に達したか、ready が尽きたら統合 PR を 1 本作る
 
@@ -1288,7 +1288,7 @@ class Scheduler:
         self.igit.add_commit(changed, f"test(ms4): acceptance tests for issue #{n}")
 
         # ---- 監査（実装の前。分解役が書いたテストと単位定義を見る）
-        audit_failed, _ = self.audit(rec, [unit] + tests, "spec")
+        audit_failed, _ = self.audit(rec, [unit] + tests)
         changed = self.igit.changed_paths()
         if changed:
             self.require_only(changed, [lambda p: p.startswith(self.audit_dir + "/")], "audit.py")
@@ -1309,22 +1309,27 @@ class Scheduler:
 
         self.merge_into_integration(n, branch, integ, unit, rec)
 
-    # 監査を回す場面。表示用の名前（runs.jsonl のキーは spec→audit / merge→merge_audit）
-    AUDIT_PHASES = {"spec": "監査（実装の前）", "merge": "監査（マージの直前）"}
+    AUDIT_LABEL = "監査（実装の前）"
 
-    def audit(self, rec, files, phase):
-        """監査を回す。戻り値: (完了しなかったか, 判定)。
+    def audit(self, rec, files):
+        """実装の前に、単位定義と受入テスト（＝オラクル）を第三者のモデルに見せる。
+        戻り値: (完了しなかったか, 判定)。
 
         **判定は合否に使わない**（非決定的な門を増やさない）。ok / concern / reject を
         マージコミット・runs.jsonl・統合 PR の承認依頼の先頭に載せ、人間の目に入れる（§13 の 3）。
         判定を読み取れなかったものは unknown にする。ok に畳まない。
+
+        **実装そのものは監査しない**（2026-09-19 の決定）。実装の正しさはコンパイラと
+        決定論的な受入テストが決めるので、そこへ LLM の判定を重ねても情報が増えない。
+        一方オラクルは、コンパイラにもテストにも検査できない（恒真なテストはコンパイルも
+        通るし合格もする）。残すのがここだけなのは、そのため。
         """
-        key = "audit" if phase == "spec" else phase + "_audit"
+        key = "audit"
         key_env = self.cfg["audit"]["key_env"]
         if not os.environ.get(key_env):
             rec[key] = f"skipped ({key_env} 未設定)"
             rec[key + "_verdict"] = VERDICT_SKIPPED
-            print(f"  [{self.AUDIT_PHASES[phase]}] {key_env} が無いのでスキップ")
+            print(f"  [{self.AUDIT_LABEL}] {key_env} が無いのでスキップ")
             return True, VERDICT_SKIPPED
         if not files:
             rec[key] = "skipped (対象のファイルがありません)"
@@ -1332,7 +1337,7 @@ class Scheduler:
             return False, VERDICT_SKIPPED
         failed, verdicts, findings = [], [], []
         for f in files:
-            tag = ("" if phase == "spec" else phase + "-") + Path(f).stem
+            tag = Path(f).stem
             vpath = self.out / f"issue_{rec['issue']}" / f"audit_{tag}.verdict.json"
             fileops.unlink(vpath)
             rc, _ = self.step(rec, "audit", tag=tag, cwd=self.wt, file=f, verdict=str(vpath))
@@ -1344,7 +1349,7 @@ class Scheduler:
             verdicts.append(got)
             findings += [f"`{Path(f).name}`: {x}" for x in ((data or {}).get("findings") or [])]
             if got not in VERDICT_ORDER:
-                print(f"  [{self.AUDIT_PHASES[phase]}] {f}: 判定を読めません: "
+                print(f"  [{self.AUDIT_LABEL}] {f}: 判定を読めません: "
                       + str((data or {}).get("verdict_null_reason") or why))
         verdict = self.worst_verdict(verdicts)
         rec[key] = "failed: " + "; ".join(failed) if failed else "done"
@@ -1396,21 +1401,15 @@ class Scheduler:
         rec["head_sha"] = sha
         rec["playtest"] = "required" if self.unit_field(unit, "playtest") == "required" else "none"
 
-        # ---- マージの直前の監査。実装役が書いた実装そのものを、第三者のモデルに見せる
+        # ---- 実装そのものは監査しない。ここに LLM の判定を置かない。
+        # 実装の正しさはコンパイラと決定論的な受入テストが決める。門（F2P / P2P / 静的検査 /
+        # 改変ブロック）を通った実装へ、さらに非決定的な読み手を重ねても情報が増えない。
+        # 実測では 1 Issue あたり 13 分（通算 29 分の 45%）を使い、全体の最大の時間項だった。
+        # 残すのはオラクル（単位定義と受入テスト）の監査だけで、そちらはコンパイラにも
+        # テストにも代替できない。Audit-Verdict には、実装の前に回したその判定を載せる。
         impl = self.impl_files(branch, integ)
         rec["impl_files"] = impl
-        merge_audit_failed, verdict = self.audit(rec, impl, "merge")
-        changed = self.igit.changed_paths()
-        if changed:
-            # 先に片付ける。汚れたまま Reject を上げると、後始末の汚れ検査が ABORT に格上げする
-            self.require_only(changed, [lambda p: p.startswith(self.audit_dir + "/")], "audit.py")
-            self.igit.add_commit(changed, f"docs(audit): pre-merge audit for issue #{n}")
-            self.igit.push(branch)
-            sha = self.igit.head_sha()
-            rec["head_sha"] = sha
-        if merge_audit_failed and self.cfg["audit"]["required"]:
-            raise Reject("監査が必須の設定ですが、マージ直前の監査が完了しませんでした: "
-                         + rec["merge_audit"])
+        verdict = rec.get("audit_verdict") or VERDICT_SKIPPED
         contract_sha = self.contract_sha()
 
         # ---- ローカルマージ。統合ブランチ側に立って --no-ff（1 Issue = 1 マージコミット）
@@ -1448,15 +1447,16 @@ class Scheduler:
         self.wt, self.igit = None, None
 
     def integrated_report(self, n, integ, rec, verdict):
-        found = rec.get("merge_audit_findings") or []
+        found = rec.get("audit_findings") or []
         body = (f"**ms4: 統合ブランチへマージしました** — Issue #{n}\n\n"
                 f"- 統合ブランチ: `{integ}`\n"
                 f"- マージコミット: `{rec['merge_sha'][:8]}`（Issue 側の先頭 `{rec['head_sha'][:8]}`）\n"
                 f"- 門: F2P / P2P / 静的検査 / 改変ブロック すべて合格（`Gate-Result: PASSED`）\n"
-                f"- 監査の判定: **{verdict}**（合否には使っていません）\n"
+                f"- 監査の判定（実装の前・単位定義と受入テストが対象）: **{verdict}**"
+                f"（合否には使っていません）\n"
                 f"- Run-Id: `{self.run_id}`\n\n")
         if found:
-            body += "### 監査役の指摘\n\n" + "\n".join(f"- {x}" for x in found[:20]) + "\n\n"
+            body += "### 監査役の指摘（実装の前・単位定義と受入テスト）\n\n" + "\n".join(f"- {x}" for x in found[:20]) + "\n\n"
         body += (f"この Issue はまだ閉じていません。人間の承認（H1）とプレイ確認（H2）は、"
                  f"`{integ}` から `{self.base}` への統合 PR で 1 回だけ受けます。\n")
         return body
@@ -1637,12 +1637,12 @@ class Scheduler:
             unit = self.cfg["unit_path_template"].format(number=n)
             total, md = self.summarize_tests(n, c["tests"])
             hcp = self.unit_field(unit, "human_check_point", root=self.wt)
-            blocks.append(f"#### Issue #{n}（監査 {c['merge']['Audit-Verdict']}、"
+            blocks.append(f"#### Issue #{n}（監査（実装の前） {c['merge']['Audit-Verdict']}、"
                           f"受入テスト {total} 件）\n\n{md}\n\n"
                           "人間が実機で見ること: "
                           + (hcp or "（単位定義に human_check_point がありません）") + "\n")
             run = c["run"] or {}
-            findings += [f"- Issue #{n} {x}" for x in (run.get("merge_audit_findings") or [])]
+            findings += [f"- Issue #{n} {x}" for x in (run.get("audit_findings") or [])]
         verdicts = ", ".join("#%d %s" % (c["issue"], c["merge"]["Audit-Verdict"]) for c in checked)
         playtest = [c["issue"] for c in checked if c["playtest"]]
         playtest_note = (
