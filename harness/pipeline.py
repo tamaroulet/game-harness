@@ -1056,6 +1056,38 @@ def carry_out_and_ci(c):
 
 # ============================================================ 自己検査
 
+def restored_without_new_tests(c, first_err):
+    """復元してもビルドが壊れるとき、この単位の受入テストを除いて測り直す。
+
+    戻り値 (結果, エラー)。エラーが残るなら本物の検査系故障。
+
+    機能追加の単位では、この単位の受入テストが**まだ書かれていない API** を呼ぶので、
+    実装を復元してもビルドは壊れたままになる。実装が入る前なので当然で、環境の故障ではない。
+    `establish_base` が base の測定で同じ問題に当たっており、そこで採った扱いをここでも使う。
+
+    **測れなくなるもの**: 「復元すれば**完全に**緑に戻る」は、機能追加の単位では原理的に
+    成立しない。代わりに「**この単位の受入テストを除けば**緑に戻る」を確かめる。
+    恒久的に壊れた環境と、スタブ以外が原因の赤は、これでも捕まる。
+
+    呼び出し側は、直接のビルドが失敗したときだけここへ来る。通っている経路の判定は変えない。
+    """
+    files = new_test_files(c)
+    if not files:
+        return None, f"{first_err}（除くべき受入テストのファイルが見つかりません）"
+    for p in files:
+        fileops.unlink(p)
+    print(f"    復元後も未ビルド。この単位の受入テスト {len(files)} ファイルを除いて測り直します")
+    fast, err = run_fast_tests(c, "self_fast_restored_isolated")
+    if err:
+        return None, f"受入テストを除いても復元後がビルドできません（受入テスト以外の故障）: {err}"
+    # 除いたはずのものが走っていたら、除外が効いていない。緑を信じてはいけない。
+    left = [n for t in c.unit["acceptance"]["required_tests"] for n in oracle.hits(fast, t)]
+    if left:
+        return None, "受入テストを除いたのに実行されています: " + ", ".join(left[:3])
+    sandbox_reset(c)   # 除いた受入テストを戻す
+    return fast, None
+
+
 def selftest(c):
     """AI を呼ばずに、門が実際に赤を出すかを確認する。"""
     log = []
@@ -1117,6 +1149,10 @@ def selftest(c):
             p.write_text(orig, encoding="utf-8")
         sandbox_reset(c)
         fast, err = run_fast_tests(c, "self_fast_restored")
+        if err:
+            # 機能追加の単位では、この単位の受入テストがまだ無い API を呼ぶので
+            # ビルドが壊れる。base の測定と同じ扱いで測り直す（restored_without_new_tests）。
+            fast, err = restored_without_new_tests(c, err)
         if err:
             check("復元後の高速検査", False, err)
             return 2
