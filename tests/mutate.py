@@ -41,7 +41,7 @@ M = [
     ("M8 着手後 ABORT でもロックを消す", "scheduler.py",
      "            if self.touched:", "            if False:"),
     ("M9 既存ブランチ検査を外す", "scheduler.py",
-     "if self.git.local_branch_exists(branch) or self.git.remote_branch_exists(branch):", "if False:"),
+     "if self.issue_branch_taken(branch):", "if False:"),
     ("M10 ABORT 時に main へ戻す（掃除する）", "scheduler.py",
      '        try:\n            self.gh.comment(n, f"ms4:{n}:abort:',
      '        self.git._git("switch", "-f", self.base, check=False)\n        try:\n            self.gh.comment(n, f"ms4:{n}:abort:'),

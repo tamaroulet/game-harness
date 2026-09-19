@@ -1125,16 +1125,44 @@ class Scheduler:
                       None if active is None else round(active / 60, 2),
                       "human.active_seconds が不明: " + str(human.get("active_seconds_null_reason")))
 
-    # ---- 前提
+    # ---- 起動と着手の前提
+    #
+    # 判定する側（preflight / process）がここを通る。報告する側（起動可否の表示）も
+    # 同じ述語を呼ぶこと。**別実装にしてはいけない。** 数える側と当てる側で読み方が
+    # 分かれると必ずずれる（tests/mutate.py で実際に 6 件の変異が黙って実行不能になっていた）。
+    #
+    # どれも読み取りだけで、何も直さない。
+
+    def cli_missing(self):
+        """PATH に無い CLI の一覧。空なら問題なし。"""
+        return [c for c in self.cfg["required_clis"]
+                if not any(shutil.which(c + ext) for ext in (".cmd", ".exe", ""))]
+
+    def wrong_branch(self):
+        """base に居なければ今のブランチ名（detached なら "(detached)"）。居れば None。"""
+        br = self.git.current_branch()
+        return None if br == self.base else (br or "(detached)")
+
+    def dirty_paths(self):
+        """本体の clone の汚れ。空なら問題なし。"""
+        return self.git.changed_paths()
+
+    def issue_branch_taken(self, branch):
+        """Issue のブランチがローカルかリモートに既にあるか。"""
+        return self.git.local_branch_exists(branch) or self.git.remote_branch_exists(branch)
+
     def preflight(self):
-        missing = [c for c in self.cfg["required_clis"]
-                   if not any(shutil.which(c + ext) for ext in (".cmd", ".exe", ""))]
+        """前提を確かめ、通ったら周の準備をする（prune / pull / 統合ブランチ）。
+
+        **読み取りだけではない。** 起動可否の報告に使ってはいけない。
+        """
+        missing = self.cli_missing()
         if missing:
             raise Abort("CLI が PATH にありません: " + ", ".join(missing))
-        br = self.git.current_branch()
-        if br != self.base:
-            raise Abort(f"{self.base} ではなく {br or '(detached)'} に居ます")
-        dirty = self.git.changed_paths()
+        br = self.wrong_branch()
+        if br:
+            raise Abort(f"{self.base} ではなく {br} に居ます")
+        dirty = self.dirty_paths()
         if dirty:
             raise Abort("作業ツリーが汚れています: " + ", ".join(dirty[:5]))
         self.git._git("worktree", "prune", check=False)
@@ -1255,7 +1283,7 @@ class Scheduler:
 
         self.gh.set_labels(n, add=["running"], remove=["ready"])
 
-        if self.git.local_branch_exists(branch) or self.git.remote_branch_exists(branch):
+        if self.issue_branch_taken(branch):
             raise Reject(f"ブランチ `{branch}` が既にあります。前回の残骸か、人間の作業中です。"
                          "中身を確認してブランチを消し、`ready` を付け直してください。")
         # Issue は main ではなく統合ブランチの先頭から切る。承認待ちの先行 Issue の実装を
