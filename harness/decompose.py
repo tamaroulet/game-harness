@@ -43,6 +43,8 @@ ROOT = None
 CFG = None
 # テレメトリ（判定には使わない）。--telemetry のとき、終了時に書き出す。
 TEL = {"schema": telemetry.SCHEMA, "tool": "decompose"}
+# 分解役の生ログの置き場。main が --telemetry から決める。無ければ指示ファイルの隣。
+LOG_DIR = None
 
 
 def configure(project_id, repo_dir=None):
@@ -75,8 +77,11 @@ def run(args, ttl, label):
                            timeout=ttl, encoding="utf-8", errors="replace",
                            stdin=subprocess.DEVNULL, creationflags=_NO_WINDOW)
         return r.returncode, r.stdout or "", r.stderr or ""
-    except subprocess.TimeoutExpired:
-        return 124, "", f"TTL超過 ({ttl}s): {label}"
+    except subprocess.TimeoutExpired as e:
+        # 打ち切った時点までの出力を捨てない。TimeoutExpired は kill のあとに
+        # communicate() した結果を持っている。ここを捨てると、TTL 超過の原因が
+        # ハーネスの記録から一切たどれなくなる（実測で起きた。call_claude を見よ）。
+        return 124, e.stdout or "", f"TTL超過 ({ttl}s): {label}\n" + (e.stderr or "")
     except FileNotFoundError as e:
         return 127, "", f"コマンドが見つかりません: {e}"
 
@@ -117,6 +122,52 @@ def resolve_cli(name):
     sys.exit(f"{name} CLI が PATH に見つかりません")
 
 
+def log_dir():
+    """分解役の生ログの置き場。テレメトリと同じ所に置く（1 回の実行の記録をばらさない）。"""
+    return LOG_DIR if LOG_DIR is not None else Path(CFG["prompt_file"]).parent
+
+
+def write_decompose_log(prompt, rc, out, err):
+    """分解役に渡した指示と、返ってきた生出力をそのまま残す。
+
+    **TTL 超過でも書く。** 2026-09-19 の Issue #14 は claude が 600 秒の TTL に
+    かかって rc=124 で落ちたが、当時は打ち切り時の出力を捨てていたため、分解役が
+    何をしていたのかがハーネスの記録から一切たどれなかった（実際には使い捨ての
+    プロジェクトを立てて出現順を算出していた。判明したのは CLI 自身のセッション記録を
+    別に掘ったからで、こちらには何も残っていなかった）。
+
+    指示も一緒に残す。指示ファイルはプロジェクトごとに使い回して上書きされるので、
+    後から「何を渡したときの出力か」が分からなくなる。
+
+    観測のための機能であって判定には使わない。書けなくても実行は止めない。
+    """
+    body = "\n".join([
+        "# 分解役",
+        f"- cli: {CFG['cli']}",
+        f"- rc: {rc}" + ("（TTL 超過。以下は打ち切り時点までの出力）" if rc == 124 else ""),
+        f"- cwd: {ROOT}",
+        "",
+        "=== 指示 ===",
+        prompt,
+        "",
+        "=== stdout ===",
+        out,
+        "",
+        "=== stderr ===",
+        err,
+        "",
+    ])
+    path = log_dir() / "decompose_response.log"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+    except OSError as e:
+        print(f"  分解役のログを書けませんでした（判定には影響しません）: {e}")
+        return None
+    print(f"  分解役の応答: {path}")
+    return path
+
+
 def call_claude(prompt):
     """プロンプトはファイルで渡す。引数に載せない。
 
@@ -139,6 +190,7 @@ def call_claude(prompt):
     t0 = time.monotonic()
     rc, out, err = run(args, CFG["ttl_seconds"]["claude"], "claude")
     TEL["seconds"] = round(time.monotonic() - t0, 1)
+    write_decompose_log(prompt, rc, out, err)
     if not CFG.get("output_format_args"):
         TEL["usage"] = telemetry.usage_unknown("config/decompose.json に output_format_args が無い")
     else:
@@ -270,6 +322,9 @@ def main():
     ap.add_argument("--telemetry", help="テレメトリの書き出し先（JSON）。判定には使わない")
     ap.add_argument("--repo-dir", help="Issue の worktree。テストと単位定義をここに書く（既定は project.json の repo_dir）")
     a = ap.parse_args()
+    if a.telemetry:
+        global LOG_DIR
+        LOG_DIR = Path(a.telemetry).parent
     TEL["started"] = datetime.now().isoformat(timespec="seconds")
     rc = None
     try:
