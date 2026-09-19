@@ -16,7 +16,8 @@
   "prompt_file": "C:\\src\\.local\\out\\harness\\{project}\\decompose\\prompt.md",
   "prompt_arg_template": "{prompt_file} を読み、そこに書かれた指示に厳密に従って JSON だけを返してください。前後に説明を書かないでください。",
 
-  "ttl_seconds": { "claude": 600, "gh": 60 },
+  "_ttl_note": "claude は config/scheduler.json の ttl_seconds.decompose（外側）の内側に収める。外側の kill が先に来ると、telemetry も分解役のログも書けずに消える（tests/test_ttl_budget.py が検査する）",
+  "ttl_seconds": { "claude": 1100, "gh": 60 },
 
   "required_keys": ["id", "title", "prompt", "whitelist", "required_symbols",
                     "acceptance", "human_check_point", "playtest", "test_files"],

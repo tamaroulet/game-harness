@@ -56,7 +56,7 @@
   "ttl_seconds": {
     "git": 180,
     "gh": 90,
-    "decompose": 1200,
+    "decompose": 1500,
     "audit": 900,
     "pipeline": 18000,
     "playtest": 3900,
