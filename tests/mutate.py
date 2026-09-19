@@ -445,6 +445,25 @@ M = [
 ]
 
 
+def read_source(path):
+    """対象ソースを、改行を正規化して読む。**数える側も当てる側もここを通す。**
+
+    バイト列のまま照合すると、CRLF のファイルでは複数行の置換元が 1 か所も当たらない。
+    変異表の検査（tests/test_mutate_table.py）は改行を正規化して数えていたため、
+    「表は緑なのに、その変異は一度も実行できない」という食い違いが起きていた。
+    実測で 6 件が該当した（M53 / M54 / M55 / M61 / M71 / M115。harness/pipeline.py が CRLF、
+    harness/scheduler.py が LF で、pipeline.py 側だけが黙って落ちていた）。
+
+    数える側と当てる側で読み方が分かれていると必ずまたずれるので、入口を 1 つにする。
+    """
+    return path.read_bytes().decode("utf-8").replace("\r\n", "\n")
+
+
+def write_source(path, text, crlf):
+    """変異を当てたソースを書く。改行は元のファイルの形に戻す。"""
+    path.write_bytes((text.replace("\n", "\r\n") if crlf else text).encode("utf-8"))
+
+
 def main(only):
     survived = []
     for name, fn, old, new in M:
@@ -452,12 +471,12 @@ def main(only):
             continue
         p = T / fn
         orig = p.read_bytes()
-        text = orig.decode("utf-8")
+        text = read_source(p)
         if text.count(old) != 1:
             print(f"{name}: 変異の置換元が {text.count(old)} 箇所（1 箇所であるべき）。変異表が古い")
             return 2
         try:
-            p.write_bytes(text.replace(old, new).encode("utf-8"))
+            write_source(p, text.replace(old, new), b"\r\n" in orig)
             # 変異の実行中は、変異表そのものを確かめるテストを飛ばす（ソースが書き換わっていて
             # 必ず赤になり、どの変異も無条件に「検出」になってしまう）
             env = {**os.environ, "HARNESS_MUTATING": "1"}
