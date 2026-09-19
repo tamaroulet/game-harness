@@ -458,9 +458,23 @@ M_PIPELINE = [
     ('M146 修飾名の照合から語境界を外す', 'pipeline.py',
      '    return all(re.search(r"\\b" + re.escape(part) + r"\\b", text)',
      '    return all(re.search(re.escape(part), text)'),
+    # ---- 自己検査 [A] の復元段（機能追加の単位）
+    ('M153 除外が効いたかの健全性検査を外す', 'pipeline.py',
+     '    left = [n for t in c.unit["acceptance"]["required_tests"] for n in oracle.hits(fast, t)]',
+     '    left = []'),
+    ('M154 受入テストを除いても壊れているのに緑として返す', 'pipeline.py',
+     '        return None, f"受入テストを除いても復元後がビルドできません（受入テスト以外の故障）: {err}"',
+     '        return fast, None'),
 ]
 
 M_SCHEDULER = [
+    # ---- 起動可否の報告（--preflight）
+    ('M155 ロックの ABORT 理由を落とす', 'scheduler.py',
+     '        aborted = next((r["aborted"] for r in records if isinstance(r, dict) and "aborted" in r), None)',
+     '        aborted = None'),
+    ('M156 worktree の把持を阻害と見なさない', 'scheduler.py',
+     '        rows.append(("worktree", held is None,',
+     '        rows.append(("worktree", True,'),
     # ---- マージ直前の監査の対象（docs/design/contract.md）
     ('M147 付随ファイルも実装として数える', 'scheduler.py',
      '                if not any(x.startswith(s) for s in skip) and not self.engine.is_companion(x)]',
@@ -488,13 +502,6 @@ M_DOTNET = [
     ('M152 エラー行を畳まず先頭も絞らない', 'adapters/dotnet.py',
      '    uniq = list(dict.fromkeys(lines))[:3]',
      '    uniq = lines'),
-    # ---- 自己検査 [A] の復元段（機能追加の単位）
-    ('M153 除外が効いたかの健全性検査を外す', 'pipeline.py',
-     '    left = [n for t in c.unit["acceptance"]["required_tests"] for n in oracle.hits(fast, t)]',
-     '    left = []'),
-    ('M154 受入テストを除いても壊れているのに緑として返す', 'pipeline.py',
-     '        return None, f"受入テストを除いても復元後がビルドできません（受入テスト以外の故障）: {err}"',
-     '        return fast, None'),
 ]
 
 M += M_PIPELINE + M_SCHEDULER + M_DECOMPOSE + M_DOTNET
