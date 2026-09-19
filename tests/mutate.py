@@ -463,6 +463,13 @@ M = [
     ('M152 エラー行を畳まず先頭も絞らない', 'adapters/dotnet.py',
      '    uniq = list(dict.fromkeys(lines))[:3]',
      '    uniq = lines'),
+    # ---- 自己検査 [A] の復元段（機能追加の単位）
+    ('M153 除外が効いたかの健全性検査を外す', 'pipeline.py',
+     '    left = [n for t in c.unit["acceptance"]["required_tests"] for n in oracle.hits(fast, t)]',
+     '    left = []'),
+    ('M154 受入テストを除いても壊れているのに緑として返す', 'pipeline.py',
+     '        return None, f"受入テストを除いても復元後がビルドできません（受入テスト以外の故障）: {err}"',
+     '        return fast, None'),
 ]
 
 
