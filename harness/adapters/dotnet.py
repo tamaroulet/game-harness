@@ -57,6 +57,37 @@ def summarize_files(paths, root=None):
     return csharp_tests.summarize_files(paths, root=root)
 
 
+# ビルドが壊れたときに読む行。C# のコンパイラと MSBuild が出す形。
+_ERROR_LINE = re.compile(r"(: error |: エラー |error CS\d+|MSB\d+)")
+
+
+def build_failure_detail(c, tag, rc, out, err):
+    """TRX が出なかったときの理由を残し、先頭のエラー行を呼び出し側へ返す。
+
+    **捨てない。** ここは以前 run() の戻り値を受け取ってすらおらず、TRX が無いときの理由は
+    「ビルド失敗の可能性」という推測しか残らなかった。2026-09-19 の Issue #14 は自己検査の
+    復元段でこれに当たり、原因（新しい受入テストが未実装の API を呼んでいる）を突き止めるのに
+    サンドボックスで dotnet build を手で回す必要があった。
+
+    観測のための処理であって判定には使わない。書けなくても実行は止めない。
+    """
+    text = (out or "") + ("\n" + err if err else "")
+    try:
+        path = c.out / f"{tag}.dotnet.log"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# dotnet test ({tag})\n- rc: {rc}\n- cwd: {c.sandbox}\n\n{text}\n",
+                        encoding="utf-8")
+        where = f" 全文: {path}"
+    except OSError as e:
+        where = f"（ログを書けませんでした: {e}）"
+
+    lines = [l.strip() for l in text.splitlines() if _ERROR_LINE.search(l)]
+    # 同じエラーが何十行も並ぶので、重複を畳んでから先頭だけ見せる
+    uniq = list(dict.fromkeys(lines))[:3]
+    head = ("\n    " + "\n    ".join(uniq)) if uniq else "（エラー行を見つけられませんでした）"
+    return f" (rc={rc}):{head}\n   {where}"
+
+
 def run_tests(c, tag):
     """`dotnet test` を実行し、(結果, エラー) を返す。件数は c.metrics の fast_* に入れる。"""
     trx = c.out / f"{tag}.trx"
@@ -65,12 +96,12 @@ def run_tests(c, tag):
     # /nr:false: MSBuild のワーカー（ノード再利用）を常駐させない。常駐すると終了後も
     # ビルド出力の .dll を掴み続け、次のビルドやサンドボックスのリセットが
     # ファイルロック（WinError 32）で落ちうる。
-    run(["dotnet", "test", c.unit["fast_test_project"],
-         "--nologo", "/nr:false", "--logger", f"trx;LogFileName={tag}.trx",
-         "--results-directory", str(c.out)],
-        c.sandbox, c.ttl["fast_tests"], f"dotnet test ({tag})")
+    rc, out, err = run(["dotnet", "test", c.unit["fast_test_project"],
+                        "--nologo", "/nr:false", "--logger", f"trx;LogFileName={tag}.trx",
+                        "--results-directory", str(c.out)],
+                       c.sandbox, c.ttl["fast_tests"], f"dotnet test ({tag})")
     if not trx.exists():
-        return None, "検査系故障: TRX が生成されませんでした（ビルド失敗の可能性）"
+        return None, "検査系故障: TRX が生成されませんでした" + build_failure_detail(c, tag, rc, out, err)
     results, counters = parse_results(trx)
     for k, v in counters.items():
         c.metrics[f"fast_{k}"] = v
