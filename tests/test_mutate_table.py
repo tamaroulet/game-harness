@@ -83,5 +83,49 @@ class NewlineTests(unittest.TestCase):
         self.assertEqual(self.crlf.read_bytes(), before)
 
 
+class AppendSectionTests(unittest.TestCase):
+    """新しい変異の追記先が、対象ファイルごとに分かれていること。
+
+    M の末尾に足すと、**並行した PR が同じ 1 行を触って必ず競合する。**
+    2026-09-19 に 2 度踏んだ（#23 × #24、#28 × #29）。対象ファイルが違えば
+    追記位置も分かれるので、競合しない。
+
+    ここは harness のソースを見ない（変異の実行中でも成立する）。
+    """
+
+    BUCKETS = {
+        "M_PIPELINE": "pipeline.py",
+        "M_SCHEDULER": "scheduler.py",
+        "M_DECOMPOSE": "decompose.py",
+        "M_DOTNET": "adapters/dotnet.py",
+    }
+
+    def test_each_bucket_only_holds_its_own_target(self):
+        """別の対象を混ぜると、その追記先がまた競合点になる。"""
+        bad = [f"{bucket} に {fn} の {name}"
+               for bucket, want in self.BUCKETS.items()
+               for name, fn, *_ in getattr(mutate, bucket)
+               if fn != want]
+        self.assertEqual(bad, [], "追記先は対象ファイルごとに分ける")
+
+    def test_no_bucket_is_forgotten(self):
+        """新しい追記先を作ったら、この表にも載せる（載っていないものは検査されない）。"""
+        found = {n for n in dir(mutate)
+                 if n.startswith("M_") and isinstance(getattr(mutate, n), list)}
+        self.assertEqual(found, set(self.BUCKETS), "新しい追記先は BUCKETS にも登録する")
+
+    def test_every_bucket_reaches_M(self):
+        """**追記先に足したのに M へ繋ぎ忘れる**と、その変異は一度も実行されない。
+
+        「表にはあるのに走らない」は、PR 9 で 6 件見つけたのと同じ形の失敗である。
+        """
+        in_m = {name for name, *_ in mutate.M}
+        missing = [name
+                   for bucket in self.BUCKETS
+                   for name, *_ in getattr(mutate, bucket)
+                   if name not in in_m]
+        self.assertEqual(missing, [], "追記先のリストを M へ足し忘れている")
+
+
 if __name__ == "__main__":
     unittest.main()
