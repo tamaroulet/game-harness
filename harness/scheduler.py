@@ -828,6 +828,9 @@ class Scheduler:
         # 承認依頼に載せる受入テスト一覧は、言語ごとの抽出器で作る（fast アダプタ）。
         # 設定に無ければ例外で止まる（既定の言語を仮定しない）。
         self.fast = adapters.load("fast", cfg["adapters"]["fast"])
+        # エンジンが自動で作る付随ファイルを見分けるために要る（実装かどうかの判定）。
+        # ここではテストを走らせない（それはパイプラインの仕事）。
+        self.engine = adapters.load("engine", cfg["adapters"]["engine"])
 
         self.env = dict(os.environ)
         # 子の Python がパイプへ CP932 で書くと、ログとコメントが化ける（実測）。
@@ -1361,11 +1364,17 @@ class Scheduler:
         """Issue のブランチが統合ブランチから足した、実装のファイル。
 
         テスト・単位定義・監査レポート・記録は外す（分解役の出力は実装の前に監査済み）。
+
+        **エンジンが自動で作る付随ファイルも外す。** 人が書いた実装ではないし、中身は
+        機械が振った識別子だけで、読ませても指摘は出るが意味が無い。実測では 59 文字の
+        付随ファイル 6 件に監査役が約 6 分かけ、そのそれぞれに「指摘 7 件」を返していた
+        （2026-09-19 の Issue #12。監査はマージ直前の最大の時間項だった）。
+        外すのは監査の対象からだけで、付随ファイル自体はマージには載る。
         """
         units_dir = self.cfg["unit_path_template"].rsplit("/", 1)[0] + "/"
         skip = (self.test_dir + "/", self.audit_dir + "/", units_dir, "reports/")
         return [x for x in self.igit.diff_names(f"origin/{integ}...{branch}")
-                if not any(x.startswith(s) for s in skip)]
+                if not any(x.startswith(s) for s in skip) and not self.engine.is_companion(x)]
 
     def merge_into_integration(self, n, branch, integ, unit, rec):
         """門を通った実装を、統合ブランチへローカルでマージして直接 push する（S24）。

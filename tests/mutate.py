@@ -442,6 +442,10 @@ M = [
     ('M146 修飾名の照合から語境界を外す', 'pipeline.py',
      '    return all(re.search(r"\\b" + re.escape(part) + r"\\b", text)',
      '    return all(re.search(re.escape(part), text)'),
+    # ---- マージ直前の監査の対象（docs/design/contract.md）
+    ('M147 付随ファイルも監査に出す', 'scheduler.py',
+     '                if not any(x.startswith(s) for s in skip) and not self.engine.is_companion(x)]',
+     '                if not any(x.startswith(s) for s in skip)]'),
 ]
 
 
