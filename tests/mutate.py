@@ -429,6 +429,22 @@ M = [
     ('M132 積む本数の上限を見ない', 'scheduler.py',
      '            issues = ready[:max(0, min(limit, room))]',
      '            issues = ready[:limit]'),
+]
+
+
+# ---- 追記先（対象ファイルごと）
+#
+# 新しい変異は、下の対象ファイル別のリストへ足す。**上の M の末尾には足さない。**
+# 末尾はどの PR も同じ 1 行を触るので、並行した PR が必ず競合する
+# （2026-09-19 に 2 度踏んだ。#28 × #29、その前に #23 × #24）。
+# 対象ファイルが違えば追記位置も分かれるので、競合しない。
+#
+# 上の M は設計の関心ごと（承認ゲート・二相判定・網羅検査器…）に並んでいる。
+# その並びには意味があるので、対象ファイル別へは並べ替えない。ここは追記先だけの話である。
+#
+# 対象ファイルごとの整理は tests/test_mutate_table.py が検査する。
+
+M_PIPELINE = [
     # ---- 実装役の観測（docs/design/spec_pipeline.md）
     ('M144 実装役のログを rc != 0 のときだけ書く', 'pipeline.py',
      '    write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err)',
@@ -442,6 +458,9 @@ M = [
     ('M146 修飾名の照合から語境界を外す', 'pipeline.py',
      '    return all(re.search(r"\\b" + re.escape(part) + r"\\b", text)',
      '    return all(re.search(re.escape(part), text)'),
+]
+
+M_SCHEDULER = [
     # ---- マージ直前の監査の対象（docs/design/contract.md）
     ('M147 付随ファイルも実装として数える', 'scheduler.py',
      '                if not any(x.startswith(s) for s in skip) and not self.engine.is_companion(x)]',
@@ -449,6 +468,9 @@ M = [
     ('M148 Audit-Verdict にオラクル監査の判定を運ばず ok を直書きする', 'scheduler.py',
      '        verdict = rec.get("audit_verdict") or VERDICT_SKIPPED',
      '        verdict = "ok"'),
+]
+
+M_DECOMPOSE = [
     # ---- 分解役の観測（docs/design/telemetry.md）
     ('M149 TTL 超過で打ち切り時点の出力を捨てる', 'decompose.py',
      '        return 124, e.stdout or "", f"TTL超過 ({ttl}s): {label}\\n" + (e.stderr or "")',
@@ -456,6 +478,9 @@ M = [
     ('M150 分解役のログを rc == 0 のときだけ書く', 'decompose.py',
      '    write_decompose_log(prompt, rc, out, err)',
      '    if rc == 0: write_decompose_log(prompt, rc, out, err)'),
+]
+
+M_DOTNET = [
     # ---- 高速検査のビルド失敗（adapters/dotnet.py）
     ('M151 TRX が無いときにビルドの出力を捨てる', 'adapters/dotnet.py',
      '        return None, "検査系故障: TRX が生成されませんでした" + build_failure_detail(c, tag, rc, out, err)',
@@ -465,6 +490,7 @@ M = [
      '    uniq = lines'),
 ]
 
+M += M_PIPELINE + M_SCHEDULER + M_DECOMPOSE + M_DOTNET
 
 def read_source(path):
     """対象ソースを、改行を正規化して読む。**数える側も当てる側もここを通す。**
