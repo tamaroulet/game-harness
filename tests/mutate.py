@@ -456,6 +456,13 @@ M = [
     ('M150 分解役のログを rc == 0 のときだけ書く', 'decompose.py',
      '    write_decompose_log(prompt, rc, out, err)',
      '    if rc == 0: write_decompose_log(prompt, rc, out, err)'),
+    # ---- 高速検査のビルド失敗（adapters/dotnet.py）
+    ('M151 TRX が無いときにビルドの出力を捨てる', 'adapters/dotnet.py',
+     '        return None, "検査系故障: TRX が生成されませんでした" + build_failure_detail(c, tag, rc, out, err)',
+     '        return None, "検査系故障: TRX が生成されませんでした（ビルド失敗の可能性）"'),
+    ('M152 エラー行を畳まず先頭も絞らない', 'adapters/dotnet.py',
+     '    uniq = list(dict.fromkeys(lines))[:3]',
+     '    uniq = lines'),
 ]
 
 
