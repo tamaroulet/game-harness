@@ -309,7 +309,7 @@ B-2d の着手時に、「非同期で通るところまで自走させ、後か
 | Issue の状態 | 統合ブランチへ入ったら `ms4:integrated` ＋ 要約と監査判定のコメント。**閉じない**（閉じるのは統合 PR の `Closes #N`）。`list_ready` は `ms4:integrated` を対象から外す |
 | 固定 worktree | `<worktree_root>/<project>-issue-runner` を使い回す。`git reset --hard` → `git clean -fdx` → `git checkout -B ms4/issue-N origin/<統合ブランチ>`。物理削除しないので WinError 32 が原理的に起きない |
 | 統合 PR | 積まれた Issue が `integration_pr_min_issues`（3）に達するか、ready が尽きた周の末尾に 1 本。本文に `Closes #N...` と、各マージコミットの `Run-Id` を `runs.jsonl` と突き合わせた照合レポート。承認（H1）とプレイ確認（H2）はここだけ。main へは `--merge` |
-| 監査の判定 | `audit.py --verdict-json` が `{"verdict", "findings"}` を書く。判定は**合否に使わない**。実装の前（テストと単位定義）と、マージの直前（実装そのもの）の 2 回回す |
+| 監査の判定 | `audit.py --verdict-json` が `{"verdict", "findings"}` を書く。判定は**合否に使わない**。**実装の前に 1 回だけ**、単位定義と受入テスト（＝オラクル）を対象に回す。実装そのものは監査しない（2026-09-19。正しさはコンパイラと決定論的な受入テストが決めるので情報が増えず、実測で 1 Issue あたり 13 分＝通算の 45% を使っていた）。マージコミットの `Audit-Verdict` にはこの判定を載せる |
 
 判定に使う値は監査役が返す `ok` / `concern` / `reject` の 3 つ。これに加えて、判定を読み取れなかったときは
 `unknown`、監査を回していないとき（鍵が無い・対象のファイルが無い）は `skipped` を書く。

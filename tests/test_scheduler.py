@@ -1268,31 +1268,41 @@ class SchedulerTests(Base):
         self.assertEqual(gh.calls, [])
 
     # 10
-    def test_audit_runs_before_the_implementation_and_again_before_the_merge(self):
+    def test_audit_runs_only_before_the_implementation(self):
+        """監査はオラクル（単位定義と受入テスト）だけを見る。実装そのものは監査しない。
+
+        実装の正しさはコンパイラと決定論的な受入テストが決めるので、門を通った実装へ
+        非決定的な読み手を重ねても情報が増えない。実測では 1 Issue あたり 13 分
+        （通算 29 分の 45%）を使い、全体の最大の時間項だった（2026-09-19 の Issue #12）。
+        一方オラクルはコンパイラにもテストにも検査できないので、そちらは残す。
+        """
         os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
         gh = FakeGH([(5, "a")])
         self.assertEqual(self.run_scheduler(gh), 0)
         files = self.remote_files(self.INTEG)
         self.assertIn("reports/audits/audit_issue_5.md", files, "実装の前: 単位定義")
-        self.assertIn("reports/audits/audit_Issue5Tests.md", files, "実装の前: テスト")
-        self.assertIn("reports/audits/audit_Issue5.md", files, "マージの直前: 実装そのもの")
+        self.assertIn("reports/audits/audit_Issue5Tests.md", files, "実装の前: 受入テスト")
+        self.assertNotIn("reports/audits/audit_Issue5.md", files, "実装そのものは監査しない")
         issue = self.runs()[0]
         self.assertEqual(issue["audit"], "done")
-        self.assertEqual(issue["merge_audit"], "done")
+        self.assertNotIn("merge_audit", issue, "マージ直前の監査は記録ごと無くなる")
         self.assertEqual(issue["impl_files"], ["Game/Assets/Core/Issue5.cs"],
-                         "マージ直前の監査は実装だけを見る（テスト・単位定義・レポートは外す）")
-        self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "ok")
-        self.assertEqual(issue["merge_audit_verdict"], "ok")
+                         "何を実装として足したかの記録は残る")
+        self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "ok",
+                         "Audit-Verdict にはオラクル監査の判定を載せる")
+        self.assertEqual(issue["audit_verdict"], "ok")
 
-    def test_the_pre_merge_audit_skips_engine_companion_files(self):
-        """エンジンが自動で作る付随ファイルは、監査の対象にしない。
+    def test_companion_files_are_not_counted_as_implementation(self):
+        """エンジンが自動で作る付随ファイルは、実装として数えない。
 
-        人が書いた実装ではないし、中身は機械が振った識別子だけで、読ませても指摘は出るが
-        意味が無い。実測では 59 文字の付随ファイル 6 件に監査役が約 6 分かけ、そのそれぞれに
-        「指摘 7 件」を返していた（2026-09-19 の Issue #12。マージ直前の監査は当時の
-        最大の時間項で、その半分が付随ファイルに使われていた）。
+        人が書いたものではないので、runs.jsonl の impl_files に混ぜない
+        （accepted_loc とは別の記録。あちらの定義は触っていない）。
 
-        外すのは監査の対象からだけで、付随ファイル自体はマージには載る。
+        実装そのものの監査を撤廃するまでは、この除外が監査の対象からも外す働きをしていた。
+        当時は 59 文字の付随ファイル 6 件に監査役が約 6 分かけ、そのそれぞれに「指摘 7 件」を
+        返していた（2026-09-19 の Issue #12）。
+
+        外すのは記録からだけで、付随ファイル自体はマージには載る。
         """
         os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
         self.plan["pipeline"] = {"5": "companion"}
@@ -1305,10 +1315,7 @@ class SchedulerTests(Base):
 
         files = self.remote_files(self.INTEG)
         self.assertIn("Game/Assets/Core/Issue5.cs.meta", files,
-                      "外すのは監査からだけ。付随ファイルはマージに載る")
-        self.assertIn("reports/audits/audit_Issue5.md", files, "実装そのものは監査する")
-        self.assertNotIn("reports/audits/audit_Issue5.cs.md", files,
-                         "付随ファイルの監査レポートは作られない")
+                      "外すのは記録からだけ。付随ファイルはマージに載る")
 
     def test_an_unreadable_verdict_is_unknown_not_ok(self):
         """監査役が決められた形で返さなかった。判定を ok に畳まない。"""
@@ -1317,7 +1324,7 @@ class SchedulerTests(Base):
         gh = FakeGH([(5, "a")])
         self.assertEqual(self.run_scheduler(gh), 0)
         self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "unknown")
-        self.assertEqual(self.runs()[0]["merge_audit"], "done", "監査自体は動いている")
+        self.assertEqual(self.runs()[0]["audit"], "done", "監査自体は動いている")
 
     def test_audit_verdict_reaches_the_commit_and_the_approval_request(self):
         os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
@@ -1326,8 +1333,11 @@ class SchedulerTests(Base):
         self.assertEqual(self.run_scheduler(gh), 0)
         self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "concern")
         issue = self.runs()[0]
-        self.assertEqual(issue["merge_audit_verdict"], "concern")
-        self.assertEqual(issue["merge_audit_findings"], ["`Issue5.cs`: 境界値の確認が要る"])
+        self.assertEqual(issue["audit_verdict"], "concern")
+        self.assertEqual(issue["audit_findings"],
+                         ["`issue_5.json`: 境界値の確認が要る",
+                          "`Issue5Tests.cs`: 境界値の確認が要る"],
+                         "指摘はオラクル（単位定義と受入テスト）に対するもの")
         pr = gh.prs[gh.integration_pr()]
         request = [c for c in pr["comments"] if "ms4:approval-request" in c][0]
         self.assertIn("### 監査の判定", request)
