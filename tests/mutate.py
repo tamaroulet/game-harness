@@ -449,6 +449,13 @@ M = [
     ('M148 Audit-Verdict にオラクル監査の判定を運ばず ok を直書きする', 'scheduler.py',
      '        verdict = rec.get("audit_verdict") or VERDICT_SKIPPED',
      '        verdict = "ok"'),
+    # ---- 分解役の観測（docs/design/telemetry.md）
+    ('M149 TTL 超過で打ち切り時点の出力を捨てる', 'decompose.py',
+     '        return 124, e.stdout or "", f"TTL超過 ({ttl}s): {label}\\n" + (e.stderr or "")',
+     '        return 124, "", f"TTL超過 ({ttl}s): {label}"'),
+    ('M150 分解役のログを rc == 0 のときだけ書く', 'decompose.py',
+     '    write_decompose_log(prompt, rc, out, err)',
+     '    if rc == 0: write_decompose_log(prompt, rc, out, err)'),
 ]
 
 
