@@ -1125,6 +1125,127 @@ class Scheduler:
                       None if active is None else round(active / 60, 2),
                       "human.active_seconds が不明: " + str(human.get("active_seconds_null_reason")))
 
+    # ---- 起動可否の報告（読み取り専用）
+
+    def harness_version(self):
+        """ハーネス自身の版。(HEAD, origin/main, 一致するか)。
+
+        どの版のハーネスで走るかは、実行の意味を変える。2026-09-19 に、作業ツリーを
+        feature ブランチへ置いたまま自走させかけた（1 つ前の PR を欠いたコードで走るところだった）。
+        fetch はしない。読み取りだけなので、origin/main が古ければ古いまま見せる。
+        """
+        rc, out, _ = run_cmd(["git", "rev-parse", "origin/main"],
+                             project.ROOT, self.cfg["ttl_seconds"]["git"])
+        remote = out.strip() if rc == 0 and out.strip() else None
+        return self.harness_sha, remote, bool(remote and remote == self.harness_sha)
+
+    def runner_worktree_branch(self):
+        """固定 worktree が掴んでいるブランチ名。detached か無ければ None。
+
+        掴まれたままだと `git branch -D` すら失敗し、次の着手が「ブランチが既にあります」で
+        止まり続ける（2026-09-19 に実測。ABORT で worktree を解放しないのは証拠保全のための
+        設計なので、直すのではなく**見えるように**する）。
+        """
+        rc, out, _ = run_cmd(["git", "worktree", "list", "--porcelain"],
+                             self.repo, self.cfg["ttl_seconds"]["git"])
+        if rc != 0:
+            return None
+        want = str(self.runner_worktree()).replace("/", "\\").lower()
+        path, branch = None, None
+        for line in out.splitlines() + [""]:
+            if line.startswith("worktree "):
+                path, branch = line[9:].strip(), None
+            elif line.startswith("branch "):
+                branch = line[7:].strip().replace("refs/heads/", "")
+            elif not line.strip() and path:
+                if path.replace("/", "\\").lower() == want:
+                    return branch
+                path = None
+        return None
+
+    def lock_summary(self):
+        """ロックの中身を 1 行にする。**ABORT の理由を落とさない。**
+
+        止まった理由こそ、人間が消す前に見るべきものである（着手後の ABORT でロックを
+        残すのは、まさにそれを見せるための設計）。
+        """
+        try:
+            lines = [l for l in self.lock.read_text(encoding="utf-8",
+                                                    errors="replace").splitlines() if l.strip()]
+            records = [json.loads(l) for l in lines]
+        except (OSError, ValueError):
+            return "あります（形が読めません）"
+        head = records[0] if records else {}
+        pid = head.get("pid")
+        alive = "生きている" if isinstance(pid, int) and pid_alive(pid) else "終了している"
+        text = f"run {head.get('run_id')} / pid {pid} は{alive}"
+        aborted = next((r["aborted"] for r in records if isinstance(r, dict) and "aborted" in r), None)
+        return text + (f" / ABORT: {aborted}" if aborted else "")
+
+    def blockers(self):
+        """今スケジューラを起動できるか。[(項目, ok, 説明, 直し方)] を返す。
+
+        **何も直さない。** 判定は preflight / process と同じ述語を通る。報告する側と
+        判定する側で別実装にすると、「起動できます」と言うのに起動できない嘘が生まれる
+        （数える側と当てる側が分かれていた実例が tests/mutate.py にある）。
+        """
+        rows = []
+
+        head, remote, same = self.harness_version()
+        rows.append(("ハーネス", same,
+                     f"{(head or '不明')[:7]}"
+                     + (" （origin/main と一致）" if same else
+                        f" / origin/main {(remote or '不明')[:7]} と違います"),
+                     f'git -C "{project.ROOT}" switch main && git -C "{project.ROOT}" pull --ff-only'))
+
+        missing = self.cli_missing()
+        rows.append(("CLI", not missing,
+                     "PATH にありません: " + ", ".join(missing) if missing
+                     else ", ".join(self.cfg["required_clis"]),
+                     "PATH を通してください" if missing else None))
+
+        br = self.wrong_branch()
+        rows.append(("ブランチ", br is None,
+                     f"{self.base} ではなく {br} に居ます" if br else self.base,
+                     f'git -C "{self.repo}" switch {self.base}' if br else None))
+
+        dirty = self.dirty_paths()
+        rows.append(("作業ツリー", not dirty,
+                     "汚れています: " + ", ".join(dirty[:5]) if dirty else "clean",
+                     "変更を確認してから片付けてください" if dirty else None))
+
+        if not self.lock.exists():
+            rows.append(("ロック", True, "なし", None))
+        else:
+            why = self.stale_lock_reason()
+            rows.append(("ロック", why is not None,
+                         f"自動解放されます（{why}）" if why else self.lock_summary(),
+                         None if why else f'rm "{self.lock}"（原因を確認してから）'))
+
+        held = self.runner_worktree_branch()
+        rows.append(("worktree", held is None,
+                     f"{self.runner_worktree().name} が {held} を掴んでいます" if held
+                     else "ブランチを掴んでいません",
+                     f'git -C "{self.runner_worktree()}" checkout --detach' if held else None))
+
+        return rows
+
+    def show_preflight(self):
+        """起動可否を表示する。**何も変えない。** 0 = 起動できる / 1 = 阻害あり。"""
+        rows = self.blockers()
+        for label, ok, detail, _ in rows:
+            print(f"  {'OK' if ok else 'NG'}  {label}: {detail}")
+        bad = [r for r in rows if not r[1]]
+        print()
+        if not bad:
+            print("起動できます。")
+            return 0
+        print(f"起動できません（阻害 {len(bad)} 件）。")
+        for label, _, _, remedy in bad:
+            if remedy:
+                print(f"  {label}: {remedy}")
+        return 1
+
     # ---- 起動と着手の前提
     #
     # 判定する側（preflight / process）がここを通る。報告する側（起動可否の表示）も
@@ -2272,6 +2393,8 @@ def main(argv=None, gh_run=run_cmd, sleep=time.sleep):
     mode.add_argument("--watch", action="store_true", help="常駐する（1 周 → 待機 → 1 周）")
     mode.add_argument("--stop", action="store_true", help="常駐に停止を依頼する（停止ファイルを置く）")
     mode.add_argument("--status", action="store_true", help="ロック・ハートビートを表示する（何も変えない）")
+    mode.add_argument("--preflight", action="store_true",
+                      help="今起動できるかを表示する（何も変えない）。0 = 起動できる / 1 = 阻害あり")
     ap.add_argument("--interval", type=int, help="常駐の待機秒数（既定は watch_interval_seconds）")
     a = ap.parse_args(argv)
     if a.project:
@@ -2283,6 +2406,8 @@ def main(argv=None, gh_run=run_cmd, sleep=time.sleep):
         return s.request_stop()
     if a.status:
         return s.status()
+    if a.preflight:
+        return s.show_preflight()
 
     # pythonw（sys.stdout が None）と常駐では、出力をファイルへ付け替える
     log = DailyLog(cfg["out_dir"]) if (a.watch or sys.stdout is None) else None
