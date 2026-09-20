@@ -384,7 +384,8 @@ def call_implementer(c, feedback=""):
               f"計画・実装案・確認を返さず、いま直接ファイルを作成・編集してください。"
               f"合意を求める必要も、事前に状況を説明する必要もありません。"
               f"書き終えてから、何をしたかだけを報告してください。"
-              f"コード案を本文に貼るだけ、実装計画だけを返すのは未完了とみなします。\n\n" + prompt)
+              f"コード案を本文に貼るだけ、計画だけ返すのは未完了とみなされます。\n"
+              f"受入テスト側に明らかな誤謬（手計算ミスや仕様不整合）があり、自身の実装が正当であると判断した場合は、無理にテストに合わせず {{\"status\": \"DISPUTE_TEST\", \"reason\": \"<具体的な不整合理由>\"}} のJSONを出力してください。\n\n" + prompt)
     if feedback:
         prompt += "\n\n前回の失敗:\n" + feedback
 
@@ -396,6 +397,8 @@ def call_implementer(c, feedback=""):
     args += imp.get("output_format_args", [])
     t0 = time.monotonic()
     rc, out, err = run(args, c.sandbox, c.ttl["implementer"], "実装AI")
+    c.last_implementer_out = out or ""
+    c.last_implementer_err = err or ""
     write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err)
     if c.cur is not None:
         usage = (telemetry.cli_usage(out, imp["usage_format"])
@@ -913,22 +916,153 @@ def capture_diff(c):
     c.cur["added_lines"] = len(lines)
 
 
+# ============================================================ 内部試行ループ (v2 Inner Loop)
+MAX_INNER_LOOP_TURNS = 3
+
+
+def extract_dispute(text):
+    """実装AIの出力から DISPUTE_TEST の厳格 JSON ブロックを抽出する。
+
+    形式:
+    {
+      "status": "DISPUTE_TEST",
+      "reason": "<具体的な不整合理由>"
+    }
+    """
+    if not text:
+        return None
+
+    for m in re.finditer(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL):
+        try:
+            data = json.loads(m.group(1), strict=False)
+            if isinstance(data, dict) and data.get("status") == "DISPUTE_TEST":
+                return str(data.get("reason", "")).strip()
+        except Exception:
+            pass
+
+    for m in re.finditer(r"\{[^{}]*\"status\"\s*:\s*\"DISPUTE_TEST\"[^{}]*\}", text, re.DOTALL):
+        try:
+            data = json.loads(m.group(0), strict=False)
+            if isinstance(data, dict) and data.get("status") == "DISPUTE_TEST":
+                return str(data.get("reason", "")).strip()
+        except Exception:
+            pass
+
+    return None
+
+
+def extract_raw_stacktrace(text, max_lines=40):
+    """テスト出力やエラーログから末尾の生スタックトレース（末尾 40 行）を機械的に切り出す。
+    要約や加工は挟まない。
+    """
+    if not text:
+        return ""
+    lines_list = text.strip().splitlines()
+    tail = lines_list[-max_lines:] if len(lines_list) > max_lines else lines_list
+    return "\n".join(tail)
+
+
+def purge_unwhitelisted_in_sandbox(c):
+    """内部リトライ時に、ホワイトリスト外のファイルが残留して Dirty Sandbox になるのを防ぐ。"""
+    bad = gate_whitelist(c)
+    if bad:
+        for rel in bad:
+            p = c.sb(rel)
+            if p.is_file() or p.is_symlink():
+                fileops.unlink(p)
+            elif p.is_dir():
+                shutil.rmtree(p, ignore_errors=True)
+            else:
+                run(["git", "checkout", "--", rel], c.sandbox, c.ttl["git"], "restore unwhitelisted file")
+
+
 def attempt(c, feedback):
     sandbox_reset(c)
 
-    print("[1] 実装AI")
-    c.gate = "implementer"
-    ok, msg = call_implementer(c, feedback)
-    if not ok:
-        return "RETRY", msg
+    inner_feedback = feedback
+    last_failure_text = ""
+    fast = None
+    is_loop_success = False
 
-    c.gate = "escape"
-    escaped = gate_repo_untouched(c)
-    if escaped:
-        return "ABORT", ("実装AIがサンドボックス外（本体リポジトリ）を書き換えました: "
-                         + ", ".join(escaped[:5]))
-    capture_diff(c)
+    # ===== 内部自己修復ループ (Inner Loop: 最大 MAX_INNER_LOOP_TURNS ターン) =====
+    for turn in range(1, MAX_INNER_LOOP_TURNS + 1):
+        print(f"--- 内部試行ループ ターン {turn}/{MAX_INNER_LOOP_TURNS} ---")
+        if turn > 1:
+            # Dirty Sandbox 防止: 前ターンで生成された未許可ファイルを自動パージ
+            purge_unwhitelisted_in_sandbox(c)
 
+        print("[1] 実装AI")
+        c.gate = "implementer"
+        ok, msg = call_implementer(c, inner_feedback)
+        if not ok:
+            if turn < MAX_INNER_LOOP_TURNS:
+                inner_feedback = extract_raw_stacktrace(msg, max_lines=40)
+                continue
+            return "RETRY", msg
+
+        c.gate = "escape"
+        escaped = gate_repo_untouched(c)
+        if escaped:
+            return "ABORT", ("実装AIがサンドボックス外（本体リポジトリ）を書き換えました: "
+                             + ", ".join(escaped[:5]))
+        capture_diff(c)
+
+        # [DISPUTE 判定 (One-Strike Rule)]
+        dispute_reason = extract_dispute(getattr(c, "last_implementer_out", ""))
+        if dispute_reason is not None:
+            dispute_count = getattr(c, "dispute_count", 0) + 1
+            c.dispute_count = dispute_count
+            if dispute_count == 1:
+                c.dispute_status = {"disputed": True, "reason": dispute_reason}
+                print(f"  [DISPUTE_TEST 検知 (1回目)] 受入テスト不整合の申し立てを記録: {dispute_reason[:150]}")
+                return "DISPUTE", f"受入テストに対する異議申し立て (DISPUTE_TEST): {dispute_reason}"
+            else:
+                print("  [DISPUTE_TEST 拒否] 2回目以降の異議申し立ては One-Strike Rule により却下")
+                return "REJECT", f"DISPUTE_TEST の再発行は禁止されています（One-Strike Rule 違反）: {dispute_reason}"
+
+        # [決定論的テスト実行 (言語中立名称)]
+        print(f"[3] 高速検査（{c.fast.LABEL}）")
+        c.gate = "fast"
+        fast, err = run_fast_tests(c, f"impl_fast_turn_{turn}")
+
+        test_failed = False
+        fail_raw_output = ""
+        if err:
+            test_failed = True
+            fail_raw_output = err
+        elif fast is None:
+            test_failed = True
+            fail_raw_output = "高速検査で結果が取得できませんでした（テスト結果未生成）"
+        else:
+            failed_names = [n for n, o in fast.items() if o in (c.fast.FAILED, "Failed")]
+            if failed_names:
+                test_failed = True
+                log_candidates = list(c.out.glob(f"impl_fast_turn_{turn}.*.log"))
+                if log_candidates and log_candidates[0].exists():
+                    try:
+                        fail_raw_output = log_candidates[0].read_text(encoding="utf-8", errors="replace")
+                    except Exception:
+                        fail_raw_output = ""
+                if not fail_raw_output:
+                    fail_raw_output = "失敗テスト: " + ", ".join(failed_names)
+
+        if not test_failed:
+            print(f"  [PASS] 内部テスト全件合格 (turn {turn}/{MAX_INNER_LOOP_TURNS}) -> Outer Gate へ進みます")
+            is_loop_success = True
+            break
+        else:
+            print(f"  [FAIL] 内部テスト不合格 (turn {turn}/{MAX_INNER_LOOP_TURNS})")
+            last_failure_text = extract_raw_stacktrace(fail_raw_output, max_lines=40)
+            if turn < MAX_INNER_LOOP_TURNS:
+                inner_feedback = last_failure_text
+                continue
+            else:
+                break
+
+    if not is_loop_success:
+        return "RETRY", f"内部試行ループ上限到達 ({MAX_INNER_LOOP_TURNS} ターン失敗):\n{last_failure_text}"
+
+    # ===== Outer Gate（境界確定ゲート / 決定論的防壁） =====
     print("[2] 静的機械判定")
     c.gate = "whitelist"
     bad = gate_whitelist(c)
@@ -942,12 +1076,6 @@ def attempt(c, feedback):
     ng = gate_diff_lines(c)
     if ng:
         return "RETRY", ng
-
-    print(f"[3] 高速検査（{c.fast.LABEL}）")
-    c.gate = "fast"
-    fast, err = run_fast_tests(c, "impl_fast")
-    if err:
-        return "ABORT", err
 
     print(f"[4] {c.engine.LABEL} 受入（開示）")
     c.gate = "acceptance"
@@ -968,6 +1096,16 @@ def attempt(c, feedback):
         failed = attempt_holdout(c, fast)
         if failed:
             return failed
+
+    # Step 3 フック: ヘッドレス実行シミュレーション（大テスト）
+    print("[5.5] ヘッドレス実行シミュレーション")
+    c.gate = "headless_simulation"
+    sim_fn = getattr(c.fast, "run_headless_simulation", None)
+    if callable(sim_fn):
+        res = sim_fn(c.sandbox)
+        sim_ok, sim_msg = res if isinstance(res, tuple) else (bool(res), "")
+        if not sim_ok:
+            return "REJECT", f"ヘッドレス実行シミュレーション失敗: {sim_msg}"
 
     print("[6] 持ち出し")
     c.gate = "carry"
@@ -1398,6 +1536,10 @@ def run_unit(c, args):
         if verdict == "ABORT":
             print(f"\nABORT（検査系の故障）: {msg}")
             return 2
+        if verdict == "DISPUTE":
+            print(f"\nDISPUTE（受入テスト不整合による差し戻し）: {msg}")
+            sandbox_reset(c)
+            return 1
 
         print(f"REJECT: {msg}")
         feedback = "\n".join(l for l in str(msg).splitlines()
