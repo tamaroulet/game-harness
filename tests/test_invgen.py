@@ -7,6 +7,7 @@
 テスト生成器（手順 3）と同じく、「通すべき 1 つ」と「規則ごとに拒絶すべき 1 つずつ」だけを置く。
 """
 import copy
+import hashlib
 import sys
 import unittest
 from pathlib import Path
@@ -22,6 +23,7 @@ from test_unit_schema import GDD, SPEC  # noqa: E402
 
 DECL = {
     "schema": 1,
+    "gdd_sha256": hashlib.sha256(GDD.encode("utf-8")).hexdigest(),
     "interface": {"types": [
         {"name": "GamePhase", "kind": "enum", "values": ["Ready", "Playing", "GameOver"]},
         {"name": "Board", "kind": "class", "members": [
@@ -88,6 +90,9 @@ class Validate(unittest.TestCase):
 
     def test_hand_computed_argument_must_be_literal(self):
         self.assertRejected(mutated(lambda d: d["ops"][1].update(args={"seed": ["x ^ 13"]})), "GDD から引けないリテラル")
+
+    def test_stale_against_gdd(self):
+        self.assertRejected(mutated(lambda d: d.update(gdd_sha256="0" * 64)), "gdd_sha256 が今の GDD と一致しません")
 
     def test_steps_out_of_range(self):
         self.assertRejected(mutated(lambda d: d.update(steps=0)), "steps は 1 以上")

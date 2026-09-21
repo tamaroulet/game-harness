@@ -1,12 +1,13 @@
 """不変条件テストの宣言の検査と生成（docs/design/mechanical_barriers.md §4、ADR-002 手順 5a）。
 
-    python harness/invgen.py --project falling-blocks --decl tools/invariants.json --out <dir>
+    python harness/invgen.py --project falling-blocks --decl projects/falling-blocks/invariants.json --out <dir>
 
 不変条件は期待値を持たない。「どんな操作列のあとでも成り立つ等式」だけを宣言し、
 シード付きのランダム操作列でそれを検査する NUnit テストを、固定テンプレートから出力する。
 
-**宣言（tools/invariants.json）の形**
+**宣言（harness の projects/<id>/invariants.json）の形**
 - `schema: 1`
+- `gdd_sha256`：宣言を書いたときの GDD の sha256。GDD が変われば一致しなくなり、見直すまで生成を拒絶する
 - `interface`：単位定義 v2 と同じ形（型とメンバー）。等式と操作が参照するものだけでよい
 - `subject`：検査対象の作り方。`{"construct": "GameState"}`
 - `ops`：ランダムに選ぶ操作。`{"call": "型.メソッド", "args": {"引数": [値の候補, ...]}}`。
@@ -23,6 +24,7 @@
 値・スタックトレースは出さない。Outer 段はこの行だけを実装役に返す（手順 5b）。
 """
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -33,7 +35,7 @@ import testgen
 import unit_schema
 
 SCHEMA = 1
-TOP_KEYS = {"schema", "interface", "subject", "ops", "steps", "seeds", "invariants"}
+TOP_KEYS = {"schema", "gdd_sha256", "interface", "subject", "ops", "steps", "seeds", "invariants"}
 INT_TYPES = {"int", "uint", "long", "short", "byte"}
 INV_ID_RE = re.compile(r"^INV-\d{2,}$")
 TOKEN_RE = re.compile(r"\s*(?:(\d+)|([A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*)|([+\-*=]))")
@@ -88,6 +90,8 @@ def validate(decl, spec_text, gdd_text):
     spec_ids, params, spec_problems = unit_schema.spec_index(spec_text, gdd_text)
     if spec_problems:
         return spec_problems
+    if decl["gdd_sha256"] != hashlib.sha256(gdd_text.encode("utf-8")).hexdigest():
+        return ["gdd_sha256 が今の GDD と一致しません。GDD が変わったので、不変条件の宣言を見直してから sha256 を更新してください"]
     types, members, enum_values = unit_schema._interface(decl["interface"], problems)
     ctx = dict(spec_ids=spec_ids, params=params, types=types, members=members, enum_values=enum_values)
 
