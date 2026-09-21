@@ -1,4 +1,4 @@
-"""decompose — 分解役（Claude CLI）。Issue から受入テストと単位定義を作る。
+"""decompose — 分解役（Claude CLI）。Issue から単位定義 v2 を作り、受入テストを生成する。
 
     python harness/decompose.py --project unity-2d --issue 12
     python harness/decompose.py --project unity-2d --file drafts/sample.md --id boss_rush   （Issue 無しで試す）
@@ -18,6 +18,13 @@ MS1〜3 は「既存実装の挙動をゴールデンに採取し、それと一
 ホワイトリストから *Tests.cs を外し、パイプライン側の require_unit_safe が
 機械的に弾く。これは推奨ではなく前提条件。
 
+**分解役は C# を書かない**（docs/design/mechanical_barriers.md §3、ADR-002 手順 4）
+
+分解役が出すのは単位定義 v2（interface と受入データ）だけ。受入テストの C# は、
+harness/testgen.py が受入データから機械的に生成する。書き出す前に、パイプラインと同じ
+スキーマ門（harness/unit_schema.py）とテスト生成に通す。落ちたら問題の一覧を添えて
+分解役に出し直させる（config の self_check_retries 回まで）。それでも落ちれば何も書かずに rc=1。
+
 **それでも残る穴**
 
 出題者（分解役）が仕様を誤解していれば、実装は誤りに忠実になる。
@@ -36,6 +43,8 @@ from pathlib import Path
 
 import project
 import telemetry
+import testgen
+import unit_schema
 
 # main() が --project から決める。共通設定（config/decompose.json）に、
 # ゲーム固有の値（リポジトリ・テスト置き場など）を project.json から差し込む。
@@ -57,7 +66,7 @@ def configure(project_id, repo_dir=None):
         if k in CFG:
             sys.exit(f"config/decompose.json の {k} は project.json にだけ書いてください")
     ROOT = Path(p["repo_dir"])
-    CFG.update(project_id=p["id"], repo=p["repo_slug"], test_dir=p["test_dir"],
+    CFG.update(project_id=p["id"], repo=p["repo_slug"], test_dir=p["test_dir"], base_branch=p["base_branch"],
                impl_dir=p["impl_dir"], fast_test_project=p["fast_test_project"],
                units_dir=p["units_dir"])
     CFG["prompt_file"] = CFG["prompt_file"].format(project=p["id"])
@@ -252,24 +261,8 @@ def validate(d):
         if TEST_PATH_RE.search(p):
             problems.append(f"whitelist にテストまたはゴールデンが入っています: {p}")
 
-    tests = d.get("test_files") or []
-    if not tests:
-        problems.append("test_files が空です（正解が無いので判定できません）")
-    for t in tests:
-        if not TEST_PATH_RE.search(t.get("path", "")):
-            problems.append(f"test_files のパスがテストとして認識されません: {t.get('path')}")
-        if not t.get("content", "").strip():
-            problems.append(f"test_files の中身が空です: {t.get('path')}")
-
-    req = (d.get("acceptance") or {}).get("required_tests") or []
-    if not req:
-        problems.append("acceptance.required_tests が空です")
-
-    # 自明アサーションの混入を機械で弾く。
-    for t in tests:
-        for pattern, label in CFG["tautology_patterns"]:
-            if re.search(pattern, t.get("content", "")):
-                problems.append(f"{label}: {t.get('path')} に「{pattern}」")
+    if "test_files" in d:
+        problems.append("test_files は書けません。受入テストは受入データ（acceptance.cases）からハーネスが生成します")
 
     if not d.get("human_check_point", "").strip():
         problems.append("human_check_point が空です（人間が何を見るか書かれていません）")
@@ -284,15 +277,10 @@ def validate(d):
 
 # ============================================================ 書き出し
 
-def write_outputs(d, unit_id):
-    written = []
-    for t in d["test_files"]:
-        p = ROOT / t["path"].replace("/", "\\")
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(t["content"], encoding="utf-8")
-        written.append(t["path"])
-
-    unit = {k: v for k, v in d.items() if k != "test_files"}
+def build_unit(d, unit_id):
+    """分解役の出力に、ハーネスが決める値を足して単位定義 v2 にする。"""
+    unit = {"schema": unit_schema.SCHEMA}
+    unit.update({k: v for k, v in d.items() if k != "schema"})
     unit.setdefault("id", unit_id)
     unit.setdefault("fast_test_project", CFG["fast_test_project"])
     unit.setdefault("forbidden_leftover", CFG["defaults"]["forbidden_leftover"])
@@ -301,11 +289,55 @@ def write_outputs(d, unit_id):
     unit.setdefault("max_impl_lines", CFG["defaults"]["max_impl_lines"])
     unit.setdefault("forbidden_patterns", CFG["defaults"]["forbidden_patterns"])
     unit.setdefault("selftest_forbidden_probe", CFG["defaults"]["selftest_forbidden_probe"])
-    unit.setdefault("impl_files", unit["whitelist"])
+    unit.setdefault("impl_files", unit.get("whitelist"))
+    # 実装の有無の照合（pipeline の required_symbols）は interface から機械的に作る
+    types = (unit.get("interface") or {}).get("types") if isinstance(unit.get("interface"), dict) else None
+    if isinstance(types, list):
+        typed = [t for t in types if isinstance(t, dict) and "name" in t]
+        unit["required_symbols"] = [t["name"] for t in typed] + [
+            f"{t['name']}.{m['name']}" for t in typed for m in t.get("members", [])
+            if isinstance(m, dict) and "name" in m and m.get("kind") != "ctor"]
+    acc = unit.get("acceptance")
+    if isinstance(acc, dict) and isinstance(unit.get("id"), str):
+        acc["required_tests"] = [testgen.class_name(unit)]
+    return unit
 
-    up = ROOT / CFG["units_dir"] / f"{unit_id}.json"
+
+def unit_bytes(unit):
+    return (json.dumps(unit, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
+def self_check(unit, read):
+    """パイプラインと同じスキーマ門とテスト生成に通す。({ファイル名: C#}, 問題の一覧)"""
+    spec, gdd = read("spec"), read("gdd")
+    problems = unit_schema.validate(unit, spec, gdd)
+    if problems:
+        return {}, problems
+    try:
+        return testgen.generate(unit, spec, gdd, unit_bytes(unit)), []
+    except testgen.GenerationError as e:
+        return {}, [f"受入テストを生成できません: {e}"]
+
+
+def base_reader():
+    """GDD と構造化仕様を、パイプラインと同じく origin/<base> の先頭から読む。"""
+    cfg = project.config("unit_schema")
+    read = unit_schema.git_reader(ROOT, f"origin/{CFG['base_branch']}", CFG["ttl_seconds"]["gh"])
+    return lambda which: read(cfg["spec_path"] if which == "spec" else cfg["gdd_path"])
+
+
+def write_outputs(unit, files):
+    written = []
+    gen_dir = f"{CFG['test_dir']}/Generated"
+    for name, text in files.items():
+        p = ROOT / gen_dir / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(text.encode("utf-8"))
+        written.append(f"{gen_dir}/{name}")
+
+    up = ROOT / CFG["units_dir"] / f"{unit['id']}.json"
     up.parent.mkdir(parents=True, exist_ok=True)
-    up.write_text(json.dumps(unit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    up.write_bytes(unit_bytes(unit))
     written.append(str(up.relative_to(ROOT)).replace("\\", "/"))
     return written, up
 
@@ -355,18 +387,34 @@ def decompose(a):
     print(f"単位: {unit_id}")
     print(f"題名: {title}")
 
-    out = call_claude(build_prompt(unit_id, title, body))
-    d = extract_json(out)
-
-    problems = validate(d)
-    if problems:
-        print("\n生成物が要件を満たしていません:")
+    prompt = build_prompt(unit_id, title, body)
+    read = base_reader()
+    retries = CFG.get("self_check_retries", 0)
+    for attempt in range(retries + 1):
+        d = extract_json(call_claude(prompt))
+        problems = validate(d)
+        files = {}
+        if not problems:
+            unit = build_unit(d, unit_id)
+            try:
+                files, problems = self_check(unit, read)
+            except unit_schema.UnitSchemaError as e:
+                sys.exit(f"スキーマ門に必要なファイルを読めません: {e}")
+        TEL.setdefault("self_check", []).append({"attempt": attempt + 1, "problems": len(problems)})
+        if not problems:
+            break
+        print(f"\n生成物が要件を満たしていません（{attempt + 1} 回目）:")
         for x in problems:
             print("  - " + x)
+        prompt = (build_prompt(unit_id, title, body)
+                  + "\n\n## 前回の出力はハーネスの門で拒絶されました\n\n"
+                  + "次の問題をすべて直した JSON を出し直してください。\n\n"
+                  + "\n".join(f"- {x}" for x in problems[:30]))
+    else:
         print("\n書き出さずに終了します。")
         return 1
 
-    written, up = write_outputs(d, unit_id)
+    written, up = write_outputs(unit, files)
     print("\n書き出し:")
     for w in written:
         print("  " + w)
