@@ -32,6 +32,7 @@ from types import SimpleNamespace
 import adapters
 import contract
 import fileops
+import invrun
 import oracle
 import project
 import telemetry
@@ -1125,6 +1126,13 @@ def attempt(c, feedback):
         sim_ok, sim_msg = res if isinstance(res, tuple) else (bool(res), "")
         if not sim_ok:
             return "REJECT", f"ヘッドレス実行シミュレーション失敗: {sim_msg}"
+
+    # 不変条件（Outer 段）。テストはサンドボックスの外で生成・実行し、実装役には反例の行だけを返す
+    print("[5.7] 不変条件（Outer 段）")
+    c.gate = "invariants"
+    failed = invrun.check(c)
+    if failed:
+        return failed
 
     print("[6] 持ち出し")
     c.gate = "carry"
