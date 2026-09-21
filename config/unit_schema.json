@@ -1,0 +1,14 @@
+{
+  "_comment": "単位定義のスキーマ門（harness/unit_schema.py、docs/design/mechanical_barriers.md §3）の設定。",
+
+  "_legacy_note": "schema 2 より前の単位定義（v1）は、ここに内容の sha256 がある既存のものだけを通す。1 バイトでも書き換えれば通らないので、既存の単位を直すときは v2 に移すしかない。新しい単位を v1 で足すことはできない",
+  "legacy_v1_sha256": {
+    "e1e0bd40cac67c8d15f2a128bc5fd9e93e6b2ba24e28b0c9c1174bb069da7dd4": "falling-blocks/tools/units/issue_12.json（固定カナリア）",
+    "de87b4500ba82c2c055c7a3ff9dc80d20e461cb58c73c270e962cee6eba11ccb": "unity-2d/tools/units/issue_2.json",
+    "2888105d79d071587b23c81e0c99a04a400854100deb191d069d4db7f771075a": "unity-2d/tools/units/metapoint.json"
+  },
+
+  "_paths_note": "期待値を拘束する GDD と構造化仕様。契約と同じく origin/<base> の先頭から読み、作業ツリーは見ない",
+  "gdd_path": "docs/gdd/source.md",
+  "spec_path": "docs/spec/spec.md"
+}

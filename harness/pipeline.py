@@ -35,6 +35,7 @@ import fileops
 import oracle
 import project
 import telemetry
+import unit_schema
 from proc import resolve_cli, run
 
 
@@ -281,6 +282,24 @@ def apply_contract(c):
     c.tel["contract_sha"] = c.contract["sha"]
     c.tel["contract_forbidden_count"] = len(c.contract["forbidden"])
     print(f"契約: {base} @ {c.contract['sha'][:8]}（禁止パターン {len(c.contract['forbidden'])} 件）")
+
+
+def require_unit_schema(c, unit_bytes):
+    """単位定義の形を機械で検査する（docs/design/mechanical_barriers.md §3、防壁②）。
+
+    GDD と構造化仕様は、契約と同じ origin/<base> の先頭から読む。落ちた単位は起動しない。
+    rc=2（ABORT）にして、スケジューラが壊れた単位のまま次へ回り続けないようにする。
+    """
+    try:
+        kind, problems = unit_schema.check(
+            unit_bytes, unit_schema.git_reader(c.repo, c.contract["sha"], c.ttl["git"]))
+    except unit_schema.UnitSchemaError as e:
+        sys.exit(f"ABORT: 単位定義の検査に必要なファイルを読めません: {e}")
+    c.tel["unit_schema"] = kind
+    if problems:
+        sys.exit(f"ABORT: 単位定義がスキーマ門を通りません（{len(problems)} 件）:"
+                 + "".join(f"\n  {p}" for p in problems[:20]))
+    print(f"単位定義: スキーマ門を通過（{kind}）")
 
 
 def require_repo_clean(c):
@@ -1592,6 +1611,7 @@ def main():
             telemetry.put(tel, key, git_head(cwd, c.ttl["git"]), f"git rev-parse が失敗: {cwd}")
         require_unit_safe(c)
         apply_contract(c)
+        require_unit_schema(c, unit_path.read_bytes())
         require_repo_clean(c)
         rc = run_unit(c, args)
         return rc

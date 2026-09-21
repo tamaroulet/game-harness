@@ -1,0 +1,173 @@
+"""単位定義のスキーマ門（harness/unit_schema.py、docs/design/mechanical_barriers.md §3）。
+
+    python -m unittest discover -s tests -v
+
+**なぜ要るか**: 分解役に「手計算の期待値や C# を書くな」とプロンプトで頼んでも、LLM は混ぜる。
+形として書けないことを門で固定する。ここでは「通すべきもの 1 つ」と「規則ごとに拒絶すべきもの 1 つずつ」
+だけを置く（変異を網羅しない。過剰テストに戻らない）。
+"""
+import copy
+import hashlib
+import json
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "harness"))
+
+import unit_schema  # noqa: E402
+
+GDD = "<!-- project: demo -->\n<!-- version: 1 -->\n# GDD\n盤面は幅 10。出現位置は (3, 19)。\n"
+
+
+def spec_for(gdd_text):
+    sha = hashlib.sha256(gdd_text.encode("utf-8")).hexdigest()
+    return "\n".join([
+        "<!-- project: demo -->", "<!-- gdd-version: 1 -->", f"<!-- gdd-sha256: {sha} -->",
+        "# demo 構造化仕様", "",
+        "## 1. ループと終了条件", "| ID | 内容 | 根拠 |", "|:--|:--|:--|", "| LP-01 | ループ | L4 |", "",
+        "## 2. 状態遷移", "| ID | 状態 | 契機 | 遷移先 | 根拠 |", "|:--|:--|:--|:--|:--|",
+        "| ST-06 | Ready | シードの注入 | Ready | L4 |", "",
+        "## 3. 規則と計算式", "| ID | 規則・式 | 境界値 | 参照パラメーター | 根拠 |", "|:--|:--|:--|:--|:--|",
+        "| RL-07 | シード 0 は 1 に置き換える | 0 → 1 | - | L4 |", "",
+        "## 4. 公開インターフェース", "| ID | 公開する状態・操作 | 型・範囲 | 根拠 |", "|:--|:--|:--|:--|",
+        "| IF-08 | 経過ティック数 | 整数 | L4 |", "",
+        "## 5. 外部パラメーター", "| ID | 名前 | 値 | 区分 | 根拠 |", "|:--|:--|:--|:--|:--|",
+        "| PR-06 | 盤面幅 | 10 | 確定 | L4 |", "| PR-09 | 出現基準位置 | (3, 19) | 確定 | L4 |", "",
+        "## 6. 人間確認・演出", "| ID | 内容 | 根拠 |", "|:--|:--|:--|", "| （該当なし） | - | - |", "",
+    ])
+
+
+SPEC = spec_for(GDD)
+
+# Issue 12 を v2 で書いた形（抜粋）
+VALID = {
+    "schema": 2,
+    "id": "issue_12",
+    "title": "Ready 初期状態",
+    "prompt": "`GameState` を公開コンストラクタで作ると Ready になる。`Board.Width` は盤面幅。"
+              "書いてよいのは `Game/Assets/Core/GameState.cs` だけ。根拠は `RL-07`。",
+    "interface": {"types": [
+        {"name": "GamePhase", "kind": "enum", "values": ["Ready", "Playing", "GameOver"]},
+        {"name": "Board", "kind": "class", "members": [
+            {"name": "Width", "kind": "const", "type": "int", "value": {"param": "PR-06"}},
+        ]},
+        {"name": "GameState", "kind": "class", "members": [
+            {"name": "GameState", "kind": "ctor"},
+            {"name": "Phase", "kind": "property", "type": "GamePhase"},
+            {"name": "TickCount", "kind": "property", "type": "int"},
+            {"name": "SpawnX", "kind": "property", "type": "int"},
+            {"name": "NextQueue", "kind": "property", "type": "System.Collections.Generic.IReadOnlyList<GamePhase>"},
+            {"name": "InjectSeed", "kind": "method", "type": "void", "params": [{"name": "seed", "type": "uint"}]},
+            {"name": "Advance", "kind": "method", "type": "void"},
+        ]},
+    ]},
+    "whitelist": ["Game/Assets/Core/GameState.cs"],
+    "impl_files": ["Game/Assets/Core/GameState.cs"],
+    "acceptance": {
+        "required_tests": ["InitialStateTests"],
+        "cases": [
+            {"id": "ready-initial", "rule": "ST-06", "given": {}, "op": {"construct": "GameState"},
+             "expect": {"GameState.Phase": "Ready", "GameState.TickCount": 0, "GameState.NextQueue": []}},
+            {"id": "seed-zero", "rule": "RL-07", "given": {"GameState.Phase": "Ready"},
+             "op": {"call": "GameState.InjectSeed", "args": {"seed": 0}},
+             "expect": {"GameState.Phase": {"same": True}}},
+            {"id": "tick", "rule": "IF-08", "given": {"GameState.TickCount": 41},
+             "op": {"call": "GameState.Advance"},
+             "expect": {"GameState.TickCount": {"given": "GameState.TickCount", "add": 1},
+                        "GameState.SpawnX": {"param": "PR-09", "index": 0}}},
+        ],
+    },
+    "human_check_point": "不要",
+    "playtest": "none",
+}
+
+
+def check(unit, spec=SPEC, gdd=GDD):
+    return unit_schema.validate(unit, spec, gdd)
+
+
+def mutated(fn):
+    u = copy.deepcopy(VALID)
+    fn(u)
+    return u
+
+
+class ValidUnit(unittest.TestCase):
+    def test_passes(self):
+        self.assertEqual(check(VALID), [])
+
+
+class Rejects(unittest.TestCase):
+    """規則ごとに 1 つ。どの規則で落ちたかを文言の一部で確かめる。"""
+
+    def assertRejected(self, unit, fragment, spec=SPEC):
+        problems = check(unit, spec)
+        self.assertTrue(any(fragment in p for p in problems), f"{fragment!r} が問題に無い: {problems}")
+
+    def test_unknown_top_key(self):
+        self.assertRejected(mutated(lambda u: u.update(tests="[Test] public void X() {}")), "知らないキー")
+
+    def test_csharp_in_type(self):
+        self.assertRejected(mutated(lambda u: u["interface"]["types"][2]["members"][2].update(
+            type="int TickCount { get; } = 0")), "type は型名だけ")
+
+    def test_code_in_prompt(self):
+        self.assertRejected(mutated(lambda u: u.update(prompt="Score は `Score = a + b;` で求める")), "';'")
+
+    def test_unknown_backtick_token(self):
+        self.assertRejected(mutated(lambda u: u.update(prompt="`x ^= x << 13` を使う")), "interface の識別子")
+
+    def test_hand_computed_literal(self):
+        self.assertRejected(mutated(lambda u: u["acceptance"]["cases"][0]["expect"].update(
+            {"GameState.TickCount": 42})), "GDD から引けないリテラル")
+
+    def test_const_literal_not_from_gdd(self):
+        self.assertRejected(mutated(lambda u: u["interface"]["types"][1]["members"][0].update(value=10)),
+                            "GDD から引けないリテラル")
+
+    def test_missing_param(self):
+        self.assertRejected(mutated(lambda u: u["acceptance"]["cases"][2]["expect"].update(
+            {"GameState.SpawnX": {"param": "PR-99"}})), "PR-99 がありません")
+
+    def test_delta_more_than_one(self):
+        self.assertRejected(mutated(lambda u: u["acceptance"]["cases"][2]["expect"].update(
+            {"GameState.TickCount": {"given": "GameState.TickCount", "add": 2}})), "±1 だけ")
+
+    def test_rule_not_in_spec(self):
+        self.assertRejected(mutated(lambda u: u["acceptance"]["cases"][0].update(rule="RL-99")), "構造化仕様に存在する ID")
+
+    def test_multi_step_op(self):
+        self.assertRejected(mutated(lambda u: u["acceptance"]["cases"][2].update(
+            op=[{"call": "GameState.Advance"}, {"call": "GameState.Advance"}])), "操作は 1 つだけ")
+
+    def test_undeclared_state(self):
+        self.assertRejected(mutated(lambda u: u["acceptance"]["cases"][0]["expect"].update(
+            {"GameState.Score": 0})), "宣言した状態")
+
+    def test_stale_spec(self):
+        self.assertRejected(VALID, "gdd-sha256", spec=spec_for(GDD + "変更\n"))
+
+
+class Legacy(unittest.TestCase):
+    CFG = {"legacy_v1_sha256": {}, "spec_path": "s", "gdd_path": "g"}
+
+    def reader(self, path):
+        return SPEC if path == "s" else GDD
+
+    def test_frozen_v1_passes_only_byte_identical(self):
+        body = json.dumps({"id": "issue_12", "prompt": "public sealed class GameState"}).encode("utf-8")
+        cfg = dict(self.CFG, legacy_v1_sha256={hashlib.sha256(body).hexdigest(): "canary"})
+        self.assertEqual(unit_schema.check(body, self.reader, cfg), ("v1-legacy", []))
+        kind, problems = unit_schema.check(body + b" ", self.reader, cfg)
+        self.assertEqual(kind, "v1")
+        self.assertTrue(problems)
+
+    def test_v2_goes_through_validate(self):
+        body = json.dumps(VALID).encode("utf-8")
+        self.assertEqual(unit_schema.check(body, self.reader, self.CFG), ("v2", []))
+
+
+if __name__ == "__main__":
+    unittest.main()
