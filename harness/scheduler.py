@@ -1474,6 +1474,11 @@ class Scheduler:
         通るし合格もする）。残すのがここだけなのは、そのため。
         """
         key = "audit"
+        if not self.cfg["audit"].get("enabled", True):
+            rec[key] = "skipped (??????)"
+            rec[key + "_verdict"] = VERDICT_SKIPPED
+            print(f"  [{self.AUDIT_LABEL}] ?????????????????")
+            return False, VERDICT_SKIPPED
         key_env = self.cfg["audit"]["key_env"]
         if not os.environ.get(key_env):
             rec[key] = f"skipped ({key_env} 未設定)"
