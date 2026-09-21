@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(//c/src/**/*.cs)",
+      "Read(**/*.cs)",
+      "Edit(//c/src/**/*.cs)",
+      "Edit(**/*.cs)",
+      "Read(//c/src/falling-blocks/Game/Assets/Core/**)",
+      "Read(//c/src/falling-blocks/tests/**)",
+      "Read(//c/src/unity-2d/Game/Assets/Core/**)",
+      "Read(//c/src/unity-2d/tests/**)",
+      "Read(//c/src/.local/wt/**)",
+      "Bash(*dotnet test*)",
+      "Bash(*.cs *)",
+      "Bash(*.cs)",
+      "Bash(*.cs\"*)",
+      "Bash(*.cs'*)",
+      "Bash(*Assets/Core*)",
+      "Bash(*Core.Tests*)",
+      "Bash(*falling-blocks/tests*)",
+      "Bash(*unity-2d/tests*)",
+      "PowerShell(*dotnet test*)",
+      "PowerShell(*.cs*)",
+      "PowerShell(*Assets*Core*)",
+      "PowerShell(*Core.Tests*)"
+    ]
+  }
+}
