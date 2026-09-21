@@ -170,10 +170,8 @@ class UnityBuildPlayerTests(unittest.TestCase):
 class DecomposePlaytestDeclarationTests(unittest.TestCase):
     def unit(self, **over):
         d = {"id": "u", "title": "t", "prompt": "p", "whitelist": ["Game/Assets/Core/X.cs"],
-             "required_symbols": ["X"], "acceptance": {"required_tests": ["XTests"]},
-             "human_check_point": "見る点", "playtest": "none",
-             "test_files": [{"path": "tests/Core.Tests/XTests.cs",
-                             "content": "[Test] public void A() { Assert.AreEqual(1, X.One()); }"}]}
+             "interface": {"types": []}, "acceptance": {"cases": []},
+             "human_check_point": "見る点", "playtest": "none"}
         d.update(over)
         return d
 
