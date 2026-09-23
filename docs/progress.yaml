@@ -1,5 +1,5 @@
 project_goal: 'Phase 3: 4 大未踏領域の評価と falling-blocks#15 のスモーク実証'
-active_task_id: B3.1-PREP
+active_task_id: B3.1-1
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -38,7 +38,7 @@ tasks:
   - harness/progress.py
   - docs/progress.yaml
   - projects/falling-blocks/units/issue_12.json
-  status: in_progress
+  status: completed
   verification:
     command: python -m unittest discover -s tests
     expected_exit_code: 0
@@ -46,7 +46,7 @@ tasks:
   title: v2 契約の移行（falling-blocks への PR）
   group: B3.1
   target_repo: falling-blocks
-  status: pending
+  status: in_progress
   verification:
     command: python harness/canary.py check-migrated --project falling-blocks --unit-id issue_12
     expected_exit_code: 0
@@ -116,4 +116,7 @@ tasks:
   target_repo: falling-blocks
   status: pending
   verification: null
-last_verification: null
+last_verification:
+  task: B3.1-PREP
+  exit_code: 0
+  at: '2026-09-23T22:22:57'
