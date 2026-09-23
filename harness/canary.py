@@ -29,6 +29,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import exitcode
 import project
 from proc import run
 
@@ -177,10 +178,12 @@ def check_migrated(proj, unit_id, workflow="core-tests.yml", gh=None):
                                              encoding="utf-8", errors="replace", timeout=TTL))
     r = gh(["run", "list", "--repo", proj["repo_slug"], "--branch", base, "--workflow", workflow,
             "--limit", "1", "--json", "headSha,status,conclusion"])
+    if r.returncode != 0:
+        raise CanaryError(f"gh run list に失敗しました（rc={r.returncode}）: {(r.stderr or r.stdout)[:300]}")
     try:
-        runs = json.loads(r.stdout) if r.returncode == 0 else None
+        runs = json.loads(r.stdout)
     except ValueError:
-        runs = None
+        raise CanaryError(f"gh run list の出力を読めません: {r.stdout[:200]}")
     if not runs:
         problems.append(f"{workflow} の実行を {base} で見つけられません")
     elif runs[0].get("headSha") != head:
@@ -245,12 +248,13 @@ def main(argv=None):
             branch = cleanup(proj, args.worktree)
             print(f"後片付け: {branch or '（枝なし）'} を消しました")
     except CanaryError as e:
-        print(f"NG: {e}")
-        return 1
+        # 前提・環境の不備（fetch の失敗、worktree の残骸、gh に届かない等）。実装の不合格（1）と区別する
+        print(f"ABORT: {e}")
+        return exitcode.ABORT
     return 0
 
 
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.exit(main())
+    sys.exit(exitcode.normalized(main))
