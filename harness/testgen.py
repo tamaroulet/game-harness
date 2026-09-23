@@ -26,6 +26,11 @@ given のフィールドとちょうど一致するコンストラクタ（状�
 ループの各回で検査する（at_step 回目より前は操作前の値のまま、at_step 回目で ±1）。at_step 回目より後は
 検査しない。それ以外の期待値は、ループを抜けた後に 1 回だけ検査する。
 
+**契約の形テスト**（ADR-003 §3.5）: 単位ごとに `Contract_Shape` を 1 つ出力する。interface の全メンバーを、
+型を明示したデリゲートと値で参照するだけで、呼び出しはしない。生成テストは Generated/ に残るので、
+以後の単位がメンバーを消したり形（型・引数・static）を変えたりすると、ビルドが通らず既存の P2P で落ちる。
+公開契約の後方互換を、新しい判定器を足さずに守る。
+
 本モジュールは受入データの検査（スキーマ門）を前提にする。門を通っていない単位を渡さないこと。
 """
 import argparse
@@ -263,6 +268,57 @@ def _case_body(model, case):
     return lines + captures + ([act] if act else []) + asserts
 
 
+SHAPE_METHOD = "Contract_Shape"
+
+
+def _shape_entries(unit):
+    """契約の形テストで参照する式の列。1 つの式が 1 つのメンバー（列挙なら 1 つの値）に対応する。"""
+    out = []
+    for t in unit["interface"]["types"]:
+        name = t["name"]
+        if t["kind"] == "enum":
+            out += [f"{name}.{v}" for v in t["values"]]
+            continue
+        for m in t.get("members", []):
+            ps = m.get("params", [])
+            ptypes = [p["type"] for p in ps]
+            args = [f"a{i}" for i in range(len(ps))]
+            if m["kind"] == "ctor":
+                sig = ", ".join(ptypes + [name])
+                out.append(f"(System.Func<{sig}>)(({', '.join(args)}) => new {name}({', '.join(args)}))")
+            elif m["kind"] == "const":
+                out.append(f"{name}.{m['name']}")
+            elif m["kind"] in ("property", "field"):
+                if m.get("static"):
+                    out.append(f"(System.Func<{m['type']}>)(() => {name}.{m['name']})")
+                else:
+                    out.append(f"(System.Func<{name}, {m['type']}>)(x => x.{m['name']})")
+            else:
+                static = bool(m.get("static"))
+                lead = [] if static else [name]
+                params = ([] if static else ["x"]) + args
+                target = name if static else "x"
+                call = f"{target}.{m['name']}({', '.join(args)})"
+                lam = f"({', '.join(params)}) => {call}"
+                if m["type"] == "void":
+                    types = lead + ptypes
+                    delegate = f"System.Action<{', '.join(types)}>" if types else "System.Action"
+                else:
+                    delegate = f"System.Func<{', '.join(lead + ptypes + [m['type']])}>"
+                out.append(f"({delegate})({lam})")
+    return out
+
+
+def _shape_method(unit):
+    entries = _shape_entries(unit)
+    lines = ["        [Test]", '        [Description("contract-shape")]', f"        public void {SHAPE_METHOD}()",
+             "        {", "            // interface の全メンバーを型付きで参照する。呼び出しはしない（ADR-003 §3.5）",
+             "            var shape = new object[]", "            {"]
+    lines += [f"                {e}," for e in entries]
+    lines += ["            };", f"            Assert.That(shape, Has.Length.EqualTo({len(entries)}));", "        }"]
+    return lines
+
+
 def _require_ctor(model, type_name, param_names, where):
     t = model.types.get(type_name)
     if not t or t["kind"] == "enum":
@@ -297,8 +353,7 @@ def generate(unit, spec_text, gdd_text, unit_bytes):
                 f"        public void {_method_name(case['id'])}()", "        {"]
         out += [f"            {line}" for line in _case_body(model, case)]
         out += ["        }", ""]
-    if out[-1] == "":
-        out.pop()
+    out += _shape_method(unit)
     out += ["    }", "}", ""]
     return {f"{name}.cs": "\n".join(out)}
 

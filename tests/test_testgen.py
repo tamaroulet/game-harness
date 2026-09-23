@@ -101,6 +101,28 @@ class NestedAccess(unittest.TestCase):
         self.assertIn('Assert.That(sut.ActiveMino?.X, Is.EqualTo(3), "GameState.ActiveMino.X");', text)
 
 
+class ContractShape(unittest.TestCase):
+    """契約の形テスト（ADR-003 §3.5）。interface の全メンバーを型付きで参照し、1 つでも欠ければビルドが落ちる。"""
+
+    def test_every_member_is_referenced(self):
+        text = "".join(generated().values())
+        self.assertIn("public void Contract_Shape()", text)
+        members = sum(len(t.get("members", [])) + len(t.get("values", [])) for t in UNIT["interface"]["types"])
+        self.assertIn(f"Assert.That(shape, Has.Length.EqualTo({members}));", text)
+        self.assertIn("(System.Action<GameState, uint>)((x, a0) => x.InjectSeed(a0))", text)
+        self.assertIn("(System.Func<GameState, int>)(x => x.TickCount)", text)
+
+    def test_removing_a_member_breaks_the_build(self):
+        # 実装側からメンバーを 1 つ消すと、既存の生成テストがビルドできなくなる（P2P で落ちる）
+        slim = copy.deepcopy(UNIT)
+        slim["interface"]["types"][-1]["members"] = [
+            m for m in slim["interface"]["types"][-1]["members"] if m["name"] != "SpawnX"]
+        files = dict(generated())
+        files["Stub.cs"] = testgen.interface_stub(slim, SPEC, GDD)
+        rc, _ = build(files)
+        self.assertNotEqual(rc, 0)
+
+
 class Rejects(unittest.TestCase):
     def test_given_without_restoring_ctor(self):
         with self.assertRaises(testgen.GenerationError) as cm:

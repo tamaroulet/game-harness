@@ -8,12 +8,8 @@
     "2888105d79d071587b23c81e0c99a04a400854100deb191d069d4db7f771075a": "unity-2d/tools/units/metapoint.json"
   },
 
-  "_timed_note": "時限制約（ADR-003 §3.3・§3.6、B3.1-2）。exempt_units 以外の単位は、操作を allowed_calls の call に限り、whitelist のパスが base に実在することを求める。allowed_calls は B3 のスモーク（出現＋1 段の自然落下）がマージされたら外す。whitelist_must_exist は B3.3 の .meta 自動生成が入ったら外す（どちらも門の緩和なので、外す PR の本文にそう明記する）",
-  "timed_constraints": {
-    "exempt_units": ["issue_12"],
-    "allowed_calls": ["GameState.Tick"],
-    "whitelist_must_exist": true
-  },
+  "_timed_note": "時限制約（ADR-003 §3.3・§3.6）。B3.1-2 で入れ、B3.3 で両方を外した（緩和）。allowed_calls（操作を GameState.Tick に限る）はスモーク falling-blocks#17 がマージされたので外した。whitelist_must_exist（新しいファイルを作らせない）は .meta の自動生成（engine アダプタ）が入ったので外した。仕組み（exempt_units・allowed_calls・whitelist_must_exist）は unit_schema.py に残してあり、ここに書けばまた効く",
+  "timed_constraints": {},
 
   "_paths_note": "期待値を拘束する GDD と構造化仕様。契約と同じく origin/<base> の先頭から読み、作業ツリーは見ない",
   "gdd_path": "docs/gdd/source.md",

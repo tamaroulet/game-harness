@@ -9,6 +9,7 @@ Unity 固有の知識はここにだけ置く（pipeline.py から移した。�
                 "golden_dir_env_vars"    ゴールデンの置き場を Unity テストへ渡す環境変数名
                 ttl_seconds.engine_tests
 """
+import hashlib
 import os
 import sys
 import xml.etree.ElementTree as ET
@@ -114,10 +115,51 @@ def guid_of(meta_path):
     return None
 
 
-def carry_companion(src, dst):
+META_TEMPLATE_SCRIPT = """fileFormatVersion: 2
+guid: {guid}
+MonoImporter:
+  externalObjects: {{}}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {{instanceID: 0}}
+  userData:
+  assetBundleName:
+  assetBundleVariant:
+"""
+META_TEMPLATE_DEFAULT = """fileFormatVersion: 2
+guid: {guid}
+DefaultImporter:
+  externalObjects: {{}}
+  userData:
+  assetBundleName:
+  assetBundleVariant:
+"""
+
+
+def guid_for(rel):
+    """リポジトリからの相対パスから GUID を決める（ADR-003 §3.6）。Unity を起動しない。
+
+    同じパスなら常に同じ GUID になる。Unity の GUID と同じく 32 桁の 16 進。
+    """
+    return hashlib.md5(rel.replace("\\", "/").encode("utf-8")).hexdigest()
+
+
+def generated_meta(rel):
+    """付随ファイル rel（<本体>.meta）の中身。C# は MonoImporter、それ以外は DefaultImporter。"""
+    body = rel[:-len(".meta")] if rel.endswith(".meta") else rel
+    template = META_TEMPLATE_SCRIPT if body.endswith("." + "cs") else META_TEMPLATE_DEFAULT
+    return template.format(guid=guid_for(rel))
+
+
+def carry_companion(src, dst, rel=None):
     """サンドボックスの付随ファイルを本体へ運ぶかを決める。
 
-    戻り値: ("skip", "") 運ばない / ("copy", "") 運ぶ / ("abort", 理由)
+    戻り値: ("skip", "") 運ばない / ("copy", "") 運ぶ / ("generate", 中身) 作って置く / ("abort", 理由)
+
+    rel（付随ファイルのリポジトリからの相対パス）を渡すと、サンドボックスにも本体にも無い付随ファイルを
+    パスから決定論的に作る（ADR-003 §3.6）。実装役は Unity を持たないので、新しいファイルの .meta は
+    サンドボックスに生えない。作らないと、本体で次に Unity を起動したときに GUID がばらばらに生える。
 
     .meta は GUID を持つ。無条件に上書きすると、そのクラスを参照する
     Prefab / Scene / .asset がすべて Missing (MonoScript) になる。
@@ -129,6 +171,9 @@ def carry_companion(src, dst):
     """
     src, dst = Path(src), Path(dst)
     if not src.exists():
+        body = Path(str(dst)[:-len(".meta")]) if str(dst).endswith(".meta") else None
+        if rel and not dst.exists() and body is not None and body.exists():
+            return "generate", generated_meta(rel)
         return "skip", ""
     if dst.exists():
         g_repo, g_sb = guid_of(dst), guid_of(src)

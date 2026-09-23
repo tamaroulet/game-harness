@@ -612,7 +612,7 @@ def gate_diff_lines(c, verbose=True):
     # （実測で発覚。自己検査だけでなく本番の穴だった）。
     # -N は intent-to-add。中身はステージせず、diff に現れるようにするだけ。
     run(["git", "add", "-N", "--"] + c.unit["whitelist"], c.sandbox, c.ttl["git"], "intent-to-add")
-    total = 0
+    added = deleted = 0
     for rel in c.unit["whitelist"]:
         _, out, _ = run(["git", "diff", "--numstat", "HEAD", "--", rel],
                         c.sandbox, c.ttl["git"], "numstat")
@@ -620,14 +620,33 @@ def gate_diff_lines(c, verbose=True):
             parts = line.split("\t")
             if len(parts) < 3:
                 continue
-            add = 0 if parts[0] == "-" else int(parts[0])
-            dele = 0 if parts[1] == "-" else int(parts[1])
-            total += add + dele
+            added += 0 if parts[0] == "-" else int(parts[0])
+            deleted += 0 if parts[1] == "-" else int(parts[1])
+    total = added + deleted
     c.metrics["diff_lines"] = total
+    c.metrics["diff_added"], c.metrics["diff_deleted"] = added, deleted
     if verbose:
-        print(f"    差分: {total} 行")
-    if total > c.unit["max_impl_lines"]:
-        return f"差分超過: {total} 行 > {c.unit['max_impl_lines']}"
+        print(f"    差分: {total} 行（追加 {added}・削除 {deleted}）")
+    return diff_budget_problem(c.unit, added, deleted)
+
+
+def diff_budget_problem(unit, added, deleted):
+    """差分バジェット（ADR-003 §3.7）。超えていれば理由、収まっていれば None。
+
+    feature：追加 ≤ max_add_lines かつ 削除 ≤ max_del_lines（機能とリファクタリングを混ぜない）
+    refactor：追加と削除の合計 ≤ max_impl_lines
+    task_kind の無い既存の単位は feature として扱う。上限の無い既存の単位は max_impl_lines を追加の上限にする
+    """
+    if unit.get("task_kind", "feature") == "refactor":
+        total, limit = added + deleted, unit["max_impl_lines"]
+        return f"差分超過（refactor）: 合計 {total} 行 > {limit}" if total > limit else None
+    max_add = unit.get("max_add_lines", unit["max_impl_lines"])
+    max_del = unit.get("max_del_lines", unit["max_impl_lines"])
+    if added > max_add:
+        return f"差分超過（feature）: 追加 {added} 行 > {max_add}"
+    if deleted > max_del:
+        return (f"差分超過（feature）: 削除 {deleted} 行 > {max_del}。"
+                "削除が多いならリファクタリングの単位を先に切り出す")
     return None
 
 
@@ -1185,11 +1204,15 @@ def carry_out_and_ci(c):
         for comp in c.engine.companions(rel):
             comp_src = c.sb(comp)
             comp_dst = c.repo / comp.replace("/", "\\")
-            action, why = c.engine.carry_companion(comp_src, comp_dst)
+            action, why = c.engine.carry_companion(comp_src, comp_dst, comp)
             if action == "abort":
                 return "ABORT", why
             if action == "copy":
                 shutil.copyfile(comp_src, comp_dst)
+                carried.append(comp)
+            if action == "generate":
+                # 新しいファイルの付随ファイルを、エンジンを起動せずに作る（ADR-003 §3.6）
+                comp_dst.write_bytes(why.encode("utf-8"))
                 carried.append(comp)
     print(f"    {len(carried)} ファイル: " + ", ".join(Path(x).name for x in carried))
     run(["git", "add", "--"] + carried, c.repo, c.ttl["git"], "add")

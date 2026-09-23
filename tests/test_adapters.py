@@ -111,6 +111,26 @@ class UnityAdapterTests(unittest.TestCase):
             self.assertEqual(action, "abort", "GUID が違えば止める")
             self.assertIn("GUID", why)
 
+    def test_missing_meta_of_a_new_file_is_generated_deterministically(self):
+        # ADR-003 §3.6：実装役は Unity を持たない。新しいファイルの .meta はパスから作る
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            body = d / ("New." + "cs")
+            src, dst = d / "sb.meta", Path(str(body) + ".meta")
+            rel = "Game/Assets/Core/New." + "cs.meta"
+            self.assertEqual(unity.carry_companion(src, dst, rel)[0], "skip", "本体がまだ無い")
+            body.write_text("x", encoding="utf-8")
+            action, text = unity.carry_companion(src, dst, rel)
+            self.assertEqual(action, "generate")
+            self.assertEqual(text, unity.carry_companion(src, dst, rel)[1], "同じパスなら同じ中身")
+            self.assertIn("guid: " + unity.guid_for(rel), text)
+            self.assertRegex(unity.guid_for(rel), r"^[0-9a-f]{32}$")
+            self.assertIn("MonoImporter", text)
+            self.assertNotEqual(unity.guid_for(rel), unity.guid_for("Game/Assets/Core/Other." + "cs.meta"))
+            dst.write_text(text, encoding="utf-8")
+            self.assertEqual(unity.carry_companion(src, dst, rel)[0], "skip", "本体に既にあれば触らない")
+            self.assertEqual(unity.carry_companion(src, Path(str(dst) + "x"))[0], "skip", "rel が無ければ従来どおり")
+
     def test_project_dir_requires_its_key(self):
         c = types.SimpleNamespace(cfg={"project": {}}, sandbox=Path("X"))
         with self.assertRaises(SystemExit) as ctx:
