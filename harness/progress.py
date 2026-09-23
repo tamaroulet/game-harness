@@ -4,6 +4,8 @@
     python -m harness.progress tree [--all]    人間と PR 本文用のツリー（既定は現在の段だけ展開）
     python -m harness.progress complete <id>   検証コマンドを実行し、期待した終了コードのときだけ完了にする
     python -m harness.progress check           progress.yaml の形を検査する
+    python -m harness.progress report          チャット報告の全文（ツリーと状態。20 行以内）
+    python -m harness.progress review <url>    現在のタスクを PR のレビュー待ちにする（complete で解除）
 
 **なぜ要るか**: 進捗をチャットやメモリで持つと、表記が崩れ、推測の件数が混ざり、手で「完了」にできてしまう。
 状態はファイルに置き、書き換えはこの CLI だけが行う。完了への遷移は、検証コマンドの終了コードを
@@ -24,6 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 REL_PATH = "docs/progress.yaml"
 STATUSES = ("pending", "in_progress", "completed")
 TAIL_LINES = 20
+REPORT_MAX_LINES = 20
 VERIFY_TTL = 1800
 GIT_TTL = 120
 
@@ -76,6 +79,8 @@ def validate(state):
             problems.append(f"task {tid} の group {t.get('group')} が nodes にありません")
         if t.get("status") not in STATUSES:
             problems.append(f"task {tid} の status {t.get('status')} は {STATUSES} のどれでもありません")
+        if t.get("review_pr") is not None and not str(t["review_pr"]).startswith("https://"):
+            problems.append(f"task {tid} の review_pr は https の URL です")
         v = t.get("verification")
         if v is not None and (not isinstance(v, dict) or not isinstance(v.get("command"), str)
                               or not isinstance(v.get("expected_exit_code"), int)):
@@ -162,7 +167,8 @@ def tree(state, expand_all=False):
         for c in _children(state, node["id"]):
             walk(c, depth + 1)
         for t in state["tasks"]:
-            if t["group"] == node["id"]:
+            # 完了したタスクは親の件数に畳む（--all のときだけ出す）
+            if t["group"] == node["id"] and (expand_all or t["status"] != "completed"):
                 here = " ← 現在地" if t["id"] == state.get("active_task_id") else ""
                 tmark = "[x]" if t["status"] == "completed" else "[ ]"
                 lines.append(f"{'  ' * (depth + 1)}- {tmark} {t['id']} {t['title']}{here}")
@@ -173,6 +179,36 @@ def tree(state, expand_all=False):
         for c in _children(state, root["id"]):
             walk(c, 1)
     return "\n".join(lines) + "\n"
+
+
+def report(state):
+    """チャット報告の全文。ツリーと状態だけで、作文を挟む余地を残さない。"""
+    tid = state.get("active_task_id")
+    t = task(state, tid) if tid else None
+    v = (t or {}).get("verification")
+    pr = (t or {}).get("review_pr")
+    lines = ["## 進捗ツリー"] + tree(state).splitlines() + [
+        "",
+        "## 状態",
+        f"- 現在タスク: {tid}（{t['title']}）" if t else "- 現在タスク: NONE",
+        f"- リポジトリ: {t['target_repo']}" if t else "- リポジトリ: NONE",
+        f"- 検証コマンド: {v['command'] if v else '(undefined)'}",
+        f"- 人間作業: REVIEW_REQUIRED {pr}" if pr else "- 人間作業: NONE",
+    ]
+    if len(lines) > REPORT_MAX_LINES:
+        raise ProgressError(f"report が {len(lines)} 行で、上限 {REPORT_MAX_LINES} 行を超えます")
+    return "\n".join(lines) + "\n"
+
+
+def review(task_id, url, path):
+    """現在のタスクを PR のレビュー待ちにする。解除は complete だけが行う。"""
+    state = load(path)
+    if state.get("active_task_id") != task_id:
+        raise ProgressError(f"{task_id} は現在のタスクではありません（現在：{state.get('active_task_id')}）")
+    if not url.startswith("https://"):
+        raise ProgressError("PR の URL（https://…）を渡してください")
+    task(state, task_id)["review_pr"] = url
+    save(state, path)
 
 
 # ============================================================ 検証連動の遷移（Gatekeeper）
@@ -227,6 +263,7 @@ def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, 
         out(f"REJECT: 終了コード {rc}（期待 {v['expected_exit_code']}）。{task_id} は完了にしません")
         return 1
     t["status"] = "completed"
+    t.pop("review_pr", None)
     nxt = next((x for x in state["tasks"] if x["status"] == "pending"), None)
     if nxt:
         nxt["status"] = "in_progress"
@@ -248,11 +285,19 @@ def main(argv=None):
     cp = sub.add_parser("complete")
     cp.add_argument("task_id")
     sub.add_parser("check")
+    sub.add_parser("report")
+    rp = sub.add_parser("review")
+    rp.add_argument("task_id")
+    rp.add_argument("url")
     args = ap.parse_args(argv)
     path = ROOT / REL_PATH
     try:
         if args.cmd == "complete":
             return complete(args.task_id)
+        if args.cmd == "review":
+            review(args.task_id, args.url, path)
+            print(report(load(path)), end="")
+            return 0
         state = load(path)
         problems = validate(state)
         if args.cmd == "check" or problems:
@@ -263,7 +308,10 @@ def main(argv=None):
                 return 1
             print(f"{'合格' if not problems else '不合格'}（{len(problems)} 件）")
             return 0 if not problems else 1
-        print(anchor(state) if args.cmd == "anchor" else tree(state, args.all), end="")
+        if args.cmd == "report":
+            print(report(state), end="")
+        else:
+            print(anchor(state) if args.cmd == "anchor" else tree(state, args.all), end="")
     except ProgressError as e:
         print(f"NG: {e}")
         return 1
