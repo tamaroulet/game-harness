@@ -22,12 +22,12 @@ nodes:
 - id: B3.1
   title: 前提防壁
   parent: B3
-- id: B3.2
-  title: Outer 段の実働化
-  parent: B3
-- id: B3.3
-  title: 適正化
-  parent: B3
+- id: B4
+  title: 長期連続走行
+  parent: A
+- id: Phase 4
+  title: 3D 物理・推論・知覚
+  parent: A
 tasks:
 - id: B3.1-PREP
   title: migrate 実装・v2 保全・進捗機械化（障害 1・2 の解消）
@@ -51,21 +51,15 @@ tasks:
     command: python harness/canary.py check-migrated --project falling-blocks --unit-id issue_12
     expected_exit_code: 0
 - id: B3.1-2
-  title: GDD の改訂・仕様の再生成・保存則の宣言
+  title: 時限制約とティック進行の述語（旧 B3.1-3 ＋ B3.1-4）
   group: B3.1
-  target_repo: falling-blocks
+  target_repo: game-harness
   status: pending
   verification: null
 - id: B3.1-3
-  title: 時限制約（操作の限定、whitelist の実在）
+  title: GDD の改訂・仕様の再生成・保存則の宣言（旧 B3.1-2）
   group: B3.1
-  target_repo: game-harness
-  status: pending
-  verification: null
-- id: B3.1-4
-  title: ティック進行の述語（repeat・at_step）
-  group: B3.1
-  target_repo: game-harness
+  target_repo: falling-blocks
   status: pending
   verification: null
 - id: falling-blocks#15
@@ -74,46 +68,46 @@ tasks:
   target_repo: falling-blocks
   status: pending
   verification: null
-- id: B3.2-1
-  title: 反例の dir（DEFICIT/SURPLUS）
-  group: B3.2
+- id: B3.2
+  title: 最小診断・反例射影（Roslyn 診断射影器）と Outer Gate の回送
+  group: B3
   target_repo: game-harness
   status: pending
   verification: null
-- id: B3.2-2
-  title: Outer Gate の回送（3 回連続で DISPUTE）
-  group: B3.2
+- id: B3.3
+  title: 差分バジェット・契約の形テスト・.meta の自動生成
+  group: B3
   target_repo: game-harness
   status: pending
   verification: null
-- id: B3.3-1
-  title: 差分バジェット（feature / refactor）
-  group: B3.3
+- id: B4-PREP
+  title: CI の非同期化・テストの常駐化・局所縮退制御・アンカー注入の hook
+  group: B4
   target_repo: game-harness
   status: pending
   verification: null
-- id: B3.3-2
-  title: 契約の形テスト（破壊率の定義）
-  group: B3.3
-  target_repo: game-harness
-  status: pending
-  verification: null
-- id: B3.3-3
-  title: .meta の自動生成と時限制約の解除
-  group: B3.3
-  target_repo: game-harness
-  status: pending
-  verification: null
-- id: falling-blocks#16
-  title: 自動生成した .meta を使う最初の単位
-  group: B3.3
+- id: B4-RUN
+  title: 5 機能の連続走行
+  group: B4
   target_repo: falling-blocks
   status: pending
   verification: null
-- id: B3.3-4
-  title: 共通数学型（refactor の単位）
-  group: B3.3
-  target_repo: falling-blocks
+- id: Phase 4-1
+  title: 3D 物理・メタモルフィックテスト
+  group: Phase 4
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: Phase 4-2
+  title: 推論モデル・信号時相論理（STL）
+  group: Phase 4
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: Phase 4-3
+  title: VLM による知覚の判定・差分テスト
+  group: Phase 4
+  target_repo: game-harness
   status: pending
   verification: null
 last_verification:
