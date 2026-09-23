@@ -87,6 +87,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_unit_schema.NestedStateAndParamDelta tests.test_testgen.NestedAccess
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/50
 - id: falling-blocks#17
   title: 出現＋1 段の自然落下
   group: B3.1
