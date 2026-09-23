@@ -17,6 +17,11 @@ given のフィールドとちょうど一致するコンストラクタ（状�
 - param：構造化仕様 §5 から引いた値をリテラルとして埋め込む
 - 自明なリテラル：そのまま埋め込む。列挙のメンバー名は、そのプロパティの型で修飾する
 
+**問い合わせ（query）の行**（手順 5.5）: 戻り値の期待値に加えて、次の 2 つを必ず検査する。
+- 冪等：同じ引数で 2 回呼び、2 回目の戻り値が 1 回目と等しい
+- 状態の不変（CQS）：呼ぶ前に、対象の型が interface で公開している状態（property / field。
+  static な query なら static なもの）をすべて控え、呼んだ後に 1 つずつ等しいことを確かめる
+
 本モジュールは受入データの検査（スキーマ門）を前提にする。門を通っていない単位を渡さないこと。
 """
 import argparse
@@ -100,10 +105,66 @@ def _owner_and_member(model, key, where):
     return model.members[key]
 
 
+def _state_members(model, type_name, static):
+    """CQS の検査で控える状態。interface で公開された property / field（const は変わらないので除く）。"""
+    t = model.types[type_name]
+    return [m for m in t.get("members", [])
+            if m["kind"] in ("property", "field") and bool(m.get("static")) == static]
+
+
+def _query_body(model, case, where):
+    op, given, expect = case["op"], case["given"], case["expect"]
+    owner, method = _owner_and_member(model, op["query"], where)
+    static = bool(method.get("static"))
+    t = owner["name"]
+    lines = []
+    if static:
+        if given:
+            raise GenerationError(f"{where}: static な query の行は given を持てません")
+        target = t
+    else:
+        fields = []
+        for key in given:
+            gt, gm = _owner_and_member(model, key, where)
+            if gt["name"] != t:
+                raise GenerationError(f"{where}: given の {key} は問い合わせ先 {t} の状態ではありません")
+            fields.append((gm["name"], gm["type"], given[key]))
+        ctor = _require_ctor(model, t, [_camel(n) for n, _, _ in fields], where)
+        by_param = {_camel(n): (ty, v) for n, ty, v in fields}
+        args = ", ".join(model.literal(by_param[p["name"]][1], by_param[p["name"]][0], f"{where}.given")
+                         for p in ctor.get("params", []))
+        lines.append(f"var sut = new {t}({args});")
+        target = "sut"
+    state = _state_members(model, t, static)
+    for i, m in enumerate(state):
+        # 列は中身を写し取る。参照だけを控えると、その場で書き換えられたときに気づけない
+        is_seq = ("<" in m["type"] or m["type"].endswith("[]")) and not m["type"].endswith("?")
+        value = f"System.Linq.Enumerable.ToArray({target}.{m['name']})" if is_seq else f"{target}.{m['name']}"
+        lines.append(f"var state{i} = {value};")
+    call_args = ", ".join(model.literal(op.get("args", {})[p["name"]], p["type"], f"{where}.op.args")
+                          for p in method.get("params", []))
+    call = f"{target}.{method['name']}({call_args})"
+    lines += [f"var first = {call};", f"var second = {call};"]
+    ret = expect["return"]
+    if ret is None:
+        lines.append('Assert.That(first, Is.Null, "return");')
+    elif ret == []:
+        lines.append('Assert.That(first, Is.Empty, "return");')
+    else:
+        lines.append(f'Assert.That(first, Is.EqualTo({model.literal(ret, method["type"], where)}), "return");')
+    lines.append(f'Assert.That(second, Is.EqualTo(first), "IDEMPOTENT: {op["query"]} を 2 回呼んで戻り値が変わった");')
+    for i, m in enumerate(state):
+        lines.append(f'Assert.That({target}.{m["name"]}, Is.EqualTo(state{i}), '
+                     f'"CQS: {op["query"]} が {t}.{m["name"]} を変えた");')
+    return lines
+
+
 def _case_body(model, case):
     where = f"cases[{case['id']}]"
     lines = []
     op, given, expect = case["op"], case["given"], case["expect"]
+    if "query" in op:
+        return _query_body(model, case, where)
 
     if "construct" in op:
         if given:
