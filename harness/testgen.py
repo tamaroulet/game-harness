@@ -78,6 +78,16 @@ class _Model:
             for m in t.get("members", []):
                 self.members[f"{t['name']}.{m['name']}"] = (t, m)
 
+    def struct_literal(self, v, type_name, where):
+        """構造体のリテラル → new 型(引数...)。引数の順はコンストラクタの宣言の順（B4-E2）。"""
+        t = self.types.get(type_name)
+        ctors = [m for m in (t or {}).get("members", []) if m["kind"] == "ctor"]
+        ctor = next((m for m in ctors if {p["name"] for p in m.get("params", [])} == set(v)), None)
+        if ctor is None:
+            raise GenerationError(f"{where}: {type_name} に、引数 {sorted(v)} のコンストラクタがありません")
+        args = ", ".join(self.literal(v[p["name"]], p["type"], f"{where}.{p['name']}") for p in ctor["params"])
+        return f"new {type_name}({args})"
+
     def count(self, v):
         """repeat・at_step の回数。スキーマ門が範囲を検査済みであることを前提にする。"""
         return unit_schema.resolve_param(self.params[v["param"]], None) + v.get("add", 0)
@@ -89,6 +99,8 @@ class _Model:
     def literal(self, v, type_name, where):
         """値（given・args・期待値のリテラル）を、宣言された型の C# リテラルにする。"""
         base = type_name.rstrip("?")
+        if isinstance(v, dict) and not ({"param", "same", "given"} & set(v)):
+            return self.struct_literal(v, base, where)
         if isinstance(v, dict) and "param" in v:
             add = v.get("add", 0)   # スキーマ門が「整数の値への ±1」だけを通している
             v = unit_schema.resolve_param(self.params[v["param"]], v.get("index"))
@@ -130,6 +142,14 @@ def _nested_access(model, key, sut_type, where):
     for prev, m in zip([None] + chain[:-1], chain):
         expr += ("?." if prev is not None and str(prev.get("type", "")).endswith("?") else ".") + m["name"]
     return expr, chain[-1]
+
+
+def _base_access(model, key, sut_type, where):
+    """±1・at_step の基準の式。入れ子（given の構造体の成分）なら ?. でたどる。"""
+    if key.count(".") > 1:
+        return _nested_access(model, key, sut_type, where)[0]
+    bt, bm = _owner_and_member(model, key, where)
+    return f"{bt['name']}.{bm['name']}" if (bm.get("static") or bm["kind"] == "const") else f"sut.{bm['name']}"
 
 
 def _state_members(model, type_name, static):
@@ -234,8 +254,7 @@ def _case_body(model, case):
         if isinstance(spec, dict) and "at_step" in spec:
             if repeat is None:
                 raise GenerationError(f"{where}: at_step は repeat のある行にだけ書けます")
-            bt, bm = _owner_and_member(model, spec["given"], where)
-            base = f"{bt['name']}.{bm['name']}" if (bm.get("static") or bm["kind"] == "const") else f"sut.{bm['name']}"
+            base = _base_access(model, spec["given"], sut_type, where)
             captures.append(f"var before{i} = {base};")
             k = model.count(spec["at_step"])
             sign = "+" if spec["add"] > 0 else "-"
@@ -247,8 +266,7 @@ def _case_body(model, case):
             if act is None:
                 raise GenerationError(f"{where}: construct の行に same / ±1 は書けません（比べる前の値が無い）")
             if "add" in spec:
-                bt, bm = _owner_and_member(model, spec["given"], where)
-                base = f"{bt['name']}.{bm['name']}" if (bm.get("static") or bm["kind"] == "const") else f"sut.{bm['name']}"
+                base = _base_access(model, spec["given"], sut_type, where)
             else:
                 base = access
             captures.append(f"var before{i} = {base};")

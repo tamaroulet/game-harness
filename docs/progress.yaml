@@ -155,8 +155,14 @@ tasks:
   title: given に構造体のリテラルと入れ子の基準
   group: B4
   target_repo: game-harness
+  target_files:
+  - harness/unit_schema.py
+  - harness/testgen.py
+  - config/decompose.json
   status: pending
-  verification: null
+  verification:
+    command: python -m unittest tests.test_struct_literal
+    expected_exit_code: 0
 - id: B4-E3
   title: マニフェスト・テンプレート・凍結した単位定義と生成テスト
   group: B4
