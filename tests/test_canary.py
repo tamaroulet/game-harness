@@ -37,11 +37,19 @@ class CanaryTests(unittest.TestCase):
         (repo / "impl").mkdir()
         for name in ("A.txt", "B.txt", "Keep.txt"):
             (repo / "impl" / name).write_text(name, encoding="utf-8")
+        # v1 の単位定義と、それが挙げる手書きの受入テスト（中身は使わない）
+        (repo / "tests" / "Core.Tests").mkdir(parents=True)
+        for cls in ("OldTests", "OtherTests"):
+            (repo / "tests" / "Core.Tests" / (cls + ".cs")).write_text("x", encoding="utf-8")
+        (repo / "tools").mkdir()
+        (repo / "tools" / "issue_12.json").write_text(
+            json.dumps({"id": "issue_12", "acceptance": {"required_tests": ["OldTests"]}}), encoding="utf-8")
         git("add", "-A", cwd=repo)
         git("commit", "-q", "-m", "init", cwd=repo)
         git("push", "-q", "origin", "main", cwd=repo)
         self.repo = repo
-        self.proj = {"id": "demo", "repo_dir": str(repo), "base_branch": "main"}
+        self.proj = {"id": "demo", "repo_dir": str(repo), "base_branch": "main",
+                     "test_dir": "tests/Core.Tests", "units_dir": "tools"}
         self.unit = self.tmp / "unit.json"
         self.unit.write_text(json.dumps({"schema": 2, "id": "issue_12",
                                          "impl_files": ["impl/A.txt", "impl/B.txt"]}), encoding="utf-8")
@@ -64,7 +72,20 @@ class CanaryTests(unittest.TestCase):
         self.assertTrue((self.wt / "impl" / "Keep.txt").exists())
         self.assertEqual(git("status", "--porcelain", cwd=self.wt), "")
         changed = git("diff", "--name-status", "origin/main", "HEAD", cwd=self.wt).split()
-        self.assertEqual(changed, ["D", "impl/A.txt", "D", "impl/B.txt", "A", "tools/issue_12.json"])
+        self.assertEqual(changed, ["D", "impl/A.txt", "D", "impl/B.txt", "M", "tools/issue_12.json"])
+
+    def test_retire_v1_tests_removes_only_the_listed_classes(self):
+        canary.prepare(self.proj, self.unit, self.wt, runner=self.fake_decompose(), retire_v1=True)
+        self.assertFalse((self.wt / "tests" / "Core.Tests" / ("OldTests" + ".cs")).exists())
+        self.assertTrue((self.wt / "tests" / "Core.Tests" / ("OtherTests" + ".cs")).exists())
+
+    def test_retire_stops_when_a_listed_class_is_missing(self):
+        (self.repo / "tools" / "issue_12.json").write_text(
+            json.dumps({"id": "issue_12", "acceptance": {"required_tests": ["GoneTests"]}}), encoding="utf-8")
+        git("commit", "-q", "-am", "v1 を変える", cwd=self.repo)
+        git("push", "-q", "origin", "main", cwd=self.repo)
+        with self.assertRaises(canary.CanaryError):
+            canary.prepare(self.proj, self.unit, self.wt, runner=self.fake_decompose(), retire_v1=True)
 
     def test_prepare_stops_when_decompose_fails(self):
         with self.assertRaises(canary.CanaryError):
