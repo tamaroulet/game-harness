@@ -1,0 +1,119 @@
+project_goal: 'Phase 3: 4 大未踏領域の評価と falling-blocks#15 のスモーク実証'
+active_task_id: B3.1-PREP
+constraints:
+- Do not touch Core/ or falling-blocks tests directly (deny rule).
+- Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
+- Write issues and PRs with the repository name (falling-blocks#15, game-harness#44).
+nodes:
+- id: A
+  title: 自律長期開発基盤
+  parent: null
+- id: B2
+  title: ADR-002 の 3 つの防壁（手順 1〜6、v2 カナリア PASS）
+  parent: A
+  status: completed
+- id: B3
+  title: 4 大未踏領域と falling-blocks#15 のスモーク
+  parent: A
+- id: B3.0
+  title: ADR-003 の起草（game-harness#44）
+  parent: B3
+  status: completed
+- id: B3.1
+  title: 前提防壁
+  parent: B3
+- id: B3.2
+  title: Outer 段の実働化
+  parent: B3
+- id: B3.3
+  title: 適正化
+  parent: B3
+tasks:
+- id: B3.1-PREP
+  title: migrate 実装・v2 保全・進捗機械化（障害 1・2 の解消）
+  group: B3.1
+  target_repo: game-harness
+  target_files:
+  - harness/canary.py
+  - harness/progress.py
+  - docs/progress.yaml
+  - projects/falling-blocks/units/issue_12.json
+  status: in_progress
+  verification:
+    command: python -m unittest discover -s tests
+    expected_exit_code: 0
+- id: B3.1-1
+  title: v2 契約の移行（falling-blocks への PR）
+  group: B3.1
+  target_repo: falling-blocks
+  status: pending
+  verification:
+    command: python harness/canary.py check-migrated --project falling-blocks --unit-id issue_12
+    expected_exit_code: 0
+- id: B3.1-2
+  title: GDD の改訂・仕様の再生成・保存則の宣言
+  group: B3.1
+  target_repo: falling-blocks
+  status: pending
+  verification: null
+- id: B3.1-3
+  title: 時限制約（操作の限定、whitelist の実在）
+  group: B3.1
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: B3.1-4
+  title: ティック進行の述語（repeat・at_step）
+  group: B3.1
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: falling-blocks#15
+  title: 出現＋1 段の自然落下
+  group: B3.1
+  target_repo: falling-blocks
+  status: pending
+  verification: null
+- id: B3.2-1
+  title: 反例の dir（DEFICIT/SURPLUS）
+  group: B3.2
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: B3.2-2
+  title: Outer Gate の回送（3 回連続で DISPUTE）
+  group: B3.2
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: B3.3-1
+  title: 差分バジェット（feature / refactor）
+  group: B3.3
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: B3.3-2
+  title: 契約の形テスト（破壊率の定義）
+  group: B3.3
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: B3.3-3
+  title: .meta の自動生成と時限制約の解除
+  group: B3.3
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: falling-blocks#16
+  title: 自動生成した .meta を使う最初の単位
+  group: B3.3
+  target_repo: falling-blocks
+  status: pending
+  verification: null
+- id: B3.3-4
+  title: 共通数学型（refactor の単位）
+  group: B3.3
+  target_repo: falling-blocks
+  status: pending
+  verification: null
+last_verification: null
