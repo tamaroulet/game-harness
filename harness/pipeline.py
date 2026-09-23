@@ -80,7 +80,8 @@ class Ctx:
         self.tel = {"attempts": []}
         self.tel_path = None
         self.cur = None
-        self.gate = None
+        # gate は property。門が変わるたびに、前の門にいた時間を試行の記録（stages）へ足す（B4-PREP）
+        self._gate, self._gate_t0, self._gate_sink = None, time.monotonic(), None
         self.line_sets = []
         # 単位には 2 種類ある。
         #   リファクタリング: 既存実装から採取したゴールデンが正解（MS1〜3）
@@ -93,6 +94,24 @@ class Ctx:
         # TIMELINE への追記に使う実測値。各門が通るたびに埋まる。
         # 手で書くと実態とずれても誰も気づかないので、判定に使った値をそのまま残す。
         self.metrics = {}
+
+    # ---- 門ごとの所要時間（テレメトリ。判定には使わない）
+    @property
+    def gate(self):
+        return self._gate
+
+    @gate.setter
+    def gate(self, value):
+        self.flush_gate()
+        self._gate, self._gate_sink = value, self.cur
+
+    def flush_gate(self):
+        """今の門にいた時間を記録に足し、計時をいまから測り直す。門そのものは変えない。"""
+        now = time.monotonic()
+        if self._gate is not None and isinstance(self._gate_sink, dict):
+            st = self._gate_sink.setdefault("stages", {})
+            st[self._gate] = st.get(self._gate, 0.0) + (now - self._gate_t0)
+        self._gate_t0 = now
 
     # ---- パス
     def sb(self, rel):
@@ -227,16 +246,33 @@ def wait_for_ci(c):
         time.sleep(5)
 
     if not run_id:
-        return 2, f"CI の run が見つかりません (sha={sha[:8]})"
+        return 2, f"CI の run が見つかりません (sha={sha[:8]})。配管の故障として扱い、差し戻しません"
 
     c.metrics["ci_run_id"] = run_id
     # 既定の 3 秒間隔だと API を多く使う（レート制限）。scheduler の CI 待ちと同じ間隔にそろえる。
     interval = str(c.cfg.get("ci_watch_interval_seconds", 15))
     rc, _, err = run(["gh", "run", "watch", run_id, "--exit-status", "--interval", interval],
                      c.repo, c.ttl["gh"], "gh run watch")
-    if rc != 0:
-        return rc, f"CI が赤 (run={run_id}): {err[:200]}"
-    return 0, f"CI 緑 (run={run_id})"
+    if rc == 0:
+        return 0, f"CI 緑 (run={run_id})"
+    # watch の失敗は「CI が赤」とは限らない（ネットワーク・レート制限・打ち切り）。結論を読み直して分ける
+    _, viewed, _ = run(["gh", "run", "view", run_id, "--json", "status,conclusion"],
+                       c.repo, c.ttl["git"], "gh run view")
+    return classify_ci(viewed, run_id, err)
+
+
+def classify_ci(viewed_json, run_id, watch_err=""):
+    """gh run view の結果から (rc, 説明) を決める。0 = 緑、1 = 赤（実装の不合格）、2 = 観測できない（配管）。"""
+    try:
+        v = json.loads(viewed_json or "")
+    except ValueError:
+        v = None
+    if not isinstance(v, dict) or v.get("status") != "completed":
+        return 2, (f"CI の結果を観測できません (run={run_id}、status={None if not isinstance(v, dict) else v.get('status')})。"
+                   f"配管の故障として扱い、差し戻しません: {watch_err[:200]}")
+    if v.get("conclusion") == "success":
+        return 0, f"CI 緑 (run={run_id}、watch は失敗したが結論は success)"
+    return 1, f"CI が赤 (run={run_id}、conclusion={v.get('conclusion')})"
 
 
 def heads_match(c):
@@ -1231,6 +1267,11 @@ def carry_out_and_ci(c):
     print("[7] CI 完了検知")
     c.gate = "ci"
     rc, ci_msg = wait_for_ci(c)
+    if rc == 2:
+        # 局所縮退：CI を観測できないだけなら、正しいかもしれない実装を差し戻さない。
+        # push 済みのまま止め、人間か次の確認に委ねる（B4-PREP、ADR-003 §3.12 と同じ考え方）
+        print(f"    {ci_msg}")
+        return "ABORT", ci_msg
     if rc != 0:
         print(f"    {ci_msg}")
         print("    CI が赤。自動で差し戻します。")
@@ -1515,11 +1556,15 @@ def save_telemetry(c):
 
 def record_attempt(c, n, verdict, msg, seconds, feedback):
     """1 試行を記録する。SUCCESS でも不合格でも ABORT でも残す（生存者バイアスを作らない）。"""
+    c.flush_gate()
     a = c.cur or {}
     reason = "" if msg is None else str(msg)
     entry = {"n": n, "verdict": verdict, "stage": c.gate, "reason": reason[:500],
              "reason_sha256": telemetry.sha256_text(reason), "seconds": seconds,
              "feedback_chars": len(feedback)}
+    if a.get("stages"):
+        # どの門で時間を使ったか（B4-RUN のボトルネックを測る）。秒、小数 1 桁
+        entry["stages"] = {k: round(v, 1) for k, v in a["stages"].items()}
     if "implementer" in a:
         entry["implementer"] = a["implementer"]
     else:

@@ -1,5 +1,5 @@
 project_goal: 'Phase 3: 4 大未踏領域の評価と falling-blocks#17 のスモーク実証'
-active_task_id: B3.3
+active_task_id: B4-PREP
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -120,17 +120,24 @@ tasks:
   - harness/adapters/unity.py
   - config/unit_schema.json
   - config/decompose.json
-  status: in_progress
+  status: completed
   verification:
     command: python -m unittest tests.test_diff_budget tests.test_unit_schema.TaskKind tests.test_testgen.ContractShape tests.test_adapters
     expected_exit_code: 0
-  review_pr: https://github.com/tamaroulet/game-harness/pull/53
 - id: B4-PREP
   title: CI の非同期化・テストの常駐化・局所縮退制御・アンカー注入の hook
   group: B4
   target_repo: game-harness
-  status: pending
-  verification: null
+  target_files:
+  - harness/pipeline.py
+  - harness/adapters/dotnet.py
+  - harness/invrun.py
+  - harness/progress.py
+  status: in_progress
+  verification:
+    command: python -m unittest tests.test_b4_prep
+    expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/54
 - id: B4-RUN
   title: 5 機能の連続走行
   group: B4
@@ -156,6 +163,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: B3.2
+  task: B3.3
   exit_code: 0
-  at: '2026-09-24T01:35:50'
+  at: '2026-09-24T02:02:49'
