@@ -162,6 +162,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_struct_literal
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/57
 - id: B4-E3
   title: マニフェスト・テンプレート・凍結した単位定義と生成テスト
   group: B4
