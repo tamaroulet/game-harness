@@ -260,6 +260,37 @@ def generate(unit, spec_text, gdd_text, unit_bytes):
     return {f"{name}.cs": "\n".join(out)}
 
 
+# ============================================================ 実装役への提示
+
+def render_interface(unit):
+    """interface を、実装役に渡すシグネチャの一覧（Markdown）にする。決定論。
+
+    実装役が受入テストから名前を推し量らなくて済むよう、作る形そのものを渡す（手順 5.6）。
+    const の値は構造化仕様の ID で示す（値そのものは仕様から引く）。
+    """
+    lines = ["## 作る型とメンバー（単位定義の interface。名前・型・static の有無・引数を厳密に合わせる）", ""]
+    for t in unit["interface"]["types"]:
+        if t["kind"] == "enum":
+            lines.append(f"- enum {t['name']}: {', '.join(t['values'])}（この順。明示的な数値は振らない）")
+            continue
+        lines.append(f"- {t['kind']} {t['name']}")
+        for m in t.get("members", []):
+            st = "static " if m.get("static") else ""
+            ps = ", ".join(f"{p['type']} {p['name']}" for p in m.get("params", []))
+            if m["kind"] == "ctor":
+                lines.append(f"  - public コンストラクタ ({ps})")
+            elif m["kind"] == "const":
+                v = m.get("value")
+                shown = f" = 構造化仕様 {v['param']} の値" if isinstance(v, dict) and "param" in v \
+                    else (f" = {json.dumps(v)}" if v is not None else "")
+                lines.append(f"  - public const {m['type']} {m['name']}{shown}")
+            elif m["kind"] == "method":
+                lines.append(f"  - public {st}method {m['type']} {m['name']}({ps})")
+            else:
+                lines.append(f"  - public {st}{m['kind']} {m['type']} {m['name']}（読み取り専用で公開する）")
+    return "\n".join(lines)
+
+
 # ============================================================ 自己テスト用の骨組み
 
 def interface_stub(unit, spec_text, gdd_text):

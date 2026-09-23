@@ -350,6 +350,8 @@ def main():
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--issue", type=int, help="対象の Issue 番号")
     g.add_argument("--file", help="Issue の代わりにローカルの文書を使う（試験用）")
+    g.add_argument("--from-unit", help="書き上がった単位定義 v2 から、分解役（LLM）を呼ばずに単位定義と"
+                                       "受入テストを書き出す（v1 からの移行用。スキーマ門とテスト生成は同じく通す）")
     ap.add_argument("--id", help="単位 ID。--file のときは必須")
     ap.add_argument("--telemetry", help="テレメトリの書き出し先（JSON）。判定には使わない")
     ap.add_argument("--repo-dir", help="Issue の worktree。テストと単位定義をここに書く（既定は project.json の repo_dir）")
@@ -370,9 +372,41 @@ def main():
             telemetry.write(a.telemetry, TEL)
 
 
+def from_unit(path):
+    """単位定義 v2 のファイルから書き出す。LLM を呼ばない。門とテスト生成は通常と同じく通す。"""
+    try:
+        unit = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        reject(f"単位定義を読めません: {e}")
+    if not isinstance(unit, dict) or unit.get("schema") != unit_schema.SCHEMA or not isinstance(unit.get("id"), str):
+        reject(f"schema {unit_schema.SCHEMA} で id のある単位定義だけを受けます: {path}")
+    unit = build_unit({k: v for k, v in unit.items() if k != "schema"}, unit["id"])
+    problems = validate(unit)
+    files = {}
+    if not problems:
+        try:
+            files, problems = self_check(unit, base_reader())
+        except unit_schema.UnitSchemaError as e:
+            sys.exit(f"スキーマ門に必要なファイルを読めません: {e}")
+    TEL["self_check"] = [{"attempt": 1, "problems": len(problems), "from_unit": True}]
+    if problems:
+        print("\n単位定義が要件を満たしていません:")
+        for x in problems:
+            print("  - " + x)
+        print("\n書き出さずに終了します。")
+        return 1
+    written, _ = write_outputs(unit, files)
+    print("\n書き出し:")
+    for w in written:
+        print("  " + w)
+    return 0
+
+
 def decompose(a):
     configure(a.project, getattr(a, "repo_dir", None))
 
+    if getattr(a, "from_unit", None):
+        return from_unit(a.from_unit)
     if a.issue:
         title, body = fetch_issue(a.issue)
         unit_id = a.id or f"issue_{a.issue}"
