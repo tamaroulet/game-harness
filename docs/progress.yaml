@@ -141,9 +141,16 @@ tasks:
   title: GDD v10（ハードドロップと SRS）と仕様の再生成
   group: B4
   target_repo: falling-blocks
+  target_files:
+  - docs/gdd/source.md
+  - docs/spec/spec.md
+  - projects/falling-blocks/invariants.json
+  - projects/falling-blocks/units/issue_12.json
   status: in_progress
-  verification: null
-  review_pr: https://github.com/tamaroulet/game-harness/pull/55
+  verification:
+    command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py --project falling-blocks --decl projects/falling-blocks/invariants.json --out C:/src/.local/out/harness/falling-blocks/invariants-check && python harness/unit_schema.py --project falling-blocks --unit projects/falling-blocks/units/issue_12.json
+    expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/56
 - id: B4-E2
   title: given に構造体のリテラルと入れ子の基準
   group: B4

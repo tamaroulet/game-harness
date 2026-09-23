@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "gdd_sha256": "9e11aed0d173ec8141f6b542cc19ec05894a7e7a4a1e1676531a135e9e18b00b",
-  "_comment": "GDD §5 の保存則（RL-36）。盤面ブロック数・ロックしたミノの累計数は GDD v9 §6 で公開した（IF-16・IF-17、ADR-003 §3.2）。Tick・BlockCount・LockedMinoCount を実装する単位（B3 のスモーク）がマージされるまで、Outer 段はこの宣言をビルドできない",
+  "gdd_sha256": "95876782072ebf6a973781f2921e6abe4d2cead5519a09f673fe380991feb7a7",
+  "_comment": "GDD §5 の保存則（RL-36）。盤面ブロック数・ロックしたミノの累計数は GDD v9 §6（v10 でハードドロップと SRS を足した。保存則は変わらない） で公開した（IF-16・IF-17、ADR-003 §3.2）。Tick・BlockCount・LockedMinoCount を実装する単位（B3 のスモーク）がマージされるまで、Outer 段はこの宣言をビルドできない",
   "interface": {
     "types": [
       {
