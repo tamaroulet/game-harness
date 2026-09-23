@@ -85,7 +85,9 @@ class _Model:
         """値（given・args・期待値のリテラル）を、宣言された型の C# リテラルにする。"""
         base = type_name.rstrip("?")
         if isinstance(v, dict) and "param" in v:
+            add = v.get("add", 0)   # スキーマ門が「整数の値への ±1」だけを通している
             v = unit_schema.resolve_param(self.params[v["param"]], v.get("index"))
+            v = v + add if add else v
         if v is None:
             return "null"
         if isinstance(v, bool):
@@ -112,6 +114,17 @@ def _owner_and_member(model, key, where):
     if key not in model.members:
         raise GenerationError(f"{where}: {key} は interface にありません")
     return model.members[key]
+
+
+def _nested_access(model, key, sut_type, where):
+    """入れ子の状態（型.メンバー.メンバー）の C# の式と、最後のメンバー。null になりうる段は ?. でたどる。"""
+    chain = unit_schema.state_path({k: m for k, (_, m) in model.members.items()}, key)
+    if not chain or key.split(".")[0] != sut_type or any(m.get("static") or m["kind"] == "const" for m in chain):
+        raise GenerationError(f"{where}: expect の {key} は操作対象 {sut_type} の入れ子の状態ではありません")
+    expr = "sut"
+    for prev, m in zip([None] + chain[:-1], chain):
+        expr += ("?." if prev is not None and str(prev.get("type", "")).endswith("?") else ".") + m["name"]
+    return expr, chain[-1]
 
 
 def _state_members(model, type_name, static):
@@ -205,11 +218,14 @@ def _case_body(model, case):
     repeat = model.count(op["repeat"]) if "repeat" in op else None
     asserts, captures, stepped = [], [], []
     for i, (key, spec) in enumerate(expect.items()):
-        et, em = _owner_and_member(model, key, where)
-        static = em.get("static") or em["kind"] == "const"
-        if et["name"] != sut_type and not static:
-            raise GenerationError(f"{where}: expect の {key} は操作対象 {sut_type} の状態ではありません")
-        access = f"{et['name']}.{em['name']}" if static else f"sut.{em['name']}"
+        if key.count(".") > 1:
+            access, em = _nested_access(model, key, sut_type, where)
+        else:
+            et, em = _owner_and_member(model, key, where)
+            static = em.get("static") or em["kind"] == "const"
+            if et["name"] != sut_type and not static:
+                raise GenerationError(f"{where}: expect の {key} は操作対象 {sut_type} の状態ではありません")
+            access = f"{et['name']}.{em['name']}" if static else f"sut.{em['name']}"
         if isinstance(spec, dict) and "at_step" in spec:
             if repeat is None:
                 raise GenerationError(f"{where}: at_step は repeat のある行にだけ書けます")
@@ -222,7 +238,7 @@ def _case_body(model, case):
                         f'$"{key}: {k} 回目より前に変わった（step {{step}}）");',
                         f"else if (step == {k}) Assert.That({access}, Is.EqualTo(before{i} {sign} 1), "
                         f'"{key}: {k} 回目で {sign}1 にならない");']
-        elif isinstance(spec, dict) and ("same" in spec or "add" in spec):
+        elif isinstance(spec, dict) and ("same" in spec or ("add" in spec and "given" in spec)):
             if act is None:
                 raise GenerationError(f"{where}: construct の行に same / ±1 は書けません（比べる前の値が無い）")
             if "add" in spec:

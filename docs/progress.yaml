@@ -1,9 +1,9 @@
-project_goal: 'Phase 3: 4 大未踏領域の評価と falling-blocks#15 のスモーク実証'
+project_goal: 'Phase 3: 4 大未踏領域の評価と falling-blocks#17 のスモーク実証'
 active_task_id: B3.1-3
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
-- Write issues and PRs with the repository name (falling-blocks#15, game-harness#44).
+- Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 nodes:
 - id: A
   title: 自律長期開発基盤
@@ -13,7 +13,7 @@ nodes:
   parent: A
   status: completed
 - id: B3
-  title: 4 大未踏領域と falling-blocks#15 のスモーク
+  title: 4 大未踏領域と falling-blocks#17 のスモーク
   parent: A
 - id: B3.0
   title: ADR-003 の起草（game-harness#44）
@@ -77,7 +77,18 @@ tasks:
     command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py --project falling-blocks --decl projects/falling-blocks/invariants.json --out C:/src/.local/out/harness/falling-blocks/invariants-check
     expected_exit_code: 0
   review_pr: https://github.com/tamaroulet/game-harness/pull/49
-- id: falling-blocks#15
+- id: B3.1-4
+  title: 受入データの入れ子の状態と param±1
+  group: B3.1
+  target_repo: game-harness
+  target_files:
+  - harness/unit_schema.py
+  - harness/testgen.py
+  status: pending
+  verification:
+    command: python -m unittest tests.test_unit_schema.NestedStateAndParamDelta tests.test_testgen.NestedAccess
+    expected_exit_code: 0
+- id: falling-blocks#17
   title: 出現＋1 段の自然落下
   group: B3.1
   target_repo: falling-blocks

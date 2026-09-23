@@ -224,6 +224,47 @@ class TimedConstraints(unittest.TestCase):
         self.assertEqual(unit_schema.validate(u, SPEC, GDD, {}), [])
 
 
+def with_active_mino(case):
+    """入れ子の状態（GameState.ActiveMino.Y）を持つ interface に、case の行を足したもの。"""
+    u = copy.deepcopy(VALID)
+    u["interface"]["types"].insert(1, {"name": "ActiveMino", "kind": "struct", "members": [
+        {"name": "X", "kind": "property", "type": "int"}, {"name": "Y", "kind": "property", "type": "int"}]})
+    u["interface"]["types"][-1]["members"].append({"name": "ActiveMino", "kind": "property", "type": "ActiveMino?"})
+    u["acceptance"]["cases"].append(case)
+    return u
+
+
+FALL = {"id": "fall-one", "rule": "IF-08", "given": {},
+        "op": {"call": "GameState.Advance", "repeat": {"param": "PR-06", "add": 1}},
+        "expect": {"GameState.ActiveMino.Y": {"param": "PR-09", "index": 1, "add": -1},
+                   "GameState.ActiveMino.X": {"param": "PR-09", "index": 0}}}
+
+
+class NestedStateAndParamDelta(unittest.TestCase):
+    """入れ子の状態の期待値と、仕様の値からの ±1（falling-blocks のスモーク、2026-09-23 オーナー裁定）。"""
+
+    def problems(self, fn=None):
+        case = copy.deepcopy(FALL)
+        if fn:
+            fn(case)
+        return check(with_active_mino(case))
+
+    def test_nested_expect_and_param_delta_pass(self):
+        self.assertEqual(self.problems(), [])
+
+    def test_nested_path_must_exist(self):
+        p = self.problems(lambda c: c["expect"].update({"GameState.ActiveMino.Z": 0}))
+        self.assertTrue(any("宣言した状態" in x for x in p), p)
+
+    def test_nested_path_not_allowed_in_given(self):
+        p = self.problems(lambda c: c.update(given={"GameState.ActiveMino.Y": 5}))
+        self.assertTrue(any("宣言した状態" in x for x in p), p)
+
+    def test_param_delta_is_one_at_most(self):
+        p = self.problems(lambda c: c["expect"]["GameState.ActiveMino.Y"].update(add=2))
+        self.assertTrue(any("±1 だけ" in x for x in p), p)
+
+
 class Legacy(unittest.TestCase):
     CFG = {"legacy_v1_sha256": {}, "spec_path": "s", "gdd_path": "g"}
 
