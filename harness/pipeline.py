@@ -36,6 +36,7 @@ import invrun
 import oracle
 import project
 import telemetry
+import testgen
 import unit_schema
 from proc import resolve_cli, run
 
@@ -394,6 +395,9 @@ def call_implementer(c, feedback=""):
         tokens[f"{{impl_abs_{i}}}"] = str(c.sb(rel))
     for token, value in tokens.items():
         prompt = prompt.replace(token, value)
+    # v2 の単位定義は、作る形を interface に持つ。prompt だけでは実装役に届かないので展開する（手順 5.6）
+    if c.unit.get("schema") == unit_schema.SCHEMA and isinstance(c.unit.get("interface"), dict):
+        prompt += "\n\n" + testgen.render_interface(c.unit)
 
     # 作業場所を必ず伝える。相対パスだけだと本体を編集しうる（実測で発生した）。
     # 計画を返して止まる実装役がいる（実測。外部のペルソナ設定が「着手前に計画を提示せよ」と
