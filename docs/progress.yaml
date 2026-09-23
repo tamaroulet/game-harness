@@ -1,5 +1,5 @@
 project_goal: 'Phase 3: 4 大未踏領域の評価と falling-blocks#17 のスモーク実証'
-active_task_id: B4-E1
+active_task_id: B4-E2
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -146,11 +146,10 @@ tasks:
   - docs/spec/spec.md
   - projects/falling-blocks/invariants.json
   - projects/falling-blocks/units/issue_12.json
-  status: in_progress
+  status: completed
   verification:
     command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py --project falling-blocks --decl projects/falling-blocks/invariants.json --out C:/src/.local/out/harness/falling-blocks/invariants-check && python harness/unit_schema.py --project falling-blocks --unit projects/falling-blocks/units/issue_12.json
     expected_exit_code: 0
-  review_pr: https://github.com/tamaroulet/game-harness/pull/56
 - id: B4-E2
   title: given に構造体のリテラルと入れ子の基準
   group: B4
@@ -159,7 +158,7 @@ tasks:
   - harness/unit_schema.py
   - harness/testgen.py
   - config/decompose.json
-  status: pending
+  status: in_progress
   verification:
     command: python -m unittest tests.test_struct_literal
     expected_exit_code: 0
@@ -206,6 +205,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: B4-PREP
+  task: B4-E1
   exit_code: 0
-  at: '2026-09-24T02:22:32'
+  at: '2026-09-24T03:31:49'
