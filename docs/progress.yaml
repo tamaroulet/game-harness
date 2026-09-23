@@ -69,8 +69,14 @@ tasks:
   title: GDD の改訂・仕様の再生成・保存則の宣言（旧 B3.1-2）
   group: B3.1
   target_repo: falling-blocks
+  target_files:
+  - docs/gdd/source.md
+  - docs/spec/spec.md
+  - projects/falling-blocks/invariants.json
   status: pending
-  verification: null
+  verification:
+    command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py --project falling-blocks --decl projects/falling-blocks/invariants.json --out C:/src/.local/out/harness/falling-blocks/invariants-check
+    expected_exit_code: 0
 - id: falling-blocks#15
   title: 出現＋1 段の自然落下
   group: B3.1
