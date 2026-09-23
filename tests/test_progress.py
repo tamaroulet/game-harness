@@ -178,6 +178,14 @@ class CompleteTests(unittest.TestCase):
         self.assertEqual(s["tasks"][0]["status"], "in_progress")
         self.assertEqual(s["last_verification"]["exit_code"], 3)
 
+    def test_environment_failure_is_abort_not_reject(self):
+        # 検証コマンドが rc=2（環境異常）なら ABORT。実装の不合格（1）と区別して返す
+        self.publish(sample(f'{PY} -c "import sys; sys.exit(2)"'))
+        rc, out = self.complete()
+        self.assertEqual(rc, 2)
+        self.assertIn("ABORT", out)
+        self.assertEqual(progress.load(self.path)["tasks"][0]["status"], "in_progress")
+
     def test_locally_replaced_verification_is_refused(self):
         self.publish(sample(f'{PY} -c "import sys; sys.exit(1)"'))
         s = progress.load(self.path)

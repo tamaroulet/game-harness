@@ -35,6 +35,7 @@ import sys
 from pathlib import Path
 
 import gdd_check
+import exitcode
 import project
 from proc import run
 
@@ -429,4 +430,4 @@ def main(argv=None):
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.exit(main())
+    sys.exit(exitcode.normalized(main))

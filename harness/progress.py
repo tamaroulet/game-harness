@@ -22,6 +22,9 @@ from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import exitcode  # noqa: E402  python -m harness.progress でも python harness/progress.py でも読めるように
+
 ROOT = Path(__file__).resolve().parent.parent
 REL_PATH = "docs/progress.yaml"
 STATUSES = ("pending", "in_progress", "completed")
@@ -228,7 +231,7 @@ def main_version(repo_root, ref, fetch=True):
 
 
 def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, now=None):
-    """0 = 完了にした、1 = 拒絶（REJECT）。"""
+    """0 = 完了にした、1 = 拒絶（REJECT）、2 = 検証コマンドが環境異常で終わった（ABORT）。"""
     path = Path(repo_root) / REL_PATH
     state = load(path)
     problems = validate(state)
@@ -260,6 +263,9 @@ def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, 
         save(state, path)
         tail = log.strip().splitlines()[-TAIL_LINES:]
         out("\n".join(tail))
+        if rc == exitcode.ABORT:
+            out(f"ABORT: 検証コマンドが環境異常（rc={rc}）で終わりました。{task_id} は完了にしません。実装の不合格とは扱いません")
+            return exitcode.ABORT
         out(f"REJECT: 終了コード {rc}（期待 {v['expected_exit_code']}）。{task_id} は完了にしません")
         return 1
     t["status"] = "completed"
@@ -313,12 +319,13 @@ def main(argv=None):
         else:
             print(anchor(state) if args.cmd == "anchor" else tree(state, args.all), end="")
     except ProgressError as e:
-        print(f"NG: {e}")
-        return 1
+        # 状態・前提の不備（照合できない、現在のタスクではない等）。検証の不合格（1）と区別する
+        print(f"ABORT: {e}")
+        return exitcode.ABORT
     return 0
 
 
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.exit(main())
+    sys.exit(exitcode.normalized(main))
