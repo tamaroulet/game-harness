@@ -98,10 +98,10 @@ def mutated(fn):
 
 class Schema(unittest.TestCase):
     def test_query_unit_passes(self):
-        self.assertEqual(unit_schema.validate(QUNIT, SPEC, GDD), [])
+        self.assertEqual(unit_schema.validate(QUNIT, SPEC, GDD, {}), [])
 
     def assertRejected(self, unit, fragment):
-        problems = unit_schema.validate(unit, SPEC, GDD)
+        problems = unit_schema.validate(unit, SPEC, GDD, {})
         self.assertTrue(any(fragment in p for p in problems), f"{fragment!r} が問題に無い: {problems}")
 
     def test_query_needs_a_return_value(self):

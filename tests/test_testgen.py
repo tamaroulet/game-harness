@@ -28,6 +28,11 @@ UNIT["interface"]["types"][2]["members"].append(
     {"name": "GameState", "kind": "ctor", "params": [{"name": "tickCount", "type": "int"}]})
 # Phase だけを given にすると「引数 phase のコンストラクタ」が要る。既定の Ready から始める行にする
 UNIT["acceptance"]["cases"][1]["given"] = {}
+# ティック進行の述語（ADR-003 §3.9）：PR-06（10）回まわし、10 回目で初めて +1 になる
+UNIT["acceptance"]["cases"].append(
+    {"id": "fall", "rule": "IF-08", "given": {"GameState.TickCount": 41},
+     "op": {"call": "GameState.Advance", "repeat": {"param": "PR-06"}},
+     "expect": {"GameState.TickCount": {"given": "GameState.TickCount", "add": 1, "at_step": {"param": "PR-06"}}}})
 BODY = json.dumps(UNIT, ensure_ascii=False).encode("utf-8")
 
 CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
@@ -69,6 +74,14 @@ class Deterministic(unittest.TestCase):
 
     def test_one_file_named_after_unit(self):
         self.assertEqual(list(generated()), ["Issue12Cases.cs"])
+
+
+class TickLoop(unittest.TestCase):
+    def test_repeat_becomes_a_loop_with_per_step_checks(self):
+        text = "".join(generated().values())
+        self.assertIn("for (var step = 1; step <= 10; step++)", text)
+        self.assertIn("if (step < 10) Assert.That(sut.TickCount, Is.EqualTo(before0)", text)
+        self.assertIn("else if (step == 10) Assert.That(sut.TickCount, Is.EqualTo(before0 + 1)", text)
 
 
 class Rejects(unittest.TestCase):

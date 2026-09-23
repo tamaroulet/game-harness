@@ -1,5 +1,5 @@
 project_goal: 'Phase 3: 4 大未踏領域の評価と falling-blocks#15 のスモーク実証'
-active_task_id: B3.1-1
+active_task_id: B3.1-2
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -46,23 +46,25 @@ tasks:
   title: v2 契約の移行（falling-blocks への PR）
   group: B3.1
   target_repo: falling-blocks
-  status: in_progress
+  status: completed
   verification:
     command: python harness/canary.py check-migrated --project falling-blocks --unit-id issue_12
     expected_exit_code: 0
-  review_pr: https://github.com/tamaroulet/falling-blocks/pull/15
 - id: B3.1-2
-  title: 時限制約とティック進行の述語（旧 B3.1-3 ＋ B3.1-4）
+  title: 時限制約とティック進行の述語、終了コードの三値化（旧 B3.1-3 ＋ B3.1-4）
   group: B3.1
   target_repo: game-harness
   target_files:
   - harness/unit_schema.py
   - harness/testgen.py
   - config/unit_schema.json
-  status: pending
+  - harness/canary.py
+  - harness/progress.py
+  status: in_progress
   verification:
-    command: python -m unittest tests.test_unit_schema.TickPredicates tests.test_unit_schema.TimedConstraints tests.test_testgen.TickLoop
+    command: python -m unittest tests.test_unit_schema.TickPredicates tests.test_unit_schema.TimedConstraints tests.test_testgen.TickLoop tests.test_exitcode_coverage
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/48
 - id: B3.1-3
   title: GDD の改訂・仕様の再生成・保存則の宣言（旧 B3.1-2）
   group: B3.1
@@ -118,6 +120,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: B3.1-PREP
+  task: B3.1-1
   exit_code: 0
-  at: '2026-09-23T22:22:57'
+  at: '2026-09-23T23:22:56'

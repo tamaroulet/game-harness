@@ -150,6 +150,80 @@ class Rejects(unittest.TestCase):
         self.assertRejected(VALID, "gdd-sha256", spec=spec_for(GDD + "変更\n"))
 
 
+TICK = {"id": "fall", "rule": "IF-08", "given": {"GameState.TickCount": 41},
+        "op": {"call": "GameState.Advance", "repeat": {"param": "PR-06"}},
+        "expect": {"GameState.TickCount": {"given": "GameState.TickCount", "add": 1, "at_step": {"param": "PR-06"}}}}
+
+
+def with_tick(fn=None):
+    u = copy.deepcopy(VALID)
+    u["acceptance"]["cases"].append(copy.deepcopy(TICK))
+    if fn:
+        fn(u["acceptance"]["cases"][-1])
+    return u
+
+
+class TickPredicates(unittest.TestCase):
+    """ティック進行の述語（ADR-003 §3.9）。回数は GDD から引き、上限を超えられない。"""
+
+    def assertRejected(self, unit, fragment, spec=SPEC):
+        problems = check(unit, spec)
+        self.assertTrue(any(fragment in p for p in problems), f"{fragment!r} が問題に無い: {problems}")
+
+    def test_repeat_with_at_step_passes(self):
+        self.assertEqual(check(with_tick()), [])
+
+    def test_repeat_minus_one_passes(self):
+        def minus_one(c):
+            c["op"]["repeat"]["add"] = -1
+            c["expect"]["GameState.TickCount"]["at_step"]["add"] = -1
+        self.assertEqual(check(with_tick(minus_one)), [])
+
+    def test_repeat_count_must_come_from_gdd(self):
+        self.assertRejected(with_tick(lambda c: c["op"].update(repeat=60)), "回数は")
+
+    def test_repeat_only_on_call(self):
+        self.assertRejected(mutated(lambda u: u["acceptance"]["cases"][0]["op"].update(repeat={"param": "PR-06"})),
+                            "repeat は call")
+
+    def test_at_step_needs_repeat(self):
+        self.assertRejected(with_tick(lambda c: c["op"].pop("repeat")), "repeat のある行にだけ")
+
+    def test_at_step_cannot_exceed_repeat(self):
+        self.assertRejected(with_tick(lambda c: c["op"]["repeat"].update(add=-1)), "超えています")
+
+    def test_horizon_is_capped(self):
+        big = SPEC.replace("| PR-06 | 盤面幅 | 10 |", "| PR-06 | 盤面幅 | 5000 |")
+        self.assertRejected(with_tick(), "horizon の上限", spec=big)
+
+
+TIMED = {"timed_constraints": {"exempt_units": ["issue_12"], "allowed_calls": ["GameState.Advance"],
+                               "whitelist_must_exist": True}}
+
+
+class TimedConstraints(unittest.TestCase):
+    """時限制約（ADR-003 §3.3・§3.6）。免除した単位以外は、操作と whitelist が限られる。"""
+
+    def test_exempt_unit_is_not_restricted(self):
+        self.assertEqual(unit_schema.validate(VALID, SPEC, GDD, TIMED), [])
+        self.assertEqual(unit_schema.whitelist_problems(VALID, lambda p: False, TIMED), [])
+
+    def test_other_ops_are_rejected_for_new_units(self):
+        u = mutated(lambda u: u.update(id="issue_99"))
+        problems = unit_schema.validate(u, SPEC, GDD, TIMED)
+        # construct と InjectSeed の 2 行が落ち、Advance の行は通る
+        self.assertEqual(sum("時限制約" in p for p in problems), 2, problems)
+
+    def test_new_file_in_whitelist_is_rejected(self):
+        u = mutated(lambda u: u.update(id="issue_99"))
+        self.assertEqual(len(unit_schema.whitelist_problems(u, lambda p: False, TIMED)), 1)
+        self.assertEqual(unit_schema.whitelist_problems(u, lambda p: True, TIMED), [])
+
+    def test_no_constraints_when_config_has_none(self):
+        u = mutated(lambda u: u.update(id="issue_99"))
+        self.assertEqual(unit_schema.validate(u, SPEC, GDD, {}), [])
+
+
 class Legacy(unittest.TestCase):
     CFG = {"legacy_v1_sha256": {}, "spec_path": "s", "gdd_path": "g"}
 

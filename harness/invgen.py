@@ -30,6 +30,7 @@ import re
 import sys
 from pathlib import Path
 
+import exitcode
 import project
 import testgen
 import unit_schema
@@ -283,4 +284,4 @@ def main(argv=None):
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.exit(main())
+    sys.exit(exitcode.normalized(main))

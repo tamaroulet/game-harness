@@ -22,6 +22,10 @@ given のフィールドとちょうど一致するコンストラクタ（状�
 - 状態の不変（CQS）：呼ぶ前に、対象の型が interface で公開している状態（property / field。
   static な query なら static なもの）をすべて控え、呼んだ後に 1 つずつ等しいことを確かめる
 
+**ティック進行（repeat・at_step）の行**（ADR-003 §3.9）: 操作を N 回ループで呼ぶ。at_step の付いた期待値は
+ループの各回で検査する（at_step 回目より前は操作前の値のまま、at_step 回目で ±1）。at_step 回目より後は
+検査しない。それ以外の期待値は、ループを抜けた後に 1 回だけ検査する。
+
 本モジュールは受入データの検査（スキーマ門）を前提にする。門を通っていない単位を渡さないこと。
 """
 import argparse
@@ -31,6 +35,7 @@ import re
 import sys
 from pathlib import Path
 
+import exitcode
 import project
 import unit_schema
 
@@ -67,6 +72,10 @@ class _Model:
         for t in unit["interface"]["types"]:
             for m in t.get("members", []):
                 self.members[f"{t['name']}.{m['name']}"] = (t, m)
+
+    def count(self, v):
+        """repeat・at_step の回数。スキーマ門が範囲を検査済みであることを前提にする。"""
+        return unit_schema.resolve_param(self.params[v["param"]], None) + v.get("add", 0)
 
     def is_enum(self, type_name):
         t = self.types.get(type_name.rstrip("?"))
@@ -193,14 +202,27 @@ def _case_body(model, case):
                               for p in method.get("params", []))
         act = f"sut.{method['name']}({call_args});"
 
-    asserts, captures = [], []
+    repeat = model.count(op["repeat"]) if "repeat" in op else None
+    asserts, captures, stepped = [], [], []
     for i, (key, spec) in enumerate(expect.items()):
         et, em = _owner_and_member(model, key, where)
         static = em.get("static") or em["kind"] == "const"
         if et["name"] != sut_type and not static:
             raise GenerationError(f"{where}: expect の {key} は操作対象 {sut_type} の状態ではありません")
         access = f"{et['name']}.{em['name']}" if static else f"sut.{em['name']}"
-        if isinstance(spec, dict) and ("same" in spec or "add" in spec):
+        if isinstance(spec, dict) and "at_step" in spec:
+            if repeat is None:
+                raise GenerationError(f"{where}: at_step は repeat のある行にだけ書けます")
+            bt, bm = _owner_and_member(model, spec["given"], where)
+            base = f"{bt['name']}.{bm['name']}" if (bm.get("static") or bm["kind"] == "const") else f"sut.{bm['name']}"
+            captures.append(f"var before{i} = {base};")
+            k = model.count(spec["at_step"])
+            sign = "+" if spec["add"] > 0 else "-"
+            stepped += [f"if (step < {k}) Assert.That({access}, Is.EqualTo(before{i}), "
+                        f'$"{key}: {k} 回目より前に変わった（step {{step}}）");',
+                        f"else if (step == {k}) Assert.That({access}, Is.EqualTo(before{i} {sign} 1), "
+                        f'"{key}: {k} 回目で {sign}1 にならない");']
+        elif isinstance(spec, dict) and ("same" in spec or "add" in spec):
             if act is None:
                 raise GenerationError(f"{where}: construct の行に same / ±1 は書けません（比べる前の値が無い）")
             if "add" in spec:
@@ -218,6 +240,10 @@ def _case_body(model, case):
         else:
             asserts.append(f'Assert.That({access}, Is.EqualTo({model.literal(spec, em["type"], where)}), "{key}");')
 
+    if repeat is not None:
+        loop = [f"for (var step = 1; step <= {repeat}; step++)", "{", f"    {act}"]
+        loop += [f"    {x}" for x in stepped] + ["}"]
+        return lines + captures + loop + asserts
     return lines + captures + ([act] if act else []) + asserts
 
 
@@ -238,7 +264,8 @@ def _require_ctor(model, type_name, param_names, where):
 
 def generate(unit, spec_text, gdd_text, unit_bytes):
     """{ファイル名: C# の本文}。門を通らない単位は GenerationError。"""
-    problems = unit_schema.validate(unit, spec_text, gdd_text)
+    # 形だけを確かめる。時限制約（運用上の制限）は門（unit_schema.check・分解役の自己検査）が受け持つ
+    problems = unit_schema.validate(unit, spec_text, gdd_text, cfg={})
     if problems:
         raise GenerationError("スキーマ門を通らない単位からは生成しません: " + "; ".join(problems[:5]))
     _, params, _ = unit_schema.spec_index(spec_text, gdd_text)
@@ -359,4 +386,4 @@ def main(argv=None):
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.exit(main())
+    sys.exit(exitcode.normalized(main))

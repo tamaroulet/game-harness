@@ -167,6 +167,22 @@ class MigrateTests(RepoFixture):
         self.assertEqual(len(canary.check_migrated(self.proj, "issue_12", gh=self.fake_gh(conclusion="failure"))), 1)
         self.assertEqual(len(canary.check_migrated(self.proj, "issue_12", gh=self.fake_gh(sha="0" * 40))), 1)
 
+    def test_check_migrated_aborts_when_gh_is_unreachable(self):
+        # 配管の故障（gh に届かない）は、移行の不合格（問題の一覧）ではなく ABORT にする
+        self.proj["repo_slug"] = "o/r"
+        self.land()
+        down = lambda args: SimpleNamespace(returncode=1, stdout="", stderr="network")  # noqa: E731
+        with self.assertRaises(canary.CanaryError):
+            canary.check_migrated(self.proj, "issue_12", gh=down)
+
+    def test_main_returns_abort_on_canary_error(self):
+        self.wt.mkdir()
+        orig = canary.project.load
+        canary.project.load = lambda _id: self.proj
+        self.addCleanup(setattr, canary.project, "load", orig)
+        rc = canary.main(["migrate", "--project", "demo", "--unit", str(self.unit), "--worktree", str(self.wt)])
+        self.assertEqual(rc, canary.exitcode.ABORT)
+
     def test_check_migrated_fails_when_a_v1_test_survives(self):
         self.proj["repo_slug"] = "o/r"
         self.land()

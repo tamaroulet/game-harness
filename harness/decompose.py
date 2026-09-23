@@ -311,6 +311,7 @@ def self_check(unit, read):
     """パイプラインと同じスキーマ門とテスト生成に通す。({ファイル名: C#}, 問題の一覧)"""
     spec, gdd = read("spec"), read("gdd")
     problems = unit_schema.validate(unit, spec, gdd)
+    problems += unit_schema.whitelist_problems(unit, lambda p: _exists(read, p))
     if problems:
         return {}, problems
     try:
@@ -319,11 +320,20 @@ def self_check(unit, read):
         return {}, [f"受入テストを生成できません: {e}"]
 
 
+def _exists(read, path):
+    try:
+        read(path)
+        return True
+    except unit_schema.UnitSchemaError:
+        return False
+
+
 def base_reader():
     """GDD と構造化仕様を、パイプラインと同じく origin/<base> の先頭から読む。"""
     cfg = project.config("unit_schema")
     read = unit_schema.git_reader(ROOT, f"origin/{CFG['base_branch']}", CFG["ttl_seconds"]["gh"])
-    return lambda which: read(cfg["spec_path"] if which == "spec" else cfg["gdd_path"])
+    # spec / gdd は名前で、それ以外（whitelist の時限制約）はパスそのままで読む
+    return lambda which: read({"spec": cfg["spec_path"], "gdd": cfg["gdd_path"]}.get(which, which))
 
 
 def write_outputs(unit, files):
