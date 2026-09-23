@@ -7,6 +7,8 @@
 
 - インターフェース（作るものの形）は構造化フィールドだけで表す。C# の生文字列は受けない
 - 受入条件は 1 行 = 1 回の状態遷移（horizon = 1）。操作は 1 行に 1 つ
+- 引数付きの問い合わせ（query）は、戻り値だけを期待値に書く。状態が変わらないこと（CQS）と
+  2 回呼んでも同じ値になること（冪等）は、生成器が必ず検査する（手順 5.5）
 - 期待値は GDD に拘束する。変えない / 構造化仕様 §5 の外部パラメーター / ±1 の増減 /
   自明なリテラル（0・1・真偽・null・空の列・列挙のメンバー名）のどれかでなければ拒絶する
 - 各行の根拠（rule）は構造化仕様に実在する ID でなければ拒絶する
@@ -202,15 +204,20 @@ def _cases(acceptance, ctx, problems):
         if not SPEC_ID_RE.match(str(c["rule"])) or c["rule"] not in ctx["spec_ids"]:
             problems.append(f"{where}: rule {c['rule']!r} は構造化仕様に存在する ID ではありません")
         op = c["op"]
+        query = None
         if isinstance(op, dict) and set(op) == {"construct"}:
             t = ctx["types"].get(op["construct"])
             if not t or t["kind"] == "enum":
                 problems.append(f"{where}.op: construct は interface で宣言した class / struct だけです: {op['construct']!r}")
-        elif isinstance(op, dict) and set(op) in ({"call"}, {"call", "args"}):
-            m = ctx["members"].get(op["call"])
+        elif isinstance(op, dict) and (set(op) in ({"call"}, {"call", "args"}) or set(op) in ({"query"}, {"query", "args"})):
+            kind = "call" if "call" in op else "query"
+            m = ctx["members"].get(op[kind])
             if not m or m["kind"] != "method":
-                problems.append(f"{where}.op: call は interface で宣言したメソッドだけです: {op['call']!r}")
+                problems.append(f"{where}.op: {kind} は interface で宣言したメソッドだけです: {op[kind]!r}")
+            elif kind == "query" and m.get("type") == "void":
+                problems.append(f"{where}.op: query は戻り値のあるメソッドだけです: {op['query']!r}")
             else:
+                query = m if kind == "query" else None
                 declared = {p["name"] for p in m.get("params", []) if isinstance(p, dict)}
                 args = op.get("args", {})
                 if not isinstance(args, dict) or set(args) != declared:
@@ -219,8 +226,20 @@ def _cases(acceptance, ctx, problems):
                     for k, a in args.items():
                         _value(a, f"{where}.op.args.{k}", ctx, problems, allow_free=True)
         else:
-            problems.append(f"{where}.op: 操作は 1 つだけ（{{construct}} か {{call, args}}）です。列は書けません")
-        for part in ("given", "expect"):
+            problems.append(f"{where}.op: 操作は 1 つだけ（{{construct}}・{{call, args}}・{{query, args}} のどれか）です。列は書けません")
+        if query is not None:
+            # 問い合わせは戻り値だけを期待値にする。状態の不変（CQS）と冪等は生成器が必ず検査する
+            if not isinstance(c["expect"], dict) or set(c["expect"]) != {"return"}:
+                problems.append(f"{where}.expect: query の行の期待値は {{\"return\": 値}} だけです"
+                                "（状態が変わらないことはハーネスが検査します）")
+            else:
+                _value(c["expect"]["return"], f"{where}.expect.return", ctx, problems)
+            if query.get("static") and c["given"]:
+                problems.append(f"{where}.given: static な query の行は given を持てません")
+            parts = ("given",)
+        else:
+            parts = ("given", "expect")
+        for part in parts:
             if not isinstance(c[part], dict):
                 problems.append(f"{where}.{part}: オブジェクトにしてください")
                 continue
