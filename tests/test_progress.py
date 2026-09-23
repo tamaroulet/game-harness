@@ -101,8 +101,8 @@ class ViewTests(unittest.TestCase):
     def test_report_has_only_tree_and_state(self):
         r = progress.report(sample())
         self.assertTrue(r.startswith("## 進捗ツリー\n"))
-        self.assertIn("- active_task: T1 (first)", r)
-        self.assertIn("- human_action: NONE", r)
+        self.assertIn("- 現在タスク: T1（first）", r)
+        self.assertIn("- 人間作業: NONE", r)
 
     def test_report_refuses_to_exceed_20_lines(self):
         s = sample()

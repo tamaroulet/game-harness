@@ -190,10 +190,10 @@ def report(state):
     lines = ["## 進捗ツリー"] + tree(state).splitlines() + [
         "",
         "## 状態",
-        f"- active_task: {tid} ({t['title']})" if t else "- active_task: NONE",
-        f"- target_repo: {t['target_repo']}" if t else "- target_repo: NONE",
-        f"- verification: {v['command'] if v else '(undefined)'}",
-        f"- human_action: REVIEW_REQUIRED {pr}" if pr else "- human_action: NONE",
+        f"- 現在タスク: {tid}（{t['title']}）" if t else "- 現在タスク: NONE",
+        f"- リポジトリ: {t['target_repo']}" if t else "- リポジトリ: NONE",
+        f"- 検証コマンド: {v['command'] if v else '(undefined)'}",
+        f"- 人間作業: REVIEW_REQUIRED {pr}" if pr else "- 人間作業: NONE",
     ]
     if len(lines) > REPORT_MAX_LINES:
         raise ProgressError(f"report が {len(lines)} 行で、上限 {REPORT_MAX_LINES} 行を超えます")
