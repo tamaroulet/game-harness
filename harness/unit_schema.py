@@ -22,6 +22,13 @@ N は構造化仕様 §5 から引く（`{"param": "PR-xx"}`、または `"add":
 上限は HORIZON_MAX 回。期待値の ±1 に `at_step` を付けると「at_step 回目より前は変わらず、at_step 回目で
 ±1 になる」を 1 行で表せる。
 
+**構造体のリテラル**（B4-E2）: given と op.args には、interface で宣言した class / struct の値を
+`{"<コンストラクタの引数名>": リテラル, ...}` で書ける。引数名の集合がちょうど一致するコンストラクタで作る。
+入れ子は 1 段だけ（リテラルの中にさらに構造体は書けない）。±1 の基準には「型.メンバー.メンバー」で、
+given に書いた構造体の成分を指せる（例：`{"given": "GameState.ActiveMino.X", "add": -1}`）。
+入力のように複数の真偽値を 1 回の操作に載せたいときは、構造体を引数に取る 1 つの操作（例：`Tick(input)`）に
+する。1 行 1 操作（horizon = 1）はそのまま守る。
+
 **時限制約**（ADR-003 §3.3・§3.6、B3.1-2）: config/unit_schema.json の `timed_constraints` にある間だけ効く。
 免除した単位（既存の issue_12）以外は、操作を `allowed_calls` に限り、whitelist のパスが base に実在することを求める。
 
@@ -169,6 +176,42 @@ def state_path(members, key):
     return chain
 
 
+def _camel(name):
+    return name[:1].lower() + name[1:]
+
+
+def _struct_literal(v, type_name, where, ctx, problems):
+    """構造体のリテラル（given・op.args の値）を検査する。問題が無ければ True。"""
+    t = ctx["types"].get(str(type_name).rstrip("?"))
+    if not t or t["kind"] == "enum":
+        problems.append(f"{where}: {type_name} は interface で宣言した class / struct ではないので、"
+                        f"構造体のリテラルは書けません: {json.dumps(v, ensure_ascii=False)}")
+        return False
+    ctors = [m for m in t.get("members", []) if m["kind"] == "ctor"]
+    ctor = next((m for m in ctors if {p["name"] for p in m.get("params", [])} == set(v)), None)
+    if ctor is None:
+        problems.append(f"{where}: {t['name']} に、引数がちょうど {sorted(v)} のコンストラクタが宣言されていません")
+        return False
+    for k, x in v.items():
+        if isinstance(x, dict):
+            problems.append(f"{where}.{k}: 構造体のリテラルの入れ子は 1 段までです")
+            continue
+        _value(x, f"{where}.{k}", ctx, problems, allow_free=True)
+    return True
+
+
+def _is_param_like(v):
+    return isinstance(v, dict) and ("param" in v or "same" in v or "given" in v)
+
+
+def _given_base_ok(key, given):
+    """±1 の基準が given にあるか。「型.メンバー」がそのまま無ければ、構造体のリテラルの成分を探す。"""
+    if key in given:
+        return True
+    head, _, name = str(key).rpartition(".")
+    return isinstance(given.get(head), dict) and _camel(name) in given[head]
+
+
 def _is_trivial(v, enum_values):
     if v is None or isinstance(v, bool):
         return True
@@ -208,7 +251,7 @@ def _value(v, where, ctx, problems, given=None, allow_same=False, allow_free=Fal
         if set(v) == {"given", "add"} and given is not None:
             if v["add"] not in (1, -1) or isinstance(v["add"], bool):
                 problems.append(f"{where}: 増減は 1 回の遷移で ±1 だけです: {v['add']!r}")
-            elif v["given"] not in given:
+            elif not _given_base_ok(v["given"], given):
                 problems.append(f"{where}: 基準の {v['given']} が given にありません")
             return
         problems.append(f"{where}: 期待値の書き方が不正です: {json.dumps(v, ensure_ascii=False)}")
@@ -292,8 +335,12 @@ def _cases(acceptance, ctx, problems, refactor=False):
                 if not isinstance(args, dict) or set(args) != declared:
                     problems.append(f"{where}.op.args: 引数は宣言どおり {sorted(declared)} をすべて書いてください")
                 else:
+                    ptypes = {p["name"]: p["type"] for p in m.get("params", []) if isinstance(p, dict)}
                     for k, a in args.items():
-                        _value(a, f"{where}.op.args.{k}", ctx, problems, allow_free=True)
+                        if isinstance(a, dict) and not _is_param_like(a):
+                            _struct_literal(a, ptypes[k], f"{where}.op.args.{k}", ctx, problems)
+                        else:
+                            _value(a, f"{where}.op.args.{k}", ctx, problems, allow_free=True)
         else:
             problems.append(f"{where}.op: 操作は 1 つだけ（{{construct}}・{{call, args}}・{{query, args}} のどれか）です。列は書けません")
         if query is not None:
@@ -319,7 +366,9 @@ def _cases(acceptance, ctx, problems, refactor=False):
                 if not m or m["kind"] not in ("property", "field", "const"):
                     problems.append(f"{where}.{part}: {field!r} は interface で宣言した状態（property / field / const）ではありません")
                     continue
-                if part == "given":
+                if part == "given" and isinstance(v, dict) and not _is_param_like(v):
+                    _struct_literal(v, m.get("type"), f"{where}.given.{field}", ctx, problems)
+                elif part == "given":
                     _value(v, f"{where}.given.{field}", ctx, problems, allow_free=True)
                 elif isinstance(v, dict) and "at_step" in v:
                     if set(v) != {"given", "add", "at_step"}:
