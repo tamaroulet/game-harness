@@ -33,6 +33,15 @@ UNIT["acceptance"]["cases"].append(
     {"id": "fall", "rule": "IF-08", "given": {"GameState.TickCount": 41},
      "op": {"call": "GameState.Advance", "repeat": {"param": "PR-06"}},
      "expect": {"GameState.TickCount": {"given": "GameState.TickCount", "add": 1, "at_step": {"param": "PR-06"}}}})
+# 入れ子の状態と仕様の値からの ±1：PR-06 + 1 回まわした後、ActiveMino.Y は PR-09 の Y の 1 段下
+UNIT["interface"]["types"].insert(1, {"name": "ActiveMino", "kind": "struct", "members": [
+    {"name": "X", "kind": "property", "type": "int"}, {"name": "Y", "kind": "property", "type": "int"}]})
+UNIT["interface"]["types"][-1]["members"].append({"name": "ActiveMino", "kind": "property", "type": "ActiveMino?"})
+UNIT["acceptance"]["cases"].append(
+    {"id": "fall-one", "rule": "IF-08", "given": {},
+     "op": {"call": "GameState.Advance", "repeat": {"param": "PR-06", "add": 1}},
+     "expect": {"GameState.ActiveMino.Y": {"param": "PR-09", "index": 1, "add": -1},
+                "GameState.ActiveMino.X": {"param": "PR-09", "index": 0}}})
 BODY = json.dumps(UNIT, ensure_ascii=False).encode("utf-8")
 
 CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
@@ -82,6 +91,14 @@ class TickLoop(unittest.TestCase):
         self.assertIn("for (var step = 1; step <= 10; step++)", text)
         self.assertIn("if (step < 10) Assert.That(sut.TickCount, Is.EqualTo(before0)", text)
         self.assertIn("else if (step == 10) Assert.That(sut.TickCount, Is.EqualTo(before0 + 1)", text)
+
+
+class NestedAccess(unittest.TestCase):
+    def test_nullable_hop_uses_null_conditional_and_param_delta_is_folded(self):
+        text = "".join(generated().values())
+        self.assertIn("for (var step = 1; step <= 11; step++)", text)
+        self.assertIn('Assert.That(sut.ActiveMino?.Y, Is.EqualTo(18), "GameState.ActiveMino.Y");', text)
+        self.assertIn('Assert.That(sut.ActiveMino?.X, Is.EqualTo(3), "GameState.ActiveMino.X");', text)
 
 
 class Rejects(unittest.TestCase):

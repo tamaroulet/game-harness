@@ -60,6 +60,7 @@ MEMBER_KINDS = {"property", "field", "const", "method", "ctor"}
 MEMBER_KEYS = {"name", "kind", "type", "params", "static", "value"}
 CASE_KEYS = {"id", "rule", "given", "op", "expect"}
 HORIZON_MAX = 1000
+PATH_MAX = 3   # 型.メンバー.メンバー まで（入れ子の状態は 1 段だけたどれる）
 
 
 class UnitSchemaError(Exception):
@@ -148,6 +149,25 @@ def _interface(iface, problems):
     return types, members, enum_values
 
 
+def state_path(members, key):
+    """"型.メンバー" または "型.メンバー.メンバー" を、たどったメンバーの列にする。たどれなければ None。
+
+    入れ子の 2 段目は、1 段目の型（末尾の ? を除く）が interface で宣言した class / struct のときだけ引ける。
+    どの段も公開状態（property / field / const）でなければならない。
+    """
+    parts = key.split(".") if isinstance(key, str) else []
+    if not 2 <= len(parts) <= PATH_MAX:
+        return None
+    chain, owner = [], parts[0]
+    for name in parts[1:]:
+        m = members.get(f"{owner}.{name}")
+        if not m or m["kind"] not in ("property", "field", "const"):
+            return None
+        chain.append(m)
+        owner = str(m.get("type", "")).rstrip("?")
+    return chain
+
+
 def _is_trivial(v, enum_values):
     if v is None or isinstance(v, bool):
         return True
@@ -172,13 +192,17 @@ def _value(v, where, ctx, problems, given=None, allow_same=False, allow_free=Fal
     if isinstance(v, dict):
         if set(v) == {"same"} and v["same"] is True and allow_same:
             return
-        if set(v) in ({"param"}, {"param", "index"}):
+        if set(v) in ({"param"}, {"param", "index"}, {"param", "add"}, {"param", "index", "add"}):
             idx = v.get("index")
             if v["param"] not in params:
                 problems.append(f"{where}: 構造化仕様 §5 に {v['param']} がありません")
             elif (idx is not None and (isinstance(idx, bool) or not isinstance(idx, int))) \
                     or resolve_param(params[v["param"]], idx) is None:
                 problems.append(f"{where}: {v['param']}（{params[v['param']]}）から値を引けません（index: {idx}）")
+            elif "add" in v and (isinstance(v["add"], bool) or v["add"] not in (1, -1)
+                                 or not isinstance(resolve_param(params[v["param"]], idx), int)):
+                # 仕様の値から 1 回の遷移で ±1 だけずれた値（例：出現位置の 1 段下）。整数の値にだけ付けられる
+                problems.append(f"{where}: param に付けられる add は、整数の値への ±1 だけです: {v.get('add')!r}")
             return
         if set(v) == {"given", "add"} and given is not None:
             if v["add"] not in (1, -1) or isinstance(v["add"], bool):
@@ -283,7 +307,9 @@ def _cases(acceptance, ctx, problems):
                 problems.append(f"{where}.{part}: オブジェクトにしてください")
                 continue
             for field, v in c[part].items():
-                m = ctx["members"].get(field)
+                # 入れ子の状態（型.メンバー.メンバー）は期待値にだけ書ける。given は復元用コンストラクタの引数なので平ら
+                chain = state_path(ctx["members"], field) if part == "expect" else None
+                m = chain[-1] if chain else (ctx["members"].get(field) if str(field).count(".") == 1 else None)
                 if not m or m["kind"] not in ("property", "field", "const"):
                     problems.append(f"{where}.{part}: {field!r} は interface で宣言した状態（property / field / const）ではありません")
                     continue

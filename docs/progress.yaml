@@ -1,9 +1,9 @@
-project_goal: 'Phase 3: 4 大未踏領域の評価と falling-blocks#15 のスモーク実証'
-active_task_id: B3.1-3
+project_goal: 'Phase 3: 4 大未踏領域の評価と falling-blocks#17 のスモーク実証'
+active_task_id: B3.1-4
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
-- Write issues and PRs with the repository name (falling-blocks#15, game-harness#44).
+- Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 nodes:
 - id: A
   title: 自律長期開発基盤
@@ -13,7 +13,7 @@ nodes:
   parent: A
   status: completed
 - id: B3
-  title: 4 大未踏領域と falling-blocks#15 のスモーク
+  title: 4 大未踏領域と falling-blocks#17 のスモーク
   parent: A
 - id: B3.0
   title: ADR-003 の起草（game-harness#44）
@@ -72,17 +72,30 @@ tasks:
   - docs/gdd/source.md
   - docs/spec/spec.md
   - projects/falling-blocks/invariants.json
-  status: in_progress
+  status: completed
   verification:
     command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py --project falling-blocks --decl projects/falling-blocks/invariants.json --out C:/src/.local/out/harness/falling-blocks/invariants-check
     expected_exit_code: 0
-  review_pr: https://github.com/tamaroulet/game-harness/pull/49
-- id: falling-blocks#15
+- id: B3.1-4
+  title: 受入データの入れ子の状態と param±1
+  group: B3.1
+  target_repo: game-harness
+  target_files:
+  - harness/unit_schema.py
+  - harness/testgen.py
+  status: in_progress
+  verification:
+    command: python -m unittest tests.test_unit_schema.NestedStateAndParamDelta tests.test_testgen.NestedAccess
+    expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/50
+- id: falling-blocks#17
   title: 出現＋1 段の自然落下
   group: B3.1
   target_repo: falling-blocks
   status: pending
-  verification: null
+  verification:
+    command: python -c "import json,subprocess,sys; r=subprocess.run(['gh','pr','view','18','--repo','tamaroulet/falling-blocks','--json','state'],capture_output=True,text=True); sys.exit(0 if json.loads(r.stdout or '{}').get('state')=='MERGED' else 1)"
+    expected_exit_code: 0
 - id: B3.2
   title: 最小診断・反例射影（Roslyn 診断射影器）と Outer Gate の回送
   group: B3
@@ -126,6 +139,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: B3.1-2
+  task: B3.1-3
   exit_code: 0
-  at: '2026-09-23T23:54:15'
+  at: '2026-09-24T00:56:36'
