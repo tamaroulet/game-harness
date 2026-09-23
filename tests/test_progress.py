@@ -66,6 +66,9 @@ class RepoProgressTests(unittest.TestCase):
     def test_tree_fits_in_a_report(self):
         self.assertLessEqual(len(progress.tree(self.state).splitlines()), 15)
 
+    def test_report_fits_in_20_lines(self):
+        self.assertLessEqual(len(progress.report(self.state).splitlines()), 20)
+
 
 class ViewTests(unittest.TestCase):
     def test_anchor_has_only_the_current_task(self):
@@ -86,6 +89,27 @@ class ViewTests(unittest.TestCase):
         self.assertNotIn("T3", t)
         self.assertIn("G2 group 2（0/1）", t)
         self.assertIn("T3 third", progress.tree(sample(), expand_all=True))
+
+    def test_tree_folds_completed_tasks_into_the_count(self):
+        s = sample()
+        s["tasks"][0]["status"], s["tasks"][1]["status"], s["active_task_id"] = "completed", "in_progress", "T2"
+        t = progress.tree(s)
+        self.assertNotIn("T1 first", t)
+        self.assertIn("G1 group 1（1/2）", t)
+        self.assertIn("T1 first", progress.tree(s, expand_all=True))
+
+    def test_report_has_only_tree_and_state(self):
+        r = progress.report(sample())
+        self.assertTrue(r.startswith("## 進捗ツリー\n"))
+        self.assertIn("- active_task: T1 (first)", r)
+        self.assertIn("- human_action: NONE", r)
+
+    def test_report_refuses_to_exceed_20_lines(self):
+        s = sample()
+        s["tasks"] += [{"id": f"X{i}", "title": "x", "group": "G1", "target_repo": "r", "status": "pending",
+                        "verification": None} for i in range(20)]
+        with self.assertRaises(progress.ProgressError):
+            progress.report(s)
 
     def test_validate_rejects_two_active_tasks(self):
         s = sample()
@@ -133,6 +157,16 @@ class CompleteTests(unittest.TestCase):
         self.assertEqual(s["active_task_id"], "T2")
         self.assertEqual(s["last_verification"], {"task": "T1", "exit_code": 0, "at": "2026-09-23T00:00:00"})
         self.assertEqual(progress.validate(s), [])
+
+    def test_review_marks_the_active_task_and_complete_clears_it(self):
+        self.publish(sample())
+        progress.review("T1", "https://github.com/o/r/pull/1", self.path)
+        self.assertIn("REVIEW_REQUIRED https://github.com/o/r/pull/1", progress.report(progress.load(self.path)))
+        with self.assertRaises(progress.ProgressError):
+            progress.review("T2", "https://github.com/o/r/pull/1", self.path)
+        rc, _ = self.complete()
+        self.assertEqual(rc, 0)
+        self.assertNotIn("review_pr", progress.load(self.path)["tasks"][0])
 
     def test_failure_is_rejected_and_nothing_is_completed(self):
         self.publish(sample(f'{PY} -c "print(\'boom\'); import sys; sys.exit(3)"'))

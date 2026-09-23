@@ -24,5 +24,18 @@
       "PowerShell(*Assets*Core*)",
       "PowerShell(*Core.Tests*)"
     ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/harness/progress.py\" anchor",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }

@@ -2,8 +2,9 @@
 
 ## 進捗（docs/progress.yaml）
 
-- 毎ターン、考え始める前に `python -m harness.progress anchor` を実行し、現在地・検証コマンド・制約を確かめる
-- 進捗ツリーを手で書かない。報告の冒頭に置くツリーは `python -m harness.progress tree` の出力をそのまま貼る
+- 現在地（`anchor` の出力）は UserPromptSubmit hook（`.claude/settings.json`）が毎ターン注入する
+- チャット報告は `python -m harness.progress report` の出力をそのまま貼ることのみを許可する。前後に挨拶、解説、変えた点、手順、言い訳などの自然言語を作文することを一切禁止する。詳細・記録はすべて GitHub の PR 本文に書くこと
+- PR を出して人間のレビューを待つときは `python -m harness.progress review <task_id> <PR の URL>` で状態に記録する（report の human_action が REVIEW_REQUIRED になる）
 - `docs/progress.yaml` を手で編集しない。状態を変えるのは `python -m harness.progress complete <id>` だけで、検証コマンドが期待した終了コードを返したときだけ完了になる
 - 検証コマンドを足したり変えたりするときは、main への PR で行う（complete は origin/main の版と照合する）
 
