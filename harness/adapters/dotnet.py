@@ -10,6 +10,7 @@
 import re
 import xml.etree.ElementTree as ET
 
+import diagproj
 import fileops
 from proc import run
 
@@ -86,6 +87,20 @@ def build_failure_detail(c, tag, rc, out, err):
     uniq = list(dict.fromkeys(lines))[:3]
     head = ("\n    " + "\n    ".join(uniq)) if uniq else "（エラー行を見つけられませんでした）"
     return f" (rc={rc}):{head}\n   {where}"
+
+
+def diagnose_build(c, tag):
+    """ビルドが通らなかった回の診断を、interface の識別子に射影した文章にする（ADR-003 §3.11）。
+
+    run_tests が TRX を作れなかったときに書いたログ（build_failure_detail）を読む。
+    コンパイルエラーが無い（ビルド以外の故障）、またはログが無いときは None。実装役にだけ渡す。
+    """
+    path = c.out / f"{tag}.dotnet.log"
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return diagproj.feedback(text, c.unit, c.cfg["project"]["impl_dir"])
 
 
 def run_tests(c, tag):

@@ -26,7 +26,8 @@ import project
 import unit_schema
 from proc import resolve_cli, run
 
-FAIL_LINE_RE = re.compile(r"INVARIANT_FAIL id=INV-\d+ rule=[A-Z]{2}-\d+ seed=\d+(?: why=[a-z]+)? ops=[^\s]*")
+FAIL_LINE_RE = re.compile(r"INVARIANT_FAIL id=INV-\d+ rule=[A-Z]{2}-\d+ seed=\d+(?: why=[a-z]+)? ops=[^\s]*"
+                          r"(?: dir=(?:DEFICIT|SURPLUS))?")
 CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>{tf}</TargetFramework>

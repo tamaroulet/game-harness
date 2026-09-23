@@ -15,7 +15,9 @@
   "golden_dir_env_vars": [],
   "golden_required_engine_suites": [],
   "gates": {
-    "max_retry": 2
+    "max_retry": 2,
+    "_outer_dispute_note": "Outer 段（不変条件）の反例による REJECT がこの回数続いたら、不合格ではなく DISPUTE にして高次のループへ回す（ADR-003 §3.4）。1〜max_retry + 1。無ければ回送しない",
+    "outer_dispute_after": 3
   },
   "implementer": {
     "cli": "agy",

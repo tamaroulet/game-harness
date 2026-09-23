@@ -1077,6 +1077,11 @@ def attempt(c, feedback):
         else:
             print(f"  [FAIL] 内部テスト不合格 (turn {turn}/{MAX_INNER_LOOP_TURNS})")
             last_failure_text = extract_raw_stacktrace(fail_raw_output, max_lines=40)
+            # ビルドが通らなかった回は、診断を interface の識別子に射影して渡す（ADR-003 §3.11、因果盲目の防止）
+            diagnose = getattr(c.fast, "diagnose_build", None)
+            projected = diagnose(c, f"impl_fast_turn_{turn}") if err and callable(diagnose) else None
+            if projected:
+                last_failure_text = projected
             if turn < MAX_INNER_LOOP_TURNS:
                 inner_feedback = last_failure_text
                 continue
@@ -1511,6 +1516,24 @@ def record_attempt(c, n, verdict, msg, seconds, feedback):
     save_telemetry(c)
 
 
+def outer_dispute_after(gates):
+    """Outer 段が何回続けて破れたら DISPUTE にするか（ADR-003 §3.4）。未設定なら None（回送しない）。
+
+    試行の回数（max_retry + 1）より大きい値は、条件が永久に成立しないので設定の誤りとして ValueError。
+    """
+    n = gates.get("outer_dispute_after")
+    if n is None:
+        return None
+    if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= gates["max_retry"] + 1:
+        raise ValueError(f"gates.outer_dispute_after は 1〜max_retry + 1（{gates['max_retry'] + 1}）の整数です: {n!r}")
+    return n
+
+
+def next_outer_streak(streak, verdict, gate):
+    """Outer 段（不変条件）の反例による REJECT が何回続いたか。ほかの結果で 0 に戻る。"""
+    return streak + 1 if verdict == "REJECT" and gate == "invariants" else 0
+
+
 def run_unit(c, args):
     if args.selftest:
         return selftest(c)
@@ -1546,6 +1569,12 @@ def run_unit(c, args):
     history = []
     feedback = ""
     max_retry = c.cfg["gates"]["max_retry"]
+    try:
+        dispute_after = outer_dispute_after(c.cfg["gates"])
+    except ValueError as e:
+        print(f"\nABORT（設定の誤り）: {e}")
+        return 2
+    outer_streak, outer_lines = 0, []
     for i in range(max_retry + 1):
         print(f"=== 試行 {i + 1}/{max_retry + 1} ===")
         c.metrics["attempt"] = i + 1
@@ -1560,6 +1589,20 @@ def run_unit(c, args):
         finally:
             record_attempt(c, i + 1, verdict, msg, round(time.monotonic() - t0, 1), feedback)
         history.append((verdict, msg))
+        outer_streak = next_outer_streak(outer_streak, verdict, c.gate)
+        outer_lines = outer_lines + [msg] if outer_streak else []
+        if dispute_after and outer_streak >= dispute_after:
+            # 見えない不変条件に続けて落ちるなら、疑うべきは実装より単位定義・宣言・GDD。
+            # 実装役の DISPUTE_TEST（One-Strike）とは別物で、ハーネスが出す（ADR-003 §3.4）
+            c.tel["dispute"] = {"kind": "outer", "after": dispute_after,
+                                "counterexamples": [l for m in outer_lines for l in str(m).splitlines()
+                                                    if l.startswith("INVARIANT_FAIL")]}
+            save_telemetry(c)
+            print(f"\nDISPUTE（Outer 段が {dispute_after} 回続けて破れた。高次のループへ回送）:")
+            for line in c.tel["dispute"]["counterexamples"]:
+                print(f"  {line}")
+            sandbox_reset(c)
+            return 1
 
         if verdict == "SUCCESS":
             print("\nMS3 完走。人間の出番はありません。")

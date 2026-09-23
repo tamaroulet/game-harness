@@ -20,8 +20,9 @@
 無ければ 1。同じシードなら同じ操作列になる。
 
 **反例**：破綻したら、その時点までの操作列（最短の接頭辞）を 1 行で失敗メッセージに出す。
-    INVARIANT_FAIL id=INV-01 rule=RL-xx seed=123 ops=GameState.Advance();GameState.InjectSeed(0u)
-値・スタックトレースは出さない。Outer 段はこの行だけを実装役に返す（手順 5b）。
+等式が破れたときは、左辺が右辺より小さいか（DEFICIT）大きいか（SURPLUS）だけを添える（ADR-003 §3.10）。
+    INVARIANT_FAIL id=INV-01 rule=RL-xx seed=123 ops=GameState.Advance();GameState.InjectSeed(0u) dir=DEFICIT
+値・差の大きさ・スタックトレースは出さない。Outer 段はこの行だけを実装役に返す（手順 5b）。
 """
 import argparse
 import hashlib
@@ -242,13 +243,15 @@ def generate(decl, spec_text, gdd_text):
                 "                for (int step = 0; step <= Steps; step++)", "                {",
                 "                    if (step > 0)", "                    {",
                 "                        try { Step(sut, ref x, trace); }",
-                "                        catch (System.Exception) { Fail(seed, trace, \"exception\"); }",
+                "                        catch (System.Exception) { Fail(seed, trace, \"exception\", null); }",
                 "                    }",
-                f"                    if (!({lhs} == {rhs})) Fail(seed, trace, null);",
-                "                }", "            }", "", "            void Fail(uint seed, System.Collections.Generic.List<string> trace, string? why)",
+                f"                    long lhs = {lhs}, rhs = {rhs};",
+                "                    if (lhs != rhs) Fail(seed, trace, null, lhs < rhs ? \"DEFICIT\" : \"SURPLUS\");",
+                "                }", "            }", "", "            void Fail(uint seed, System.Collections.Generic.List<string> trace, string? why, string? dir)",
                 "            {",
                 f"                Assert.Fail(\"INVARIANT_FAIL id={inv['id']} rule={inv['rule']} seed=\" + seed"
-                " + (why == null ? \"\" : \" why=\" + why) + \" ops=\" + string.Join(\";\", trace));",
+                " + (why == null ? \"\" : \" why=\" + why) + \" ops=\" + string.Join(\";\", trace)"
+                " + (dir == null ? \"\" : \" dir=\" + dir));",
                 "            }", "        }", ""]
     out.pop()
     out += ["    }", "}", ""]

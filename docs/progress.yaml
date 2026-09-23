@@ -99,8 +99,16 @@ tasks:
   title: 最小診断・反例射影（Roslyn 診断射影器）と Outer Gate の回送
   group: B3
   target_repo: game-harness
+  target_files:
+  - harness/diagproj.py
+  - harness/adapters/dotnet.py
+  - harness/invgen.py
+  - harness/invrun.py
+  - harness/pipeline.py
   status: in_progress
-  verification: null
+  verification:
+    command: python -m unittest tests.test_diagproj tests.test_outer_dispute tests.test_invrun
+    expected_exit_code: 0
 - id: B3.3
   title: 差分バジェット・契約の形テスト・.meta の自動生成
   group: B3
