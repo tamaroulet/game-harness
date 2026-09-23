@@ -17,6 +17,14 @@
 **このスキーマで手計算そのものは消せない**（同 §3.4）。保証するのは「期待値が GDD の文言だけで
 1 ステップ分を確かめられる大きさに収まる」ことまで。
 
+**ティック進行の述語**（ADR-003 §3.9、B3.1-2）: 操作に `repeat` を付けると同じ操作を N 回続ける。
+N は構造化仕様 §5 から引く（`{"param": "PR-xx"}`、または `"add": ±1` を付けたもの）。独自の数値は書けない。
+上限は HORIZON_MAX 回。期待値の ±1 に `at_step` を付けると「at_step 回目より前は変わらず、at_step 回目で
+±1 になる」を 1 行で表せる。
+
+**時限制約**（ADR-003 §3.3・§3.6、B3.1-2）: config/unit_schema.json の `timed_constraints` にある間だけ効く。
+免除した単位（既存の issue_12）以外は、操作を `allowed_calls` に限り、whitelist のパスが base に実在することを求める。
+
 **v1 の扱い**: config/unit_schema.json に内容の sha256 がある既存の単位だけを通す。
 """
 import argparse
@@ -50,6 +58,7 @@ TYPE_KINDS = {"enum", "struct", "class"}
 MEMBER_KINDS = {"property", "field", "const", "method", "ctor"}
 MEMBER_KEYS = {"name", "kind", "type", "params", "static", "value"}
 CASE_KEYS = {"id", "rule", "given", "op", "expect"}
+HORIZON_MAX = 1000
 
 
 class UnitSchemaError(Exception):
@@ -186,6 +195,28 @@ def _value(v, where, ctx, problems, given=None, allow_same=False, allow_free=Fal
                     '{"param": "PR-xx"} で構造化仕様から引くか、{"same": true} / ±1 の増減で書いてください')
 
 
+def _count(v, where, ctx, problems):
+    """repeat・at_step の回数。構造化仕様 §5 から引いた整数（±1 まで）。引けなければ None。"""
+    params = ctx["params"]
+    if not (isinstance(v, dict) and set(v) in ({"param"}, {"param", "add"})):
+        problems.append(f"{where}: 回数は {{\"param\": \"PR-xx\"}}（と \"add\": ±1）だけで書けます: "
+                        f"{json.dumps(v, ensure_ascii=False)}")
+        return None
+    add = v.get("add", 0)
+    if isinstance(add, bool) or add not in (0, 1, -1) or ("add" in v and add == 0):
+        problems.append(f"{where}: add は ±1 だけです: {add!r}")
+        return None
+    base = resolve_param(params[v["param"]], None) if v["param"] in params else None
+    if not isinstance(base, int):
+        problems.append(f"{where}: {v['param']} から整数の回数を引けません")
+        return None
+    n = base + add
+    if not 1 <= n <= HORIZON_MAX:
+        problems.append(f"{where}: 回数は 1〜{HORIZON_MAX} です（horizon の上限）: {n}")
+        return None
+    return n
+
+
 def _cases(acceptance, ctx, problems):
     if not _check_keys(acceptance, {"cases"}, {"required_tests"}, "acceptance", problems):
         return
@@ -205,6 +236,13 @@ def _cases(acceptance, ctx, problems):
             problems.append(f"{where}: rule {c['rule']!r} は構造化仕様に存在する ID ではありません")
         op = c["op"]
         query = None
+        repeat = None
+        if isinstance(op, dict) and "repeat" in op:
+            if "call" not in op:
+                problems.append(f"{where}.op: repeat は call の操作にだけ付けられます")
+            else:
+                repeat = _count(op["repeat"], f"{where}.op.repeat", ctx, problems)
+            op = {k: v for k, v in op.items() if k != "repeat"}
         if isinstance(op, dict) and set(op) == {"construct"}:
             t = ctx["types"].get(op["construct"])
             if not t or t["kind"] == "enum":
@@ -250,10 +288,48 @@ def _cases(acceptance, ctx, problems):
                     continue
                 if part == "given":
                     _value(v, f"{where}.given.{field}", ctx, problems, allow_free=True)
+                elif isinstance(v, dict) and "at_step" in v:
+                    if set(v) != {"given", "add", "at_step"}:
+                        problems.append(f"{where}.expect.{field}: at_step は ±1 の増減にだけ付けられます")
+                        continue
+                    if repeat is None:
+                        problems.append(f"{where}.expect.{field}: at_step は repeat のある行にだけ書けます")
+                        continue
+                    k = _count(v["at_step"], f"{where}.expect.{field}.at_step", ctx, problems)
+                    if k is not None and k > repeat:
+                        problems.append(f"{where}.expect.{field}.at_step: repeat の回数（{repeat}）を超えています: {k}")
+                    _value({"given": v["given"], "add": v["add"]}, f"{where}.expect.{field}", ctx, problems,
+                           given=c["given"], allow_same=True)
                 else:
                     _value(v, f"{where}.expect.{field}", ctx, problems, given=c["given"], allow_same=True)
         if isinstance(c["expect"], dict) and not c["expect"]:
             problems.append(f"{where}.expect: 期待する状態が 1 つもありません")
+
+
+def _timed_ops(unit, cfg, problems):
+    """時限制約：免除していない単位の操作を allowed_calls に限る（ADR-003 §3.3）。"""
+    tc = (cfg or {}).get("timed_constraints")
+    if not tc or unit.get("id") in tc.get("exempt_units", []) or "allowed_calls" not in tc:
+        return
+    allowed = tc["allowed_calls"]
+    cases = unit.get("acceptance", {}).get("cases", []) if isinstance(unit.get("acceptance"), dict) else []
+    for i, c in enumerate(cases):
+        op = c.get("op") if isinstance(c, dict) else None
+        if not (isinstance(op, dict) and op.get("call") in allowed and not ({"construct", "query"} & set(op))):
+            problems.append(f"acceptance.cases[{i}].op: 時限制約（ADR-003 §3.3）により、使える操作は "
+                            f"{allowed} の call だけです: {json.dumps(op, ensure_ascii=False)}")
+
+
+def whitelist_problems(unit, exists, cfg=None):
+    """時限制約：免除していない単位の whitelist は、すべて base に実在するパスでなければならない
+    （ADR-003 §3.6。新しいファイルが無ければ、新しい .meta も生まれない）。exists(path) -> bool。"""
+    cfg = cfg if cfg is not None else project.config("unit_schema")
+    tc = cfg.get("timed_constraints")
+    if not tc or not tc.get("whitelist_must_exist") or unit.get("id") in tc.get("exempt_units", []):
+        return []
+    wl = unit.get("whitelist") if isinstance(unit.get("whitelist"), list) else []
+    return [f"whitelist: {p} が base にありません。時限制約（ADR-003 §3.6）により、新しいファイルは作れません"
+            for p in wl if not exists(p)]
 
 
 def _prompt(text, ctx, whitelist, problems):
@@ -270,8 +346,9 @@ def _prompt(text, ctx, whitelist, problems):
             problems.append(f"prompt: `{span}` は interface の識別子・whitelist のパス・仕様 ID のどれでもありません")
 
 
-def validate(unit, spec_text, gdd_text):
+def validate(unit, spec_text, gdd_text, cfg=None):
     """schema 2 の単位定義を検査する。問題の一覧（空なら合格）。"""
+    cfg = cfg if cfg is not None else project.config("unit_schema")
     problems = []
     if not _check_keys(unit, TOP_REQUIRED, TOP_OPTIONAL, "単位定義", problems):
         return problems
@@ -286,6 +363,7 @@ def validate(unit, spec_text, gdd_text):
         if m["kind"] == "const":
             _value(m.get("value"), f"interface {key}.value", ctx, problems)
     _cases(unit["acceptance"], ctx, problems)
+    _timed_ops(unit, cfg, problems)
     _prompt(unit["prompt"], ctx, unit["whitelist"] if isinstance(unit["whitelist"], list) else [], problems)
     return problems
 
@@ -303,7 +381,16 @@ def check(unit_bytes, read_base_file, cfg=None):
             return "v1-legacy", []
         return "v1", [f"schema {SCHEMA} ではない単位定義は、凍結済みの {len(cfg['legacy_v1_sha256'])} 件"
                       f"（config/unit_schema.json）しか受けません。この単位の sha256 は {sha[:12]}… です"]
-    return "v2", validate(unit, read_base_file(cfg["spec_path"]), read_base_file(cfg["gdd_path"]))
+    problems = validate(unit, read_base_file(cfg["spec_path"]), read_base_file(cfg["gdd_path"]), cfg)
+    return "v2", problems + whitelist_problems(unit, lambda p: _exists(read_base_file, p), cfg)
+
+
+def _exists(read_base_file, path):
+    try:
+        read_base_file(path)
+        return True
+    except UnitSchemaError:
+        return False
 
 
 def git_reader(repo, sha, ttl):
