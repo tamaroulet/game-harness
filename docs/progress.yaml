@@ -143,6 +143,7 @@ tasks:
   target_repo: falling-blocks
   status: in_progress
   verification: null
+  review_pr: https://github.com/tamaroulet/game-harness/pull/55
 - id: B4-E2
   title: given に構造体のリテラルと入れ子の基準
   group: B4
