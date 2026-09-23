@@ -567,7 +567,7 @@
       },
       {
         "id": "occupied-outside-left",
-        "rule": "RL-18",
+        "rule": "RL-40",
         "given": {},
         "op": {
           "query": "Board.IsOccupied",
@@ -582,7 +582,7 @@
       },
       {
         "id": "occupied-outside-above",
-        "rule": "RL-18",
+        "rule": "RL-40",
         "given": {},
         "op": {
           "query": "Board.IsOccupied",
@@ -597,7 +597,7 @@
       },
       {
         "id": "occupied-outside-extremes",
-        "rule": "RL-18",
+        "rule": "RL-40",
         "given": {},
         "op": {
           "query": "Board.IsOccupied",
