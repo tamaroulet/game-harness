@@ -50,6 +50,7 @@ tasks:
   verification:
     command: python harness/canary.py check-migrated --project falling-blocks --unit-id issue_12
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/falling-blocks/pull/15
 - id: B3.1-2
   title: 時限制約とティック進行の述語（旧 B3.1-3 ＋ B3.1-4）
   group: B3.1
