@@ -109,6 +109,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_diagproj tests.test_outer_dispute tests.test_invrun
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/52
 - id: B3.3
   title: 差分バジェット・契約の形テスト・.meta の自動生成
   group: B3
