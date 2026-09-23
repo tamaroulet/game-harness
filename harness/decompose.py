@@ -287,6 +287,8 @@ def build_unit(d, unit_id):
     unit.setdefault("forbidden_skip_attribute_regex",
                     CFG["defaults"]["forbidden_skip_attribute_regex"])
     unit.setdefault("max_impl_lines", CFG["defaults"]["max_impl_lines"])
+    unit.setdefault("max_add_lines", CFG["defaults"]["max_add_lines"])
+    unit.setdefault("max_del_lines", CFG["defaults"]["max_del_lines"])
     unit.setdefault("forbidden_patterns", CFG["defaults"]["forbidden_patterns"])
     unit.setdefault("selftest_forbidden_probe", CFG["defaults"]["selftest_forbidden_probe"])
     unit.setdefault("impl_files", unit.get("whitelist"))
@@ -390,6 +392,8 @@ def from_unit(path):
         reject(f"単位定義を読めません: {e}")
     if not isinstance(unit, dict) or unit.get("schema") != unit_schema.SCHEMA or not isinstance(unit.get("id"), str):
         reject(f"schema {unit_schema.SCHEMA} で id のある単位定義だけを受けます: {path}")
+    # task_kind の無い既存の単位（移行前に書かれたもの）は feature とみなす（ADR-003 §3.7）
+    unit.setdefault("task_kind", "feature")
     unit = build_unit({k: v for k, v in unit.items() if k != "schema"}, unit["id"])
     problems = validate(unit)
     files = {}

@@ -28,6 +28,7 @@ from test_unit_schema import GDD, SPEC  # noqa: E402
 GOOD = {k: v for k, v in copy.deepcopy(UNIT).items()
         if k not in ("schema", "impl_files", "required_symbols")}
 GOOD["acceptance"].pop("required_tests")
+GOOD["task_kind"] = "feature"   # 分解役が必ず書く（ADR-003 §3.7）
 BAD = copy.deepcopy(GOOD)
 BAD["acceptance"]["cases"][0]["expect"]["GameState.TickCount"] = 42   # 手計算のリテラル
 

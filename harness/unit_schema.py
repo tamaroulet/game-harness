@@ -54,7 +54,8 @@ TOP_REQUIRED = {"schema", "id", "title", "prompt", "interface", "whitelist", "im
                 "acceptance", "human_check_point", "playtest"}
 TOP_OPTIONAL = {"required_symbols", "fast_test_project", "forbidden_leftover",
                 "forbidden_skip_attribute_regex", "max_impl_lines", "forbidden_patterns",
-                "selftest_forbidden_probe"}
+                "selftest_forbidden_probe", "task_kind", "max_add_lines", "max_del_lines"}
+TASK_KINDS = ("feature", "refactor")
 TYPE_KINDS = {"enum", "struct", "class"}
 MEMBER_KINDS = {"property", "field", "const", "method", "ctor"}
 MEMBER_KEYS = {"name", "kind", "type", "params", "static", "value"}
@@ -242,10 +243,15 @@ def _count(v, where, ctx, problems):
     return n
 
 
-def _cases(acceptance, ctx, problems):
+def _cases(acceptance, ctx, problems, refactor=False):
     if not _check_keys(acceptance, {"cases"}, {"required_tests"}, "acceptance", problems):
         return
     cases = acceptance["cases"]
+    if refactor:
+        # リファクタリングは振る舞いを増やさない。合格の条件は P2P の全件維持だけ（ADR-003 §3.7）
+        if cases != []:
+            problems.append("acceptance.cases: task_kind が refactor の単位は受入データを持てません（空の列にしてください）")
+        return
     if not isinstance(cases, list) or not cases:
         problems.append("acceptance.cases: 1 行以上の列にしてください")
         return
@@ -389,7 +395,10 @@ def validate(unit, spec_text, gdd_text, cfg=None):
     for key, m in members.items():
         if m["kind"] == "const":
             _value(m.get("value"), f"interface {key}.value", ctx, problems)
-    _cases(unit["acceptance"], ctx, problems)
+    kind = unit.get("task_kind", "feature")
+    if kind not in TASK_KINDS:
+        problems.append(f"task_kind は {list(TASK_KINDS)} のどれかです: {kind!r}")
+    _cases(unit["acceptance"], ctx, problems, refactor=kind == "refactor")
     _timed_ops(unit, cfg, problems)
     _prompt(unit["prompt"], ctx, unit["whitelist"] if isinstance(unit["whitelist"], list) else [], problems)
     return problems

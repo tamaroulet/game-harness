@@ -265,6 +265,23 @@ class NestedStateAndParamDelta(unittest.TestCase):
         self.assertTrue(any("±1 だけ" in x for x in p), p)
 
 
+class TaskKind(unittest.TestCase):
+    """単位の種類（ADR-003 §3.7）。refactor は振る舞いを増やさないので受入データを持てない。"""
+
+    def test_feature_and_absent_pass(self):
+        self.assertEqual(check(mutated(lambda u: u.update(task_kind="feature"))), [])
+        self.assertEqual(check(VALID), [])
+
+    def test_refactor_must_have_no_cases(self):
+        u = mutated(lambda u: u.update(task_kind="refactor"))
+        self.assertTrue(any("refactor" in p for p in check(u)))
+        u["acceptance"]["cases"] = []
+        self.assertEqual(check(u), [])
+
+    def test_unknown_kind_is_rejected(self):
+        self.assertTrue(any("task_kind" in p for p in check(mutated(lambda u: u.update(task_kind="fix")))))
+
+
 class Legacy(unittest.TestCase):
     CFG = {"legacy_v1_sha256": {}, "spec_path": "s", "gdd_path": "g"}
 

@@ -171,7 +171,7 @@ class DecomposePlaytestDeclarationTests(unittest.TestCase):
     def unit(self, **over):
         d = {"id": "u", "title": "t", "prompt": "p", "whitelist": ["Game/Assets/Core/X.cs"],
              "interface": {"types": []}, "acceptance": {"cases": []},
-             "human_check_point": "見る点", "playtest": "none"}
+             "human_check_point": "見る点", "playtest": "none", "task_kind": "feature"}
         d.update(over)
         return d
 
