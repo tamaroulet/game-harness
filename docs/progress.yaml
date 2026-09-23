@@ -150,7 +150,7 @@ tasks:
   verification:
     command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py --project falling-blocks --decl projects/falling-blocks/invariants.json --out C:/src/.local/out/harness/falling-blocks/invariants-check && python harness/unit_schema.py --project falling-blocks --unit projects/falling-blocks/units/issue_12.json
     expected_exit_code: 0
-  review_pr: https://github.com/tamaroulet/falling-blocks/pull/19
+  review_pr: https://github.com/tamaroulet/game-harness/pull/56
 - id: B4-E2
   title: given に構造体のリテラルと入れ子の基準
   group: B4
