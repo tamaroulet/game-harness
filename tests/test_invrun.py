@@ -54,6 +54,12 @@ class Pure(unittest.TestCase):
         self.assertEqual(invrun.parse_failures(out),
                          ["INVARIANT_FAIL id=INV-01 rule=LP-01 seed=77 ops=GameState.Advance()"])
 
+    def test_direction_is_kept_but_nothing_else(self):
+        # 反例の向き（DEFICIT / SURPLUS）だけは残す。値や差の大きさは行に無い（ADR-003 §3.10）
+        out = "   INVARIANT_FAIL id=INV-01 rule=LP-01 seed=77 ops=GameState.Advance() dir=DEFICIT lhs=3" + chr(10)
+        self.assertEqual(invrun.parse_failures(out),
+                         ["INVARIANT_FAIL id=INV-01 rule=LP-01 seed=77 ops=GameState.Advance() dir=DEFICIT"])
+
     def test_refuses_to_write_inside_the_sandbox(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
@@ -85,6 +91,7 @@ class EndToEnd(unittest.TestCase):
         self.assertTrue(failures, log)
         self.assertTrue(all(f.startswith("INVARIANT_FAIL id=INV-01 rule=LP-01 seed=") for f in failures), failures)
         self.assertIn("ops=", failures[0])
+        self.assertRegex(failures[0], r" dir=(DEFICIT|SURPLUS)$")
 
     def test_kept_conservation_passes(self):
         rc, failures, log = self.run_against(KEPT_CORE)

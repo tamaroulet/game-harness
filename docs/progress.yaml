@@ -1,5 +1,5 @@
 project_goal: 'Phase 3: 4 大未踏領域の評価と falling-blocks#17 のスモーク実証'
-active_task_id: B3.1-4
+active_task_id: B3.2
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -83,16 +83,15 @@ tasks:
   target_files:
   - harness/unit_schema.py
   - harness/testgen.py
-  status: in_progress
+  status: completed
   verification:
     command: python -m unittest tests.test_unit_schema.NestedStateAndParamDelta tests.test_testgen.NestedAccess
     expected_exit_code: 0
-  review_pr: https://github.com/tamaroulet/game-harness/pull/50
 - id: falling-blocks#17
   title: 出現＋1 段の自然落下
   group: B3.1
   target_repo: falling-blocks
-  status: pending
+  status: completed
   verification:
     command: python -c "import json,subprocess,sys; r=subprocess.run(['gh','pr','view','18','--repo','tamaroulet/falling-blocks','--json','state'],capture_output=True,text=True); sys.exit(0 if json.loads(r.stdout or '{}').get('state')=='MERGED' else 1)"
     expected_exit_code: 0
@@ -100,8 +99,17 @@ tasks:
   title: 最小診断・反例射影（Roslyn 診断射影器）と Outer Gate の回送
   group: B3
   target_repo: game-harness
-  status: pending
-  verification: null
+  target_files:
+  - harness/diagproj.py
+  - harness/adapters/dotnet.py
+  - harness/invgen.py
+  - harness/invrun.py
+  - harness/pipeline.py
+  status: in_progress
+  verification:
+    command: python -m unittest tests.test_diagproj tests.test_outer_dispute tests.test_invrun
+    expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/52
 - id: B3.3
   title: 差分バジェット・契約の形テスト・.meta の自動生成
   group: B3
@@ -139,6 +147,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: B3.1-3
+  task: falling-blocks#17
   exit_code: 0
-  at: '2026-09-24T00:56:36'
+  at: '2026-09-24T01:14:23'
