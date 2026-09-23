@@ -25,7 +25,7 @@ def git(*args, cwd):
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout
 
 
-class CanaryTests(unittest.TestCase):
+class RepoFixture(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
@@ -64,6 +64,8 @@ class CanaryTests(unittest.TestCase):
             return SimpleNamespace(returncode=rc, stdout="", stderr="")
         return runner
 
+
+class CanaryTests(RepoFixture):
     def test_prepare_deletes_impl_files_and_commits_generated_output(self):
         branch, _ = canary.prepare(self.proj, self.unit, self.wt, runner=self.fake_decompose())
         self.assertEqual(branch, "test/canary-issue-12")
@@ -102,6 +104,79 @@ class CanaryTests(unittest.TestCase):
         self.unit.write_text(json.dumps({"id": "issue_12", "impl_files": ["impl/A.txt"]}), encoding="utf-8")
         with self.assertRaises(canary.CanaryError):
             canary.prepare(self.proj, self.unit, self.wt, runner=self.fake_decompose())
+
+
+class MigrateTests(RepoFixture):
+    """main への正式な移行（ADR-003 §3.1、B3.1-1）。prepare と違い impl_files を消さない。"""
+
+    def fake_v2_decompose(self, drop=None):
+        def runner(args, **kw):
+            wt = Path(args[args.index("--repo-dir") + 1])
+            (wt / "tools" / "issue_12.json").write_text(json.dumps({"schema": 2, "id": "issue_12"}), encoding="utf-8")
+            if drop:
+                (wt / drop).unlink()
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        return runner
+
+    def fake_gh(self, sha=None, conclusion="success"):
+        def gh(args):
+            head = sha or git("rev-parse", "origin/main", cwd=self.repo).strip()
+            runs = [{"headSha": head, "status": "completed", "conclusion": conclusion}]
+            return SimpleNamespace(returncode=0, stdout=json.dumps(runs), stderr="")
+        return gh
+
+    def land(self):
+        """移行の枝を main に merge して push する（人間が PR をマージした状態）。"""
+        branch, _, _ = canary.migrate(self.proj, self.unit, self.wt, runner=self.fake_v2_decompose())
+        git("merge", "-q", "--no-ff", "-m", "merge", branch, cwd=self.repo)
+        git("push", "-q", "origin", "main", cwd=self.repo)
+
+    def test_migrate_keeps_impl_files_and_retires_v1_tests(self):
+        branch, _, retired = canary.migrate(self.proj, self.unit, self.wt, runner=self.fake_v2_decompose())
+        self.assertEqual(branch, "migrate/issue-12-v2")
+        self.assertEqual(retired, ["tests/Core.Tests/OldTests" + ".cs"])
+        changed = git("diff", "--name-status", "origin/main", "HEAD", cwd=self.wt).split()
+        self.assertEqual(changed, ["D", "tests/Core.Tests/OldTests" + ".cs", "M", "tools/issue_12.json"])
+        self.assertEqual(git("status", "--porcelain", cwd=self.wt), "")
+
+    def test_migrate_stops_when_an_impl_file_disappears(self):
+        with self.assertRaises(canary.CanaryError):
+            canary.migrate(self.proj, self.unit, self.wt, runner=self.fake_v2_decompose(drop="impl/A.txt"))
+
+    def test_check_migrated_passes_after_landing_with_green_ci(self):
+        self.proj["repo_slug"] = "o/r"
+        self.land()
+        self.assertEqual(canary.check_migrated(self.proj, "issue_12", gh=self.fake_gh()), [])
+
+    def test_check_migrated_survives_a_later_edit_of_the_unit(self):
+        self.proj["repo_slug"] = "o/r"
+        self.land()
+        (self.repo / "tools" / "issue_12.json").write_text(json.dumps({"schema": 2, "id": "issue_12", "x": 1}),
+                                                           encoding="utf-8")
+        git("commit", "-q", "-am", "later edit", cwd=self.repo)
+        git("push", "-q", "origin", "main", cwd=self.repo)
+        self.assertEqual(canary.check_migrated(self.proj, "issue_12", gh=self.fake_gh()), [])
+
+    def test_check_migrated_fails_before_landing(self):
+        self.proj["repo_slug"] = "o/r"
+        self.assertEqual(len(canary.check_migrated(self.proj, "issue_12", gh=self.fake_gh())), 1)
+
+    def test_check_migrated_fails_on_red_or_stale_ci(self):
+        self.proj["repo_slug"] = "o/r"
+        self.land()
+        self.assertEqual(len(canary.check_migrated(self.proj, "issue_12", gh=self.fake_gh(conclusion="failure"))), 1)
+        self.assertEqual(len(canary.check_migrated(self.proj, "issue_12", gh=self.fake_gh(sha="0" * 40))), 1)
+
+    def test_check_migrated_fails_when_a_v1_test_survives(self):
+        self.proj["repo_slug"] = "o/r"
+        self.land()
+        (self.repo / "tests" / "Core.Tests" / ("OldTests" + ".cs")).write_text("x", encoding="utf-8")
+        git("add", "-A", cwd=self.repo)
+        git("commit", "-q", "-m", "revive", cwd=self.repo)
+        git("push", "-q", "origin", "main", cwd=self.repo)
+        problems = canary.check_migrated(self.proj, "issue_12", gh=self.fake_gh())
+        self.assertEqual(len(problems), 1)
+        self.assertIn("OldTests", problems[0])
 
 
 if __name__ == "__main__":
