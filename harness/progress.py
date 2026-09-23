@@ -6,6 +6,11 @@
     python -m harness.progress check           progress.yaml の形を検査する
     python -m harness.progress report          チャット報告の全文（ツリーと状態。20 行以内）
     python -m harness.progress review <url>    現在のタスクを PR のレビュー待ちにする（complete で解除）
+    python -m harness.progress hook            anchor を Claude Code の hook の出力形（JSON）で出す（B4-PREP）
+
+**hook について**: `hook` は UserPromptSubmit の hook から呼ぶと、毎ターンの文脈に anchor を足す形で出力する。
+登録（settings の hooks）はこのリポジトリでは行わない。`.claude/settings.json` には防壁①の deny 設定が
+入っているので、エージェントは触らない（2026-09-23 オーナー指示）。使うかどうか・どこに登録するかは人間が決める。
 
 **なぜ要るか**: 進捗をチャットやメモリで持つと、表記が崩れ、推測の件数が混ざり、手で「完了」にできてしまう。
 状態はファイルに置き、書き換えはこの CLI だけが行う。完了への遷移は、検証コマンドの終了コードを
@@ -16,6 +21,7 @@
 """
 import argparse
 import datetime
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -184,6 +190,12 @@ def tree(state, expand_all=False):
     return "\n".join(lines) + "\n"
 
 
+def hook_output(state):
+    """UserPromptSubmit の hook が返す JSON。anchor を文脈に足すだけで、判定や停止はしない。"""
+    return json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+                                              "additionalContext": anchor(state)}}, ensure_ascii=False)
+
+
 def report(state):
     """チャット報告の全文。ツリーと状態だけで、作文を挟む余地を残さない。"""
     tid = state.get("active_task_id")
@@ -292,6 +304,7 @@ def main(argv=None):
     cp.add_argument("task_id")
     sub.add_parser("check")
     sub.add_parser("report")
+    sub.add_parser("hook")
     rp = sub.add_parser("review")
     rp.add_argument("task_id")
     rp.add_argument("url")
@@ -316,6 +329,8 @@ def main(argv=None):
             return 0 if not problems else 1
         if args.cmd == "report":
             print(report(state), end="")
+        elif args.cmd == "hook":
+            print(hook_output(state))
         else:
             print(anchor(state) if args.cmd == "anchor" else tree(state, args.all), end="")
     except ProgressError as e:

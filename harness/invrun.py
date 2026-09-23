@@ -73,9 +73,12 @@ def materialize(workdir, sandbox, impl_dir, files, cfg=None):
     workdir, sandbox = Path(workdir).resolve(), Path(sandbox).resolve()
     if workdir == sandbox or sandbox in workdir.parents:
         raise ValueError(f"不変条件テストをサンドボックスの中に置こうとしました: {workdir}")
-    if workdir.exists():
-        shutil.rmtree(workdir)
-    workdir.mkdir(parents=True)
+    # obj/・bin/ は残し、それ以外（前の試行の生成物）だけを消す。復元とビルドの再利用で速くなる（B4-PREP）
+    workdir.mkdir(parents=True, exist_ok=True)
+    for p in workdir.iterdir():
+        if p.name in ("obj", "bin"):
+            continue
+        shutil.rmtree(p) if p.is_dir() else p.unlink()
     impl = str(sandbox / impl_dir).replace("/", "\\") + "\\**\\*." + "cs"
     packages = "\n".join(f'    <PackageReference Include="{k}" Version="{v}" />' for k, v in cfg["packages"].items())
     (workdir / "Invariants.csproj").write_text(
@@ -118,10 +121,11 @@ def check(c):
         return "ABORT", f"シードを決める差分を取れません: {(err or diff)[:200]}"
     seed = seed_for(diff)
 
-    workdir = c.out / "invariants" / f"attempt{c.metrics.get('attempt', 0)}"
+    workdir = c.out / "invariants" / "work"
     csproj = materialize(workdir, c.sandbox, c.cfg["project"]["impl_dir"], files)
     rc, out, err = run_tests(csproj, seed, c.ttl["fast_tests"])
-    (workdir / "dotnet.log").write_text(f"# seed {seed}\n- rc: {rc}\n\n{out}\n{err}\n", encoding="utf-8")
+    log = c.out / "invariants" / f"attempt{c.metrics.get('attempt', 0)}.dotnet.log"
+    log.write_text(f"# seed {seed}\n- rc: {rc}\n\n{out}\n{err}\n", encoding="utf-8")
     failures = parse_failures(out + "\n" + err)
     c.tel["invariants"] = {"declared": True, "seed": seed, "rc": rc, "failures": len(failures)}
     if rc == 0:
@@ -129,4 +133,4 @@ def check(c):
         return None
     if failures:
         return "REJECT", "不変条件が破れました（Outer 段。テストは見せません）:\n" + "\n".join(failures[:5])
-    return "ABORT", f"不変条件テストが反例の行を出さずに失敗しました（ビルド不能など）。記録: {workdir / 'dotnet.log'}"
+    return "ABORT", f"不変条件テストが反例の行を出さずに失敗しました（ビルド不能など）。記録: {log}"

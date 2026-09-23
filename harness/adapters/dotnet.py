@@ -62,6 +62,10 @@ def summarize_files(paths, root=None):
 _ERROR_LINE = re.compile(r"(: error |: エラー |error CS\d+|MSB\d+)")
 
 
+# 復元を省いたせいで落ちたときの印（assets ファイルが無い・パッケージが見つからない）
+_RESTORE_MISSING = re.compile(r"NETSDK1004|NETSDK1005|project\.assets\.json|NU1101|NU1102")
+
+
 def build_failure_detail(c, tag, rc, out, err):
     """TRX が出なかったときの理由を残し、先頭のエラー行を呼び出し側へ返す。
 
@@ -111,10 +115,20 @@ def run_tests(c, tag):
     # /nr:false: MSBuild のワーカー（ノード再利用）を常駐させない。常駐すると終了後も
     # ビルド出力の .dll を掴み続け、次のビルドやサンドボックスのリセットが
     # ファイルロック（WinError 32）で落ちうる。
-    rc, out, err = run(["dotnet", "test", c.unit["fast_test_project"],
-                        "--nologo", "/nr:false", "--logger", f"trx;LogFileName={tag}.trx",
-                        "--results-directory", str(c.out)],
+    args = ["dotnet", "test", c.unit["fast_test_project"],
+            "--nologo", "/nr:false", "--logger", f"trx;LogFileName={tag}.trx",
+            "--results-directory", str(c.out)]
+    # 同じサンドボックスで 2 回目以降は NuGet の復元を省く（B4-PREP）。実装役は csproj を書けない
+    # （whitelist の外）ので、依存は試行の間で変わらない。サンドボックスを空にしても obj/ は ignored で残る
+    skip_restore = bool(getattr(c, "fast_restored", False))
+    rc, out, err = run(args + (["--no-restore"] if skip_restore else []),
                        c.sandbox, c.ttl["fast_tests"], f"dotnet test ({tag})")
+    if not trx.exists() and skip_restore and _RESTORE_MISSING.search((out or "") + (err or "")):
+        # 局所縮退：復元を省いたせいで落ちたなら、復元ありで 1 回だけやり直す
+        c.fast_restored = False
+        rc, out, err = run(args, c.sandbox, c.ttl["fast_tests"], f"dotnet test ({tag}, restore)")
+    if trx.exists():
+        c.fast_restored = True
     if not trx.exists():
         return None, "検査系故障: TRX が生成されませんでした" + build_failure_detail(c, tag, rc, out, err)
     results, counters = parse_results(trx)
