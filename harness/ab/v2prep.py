@@ -151,6 +151,7 @@ def generated(contract, props, spec_text, gdd_text, proj, tasks=None):
 
 def prepare():
     proj = project.load(PROJECT)
+    imp = project.pipeline_config(proj)["implementer"]
     cfg = project.config("unit_schema")
     v1m = json.loads((V1 / "tasks.json").read_text(encoding="utf-8"))
     read = unit_schema.git_reader(proj["repo_dir"], v1m["base_commit"], 120)
@@ -183,7 +184,9 @@ def prepare():
     manifest = {
         "schema": 1, "experiment": "v2", "kind": "v2",
         "_comment": "v2 の A/B 実験の入力（docs/design/v2_contract_foundry.md §5.3）。harness/ab/v2prep.py が作る。手で編集しない",
-        "base_commit": v1m["base_commit"], "gdd_sha256": v1m["gdd_sha256"], "implementer": v1m["implementer"],
+        # 実装役のモデルは、走らせる設定（pipeline.json）から写す（v2.1c で思考の重さをモデル名で選ぶようにした）
+        "base_commit": v1m["base_commit"], "gdd_sha256": v1m["gdd_sha256"],
+        "implementer": {"cli": imp["cli"], "model": imp["model_name"]},
         "max_attempts": v1m["max_attempts"], "invariant_seeds": v1m["invariant_seeds"],
         "contract": "contract.json", "contract_sha256": sha(V2 / "contract.json"),
         "properties": "properties.json", "properties_sha256": sha(V2 / "properties.json"),

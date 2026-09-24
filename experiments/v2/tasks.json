@@ -7,7 +7,7 @@
   "gdd_sha256": "95876782072ebf6a973781f2921e6abe4d2cead5519a09f673fe380991feb7a7",
   "implementer": {
     "cli": "agy",
-    "model": "gemini-3.8-flash-high"
+    "model": "gemini-3.8-flash-medium"
   },
   "max_attempts": 3,
   "invariant_seeds": [
