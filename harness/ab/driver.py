@@ -69,7 +69,7 @@ def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run):
         t0 = time.monotonic()
         rc, out, err = runner(agy_stream.args(imp, resolve_cli(imp["cli"]), prompt, ttl, conversation_id),
                               cwd, ttl, "実装AI（条件 A）", input=agy_stream.stdin_for(imp, prompt))
-        parsed = agy_stream.parse(out)
+        parsed = agy_stream.parse(out, cwd)
         return {"rc": rc, "seconds": round(time.monotonic() - t0, 1),
                 "conversation_id": parsed["conversation_id"] or conversation_id, "usage": parsed["usage"],
                 "steps": parsed["steps"], "out": out, "err": err}
@@ -140,7 +140,10 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
         # 道具の指示は B と同じ文面（再試行を含めて編集だけ。v2 §7）
         prompt += "\n\n" + tool_policy.text()
         r = call(ctx["imp"], prompt, workdir, state.get("conversation_id"), ctx["ttl"])
-        written = narrow_dir.write_back(narrow, wt, placed) if narrow else None
+        written = None
+        if narrow:
+            written = narrow_dir.write_back(narrow, wt, placed)
+            narrow_dir.discard(narrow)
         state["conversation_id"] = r["conversation_id"]
         calls.append({"attempt": attempt, "rc": r["rc"], "seconds": r["seconds"], "usage": r["usage"],
                       "steps": r.get("steps"), "prompt_chars": len(prompt)})

@@ -12,6 +12,7 @@ pipeline（条件 B）とドライバ（条件 A）が同じものを使う。
 **--print-timeout**：TTL より短くして、agy に先に止まらせる（止まれば `result` が出る）。TTL は安全弁。
 """
 import json
+import re
 
 STREAM = "stream-json"
 PRINT_TIMEOUT_MARGIN = 20
@@ -52,8 +53,35 @@ def stdin_for(imp, prompt):
     return json.dumps({"event": "user", "message": {"content": prompt}}, ensure_ascii=False) + "\n"
 
 
-def parse(text):
+_ABS_PATH_RE = re.compile(r"[A-Za-z]:[\\/][^\"'\s|;,]*")
+
+
+def _tool_summary(params, workdir):
+    """道具の引数の要約（v2.1d）。コマンドの先頭の語・manage_task の Action・作業場所の外を指したか。
+
+    引数の本文（コマンドの全文・ファイルの中身）は残さない。v2-dry-05c では、何のコマンドかが分からず、
+    手番の空回りの原因（同じ親の下のほかの走行の作業場所を読んでいた）を後から引数で確かめた。
+    """
+    out = {}
+    cmd = params.get("CommandLine")
+    if isinstance(cmd, str) and cmd.strip():
+        out["verb"] = cmd.split()[0]
+    if isinstance(params.get("Action"), str):
+        out["action"] = params["Action"]
+    if workdir is not None:
+        base = str(workdir).replace("/", "\\").rstrip("\\").lower()
+        texts = [v for k, v in params.items() if k in ("CommandLine", "AbsolutePath", "TargetFile")
+                 and isinstance(v, str)]
+        paths = [p.replace("/", "\\").rstrip("\\").lower() for t in texts for p in _ABS_PATH_RE.findall(t)]
+        if paths:
+            out["outside"] = any(not (p == base or p.startswith(base + "\\")) for p in paths)
+    return out
+
+
+def parse(text, workdir=None):
     """stream-json の出力 → {"conversation_id", "response", "usage", "steps", "complete"}。
+
+    workdir を渡すと、道具の手番に「作業場所の外を指したか」（outside）を付ける。
 
     usage は telemetry と同じキー（input_tokens・output_tokens・cache_read_tokens・total_tokens）に、
     thinking_tokens・model_steps（利用量を持つ手番の数）・partial（result が無く、手番の足し込みで下限）を足す。
@@ -79,6 +107,9 @@ def parse(text):
             for k in _TOOL_KEYS:
                 if isinstance(su.get(k), str):
                     rec["tool"] = su[k]
+            params = (su.get("tool_info") or {}).get("parameters")
+            if isinstance(params, dict):
+                rec.update(_tool_summary(params, workdir))
             if su.get("step_type") == "agent_response" and isinstance(su.get("text_delta"), str):
                 reply.append(su["text_delta"])
             if su.get("state") == "DONE":

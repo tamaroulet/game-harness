@@ -48,6 +48,19 @@ def populate(origin, rels, dst=None):
     return dst, _files(dst)
 
 
+def discard(dst):
+    """作業場所を消す。呼び出しの後に残さない（v2.1d）。
+
+    v2-dry-05c では、作業場所を呼び出しの後も残していたので、実装役が親の harness-narrow を一覧し、ほかの走行
+    （前の走行や、先に走った条件 A）の作業場所の GameState.cs を読んでいた。
+    """
+    dst = Path(dst)
+    if dst.exists():
+        if ROOT_NAME not in dst.parts:
+            raise ValueError(f"作業場所ではないディレクトリは消しません: {dst}")
+        shutil.rmtree(dst, ignore_errors=True)
+
+
 def write_back(dst, origin, placed):
     """作業場所で変わったものを origin に書き戻す。変わった相対パスの列（決定論の順）。"""
     now, changed = _files(dst), []

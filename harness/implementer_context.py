@@ -75,7 +75,10 @@ def for_unit(root, unit, impl_dir):
 
 def blocks(root, editable, readonly):
     """プロンプトに足す文章。readonly（契約。書き換え不可）を先に、editable（書き換えてよいファイル）を後に置く。"""
-    parts = ["## いまのファイルの中身（ハーネスが埋め込んだもの。作業場所にあるファイルはこれで全部です）"]
+    # 作業場所の一覧を先に示す（v2.1d：v2-dry-05c の実装役は、一覧を知るために端末のコマンドを繰り返した）
+    present = [rel for rel in list(readonly) + list(editable) if (Path(root) / rel).exists()]
+    parts = ["## いまのファイルの中身（ハーネスが埋め込んだもの。作業場所にあるファイルはこれで全部です）",
+             "作業場所のファイル一覧：\n" + "\n".join(f"- {rel}" for rel in present)]
     used = 0
     for title, rels in (("読み取り専用（契約。書き換えない）", readonly), ("書き換えてよいファイル", editable)):
         for rel in rels:
