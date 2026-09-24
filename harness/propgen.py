@@ -816,8 +816,12 @@ def _tests(task, props, decl):
     return "\n".join(out)
 
 
-def generate(decl, spec_text, gdd_text, interface, test_dir):
-    """{リポジトリからの相対パス: C#}。決定論。検査に落ちる宣言は PropertyError。"""
+def generate(decl, spec_text, gdd_text, interface, test_dir, tasks=None):
+    """{リポジトリからの相対パス: C#}。決定論。検査に落ちる宣言は PropertyError。
+
+    tasks：テストのクラスを出すタスク（例 {"T1"}）。None なら全部。参照モデルと判定（Checks.cs）は常に全部出す。
+    タスクを積み重ねるとき、まだ実装していないタスクの性質を置くと、それが落ちて受入の判定を汚す。
+    """
     problems = validate(decl, spec_text, gdd_text, interface)
     if problems:
         raise PropertyError("性質の宣言が検査を通りません: " + "; ".join(problems[:5]))
@@ -831,8 +835,11 @@ def generate(decl, spec_text, gdd_text, interface, test_dir):
         checks += _check_method(p, contract) + [""]
     checks[-1:] = ["    }", "}", ""]
     files[f"{base}/Checks.cs"] = "\n".join(checks)
+    wanted = tasks
     tasks = sorted({p["task"] for p in decl["properties"]}, key=lambda t: int(t[1:]))
     for task in tasks:
+        if wanted is not None and task not in wanted:
+            continue
         files[f"{base}/Properties{task}Cases.cs"] = _tests(task, [p for p in decl["properties"] if p["task"] == task],
                                                             decl)
     return files

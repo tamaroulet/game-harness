@@ -15,6 +15,7 @@
 """
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -25,6 +26,7 @@ if str(_HARNESS) not in sys.path:
 
 import exitcode  # noqa: E402
 import pipeline  # noqa: E402
+import propgen  # noqa: E402
 import project  # noqa: E402
 import telemetry  # noqa: E402
 import testgen  # noqa: E402
@@ -75,9 +77,10 @@ def call_budget(m):
 
 
 def failure_list(results, classes, task_id, trx):
-    """再試行に渡す落ちたテスト。B の内側ループと同じ整形（名前と期待値の不一致）。TRX が無ければ名前だけ。"""
+    """再試行に渡す落ちたテスト。B の内側ループと同じ整形（性質テストなら反例の 1 行ずつ、最大 5 行。
+    そうでなければ名前と期待値の不一致）。TRX が無ければ名前だけ。"""
     if trx is not None and Path(trx).exists():
-        text = dotnet.failure_digest(trx)
+        text = dotnet.property_lines(trx) or dotnet.failure_digest(trx)
         if text:
             return text
     return "\n".join(f"- {x}" for x in failing_of(results, classes, task_id))
@@ -117,7 +120,8 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
         measure.place_frozen_tests(m, wt, ctx["index"], m["test_dir"])
         results, text = fast(wt, ctx["test_project"], out, f"{task['id']}_a{attempt}")
         trx = Path(out) / f"{task['id']}_a{attempt}.trx"
-        passed, total = measure.acceptance(results, ctx["classes"], task["id"])
+        # 非公開シードは渡していないので、*_Hidden は数えない（B の内側ループと同じ。非公開は最後の測定で見る）
+        passed, total = measure.acceptance(results, ctx["classes"], task["id"], public_only=True)
         if total and passed == total:
             accepted = True
             break
@@ -210,14 +214,21 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
         t1 = time.monotonic()
         tampered = measure.place_frozen_tests(m, p["wt"], i, m["test_dir"])
         end = common.commit_all(p["wt"], f"ab: {task['id']} の終わり（条件 {condition}）")
-        results, _ = measure.run_fast(p["wt"], ctx["test_project"], p["out"], f"{task['id']}_final")
+        # 測定は公開と非公開の両方のシードで（v2 §5.3）。非公開シードは走行とタスクで決まり、実装役には渡らない
+        env = None
+        if common.is_v2(m):
+            seeds = common.hidden_seeds(run_id, task["id"], m["measure_hidden_seeds"])
+            env = dict(os.environ, **{propgen.HIDDEN_ENV: ",".join(str(x) for x in seeds)})
+        results, _ = measure.run_fast(p["wt"], ctx["test_project"], p["out"], f"{task['id']}_final", env=env)
         passed, total = measure.acceptance(results, ctx["classes"], task["id"])
+        pub_passed, pub_total = measure.acceptance(results, ctx["classes"], task["id"], public_only=True)
         broken = measure.p2p_broken(prev, results, task.get("superseded_tests", []))
         inv = measure.invariants(p["wt"], p["out"] / task["id"], m["invariant_seeds"], proj["impl_dir"], decl)
         added, deleted = common.numstat(p["wt"], start, end, proj["impl_dir"])
         line = {"run_id": run_id, "condition": condition, "task": task["id"], "index": i,
                 "accepted": bool(total) and passed == total, "attempts": rec["attempts"],
-                "acceptance": {"passed": passed, "total": total}, "build_ok": results is not None,
+                "acceptance": {"passed": passed, "total": total},
+                "acceptance_public": {"passed": pub_passed, "total": pub_total}, "build_ok": results is not None,
                 "p2p_broken": len(broken), "p2p_broken_tests": broken, "invariants": inv,
                 "diff": {"added": added, "deleted": deleted},
                 "budget_exceeded": added > BUDGET["added"] or deleted > BUDGET["deleted"],

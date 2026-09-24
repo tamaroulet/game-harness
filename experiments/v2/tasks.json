@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "experiment": "v2",
+  "kind": "v2",
+  "_comment": "v2 の A/B 実験の入力（docs/design/v2_contract_foundry.md §5.3）。harness/ab/v2prep.py が作る。手で編集しない",
+  "base_commit": "87bdfdaf183cf220cf2b1e1f795f23bcca45d370",
+  "gdd_sha256": "95876782072ebf6a973781f2921e6abe4d2cead5519a09f673fe380991feb7a7",
+  "implementer": {
+    "cli": "agy",
+    "model": "gemini-3.8-flash-high"
+  },
+  "max_attempts": 3,
+  "invariant_seeds": [
+    11,
+    22,
+    33
+  ],
+  "contract": "contract.json",
+  "contract_sha256": "07fd11f5a1ac76502da0bf3129c8f2a7ce314934cf52e59db6d8ae7f2b7a9d2b",
+  "properties": "properties.json",
+  "properties_sha256": "389062469816acf1c936bc35f10ec6136a8defe0ccd4a0135c24a1b2d4e858ef",
+  "existing_types": [
+    "GamePhase",
+    "MinoType",
+    "Rotation",
+    "ActiveMino"
+  ],
+  "measure_hidden_seeds": 20,
+  "generated_sha256": {
+    "Game/Assets/Core/Cell.cs": "b249f8ad60f304b13eb39ab02fe138f34909d9c9b85e1a2c9b56f6becf73de25",
+    "Game/Assets/Core/IGameState.cs": "8e15790843bca74ff2404f48cee9d7d22d87365adc7bdaf7b13de20c8a8cf9b4",
+    "Game/Assets/Core/TickInput.cs": "1eab3cd28312d0e39991e790d7bc9b676e27689ef309abb7ef404d9fed23f13d",
+    "tests/Core.Tests/Contracts/ContractProbe.cs": "48e7242099ff80bc1a41b0cc4ac1870f68fdfc0a8c9c9d2dbd6fcc24aa37fafd",
+    "tests/Core.Tests/Properties/Checks.cs": "4f58a6cb702d23d0d2f8e2d0ab9589766c2500000918acc316f9be8cdc44b1dd",
+    "tests/Core.Tests/Properties/PropertiesT1Cases.cs": "6345cd940fcc354a42312bef3afe603553a0de3cb90b02ef6b0478f42eaa1ee1",
+    "tests/Core.Tests/Properties/PropertiesT2Cases.cs": "fa6e84c1a99e7dc443f931d90a31ee0df0a8be57a0fb75569c8d44585ece1e6d",
+    "tests/Core.Tests/Properties/PropertiesT3Cases.cs": "4d9409a444f1472fc364ce5f91ae90227094d8d903611ca22599c1d0518b503c",
+    "tests/Core.Tests/Properties/PropertiesT4Cases.cs": "9ad4fb7834818802737976e1ac8c77df16555e5bc8cc428eab25acc41fc9ded6",
+    "tests/Core.Tests/Properties/PropertiesT5Cases.cs": "08f389c8db79dfc1278ccaa125cca2a8d44f834734601c3638e48db5c3df46d4",
+    "tests/Core.Tests/Properties/PropertyModel.cs": "7b7d385135d08d181859b79c6bf658371a1d66e66366921043060a9c14104922"
+  },
+  "templates": {
+    "initial": "templates/initial.md",
+    "initial_sha256": "fb875100bda8d13aba35873799af8695dc18ccc5bdadc957cc36650583984379",
+    "retry": "templates/retry.md",
+    "retry_sha256": "36b61f3427c14f481366806e8f2e4f656ec6e4cc9f10d077690681ca6f066640",
+    "retry_tail_lines": 40
+  },
+  "test_dir": "tests/Core.Tests/Properties",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "左右移動（壁・盤面外の判定）",
+      "unit": "units/T1.json",
+      "unit_sha256": "4531ec5429f6f0a27844a7de7ac07f4eb7ee14954590148079cd73f04c3e8396",
+      "superseded_tests": []
+    },
+    {
+      "id": "T2",
+      "title": "自然落下と接地判定（ロック猶予・固定・次のミノの出現）",
+      "unit": "units/T2.json",
+      "unit_sha256": "18eeb0c5121bb37682d35a693a45d0d2edc214e61316a8aadd712b162750577c",
+      "superseded_tests": []
+    },
+    {
+      "id": "T3",
+      "title": "ハードドロップ（即時固定）",
+      "unit": "units/T3.json",
+      "unit_sha256": "0e68082fc723e6912b8f5e274e3aa822147aea4a64a4c9b0a8e06d976e4fd7ec",
+      "superseded_tests": []
+    },
+    {
+      "id": "T4",
+      "title": "回転（壁キックなし）",
+      "unit": "units/T4.json",
+      "unit_sha256": "2f92aa27460c3284b44e9b8c2cde51ad6285c43e7983b721e2d3d9f7eeca6ee3",
+      "superseded_tests": []
+    },
+    {
+      "id": "T5",
+      "title": "壁キック回転（SRS）",
+      "unit": "units/T5.json",
+      "unit_sha256": "7cb9cfd2322297c8f23eff9f6feb44eb08edd52e405423c660f8548d51973f61",
+      "superseded_tests": []
+    }
+  ]
+}
