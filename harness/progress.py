@@ -163,15 +163,19 @@ def _contains_active(state, node_id):
 
 
 def tree(state, expand_all=False):
-    """人間と PR 用。既定では現在のタスクを含む枝だけを展開し、他の枝は件数に畳む。"""
+    """人間と PR 用。既定では現在のタスクを含む枝だけを展開し、他の枝は件数に畳む。
+
+    タスクが全部終わった中ゴールは、--all でも畳む（終わったものの中身は git と PR に残っている）。
+    """
     lines = []
 
     def walk(node, depth):
         ts = _tasks_under(state, node["id"])
-        mark = "[x]" if _done(state, node) else "[ ]"
+        done = _done(state, node)
+        mark = "[x]" if done else "[ ]"
         count = f"（{sum(t['status'] == 'completed' for t in ts)}/{len(ts)}）" if ts else ""
         lines.append(f"{'  ' * depth}- {mark} {node['id']} {node['title']}{count}")
-        if not (expand_all or _contains_active(state, node["id"])):
+        if done or not (expand_all or _contains_active(state, node["id"])):
             return
         for c in _children(state, node["id"]):
             walk(c, depth + 1)

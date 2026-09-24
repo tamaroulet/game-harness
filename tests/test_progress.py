@@ -98,6 +98,17 @@ class ViewTests(unittest.TestCase):
         self.assertIn("G1 group 1（1/2）", t)
         self.assertIn("T1 first", progress.tree(s, expand_all=True))
 
+    def test_finished_goal_is_folded_even_with_all(self):
+        """タスクが全部終わった中ゴールは、--all でも中身を出さず、件数だけにする。"""
+        s = sample()
+        s["tasks"][0]["status"] = s["tasks"][1]["status"] = "completed"
+        s["tasks"][2]["status"], s["active_task_id"] = "in_progress", "T3"
+        for t in (progress.tree(s), progress.tree(s, expand_all=True)):
+            self.assertIn("- [x] G1 group 1（2/2）", t)
+            self.assertNotIn("T1 first", t)
+            self.assertNotIn("T2 second", t)
+            self.assertIn("T3 third", t)
+
     def test_report_has_only_tree_and_state(self):
         r = progress.report(sample())
         self.assertTrue(r.startswith("## 進捗ツリー\n"))
