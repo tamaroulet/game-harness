@@ -27,6 +27,7 @@ if str(_HARNESS) not in sys.path:
 import agy_stream  # noqa: E402
 import exitcode  # noqa: E402
 import implementer_context  # noqa: E402
+import narrow_dir  # noqa: E402
 import pipeline  # noqa: E402
 import propgen  # noqa: E402
 import project  # noqa: E402
@@ -67,7 +68,7 @@ def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run):
     if agy_stream.is_stream(imp):
         t0 = time.monotonic()
         rc, out, err = runner(agy_stream.args(imp, resolve_cli(imp["cli"]), prompt, ttl, conversation_id),
-                              cwd, ttl, "実装AI（条件 A）")
+                              cwd, ttl, "実装AI（条件 A）", input=agy_stream.stdin_for(imp, prompt))
         parsed = agy_stream.parse(out)
         return {"rc": rc, "seconds": round(time.monotonic() - t0, 1),
                 "conversation_id": parsed["conversation_id"] or conversation_id, "usage": parsed["usage"],
@@ -110,17 +111,26 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
     tpl = ctx["templates"]
     calls, accepted, results, text, trx = [], False, None, "", None
     budget = call_budget(m)
+    stream = agy_stream.is_stream(ctx["imp"])
     for attempt in range(1, budget + 1):
+        # v2.1c：B と同じく、細い作業場所（書き換えてよいファイルと契約と既存の型だけ）で動かし、変わったものを
+        # 作業ツリーへ書き戻す。置き場は作業ツリーごとに固定なので、会話を積んでもパスは変わらない
+        narrow = placed = None
+        if stream:
+            narrow, placed = narrow_dir.populate(wt, implementer_context.visible_files(wt, unit, ctx["impl_dir"]))
+        workdir = narrow or wt
         if attempt == 1:
-            prompt = tpl["initial"].format(task_id=task["id"], title=task["title"], workdir=str(wt),
+            prompt = tpl["initial"].format(task_id=task["id"], title=task["title"], workdir=str(workdir),
                                            prompt=unit["prompt"], interface=testgen.render_interface(unit),
                                            whitelist="\n".join(f"- {p}" for p in unit["whitelist"]),
                                            test_dir=m["test_dir"])
-            if agy_stream.is_stream(ctx["imp"]):
-                # B と同じく、書き換えてよいファイルと契約の中身を埋め込む（v2.1 §1.1 の 2）。A は会話を積むので、
+            if stream:
+                # B と同じく、契約・既存の型・書き換えてよいファイルの中身を埋め込む（v2.1 §1.1 の 2）。A は会話を積むので、
                 # 埋め込むのは最初の呼び出しだけ（単一チャットで最初にファイルを貼るのと同じ）
-                prompt += "\n\n" + implementer_context.for_unit(wt, unit, ctx["impl_dir"],
-                                                               project.config("unit_schema").get("spec_path"))
+                try:
+                    prompt += "\n\n" + implementer_context.for_unit(wt, unit, ctx["impl_dir"])
+                except implementer_context.ContextError as e:
+                    raise common.ABError(f"実装役に渡す前提が大きすぎます: {e}")
         else:
             n = m["templates"]["retry_tail_lines"]
             prompt = tpl["retry"].format(task_id=task["id"], attempt=attempt - 1, max_attempts=budget,
@@ -129,10 +139,13 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
                                          tail_lines=n, failure_tail="\n".join(text.strip().splitlines()[-n:]))
         # 道具の指示は B と同じ文面（再試行を含めて編集だけ。v2 §7）
         prompt += "\n\n" + tool_policy.text()
-        r = call(ctx["imp"], prompt, wt, state.get("conversation_id"), ctx["ttl"])
+        r = call(ctx["imp"], prompt, workdir, state.get("conversation_id"), ctx["ttl"])
+        written = narrow_dir.write_back(narrow, wt, placed) if narrow else None
         state["conversation_id"] = r["conversation_id"]
         calls.append({"attempt": attempt, "rc": r["rc"], "seconds": r["seconds"], "usage": r["usage"],
                       "steps": r.get("steps"), "prompt_chars": len(prompt)})
+        if narrow:
+            calls[-1]["narrow_written"] = written
         (Path(out) / f"{task['id']}_a{attempt}.implementer.log").write_text(
             f"# prompt\n{prompt}\n\n# stdout\n{r['out']}\n\n# stderr\n{r['err']}\n", encoding="utf-8")
         # 実装役がテストを書き換えていても、凍結したものに戻してから測る

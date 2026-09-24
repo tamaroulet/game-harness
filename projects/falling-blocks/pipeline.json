@@ -24,7 +24,7 @@
     "headless_flag": "-p",
     "auto_approve_flag": "--dangerously-skip-permissions",
     "model_flag": "--model",
-    "model_name": "gemini-3.8-flash-high",
+    "model_name": "gemini-3.8-flash-medium",
     "_usage_note": "テレメトリ用（判定には使わない）。--output-format json の形は harness/telemetry.py の USAGE_FORMATS に実測で書いてある",
     "_stream_note": "v2.1（docs/design/v2_1_improvement_plan.md §1.1・§1.2）：stream-json で手番ごとの利用量と種類を記録する（harness/agy_stream.py）。打ち切っても終わった手番までの利用量が残る。--print-timeout は TTL の 20 秒前を自動で付ける。--sandbox は端末の操作を制限する（ビルド・テスト・探索のコマンドを使わせない）",
     "output_format_args": [
@@ -34,6 +34,7 @@
     "extra_flags": [
       "--sandbox"
     ],
+    "_effort_note": "v2.1c（docs/design/v2_1c_structure_review.md、2026-09-25 の裁定 3）：思考の重さはモデル名で選ぶ（agy の --effort は gemini-3.8-flash-high と併用できない）。v2-dry-05 で medium を確かめる。受入 8/8 が落ちず、思考のトークンが v2-dry-04 より 3 割以上減れば本走まで medium に固定する。満たさなければ gemini-3.8-flash-high に戻す",
     "usage_format": "agy"
   },
   "control_groups": {
