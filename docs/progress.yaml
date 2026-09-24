@@ -248,7 +248,12 @@ tasks:
   group: B5
   target_repo: game-harness
   status: in_progress
-  verification: null
+  verification:
+    command: python -m unittest tests.test_propgen
+    expected_exit_code: 0
+  target_files:
+  - harness/propgen.py
+  - tests/test_propgen.py
 - id: V2-3
   title: pipeline の門の置き換え（シグネチャ照合の廃止・性質テスト・S1/S2 の標準化・道具の解禁の廃止）
   group: B5
