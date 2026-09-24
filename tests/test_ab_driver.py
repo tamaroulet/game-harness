@@ -18,7 +18,7 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 
-from ab import common, driver, measure, report  # noqa: E402
+from ab import check, common, driver, measure, report  # noqa: E402
 import pipeline  # noqa: E402
 
 MANIFEST = ROOT / "experiments" / "b4_ab" / "tasks.json"
@@ -32,6 +32,14 @@ class Manifest(unittest.TestCase):
     def test_real_manifest_loads(self):
         m = common.load_manifest(MANIFEST)
         self.assertEqual(len(m["tasks"]), 5)
+
+    def test_tasks_through_stops_at_the_named_task(self):
+        m = common.load_manifest(MANIFEST)
+        self.assertEqual([t["id"] for t in common.tasks_through(m, "T1")], ["T1"])
+        self.assertEqual([t["id"] for t in common.tasks_through(m, "T3")], ["T1", "T2", "T3"])
+        self.assertEqual(len(common.tasks_through(m)), 5)
+        with self.assertRaises(common.ABError):
+            common.tasks_through(m, "T9")
 
     def test_changed_input_is_refused(self):
         with tempfile.TemporaryDirectory() as d:
@@ -149,6 +157,36 @@ class ConditionB(unittest.TestCase):
             self.assertEqual(pipeline.carry_out_and_ci(c), ("SUCCESS", ""))
             self.assertIn("implement u via pipeline", git("log", "-1", "--format=%s", cwd=repo))
             self.assertEqual((repo / "A.txt").read_text(encoding="utf-8"), "new")
+
+
+class DryRunCheck(unittest.TestCase):
+    """乾式の走行（B4-E5）の検査は、受入の合否を問わず、測定と集計が揃ったかだけを見る。"""
+
+    def row(self, cond, **over):
+        r = {"run_id": "dry-01", "condition": cond, "task": "T1", "index": 1, "accepted": False, "attempts": 3,
+             "acceptance": {"passed": 0, "total": 4}, "build_ok": True, "p2p_broken": 0,
+             "invariants": {"failures": 0}, "diff": {"added": 1, "deleted": 0}, "budget_exceeded": False,
+             "tokens": {"input": 500}, "tests_tampered": False, "seconds": 1.0}
+        r.update(over)
+        return r
+
+    def run_check(self, rows):
+        with tempfile.TemporaryDirectory() as d:
+            for cond, r in rows.items():
+                out = common.paths("dry-01", cond, out_root=d)["out"]
+                out.mkdir(parents=True)
+                (out / "metrics.jsonl").write_text(json.dumps(r) + "\n", encoding="utf-8")
+            summary = Path(d) / "summary.md"
+            summary.write_text(report.summarize(list(rows.values())), encoding="utf-8")
+            return check.problems(MANIFEST, "dry-01", "T1", summary, out_root=d)
+
+    def test_complete_dry_run_passes_even_if_not_accepted(self):
+        self.assertEqual(self.run_check({"A": self.row("A"), "B": self.row("B")}), [])
+
+    def test_missing_condition_or_unmeasured_values_fail(self):
+        self.assertTrue(self.run_check({"A": self.row("A")}))
+        self.assertTrue(self.run_check({"A": self.row("A"), "B": self.row("B", tokens={"input": None})}))
+        self.assertTrue(self.run_check({"A": self.row("A"), "B": self.row("B", acceptance={"passed": 0, "total": None})}))
 
 
 if __name__ == "__main__":
