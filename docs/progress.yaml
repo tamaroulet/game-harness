@@ -275,25 +275,39 @@ tasks:
   group: B5
   target_repo: game-harness
   status: in_progress
-  verification: null
+  verification:
+    command: python -m unittest tests.test_declare
+    expected_exit_code: 0
+  target_files:
+  - experiments/v2/contract.json
+  - experiments/v2/properties.json
+  - experiments/v2/results/precost.json
+  - harness/declare.py
+  - tests/test_declare.py
 - id: V2-5
   title: 乾式の走行（T1 を A・B で 1 回ずつ）
   group: B5
   target_repo: game-harness
   status: pending
-  verification: null
+  verification:
+    command: python -m unittest tests.test_ab_driver
+    expected_exit_code: 0
 - id: V2-6
   title: スモーク（T1〜T5 × A・B、N=1）
   group: B5
   target_repo: game-harness
   status: pending
-  verification: null
+  verification:
+    command: python -m unittest tests.test_ab_driver
+    expected_exit_code: 0
 - id: V2-RUN
   title: 本走（T1〜T5 × A・B × 4 回）
   group: B5
   target_repo: game-harness
   status: pending
-  verification: null
+  verification:
+    command: python -m unittest tests.test_ab_driver
+    expected_exit_code: 0
 - id: Phase 4-1
   title: 3D 物理・メタモルフィックテスト
   group: Phase 4
