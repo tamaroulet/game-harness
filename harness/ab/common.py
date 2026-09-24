@@ -51,6 +51,16 @@ def load_manifest(path):
     return m
 
 
+def tasks_through(m, through=None):
+    """マニフェストの先頭から through までのタスク。through が無ければ全部。"""
+    ids = [t["id"] for t in m["tasks"]]
+    if through is None:
+        return list(m["tasks"])
+    if through not in ids:
+        raise ABError(f"タスク {through!r} はマニフェストにありません: {ids}")
+    return m["tasks"][:ids.index(through) + 1]
+
+
 def unit_of(m, task):
     return json.loads((Path(m["_base"]) / task["unit"]).read_text(encoding="utf-8"))
 

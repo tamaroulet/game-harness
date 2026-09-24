@@ -2,6 +2,7 @@
 
     python -m harness.ab.driver run --condition A --run-id ab-01
     python -m harness.ab.driver run --condition B --run-id ab-01
+    python -m harness.ab.driver run --condition A --run-id dry-01 --through T1   乾式の走行（B4-E5）
     python -m harness.ab.driver run-all --repeat 3 --prefix ab
     python -m harness.ab.driver cleanup --run-id ab-01
 
@@ -136,8 +137,10 @@ def _tokens(calls):
 
 
 def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=common.OUT_ROOT,
-                  task_runner=None):
+                  task_runner=None, through=None):
+    """through を与えると、T1 からそのタスクまでで止める（乾式の走行用）。途中から始めることはしない。"""
     m = common.load_manifest(manifest)
+    m["tasks"] = common.tasks_through(m, through)
     units = [common.unit_of(m, t) for t in m["tasks"]]
     proj = project.load(PROJECT)
     cfg = project.pipeline_config(proj)
@@ -219,6 +222,7 @@ def main(argv=None):
     r.add_argument("--condition", required=True, choices=common.CONDITIONS)
     r.add_argument("--run-id", required=True)
     r.add_argument("--manifest", default=str(common.EXP_DIR / "tasks.json"))
+    r.add_argument("--through", help="このタスクまでで止める（例: T1）")
     a = sub.add_parser("run-all")
     a.add_argument("--repeat", type=int, default=3)
     a.add_argument("--prefix", default="ab")
@@ -228,7 +232,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
     try:
         if args.cmd == "run":
-            return run_condition(args.manifest, args.condition, args.run_id)
+            return run_condition(args.manifest, args.condition, args.run_id, through=args.through)
         if args.cmd == "run-all":
             return run_all(args.manifest, args.repeat, args.prefix)
         cleanup(args.run_id)
