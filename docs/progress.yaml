@@ -243,6 +243,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_contractgen
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/65
 - id: V2-2
   title: propgen：性質の宣言から性質テスト（公開・非公開シード）・参照モデル・1 行の反例
   group: B5
