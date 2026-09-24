@@ -1,0 +1,161 @@
+{
+  "schema": 1,
+  "gdd_sha256": "95876782072ebf6a973781f2921e6abe4d2cead5519a09f673fe380991feb7a7",
+  "reference": {
+    "board_width": "PR-06",
+    "board_height": "PR-08",
+    "shapes": "PR-17..PR-51",
+    "kicks": "PR-52..PR-68"
+  },
+  "start": {
+    "phase": "Playing",
+    "locked_max": 12
+  },
+  "steps": 50,
+  "seeds": {
+    "public": 5,
+    "hidden": 20
+  },
+  "properties": [
+    {
+      "id": "P-T1-01",
+      "task": "T1",
+      "rule": "RL-16",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !input.HardDrop && fits(moved(before.ActiveMino, -1, 0)) && after.LockedMinoCount == before.LockedMinoCount",
+      "then": "after.ActiveMino.X == before.ActiveMino.X - 1"
+    },
+    {
+      "id": "P-T1-02",
+      "task": "T1",
+      "rule": "RL-16",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.Right && !input.Left && !input.RotateCw && !input.RotateCcw && !input.HardDrop && fits(moved(before.ActiveMino, 1, 0)) && after.LockedMinoCount == before.LockedMinoCount",
+      "then": "after.ActiveMino.X == before.ActiveMino.X + 1"
+    },
+    {
+      "id": "P-T1-03",
+      "task": "T1",
+      "rule": "RL-40",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !input.HardDrop && !fits(moved(before.ActiveMino, -1, 0)) && after.LockedMinoCount == before.LockedMinoCount",
+      "then": "after.ActiveMino.X == before.ActiveMino.X"
+    },
+    {
+      "id": "P-T1-04",
+      "task": "T1",
+      "rule": "RL-20",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.Left && input.Right && !input.RotateCw && !input.RotateCcw && !input.HardDrop && after.LockedMinoCount == before.LockedMinoCount",
+      "then": "after.ActiveMino.X == before.ActiveMino.X"
+    },
+    {
+      "id": "P-T2-01",
+      "task": "T2",
+      "rule": "RL-26",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && !input.HardDrop && fits(moved(before.ActiveMino, 0, -1))",
+      "then": "after.LockedMinoCount == before.LockedMinoCount"
+    },
+    {
+      "id": "P-T2-02",
+      "task": "T2",
+      "rule": "RL-43",
+      "given": "before.Phase == GamePhase.Playing && after.LockedMinoCount != before.LockedMinoCount",
+      "then": "after.LockedMinoCount == before.LockedMinoCount + 1"
+    },
+    {
+      "id": "P-T2-03",
+      "task": "T2",
+      "rule": "RL-32",
+      "given": "before.Phase == GamePhase.Playing && after.LockedMinoCount == before.LockedMinoCount + 1 && after.Phase == GamePhase.Playing && after.ActiveMino != null",
+      "then": "after.ActiveMino.X == 3 && after.ActiveMino.Y == 19 && after.ActiveMino.Rotation == Rotation.Spawn"
+    },
+    {
+      "id": "P-T2-04",
+      "task": "T2",
+      "rule": "RL-36",
+      "given": "before.Phase == GamePhase.Playing && after.LockedMinoCount == before.LockedMinoCount + 1 && after.LinesCleared == before.LinesCleared",
+      "then": "after.BlockCount == before.BlockCount + 4"
+    },
+    {
+      "id": "P-T3-01",
+      "task": "T3",
+      "rule": "RL-44",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.HardDrop",
+      "then": "after.LockedMinoCount == before.LockedMinoCount + 1"
+    },
+    {
+      "id": "P-T3-02",
+      "task": "T3",
+      "rule": "RL-48",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.HardDrop && !fits(moved(before.ActiveMino, 0, -1)) && after.LinesCleared == before.LinesCleared && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw",
+      "then": "after.Score == before.Score"
+    },
+    {
+      "id": "P-T3-03",
+      "task": "T3",
+      "rule": "RL-48",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.HardDrop && fits(moved(before.ActiveMino, 0, -1)) && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw",
+      "then": "after.Score > before.Score"
+    },
+    {
+      "id": "P-T3-04",
+      "task": "T3",
+      "rule": "RL-36",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.HardDrop && after.LinesCleared == before.LinesCleared",
+      "then": "after.BlockCount == before.BlockCount + 4"
+    },
+    {
+      "id": "P-T4-01",
+      "task": "T4",
+      "rule": "RL-14",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.RotateCw && !input.RotateCcw && !input.HardDrop && before.ActiveMino.Rotation == Rotation.Spawn && fits(rotated(before.ActiveMino, 1)) && after.LockedMinoCount == before.LockedMinoCount && !input.Left && !input.Right",
+      "then": "after.ActiveMino.Rotation == Rotation.Right"
+    },
+    {
+      "id": "P-T4-02",
+      "task": "T4",
+      "rule": "RL-14",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.RotateCcw && !input.RotateCw && !input.HardDrop && before.ActiveMino.Rotation == Rotation.Spawn && fits(rotated(before.ActiveMino, -1)) && after.LockedMinoCount == before.LockedMinoCount && !input.Left && !input.Right",
+      "then": "after.ActiveMino.Rotation == Rotation.Left"
+    },
+    {
+      "id": "P-T4-03",
+      "task": "T4",
+      "rule": "RL-20",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.RotateCw && input.RotateCcw && !input.HardDrop && after.LockedMinoCount == before.LockedMinoCount",
+      "then": "after.ActiveMino.Rotation == before.ActiveMino.Rotation"
+    },
+    {
+      "id": "P-T4-04",
+      "task": "T4",
+      "rule": "RL-39",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && fits(rotated(before.ActiveMino, 1)) && after.LockedMinoCount == before.LockedMinoCount",
+      "then": "after.ActiveMino.X == before.ActiveMino.X"
+    },
+    {
+      "id": "P-T5-01",
+      "task": "T5",
+      "rule": "RL-39",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.SoftDrop && !input.HardDrop && !fits(rotated(before.ActiveMino, 1)) && kick(before.ActiveMino, 1) != null && after.LockedMinoCount == before.LockedMinoCount",
+      "then": "after.ActiveMino == kick(before.ActiveMino, 1)"
+    },
+    {
+      "id": "P-T5-02",
+      "task": "T5",
+      "rule": "RL-46",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && !fits(rotated(before.ActiveMino, 1)) && kick(before.ActiveMino, 1) != null && before.ActiveMino.Rotation == Rotation.Spawn && after.LockedMinoCount == before.LockedMinoCount",
+      "then": "after.ActiveMino.Rotation == Rotation.Right"
+    },
+    {
+      "id": "P-T5-03",
+      "task": "T5",
+      "rule": "RL-39",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && input.RotateCcw && !input.RotateCw && !input.Left && !input.Right && !input.SoftDrop && !input.HardDrop && !fits(rotated(before.ActiveMino, -1)) && kick(before.ActiveMino, -1) != null && after.LockedMinoCount == before.LockedMinoCount",
+      "then": "after.ActiveMino == kick(before.ActiveMino, -1)"
+    },
+    {
+      "id": "P-T5-04",
+      "task": "T5",
+      "rule": "RL-47",
+      "given": "before.Phase == GamePhase.Playing && before.ActiveMino != null && before.ActiveMino.Type == MinoType.O && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && after.LockedMinoCount == before.LockedMinoCount",
+      "then": "after.ActiveMino.X == before.ActiveMino.X"
+    }
+  ]
+}
