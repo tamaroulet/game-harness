@@ -105,8 +105,10 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
 # ============================================================ 条件 B
 
 def pipeline_args(unit_path, wt, sandbox, out, tel):
+    # 門の自己検査（--skip-selftest で省く）は門そのものの健全性の検査で、タスクの仕事ではない。
+    # dry-01 では 405.9 秒のうち 177.1 秒を占めた。門の健全性は tests/ と pipeline --selftest で別に確かめる
     return [sys.executable, str(common.ROOT / "harness" / "pipeline.py"), "--project", PROJECT,
-            "--unit", str(unit_path), "--repo-dir", str(wt), "--local-only",
+            "--unit", str(unit_path), "--repo-dir", str(wt), "--local-only", "--skip-selftest",
             "--sandbox", str(sandbox), "--out-dir", str(out), "--telemetry", str(tel)]
 
 
@@ -168,6 +170,8 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
         measure.place_frozen_tests(m, p["wt"], i, m["test_dir"])
         start = common.commit_all(p["wt"], f"ab: {task['id']} の凍結した生成テストを置く")
         rec = task_runner(ctx, task, unit, state)
+        seconds = round(time.monotonic() - t0, 1)
+        t1 = time.monotonic()
         tampered = measure.place_frozen_tests(m, p["wt"], i, m["test_dir"])
         end = common.commit_all(p["wt"], f"ab: {task['id']} の終わり（条件 {condition}）")
         results, _ = measure.run_fast(p["wt"], ctx["test_project"], p["out"], f"{task['id']}_final")
@@ -182,7 +186,8 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
                 "diff": {"added": added, "deleted": deleted},
                 "budget_exceeded": added > BUDGET["added"] or deleted > BUDGET["deleted"],
                 "tokens": _tokens(rec["calls"]), "tests_tampered": tampered,
-                "seconds": round(time.monotonic() - t0, 1), "detail": {k: v for k, v in rec.items() if k != "calls"}}
+                # seconds は条件の仕事（実装役と B の門）だけ。測定器は両条件に同じなので別に数える
+                "seconds": seconds, "seconds_measure": round(time.monotonic() - t1, 1), "detail": {k: v for k, v in rec.items() if k != "calls"}}
         with metrics.open("a", encoding="utf-8") as f:
             f.write(json.dumps(line, ensure_ascii=False) + "\n")
         print(f"[{condition}] {task['id']}: 受入 {passed}/{total}、P2P の破壊 {len(broken)}、"

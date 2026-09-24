@@ -94,10 +94,12 @@ def invariants(wt, out, seeds, impl_dir, decl_path, runner=None):
     files = invgen.generate(decl, spec, gdd)
     csproj = invrun.materialize(Path(out) / "invariants", wt, impl_dir, files)
     lines, build_ok = [], True
-    for seed in seeds:
+    for k, seed in enumerate(seeds):
         if runner is None:
             env = dict(os.environ, **{invgen.SEED_ENV: str(seed)})
-            rc, o, e = run(resolve_cli("dotnet") + ["test", str(csproj), "-nologo"], csproj.parent,
+            # シードは環境変数で渡すだけで、成果物は同じ。2 つ目からはビルドを省く
+            no_build = ["--no-build"] if k and build_ok else []
+            rc, o, e = run(resolve_cli("dotnet") + ["test", str(csproj), "-nologo"] + no_build, csproj.parent,
                            FAST_TTL, "dotnet test (ab invariants)", env=env)
         else:
             rc, o, e = runner(seed)
