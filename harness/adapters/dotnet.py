@@ -107,8 +107,11 @@ def diagnose_build(c, tag):
     return diagproj.feedback(text, c.unit, c.cfg["project"]["impl_dir"])
 
 
-def run_tests(c, tag):
-    """`dotnet test` を実行し、(結果, エラー) を返す。件数は c.metrics の fast_* に入れる。"""
+def run_tests(c, tag, env=None):
+    """`dotnet test` を実行し、(結果, エラー) を返す。件数は c.metrics の fast_* に入れる。
+
+    env は、性質テストの非公開シード（propgen.HIDDEN_ENV）を渡すときだけ使う（v2 §5.1 の 5）。
+    """
     trx = c.out / f"{tag}.trx"
     if trx.exists():
         fileops.unlink(trx)
@@ -121,12 +124,13 @@ def run_tests(c, tag):
     # 同じサンドボックスで 2 回目以降は NuGet の復元を省く（B4-PREP）。実装役は csproj を書けない
     # （whitelist の外）ので、依存は試行の間で変わらない。サンドボックスを空にしても obj/ は ignored で残る
     skip_restore = bool(getattr(c, "fast_restored", False))
+    extra = {"env": env} if env is not None else {}
     rc, out, err = run(args + (["--no-restore"] if skip_restore else []),
-                       c.sandbox, c.ttl["fast_tests"], f"dotnet test ({tag})")
+                       c.sandbox, c.ttl["fast_tests"], f"dotnet test ({tag})", **extra)
     if not trx.exists() and skip_restore and _RESTORE_MISSING.search((out or "") + (err or "")):
         # 局所縮退：復元を省いたせいで落ちたなら、復元ありで 1 回だけやり直す
         c.fast_restored = False
-        rc, out, err = run(args, c.sandbox, c.ttl["fast_tests"], f"dotnet test ({tag}, restore)")
+        rc, out, err = run(args, c.sandbox, c.ttl["fast_tests"], f"dotnet test ({tag}, restore)", **extra)
     if trx.exists():
         c.fast_restored = True
     if not trx.exists():
@@ -137,10 +141,49 @@ def run_tests(c, tag):
     return results, None
 
 
+PROPERTY_LINE_PREFIXES = ("PROPERTY_FAIL ", "PROPERTY_VACUOUS ")
+MAX_PROPERTY_LINES = 5
+
+
 def failure_detail(c, tag):
-    """pipeline の内側ループの再試行に渡す、落ちたテストの知らせ。run_tests(c, tag) の TRX から作る。無ければ空文字。"""
+    """pipeline の内側ループの再試行に渡す、落ちたテストの知らせ。run_tests(c, tag) の TRX から作る。無ければ空文字。
+
+    性質テスト（propgen）の反例があれば、その 1 行ずつだけを最大 5 行返す（v2 §4.3・§5.1 の 4）。
+    ログやスタックトレースは返さない。性質テストでない失敗（旧来の例示テスト）だけのときは、名前と本文の要約。
+    """
     trx = c.out / f"{tag}.trx"
-    return failure_digest(trx) if trx.exists() else ""
+    if not trx.exists():
+        return ""
+    return property_lines(trx) or failure_digest(trx)
+
+
+def _failed_messages(trx_path):
+    """[(テスト名, 失敗の本文)]。落ちたものだけ。"""
+    root = ET.parse(trx_path).getroot()
+    fullname = {}
+    for ut in root.iter(f"{TRX_NS}UnitTest"):
+        tm = ut.find(f"{TRX_NS}TestMethod")
+        if tm is not None and ut.get("name"):
+            fullname[ut.get("name")] = f"{tm.get('className', '')}.{ut.get('name')}"
+    out = []
+    for r in root.iter(f"{TRX_NS}UnitTestResult"):
+        if r.get("outcome") != "Failed":
+            continue
+        n = r.get("testName")
+        msg = r.find(f"{TRX_NS}Output/{TRX_NS}ErrorInfo/{TRX_NS}Message")
+        out.append((fullname.get(n, n), (msg.text or "") if msg is not None else ""))
+    return sorted(out)
+
+
+def property_lines(trx_path, limit=MAX_PROPERTY_LINES):
+    """落ちた性質テストの反例の行（PROPERTY_FAIL / PROPERTY_VACUOUS）。同じ行は 1 つにまとめ、最大 limit 行。"""
+    lines = []
+    for _, text in _failed_messages(trx_path):
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith(PROPERTY_LINE_PREFIXES) and line not in lines:
+                lines.append(line)
+    return "\n".join(lines[:limit])
 
 
 def failure_digest(trx_path, max_tests=8, max_lines=4):
@@ -148,22 +191,10 @@ def failure_digest(trx_path, max_tests=8, max_lines=4):
 
     A/B 実験の両条件（pipeline の内側ループと driver の条件 A）が同じ整形を使う。無ければ空文字。
     """
-    root = ET.parse(trx_path).getroot()
-    fullname = {}
-    for ut in root.iter(f"{TRX_NS}UnitTest"):
-        tm = ut.find(f"{TRX_NS}TestMethod")
-        if tm is not None and ut.get("name"):
-            fullname[ut.get("name")] = f"{tm.get('className', '')}.{ut.get('name')}"
-    failed = []
-    for r in root.iter(f"{TRX_NS}UnitTestResult"):
-        if r.get("outcome") != "Failed":
-            continue
-        n = r.get("testName")
-        msg = r.find(f"{TRX_NS}Output/{TRX_NS}ErrorInfo/{TRX_NS}Message")
-        lines = [l.rstrip() for l in (msg.text or "").splitlines() if l.strip()] if msg is not None else []
-        failed.append((fullname.get(n, n), lines[:max_lines]))
+    failed = [(name, [l.rstrip() for l in text.splitlines() if l.strip()][:max_lines])
+              for name, text in _failed_messages(trx_path)]
     out = []
-    for name, lines in sorted(failed)[:max_tests]:
+    for name, lines in failed[:max_tests]:
         out.append(f"- {name}")
         out += [f"    {l}" for l in lines]
     if len(failed) > max_tests:

@@ -190,12 +190,14 @@ class ConditionA(unittest.TestCase):
         self.assertEqual((rec["attempts"], rec["accepted"]), (9, False))
         self.assertEqual(driver.call_budget(self.m), self.m["max_attempts"] * pipeline.MAX_INNER_LOOP_TURNS)
 
-    def test_tools_are_banned_first_and_allowed_on_retry_with_the_same_text_as_b(self):
+    def test_tools_are_banned_on_every_call_with_the_same_text_as_b(self):
+        """再試行を含めて編集だけ（v2 §7）。B（pipeline）と同じ文面。"""
         import tool_policy
         driver.run_task_a(self.ctx, self.m["tasks"][0], self.unit, {}, call=self.call, fast=self.fast_passing_at(2))
-        self.assertIn(tool_policy.FIRST, self.seen[0][0])
-        self.assertNotIn(tool_policy.RETRY, self.seen[0][0])
-        self.assertIn(tool_policy.RETRY, self.seen[1][0])
+        self.assertEqual(len(self.seen), 2)
+        for prompt, _ in self.seen:
+            self.assertIn(tool_policy.EDIT_ONLY, prompt)
+        self.assertFalse(hasattr(tool_policy, "RETRY"), "再試行時の解禁は廃止した")
 
     def test_retry_carries_the_assertion_message_when_a_trx_exists(self):
         def fast(wt, proj, out, tag):

@@ -106,8 +106,8 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
                                          failed_tests=failure_list(results, ctx["classes"], task["id"], trx)
                                          or "- （ビルドが通らず、テストを実行できませんでした）",
                                          tail_lines=n, failure_tail="\n".join(text.strip().splitlines()[-n:]))
-        # 道具の段階は B と同じ文面（最初は編集だけ、失敗のあとはテストと探索を解禁。裁定 2）
-        prompt += "\n\n" + tool_policy.text(attempt > 1)
+        # 道具の指示は B と同じ文面（再試行を含めて編集だけ。v2 §7）
+        prompt += "\n\n" + tool_policy.text()
         r = call(ctx["imp"], prompt, wt, state.get("conversation_id"), ctx["ttl"])
         state["conversation_id"] = r["conversation_id"]
         calls.append({"attempt": attempt, "rc": r["rc"], "seconds": r["seconds"], "usage": r["usage"]})

@@ -138,11 +138,18 @@ class GateStaticTests(unittest.TestCase):
         with mock.patch.object(pipeline, "gate_static_common", return_value=None):
             self.assertIsNone(pipeline.gate_static(self.c))
 
-    def test_the_gate_still_rejects_a_missing_member(self):
+    def test_test_driven_gate_leaves_signatures_to_the_compiler(self):
+        """v2 §3.3・§5.1 の 3：テスト駆動の単位では、シグネチャを文字列で照合しない（形はコンパイラが決める）。
+
+        v1 はここで impl_files の文字列だけを探し、whitelist の外にある宣言を見つけられずに誤爆した
+        （game-harness#63）。無いメンバーを要求しても、門は禁止パターンと skip 属性の検査の結果だけを返す。
+        """
         self.c.unit["required_symbols"] = ISSUE_12 + ["GameState.Nonexistent"]
+        self.c.sb = lambda rel: (_ for _ in ()).throw(AssertionError("実装のファイルを読んではいけない"))
         with mock.patch.object(pipeline, "gate_static_common", return_value=None):
-            self.assertEqual(pipeline.gate_static(self.c),
-                             "シグネチャが揃っていません: GameState.Nonexistent")
+            self.assertIsNone(pipeline.gate_static(self.c))
+        with mock.patch.object(pipeline, "gate_static_common", return_value="禁止パターン"):
+            self.assertEqual(pipeline.gate_static(self.c), "禁止パターン")
 
 
 if __name__ == "__main__":
