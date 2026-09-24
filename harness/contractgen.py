@@ -184,19 +184,26 @@ def _probe(interface, n):
     return "\n".join(out)
 
 
-def generate(interface, impl_dir, test_dir):
-    """{リポジトリからの相対パス: C# の本文}。決定論（同じ入力なら同じバイト列）。"""
+def generate(interface, impl_dir, test_dir, existing=(), subdir=CONTRACTS_DIR):
+    """{リポジトリからの相対パス: C# の本文}。決定論（同じ入力なら同じバイト列）。
+
+    existing：base に既にあるデータ型の名前。生成しない（同じ名前の型が 2 つになってビルドが通らない）。
+    形は探針と性質テストのビルドが確かめる。振る舞いの型は、既にあっても I<型名> を生成する。
+    subdir：実装側の置き場（impl_dir の下）。"" なら impl_dir の直下。探針は常に test_dir/Contracts。
+    """
     problems = check(interface)
     if problems:
         raise ContractError("interface の形が不正です: " + "; ".join(problems))
     n = _Names(interface)
-    files = {}
+    files, where = {}, f"{impl_dir}/{subdir}" if subdir else impl_dir
     for t in interface["types"]:
         kind = classify(t)
+        if kind != "behavior" and t["name"] in existing:
+            continue
         body = _enum(t) if kind == "enum" else _data(t, n) if kind == "data" else _interface(t, n)
         name = t["name"] if kind != "behavior" else "I" + t["name"]
         text = "\n".join([HEADER, "#nullable disable", f"namespace {testgen.CORE_NAMESPACE}", "{"] + body + ["}", ""])
-        files[f"{impl_dir}/{CONTRACTS_DIR}/{name}.cs"] = text
+        files[f"{where}/{name}.cs"] = text
     files[f"{test_dir}/{CONTRACTS_DIR}/ContractProbe.cs"] = _probe(interface, n)
     return files
 

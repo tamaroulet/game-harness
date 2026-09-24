@@ -247,6 +247,7 @@ def main(argv=None):
     g.add_argument("--prefix")
     ap.add_argument("--out-root", default=str(common.OUT_ROOT))
     ap.add_argument("--cost-model", help="単価と事前投資の JSON（監査 §3）。無ければ総コストの節を出さない")
+    ap.add_argument("--dest", help="summary.md の書き出し先（既定は experiments/b4_ab/results/<名前>/summary.md）")
     args = ap.parse_args(argv)
     model = json.loads(Path(args.cost_model).read_text(encoding="utf-8")) if args.cost_model else None
     if args.prefix:
@@ -258,7 +259,7 @@ def main(argv=None):
     if not rows:
         print(f"NG: 集計する行がありません（{args.out_root}）")
         return 1
-    dst = common.EXP_DIR / "results" / name / "summary.md"
+    dst = Path(args.dest) if args.dest else common.EXP_DIR / "results" / name / "summary.md"
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(summarize(rows, model), encoding="utf-8", newline="\n")
     print(f"書き出し: {dst}")

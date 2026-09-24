@@ -813,6 +813,10 @@ def new_test_files(c):
     found = [p.resolve()
              for t in c.unit["acceptance"]["required_tests"]
              for p in c.sandbox.rglob(c.fast.test_file_glob(t))]
+    # v2：契約の探針・参照モデル・性質テストの生成物も除く。実装が契約を満たす前はビルドできないため（§5.2）
+    generated = getattr(c.fast, "generated_test_files", None)
+    if callable(generated):
+        found += generated(c)
     return sorted(set(found))
 
 

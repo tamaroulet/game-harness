@@ -1,0 +1,372 @@
+{
+  "schema": 2,
+  "human_check_point": "不要。Pure C# の状態遷移だけで、シーンにも画面にも変化が無い（構造化仕様 §6 は該当なし）",
+  "playtest": "none",
+  "fast_test_project": "tests/Core.Tests/Core.Tests.csproj",
+  "forbidden_leftover": "NotImplementedException",
+  "forbidden_skip_attribute_regex": "\\[\\s*(Ignore|Explicit)\\b",
+  "max_impl_lines": 250,
+  "max_add_lines": 250,
+  "max_del_lines": 100,
+  "forbidden_patterns": [
+    [
+      "\\bUnityEngine\\b",
+      "UnityEngine への依存"
+    ],
+    [
+      "\\bMonoBehaviour\\b",
+      "MonoBehaviour への依存"
+    ],
+    [
+      "\\bTime\\.(deltaTime|time|fixedDeltaTime)\\b",
+      "グローバル時間への依存"
+    ],
+    [
+      "\\bUnityEngine\\.Random\\b|\\bnew Random\\s*\\(\\s*\\)",
+      "非決定な乱数"
+    ]
+  ],
+  "selftest_forbidden_probe": "UnityEngine.Debug.Log(0);",
+  "required_symbols": [
+    "GamePhase",
+    "MinoType",
+    "Rotation",
+    "ActiveMino",
+    "TickInput",
+    "GameState",
+    "ActiveMino.Type",
+    "ActiveMino.X",
+    "ActiveMino.Y",
+    "ActiveMino.Rotation",
+    "TickInput.Left",
+    "TickInput.Right",
+    "TickInput.RotateCw",
+    "TickInput.RotateCcw",
+    "TickInput.SoftDrop",
+    "TickInput.HardDrop",
+    "GameState.Phase",
+    "GameState.ActiveMino",
+    "GameState.NextQueue",
+    "GameState.Score",
+    "GameState.LinesCleared",
+    "GameState.TickCount",
+    "GameState.BlockCount",
+    "GameState.LockedMinoCount",
+    "GameState.InjectSeed",
+    "GameState.Tick"
+  ],
+  "id": "v2_t5",
+  "title": "壁キック回転（SRS）",
+  "task_kind": "property",
+  "prompt": "## 要求\n\n回転後の位置が候補表の 1 番目で置けないとき、2 番目から 5 番目の候補を順に試し、最初に置ける候補の分だけミノを動かして回転させる。5 つともだめなら回転しない。\n\n### 範囲に含めるもの\n\n- 候補表の順に試す回転（RL-39、RL-46）と、形状ごとの候補表の使い分け（RL-47、PR-52〜PR-68）\n- 盤面外を固定ブロックとして扱う候補の判定（RL-40）\n- 接地中に回転が成功したときのロック猶予のリセット（RL-27）\n\n### 範囲に含めないもの\n\nソフトドロップ、ハードドロップ、T スピンなどの特殊な得点。\n\n## 満足の基準\n\n- 左端に接していて候補 1 では盤面外にはみ出す回転は、候補表の次の候補で置けるなら、その分だけ動いて回転する\n- 右端でも同じ\n- I ミノは I 専用の候補表を使い、O ミノは回転しても位置が変わらない\n- どの候補でも置けない回転は失敗し、向きも位置も変わらない\n- T4 の受入（候補 1 で置ける回転）は、引き続きすべて通る\n\n## このタスクの性質（受入）\n\n- P-T5-01（RL-39）：前提 before.Phase == GamePhase.Playing && before.ActiveMino != null && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.SoftDrop && !input.HardDrop && !fits(rotated(before.ActiveMino, 1)) && kick(before.ActiveMino, 1) != null && after.LockedMinoCount == before.LockedMinoCount のとき、after.ActiveMino == kick(before.ActiveMino, 1)\n- P-T5-02（RL-46）：前提 before.Phase == GamePhase.Playing && before.ActiveMino != null && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && !fits(rotated(before.ActiveMino, 1)) && kick(before.ActiveMino, 1) != null && before.ActiveMino.Rotation == Rotation.Spawn && after.LockedMinoCount == before.LockedMinoCount のとき、after.ActiveMino.Rotation == Rotation.Right\n- P-T5-03（RL-39）：前提 before.Phase == GamePhase.Playing && before.ActiveMino != null && input.RotateCcw && !input.RotateCw && !input.Left && !input.Right && !input.SoftDrop && !input.HardDrop && !fits(rotated(before.ActiveMino, -1)) && kick(before.ActiveMino, -1) != null && after.LockedMinoCount == before.LockedMinoCount のとき、after.ActiveMino == kick(before.ActiveMino, -1)\n- P-T5-04（RL-47）：前提 before.Phase == GamePhase.Playing && before.ActiveMino != null && before.ActiveMino.Type == MinoType.O && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && after.LockedMinoCount == before.LockedMinoCount のとき、after.ActiveMino.X == before.ActiveMino.X\n\n## 全タスク共通（v2）\n\n- 仕様は GDD v10 と構造化仕様に従う。一般的な落ちものパズルの常識で仕様を補わない\n- IGameState・TickInput・Cell は契約の生成物で、書き換えない（whitelist の外にある）。GameState は IGameState を実装する\n- 既存の GamePhase・MinoType・Rotation・ActiveMino はそのまま使う。既存の公開メンバーの名前・型・引数を変えない。消さない\n- 受入は、下の性質（前提が成り立つティックでは、帰結が必ず成り立つ）を、ランダムな開始状態と入力の列で確かめる性質テスト\n- 保存則（RL-36）が常に成り立つこと\n- 差分は追加 250 行以下かつ削除 100 行以下",
+  "interface": {
+    "types": [
+      {
+        "name": "GamePhase",
+        "kind": "enum",
+        "values": [
+          "Ready",
+          "Playing",
+          "GameOver"
+        ]
+      },
+      {
+        "name": "MinoType",
+        "kind": "enum",
+        "values": [
+          "I",
+          "O",
+          "T",
+          "S",
+          "Z",
+          "J",
+          "L"
+        ]
+      },
+      {
+        "name": "Rotation",
+        "kind": "enum",
+        "values": [
+          "Spawn",
+          "Right",
+          "Two",
+          "Left"
+        ]
+      },
+      {
+        "name": "Cell",
+        "kind": "struct",
+        "members": [
+          {
+            "name": "Cell",
+            "kind": "ctor",
+            "params": [
+              {
+                "name": "x",
+                "type": "int"
+              },
+              {
+                "name": "y",
+                "type": "int"
+              }
+            ]
+          },
+          {
+            "name": "X",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "Y",
+            "kind": "property",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "name": "ActiveMino",
+        "kind": "struct",
+        "members": [
+          {
+            "name": "ActiveMino",
+            "kind": "ctor",
+            "params": [
+              {
+                "name": "type",
+                "type": "MinoType"
+              },
+              {
+                "name": "x",
+                "type": "int"
+              },
+              {
+                "name": "y",
+                "type": "int"
+              },
+              {
+                "name": "rotation",
+                "type": "Rotation"
+              }
+            ]
+          },
+          {
+            "name": "Type",
+            "kind": "property",
+            "type": "MinoType"
+          },
+          {
+            "name": "X",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "Y",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "Rotation",
+            "kind": "property",
+            "type": "Rotation"
+          }
+        ]
+      },
+      {
+        "name": "TickInput",
+        "kind": "struct",
+        "members": [
+          {
+            "name": "TickInput",
+            "kind": "ctor",
+            "params": [
+              {
+                "name": "left",
+                "type": "bool"
+              },
+              {
+                "name": "right",
+                "type": "bool"
+              },
+              {
+                "name": "rotateCw",
+                "type": "bool"
+              },
+              {
+                "name": "rotateCcw",
+                "type": "bool"
+              },
+              {
+                "name": "softDrop",
+                "type": "bool"
+              },
+              {
+                "name": "hardDrop",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "Left",
+            "kind": "property",
+            "type": "bool"
+          },
+          {
+            "name": "Right",
+            "kind": "property",
+            "type": "bool"
+          },
+          {
+            "name": "RotateCw",
+            "kind": "property",
+            "type": "bool"
+          },
+          {
+            "name": "RotateCcw",
+            "kind": "property",
+            "type": "bool"
+          },
+          {
+            "name": "SoftDrop",
+            "kind": "property",
+            "type": "bool"
+          },
+          {
+            "name": "HardDrop",
+            "kind": "property",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "GameState",
+        "kind": "class",
+        "members": [
+          {
+            "name": "GameState",
+            "kind": "ctor",
+            "params": [
+              {
+                "name": "phase",
+                "type": "GamePhase"
+              },
+              {
+                "name": "activeMino",
+                "type": "ActiveMino?"
+              }
+            ]
+          },
+          {
+            "name": "GameState",
+            "kind": "ctor",
+            "params": [
+              {
+                "name": "phase",
+                "type": "GamePhase"
+              },
+              {
+                "name": "activeMino",
+                "type": "ActiveMino?"
+              },
+              {
+                "name": "locked",
+                "type": "System.Collections.Generic.IReadOnlyList<Cell>"
+              }
+            ]
+          },
+          {
+            "name": "Phase",
+            "kind": "property",
+            "type": "GamePhase"
+          },
+          {
+            "name": "ActiveMino",
+            "kind": "property",
+            "type": "ActiveMino?"
+          },
+          {
+            "name": "NextQueue",
+            "kind": "property",
+            "type": "System.Collections.Generic.IReadOnlyList<MinoType>"
+          },
+          {
+            "name": "Score",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "LinesCleared",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "TickCount",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "BlockCount",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "LockedMinoCount",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "IsOccupied",
+            "kind": "method",
+            "type": "bool",
+            "params": [
+              {
+                "name": "x",
+                "type": "int"
+              },
+              {
+                "name": "y",
+                "type": "int"
+              }
+            ]
+          },
+          {
+            "name": "InjectSeed",
+            "kind": "method",
+            "type": "void",
+            "params": [
+              {
+                "name": "seed",
+                "type": "uint"
+              }
+            ]
+          },
+          {
+            "name": "Tick",
+            "kind": "method",
+            "type": "void",
+            "params": [
+              {
+                "name": "input",
+                "type": "TickInput"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "whitelist": [
+    "Game/Assets/Core/GameState.cs"
+  ],
+  "impl_files": [
+    "Game/Assets/Core/GameState.cs"
+  ],
+  "acceptance": {
+    "cases": [],
+    "required_tests": [
+      "PropertiesT5Cases.P_T5_01_Public",
+      "PropertiesT5Cases.P_T5_02_Public",
+      "PropertiesT5Cases.P_T5_03_Public",
+      "PropertiesT5Cases.P_T5_04_Public"
+    ]
+  }
+}
