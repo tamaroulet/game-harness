@@ -352,6 +352,16 @@ class EstablishBaseTests(unittest.TestCase):
         self.assertIn("S.BossChargeStateTests.b", msg)
         self.assertIsNone(c.base)
 
+    def test_prepassing_required_test_is_kept_as_p2p_only_in_local_only(self):
+        """A/B 実験（--local-only）では、前のタスクの実装で既に通る受入テストを REJECT せず P2P で守る（S1）。"""
+        with_tests = fast_ctrl(**{"S.BossChargeStateTests.a": F, "S.BossChargeStateTests.b": P})
+        c = self.ctx(with_tests, fast_ctrl(), engine_ctrl())
+        c.local_only = True
+        verdict, msg = pipeline.establish_base(c)
+        self.assertIsNone(verdict, msg)
+        self.assertEqual(c.metrics["prepassing"], 1)
+        self.assertEqual(c.base.fast_p2p["S.BossChargeStateTests.b"], P, "P_base に入り、P2P で守られる")
+
     def test_built_base_with_failing_required_tests_is_accepted(self):
         with_tests = fast_ctrl(**{"S.BossChargeStateTests.a": F})
         c = self.ctx(with_tests, fast_ctrl(), engine_ctrl())
@@ -371,6 +381,20 @@ class EstablishBaseTests(unittest.TestCase):
         verdict, msg = pipeline.establish_base(c)
         self.assertIsNone(verdict, msg)
         self.assertEqual(c.metrics["quarantined"], 1)
+
+    def test_known_failures_are_tolerated_at_base_only_in_local_only(self):
+        """前のタスクの終わりに落ちていたテストは、base の検査から外す（S2）。--local-only のときだけ。"""
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "known.json"
+            path.write_text('["E.Old.Broken"]', encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                pipeline.with_known_failures((), path, local_only=False)
+            q = pipeline.with_known_failures(("E.Old.Flaky",), path, local_only=True)
+        self.assertEqual(q, ("E.Old.Flaky", "E.Old.Broken"))
+        c = self.ctx(None, fast_ctrl(), engine_ctrl(**{"E.Old.Broken": F}))
+        c.oracle["quarantine"] = q
+        verdict, msg = pipeline.establish_base(c)
+        self.assertIsNone(verdict, msg)
 
     def test_controls_are_checked_at_base(self):
         cases = (
