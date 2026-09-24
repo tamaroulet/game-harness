@@ -44,7 +44,9 @@ class EditOnly(unittest.TestCase):
     def test_policy_has_no_retry_unlock(self):
         self.assertFalse(hasattr(tool_policy, "RETRY"))
         self.assertEqual(tool_policy.text(), tool_policy.EDIT_ONLY)
-        self.assertIn("テストも実行せず", tool_policy.EDIT_ONLY)
+        for phrase in ("ビルドもテストも実行しない", "テストコード・仕様書・GDD・単位定義は読まない",
+                       "manage_task と schedule は使用禁止", "書き換えてよいファイルの編集だけ"):
+            self.assertIn(phrase, tool_policy.EDIT_ONLY)
 
     def test_implementer_call_takes_no_retry_switch(self):
         self.assertEqual(list(inspect.signature(pipeline.call_implementer).parameters), ["c", "feedback"])

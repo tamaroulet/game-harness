@@ -460,8 +460,9 @@ def call_implementer(c, feedback=""):
     stream = agy_stream.is_stream(imp)
     impl_dir = (c.cfg.get("project") or {}).get("impl_dir")
     if stream and impl_dir:
-        prompt += "\n\n" + implementer_context.blocks(
-            c.sandbox, c.unit.get("whitelist") or [], implementer_context.contract_files(c.sandbox, impl_dir))
+        # v2.1b：契約・base の既存の型・仕様の抜き出しまで埋め込み、読む手番を残さない
+        prompt += "\n\n" + implementer_context.for_unit(c.sandbox, c.unit, impl_dir,
+                                                       project.config("unit_schema").get("spec_path"))
     if feedback:
         prompt += "\n\n前回の失敗:\n" + feedback
 
