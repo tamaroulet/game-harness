@@ -1,5 +1,5 @@
-project_goal: 'Phase 3: 4 大未踏領域の評価と falling-blocks#17 のスモーク実証'
-active_task_id: B4-RUN
+project_goal: B4 v1.0（A/B 実験）の総括と、v2（契約駆動の防壁型）での A/B 実験の完走
+active_task_id: B4-CLOSE
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -23,7 +23,10 @@ nodes:
   title: 前提防壁
   parent: B3
 - id: B4
-  title: 長期連続走行（単一チャット型とステートレス防壁型の A/B 実験）
+  title: 長期連続走行 v1.0（単一チャット型とステートレス防壁型の A/B 実験。スモークで打ち切り）
+  parent: A
+- id: B5
+  title: v2 Contract-Driven Foundry（契約駆動の防壁型。docs/design/v2_contract_foundry.md）
   parent: A
 - id: Phase 4
   title: 3D 物理・推論・知覚
@@ -203,13 +206,79 @@ tasks:
   verification:
     command: python -m harness.ab.check --run-id dry-01 --through T1 --summary experiments/b4_ab/results/dry/summary.md
     expected_exit_code: 0
-- id: B4-RUN
-  title: A/B 実験の本走（T1〜T5 × A・B × 3 回）
+- id: B4-CLOSE
+  title: v1.0 の打ち切りと総括（スモーク 2 回、S1・S2、事前投資の実測。game-harness#63）
   group: B4
-  target_repo: falling-blocks
+  target_repo: game-harness
+  target_files:
+  - harness/ab/driver.py
+  - harness/ab/precost.py
+  - harness/pipeline.py
+  - harness/tool_policy.py
+  - experiments/b4_ab/cost_model.json
+  - experiments/b4_ab/results/b4-smoke/summary.md
+  - experiments/b4_ab/results/b4-smoke-02/summary.md
   status: in_progress
+  verification:
+    command: python -m unittest tests.test_ab_driver tests.test_oracle.EstablishBaseTests.test_known_failures_are_tolerated_at_base_only_in_local_only
+    expected_exit_code: 0
+- id: V2-0
+  title: v2 の設計（game-harness#64）
+  group: B5
+  target_repo: game-harness
+  target_files:
+  - docs/design/v2_contract_foundry.md
+  status: pending
+  verification:
+    command: python -c "import pathlib,sys; sys.exit(0 if pathlib.Path('docs/design/v2_contract_foundry.md').exists() else 1)"
+    expected_exit_code: 0
+- id: V2-1
+  title: contractgen：interface から読み取り専用の契約（C#）と契約の探針（game-harness#65）
+  group: B5
+  target_repo: game-harness
+  target_files:
+  - harness/contractgen.py
+  - tests/test_contractgen.py
+  status: pending
+  verification:
+    command: python -m unittest tests.test_contractgen
+    expected_exit_code: 0
+- id: V2-2
+  title: propgen：性質の宣言から性質テスト（公開・非公開シード）・参照モデル・1 行の反例
+  group: B5
+  target_repo: game-harness
+  status: pending
   verification: null
-  review_pr: https://github.com/tamaroulet/game-harness/pull/62
+- id: V2-3
+  title: pipeline の門の置き換え（シグネチャ照合の廃止・性質テスト・S1/S2 の標準化・道具の解禁の廃止）
+  group: B5
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: V2-4
+  title: T1〜T5 の契約と性質の宣言（事前投資を実測。目標 1 USD 前後）
+  group: B5
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: V2-5
+  title: 乾式の走行（T1 を A・B で 1 回ずつ）
+  group: B5
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: V2-6
+  title: スモーク（T1〜T5 × A・B、N=1）
+  group: B5
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: V2-RUN
+  title: 本走（T1〜T5 × A・B × 4 回）
+  group: B5
+  target_repo: game-harness
+  status: pending
+  verification: null
 - id: Phase 4-1
   title: 3D 物理・メタモルフィックテスト
   group: Phase 4
