@@ -89,6 +89,55 @@ class Report(unittest.TestCase):
         self.assertRegex(text, r"\| A \| 1\.\d+ \|")
         self.assertIn("| B | 1.0 | 1.0 |", text)
 
+    def test_seconds_are_in_the_task_table_and_totals(self):
+        rows = [{"run_id": rid, "condition": cond, "task": "T1", "index": 1, "accepted": True, "attempts": 1,
+                 "p2p_broken": 0, "invariants": {"failures": 0}, "diff": {"added": 1, "deleted": 0},
+                 "budget_exceeded": False, "tokens": {"input": 10}, "seconds": s}
+                for rid, cond, s in (("ab-01", "A", 100.0), ("ab-02", "A", 300.0), ("ab-01", "B", 50.0))]
+        text = report.summarize(rows)
+        self.assertIn("| T1 | A | 2/2 | 1.0 | 0.0 | 0.0 | 1.0 / 0.0 | 0 | 10.0 | 200.0 |", text)
+        self.assertIn("| 0 | 200.0 | 400.0 |", text, "A：1 走行の秒の中央値と全走行の合計")
+        self.assertIn("| 0 | 50.0 | 50.0 |", text)
+
+
+class CostModel(unittest.TestCase):
+    """事前投資を合算した総コストと損益分岐（docs/design/b4_ab_fairness_audit.md §3）。"""
+    PRICES = {"input_per_mtok": 1.0, "output_per_mtok": 2.0, "cache_read_per_mtok": 0.25}
+
+    def test_call_cost_counts_cache_reads_by_their_own_price(self):
+        self.assertAlmostEqual(report.call_cost({"input": 1_000_000, "output": 500_000}, self.PRICES), 2.0)
+        self.assertAlmostEqual(report.call_cost({"input": 1_000_000, "output": 0, "cache_read": 400_000},
+                                                self.PRICES), 1.1)
+        included = dict(self.PRICES, cache_read_included_in_input=True)
+        self.assertAlmostEqual(report.call_cost({"input": 1_000_000, "output": 0, "cache_read": 400_000},
+                                                included), 0.7)
+        self.assertIsNone(report.call_cost({"input": None, "output": 1}, self.PRICES))
+
+    def test_fixed_cost_charges_b_only_to_b(self):
+        model = {"fixed": {"shared": {"usd": 1.0}, "B_only": {"usd": 3.0}}}
+        self.assertEqual((report.fixed_cost(model, "A", "usd"), report.fixed_cost(model, "B", "usd")), (1.0, 4.0))
+        self.assertIsNone(report.fixed_cost({"fixed": {"shared": {"usd": 1.0}}}, "B", "usd"), "未計測は None")
+
+    def test_break_even_measured_and_extrapolated(self):
+        # A は k に比例して高くなり、B は一定。B の事前投資 3 は N=3 で回収（S_A=0+1+2+3=6、S_B=3+1+1+1=6）
+        self.assertEqual(report.break_even(0, [1, 2, 3, 4, 5], 3, [1, 1, 1, 1, 1]), (3, "measured"))
+        # 5 タスクで回収しなければ外挿する。S_A(N) ≈ N²/2、S_B(N) = 20 + N → N = 7
+        self.assertEqual(report.break_even(0, [1, 2, 3, 4, 5], 20, [1, 1, 1, 1, 1]), (7, "extrapolated"))
+        self.assertEqual(report.break_even(None, [1], 0, [1])[0], None)
+        # A が伸びなければ回収しない
+        self.assertIsNone(report.break_even(0, [1, 1, 1], 5, [1, 1, 1], horizon=100)[0])
+
+    def test_summary_has_cost_section_only_with_a_model(self):
+        rows = [{"run_id": "ab-01", "condition": c, "task": f"T{k}", "index": k, "accepted": True, "attempts": 1,
+                 "p2p_broken": 0, "invariants": {"failures": 0}, "diff": {"added": 1, "deleted": 0},
+                 "budget_exceeded": False, "tokens": {"input": (k if c == "A" else 1) * 1_000_000, "output": 0},
+                 "seconds": 10.0} for c in ("A", "B") for k in range(1, 6)]
+        self.assertNotIn("損益分岐", report.summarize(rows))
+        model = {"prices": self.PRICES, "fixed": {"shared": {"usd": 0.0, "seconds": 0.0},
+                                                  "B_only": {"usd": 3.0, "seconds": 0.0}}}
+        text = report.summarize(rows, model)
+        self.assertIn("| USD | 3 | 実測の範囲 |", text)
+
 
 class ConditionA(unittest.TestCase):
     """同じ会話に積む（2 回目以降は --conversation）。受入を通ったら止め、最大 3 回まで。"""
