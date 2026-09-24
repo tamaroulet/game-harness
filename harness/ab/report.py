@@ -84,9 +84,12 @@ def summarize(rows, cost_model=None):
                 _fmt(_median([implementer_calls(r) for r in rs])),
                 _median([r["p2p_broken"] for r in rs]), _median([r["invariants"]["failures"] for r in rs]),
                 _median([r["diff"]["added"] for r in rs]), _median([r["diff"]["deleted"] for r in rs]),
-                sum(r["budget_exceeded"] for r in rs), _median([x.get("input") for x in tok]),
+                sum(r["budget_exceeded"] for r in rs),
+                # 打ち切った呼び出しを含む行は、終わった手番までの足し込み（下限）と分かるようにする（v2.1 §1.2）
+                f"{_median([x.get('input') for x in tok])}" + ("（下限）" if any(x.get("partial") for x in tok) else ""),
                 _fmt(_median([x.get("cache_read") for x in tok])), _fmt(_median([total_input(x) for x in tok])),
-                _fmt(usd, 4), _median([r.get("seconds") for r in rs])))
+                _fmt(usd, 4) + ("（下限）" if usd is not None and any(x.get("partial") for x in tok) else ""),
+                _median([r.get("seconds") for r in rs])))
     lines += ["", "## トークンの伸び（累積の入力トークンの両対数の傾き）", "",
               "| 条件 | 走行ごとの傾き | 中央値 |", "|:--|:--|:--|"]
     for cond in common.CONDITIONS:

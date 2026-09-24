@@ -24,7 +24,9 @@ _HARNESS = Path(__file__).resolve().parent.parent
 if str(_HARNESS) not in sys.path:
     sys.path.insert(0, str(_HARNESS))
 
+import agy_stream  # noqa: E402
 import exitcode  # noqa: E402
+import implementer_context  # noqa: E402
 import pipeline  # noqa: E402
 import propgen  # noqa: E402
 import project  # noqa: E402
@@ -58,7 +60,18 @@ def _json_in(text):
 
 
 def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run):
-    """実装役を 1 回呼ぶ。会話を続けるときは --conversation を付ける（resume）。"""
+    """実装役を 1 回呼ぶ。会話を続けるときは --conversation を付ける（resume）。
+
+    stream-json のときは、B（pipeline）と同じ引数と読み取り（agy_stream）を使い、手番ごとの記録を返す。
+    """
+    if agy_stream.is_stream(imp):
+        t0 = time.monotonic()
+        rc, out, err = runner(agy_stream.args(imp, resolve_cli(imp["cli"]), prompt, ttl, conversation_id),
+                              cwd, ttl, "実装AI（条件 A）")
+        parsed = agy_stream.parse(out)
+        return {"rc": rc, "seconds": round(time.monotonic() - t0, 1),
+                "conversation_id": parsed["conversation_id"] or conversation_id, "usage": parsed["usage"],
+                "steps": parsed["steps"], "out": out, "err": err}
     args = resolve_cli(imp["cli"]) + [imp["headless_flag"], prompt, imp["auto_approve_flag"],
                                       imp["model_flag"], imp["model_name"]] + imp.get("output_format_args", [])
     if conversation_id:
@@ -103,6 +116,11 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
                                            prompt=unit["prompt"], interface=testgen.render_interface(unit),
                                            whitelist="\n".join(f"- {p}" for p in unit["whitelist"]),
                                            test_dir=m["test_dir"])
+            if agy_stream.is_stream(ctx["imp"]):
+                # B と同じく、書き換えてよいファイルと契約の中身を埋め込む（v2.1 §1.1 の 2）。A は会話を積むので、
+                # 埋め込むのは最初の呼び出しだけ（単一チャットで最初にファイルを貼るのと同じ）
+                prompt += "\n\n" + implementer_context.blocks(
+                    wt, unit["whitelist"], implementer_context.contract_files(wt, ctx["impl_dir"]))
         else:
             n = m["templates"]["retry_tail_lines"]
             prompt = tpl["retry"].format(task_id=task["id"], attempt=attempt - 1, max_attempts=budget,
@@ -113,7 +131,8 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
         prompt += "\n\n" + tool_policy.text()
         r = call(ctx["imp"], prompt, wt, state.get("conversation_id"), ctx["ttl"])
         state["conversation_id"] = r["conversation_id"]
-        calls.append({"attempt": attempt, "rc": r["rc"], "seconds": r["seconds"], "usage": r["usage"]})
+        calls.append({"attempt": attempt, "rc": r["rc"], "seconds": r["seconds"], "usage": r["usage"],
+                      "steps": r.get("steps"), "prompt_chars": len(prompt)})
         (Path(out) / f"{task['id']}_a{attempt}.implementer.log").write_text(
             f"# prompt\n{prompt}\n\n# stdout\n{r['out']}\n\n# stderr\n{r['err']}\n", encoding="utf-8")
         # 実装役がテストを書き換えていても、凍結したものに戻してから測る
@@ -174,8 +193,10 @@ def _tokens(calls):
         xs = [(c.get("usage") or {}).get(key) for c in calls]
         return sum(xs) if all(isinstance(x, int) for x in xs) else None
     ins = [((c.get("usage") or {}).get("input_tokens")) for c in calls]
+    # partial：TTL で打ち切った呼び出しがあり、その分は終わった手番までの足し込み（下限）（v2.1 §1.2）
     return {"input": total("input_tokens"), "output": total("output_tokens"),
-            "cache_read": total("cache_read_tokens"), "per_call_input": ins}
+            "cache_read": total("cache_read_tokens"), "per_call_input": ins,
+            "partial": any((c.get("usage") or {}).get("partial") for c in calls)}
 
 
 def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=common.OUT_ROOT,
@@ -194,6 +215,7 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
                proj["repo_dir"], "git worktree add")
     ctx = {"m": m, "wt": p["wt"], "sandbox": p["sandbox"], "out": p["out"], "imp": cfg["implementer"],
            "ttl": cfg["ttl_seconds"]["implementer"], "test_project": proj["fast_test_project"],
+           "impl_dir": proj["impl_dir"],
            "classes": measure.class_to_task(m, units),
            "templates": {k: (Path(m["_base"]) / m["templates"][k]).read_text(encoding="utf-8")
                          for k in ("initial", "retry")}}
