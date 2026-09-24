@@ -355,14 +355,10 @@
     ]
   },
   "whitelist": [
-    "Game/Assets/Core/GameState.cs",
-    "Game/Assets/Core/Board.cs",
-    "Game/Assets/Core/MinoShape.cs"
+    "Game/Assets/Core/GameState.cs"
   ],
   "impl_files": [
-    "Game/Assets/Core/GameState.cs",
-    "Game/Assets/Core/Board.cs",
-    "Game/Assets/Core/MinoShape.cs"
+    "Game/Assets/Core/GameState.cs"
   ],
   "acceptance": {
     "cases": [],

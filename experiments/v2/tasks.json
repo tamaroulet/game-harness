@@ -52,35 +52,35 @@
       "id": "T1",
       "title": "左右移動（壁・盤面外の判定）",
       "unit": "units/T1.json",
-      "unit_sha256": "4531ec5429f6f0a27844a7de7ac07f4eb7ee14954590148079cd73f04c3e8396",
+      "unit_sha256": "43c25baa5cc5f590a7db01965a4c34316f3b48383a2470ea72d29dcb4f369eb2",
       "superseded_tests": []
     },
     {
       "id": "T2",
       "title": "自然落下と接地判定（ロック猶予・固定・次のミノの出現）",
       "unit": "units/T2.json",
-      "unit_sha256": "18eeb0c5121bb37682d35a693a45d0d2edc214e61316a8aadd712b162750577c",
+      "unit_sha256": "c4212d648a0b28bfe9f728543250e9c9709bb0f7196b5c49400050f7d9ad3c6b",
       "superseded_tests": []
     },
     {
       "id": "T3",
       "title": "ハードドロップ（即時固定）",
       "unit": "units/T3.json",
-      "unit_sha256": "0e68082fc723e6912b8f5e274e3aa822147aea4a64a4c9b0a8e06d976e4fd7ec",
+      "unit_sha256": "6695bc5983d811ef0a4e5a54080d518ad5bcc2cf15d8f5351a71ab4bad8ce7e3",
       "superseded_tests": []
     },
     {
       "id": "T4",
       "title": "回転（壁キックなし）",
       "unit": "units/T4.json",
-      "unit_sha256": "2f92aa27460c3284b44e9b8c2cde51ad6285c43e7983b721e2d3d9f7eeca6ee3",
+      "unit_sha256": "aecefc7e0a7be8c16f623deb9dfc75d92fbc64941403eefbbc08430ad3556450",
       "superseded_tests": []
     },
     {
       "id": "T5",
       "title": "壁キック回転（SRS）",
       "unit": "units/T5.json",
-      "unit_sha256": "7cb9cfd2322297c8f23eff9f6feb44eb08edd52e405423c660f8548d51973f61",
+      "unit_sha256": "6294323f58bb24bcc221e5a9e3caecacb237776b4e22843873c471faa0582322",
       "superseded_tests": []
     }
   ]

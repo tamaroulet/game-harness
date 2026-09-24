@@ -59,6 +59,10 @@ class PropertyKindUnit(unittest.TestCase):
             self.assertEqual(unit["acceptance"]["cases"], [])
             self.assertTrue(unit["acceptance"]["required_tests"])
             self.assertTrue(all(unit_schema.PROPERTY_TEST_RE.match(t) for t in unit["acceptance"]["required_tests"]))
+            # 実装役が書くのは GameState だけ。base に無いファイル（v1 の MinoShape.cs）を入れると、
+            # 在ることを要求する静的な門が必ず落ちる（v2-dry-01 の B）
+            self.assertEqual(unit["whitelist"], ["Game/Assets/Core/GameState.cs"])
+            self.assertEqual(unit["impl_files"], unit["whitelist"])
 
     def test_property_kind_rules(self):
         problems = []

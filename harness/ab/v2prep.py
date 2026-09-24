@@ -36,7 +36,10 @@ V2 = common.ROOT / "experiments" / "v2"
 V1 = common.ROOT / "experiments" / "b4_ab"
 PROJECT = "falling-blocks"
 EXISTING = ["GamePhase", "MinoType", "Rotation", "ActiveMino"]
-WHITELIST = ["GameState.cs", "Board.cs", "MinoShape.cs"]
+# 実装役が書く型は GameState だけ（データ型は契約の生成物。v2 §3.1）。gate_static_common は whitelist の
+# ファイルがすべて在ることを要求するので、base に無いファイル（v1 の MinoShape.cs）を入れると門が必ず落ちる
+# （v2-dry-01 の B で 2 回とも「MinoShape.cs が存在しません」）
+WHITELIST = ["GameState.cs"]
 MEASURE_HIDDEN_SEEDS = 20
 
 COMMON = """## 全タスク共通（v2）
