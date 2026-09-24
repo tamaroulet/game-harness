@@ -2,7 +2,8 @@ project_goal: B4 v1.0（A/B 実験）の総括と、v2（契約駆動の防壁�
 active_task_id: V2-2
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
-- Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
+- Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress
+  complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 nodes:
 - id: A
@@ -51,7 +52,8 @@ tasks:
   target_repo: falling-blocks
   status: completed
   verification:
-    command: python harness/canary.py check-migrated --project falling-blocks --unit-id issue_12
+    command: python harness/canary.py check-migrated --project falling-blocks --unit-id
+      issue_12
     expected_exit_code: 0
 - id: B3.1-2
   title: 時限制約とティック進行の述語、終了コードの三値化（旧 B3.1-3 ＋ B3.1-4）
@@ -65,7 +67,8 @@ tasks:
   - harness/progress.py
   status: completed
   verification:
-    command: python -m unittest tests.test_unit_schema.TickPredicates tests.test_unit_schema.TimedConstraints tests.test_testgen.TickLoop tests.test_exitcode_coverage
+    command: python -m unittest tests.test_unit_schema.TickPredicates tests.test_unit_schema.TimedConstraints
+      tests.test_testgen.TickLoop tests.test_exitcode_coverage
     expected_exit_code: 0
 - id: B3.1-3
   title: GDD の改訂・仕様の再生成・保存則の宣言（旧 B3.1-2）
@@ -77,7 +80,9 @@ tasks:
   - projects/falling-blocks/invariants.json
   status: completed
   verification:
-    command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py --project falling-blocks --decl projects/falling-blocks/invariants.json --out C:/src/.local/out/harness/falling-blocks/invariants-check
+    command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py
+      --project falling-blocks --decl projects/falling-blocks/invariants.json --out
+      C:/src/.local/out/harness/falling-blocks/invariants-check
     expected_exit_code: 0
 - id: B3.1-4
   title: 受入データの入れ子の状態と param±1
@@ -96,7 +101,8 @@ tasks:
   target_repo: falling-blocks
   status: completed
   verification:
-    command: python -c "import json,subprocess,sys; r=subprocess.run(['gh','pr','view','18','--repo','tamaroulet/falling-blocks','--json','state'],capture_output=True,text=True); sys.exit(0 if json.loads(r.stdout or '{}').get('state')=='MERGED' else 1)"
+    command: python -c "import json,subprocess,sys; r=subprocess.run(['gh','pr','view','18','--repo','tamaroulet/falling-blocks','--json','state'],capture_output=True,text=True);
+      sys.exit(0 if json.loads(r.stdout or '{}').get('state')=='MERGED' else 1)"
     expected_exit_code: 0
 - id: B3.2
   title: 最小診断・反例射影（Roslyn 診断射影器）と Outer Gate の回送
@@ -125,7 +131,8 @@ tasks:
   - config/decompose.json
   status: completed
   verification:
-    command: python -m unittest tests.test_diff_budget tests.test_unit_schema.TaskKind tests.test_testgen.ContractShape tests.test_adapters
+    command: python -m unittest tests.test_diff_budget tests.test_unit_schema.TaskKind
+      tests.test_testgen.ContractShape tests.test_adapters
     expected_exit_code: 0
 - id: B4-PREP
   title: CI の非同期化・テストの常駐化・局所縮退制御・アンカー注入の hook
@@ -151,7 +158,10 @@ tasks:
   - projects/falling-blocks/units/issue_12.json
   status: completed
   verification:
-    command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py --project falling-blocks --decl projects/falling-blocks/invariants.json --out C:/src/.local/out/harness/falling-blocks/invariants-check && python harness/unit_schema.py --project falling-blocks --unit projects/falling-blocks/units/issue_12.json
+    command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py
+      --project falling-blocks --decl projects/falling-blocks/invariants.json --out
+      C:/src/.local/out/harness/falling-blocks/invariants-check && python harness/unit_schema.py
+      --project falling-blocks --unit projects/falling-blocks/units/issue_12.json
     expected_exit_code: 0
 - id: B4-E2
   title: given に構造体のリテラルと入れ子の基準
@@ -230,7 +240,8 @@ tasks:
   - docs/design/v2_contract_foundry.md
   status: completed
   verification:
-    command: python -c "import pathlib,sys; sys.exit(0 if pathlib.Path('docs/design/v2_contract_foundry.md').exists() else 1)"
+    command: python -c "import pathlib,sys; sys.exit(0 if pathlib.Path('docs/design/v2_contract_foundry.md').exists()
+      else 1)"
     expected_exit_code: 0
 - id: V2-1
   title: contractgen：interface から読み取り専用の契約（C#）と契約の探針（game-harness#65）
@@ -248,7 +259,12 @@ tasks:
   group: B5
   target_repo: game-harness
   status: in_progress
-  verification: null
+  verification:
+    command: python -m unittest tests.test_propgen
+    expected_exit_code: 0
+  target_files:
+  - harness/propgen.py
+  - tests/test_propgen.py
 - id: V2-3
   title: pipeline の門の置き換え（シグネチャ照合の廃止・性質テスト・S1/S2 の標準化・道具の解禁の廃止）
   group: B5
