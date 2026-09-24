@@ -409,7 +409,10 @@ def write_implementer_log(c, n, prompt, rc, out, err):
         err,
         "",
     ])
-    path = implementer_log_dir(c) / f"implementer_attempt_{n}.log"
+    # 1 試行の中で内側ループが何回も呼ぶので、2 回目からは別のファイルにする（上書きで前の呼び出しが消えていた。
+    # v2-dry-04 の B は 3 回呼んで、最後の 1 回分しか残っていなかった）
+    k = len((c.cur or {}).get("implementer_calls", [])) + 1 if isinstance(getattr(c, "cur", None), dict) else 1
+    path = implementer_log_dir(c) / (f"implementer_attempt_{n}.log" if k == 1 else f"implementer_attempt_{n}_call{k}.log")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(body, encoding="utf-8")

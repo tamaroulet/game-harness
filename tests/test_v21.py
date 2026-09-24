@@ -170,6 +170,18 @@ class WiderContext(unittest.TestCase):
         self.assertEqual(implementer_context.spec_excerpt(SPEC, ["RL-99"]), "")
 
 
+class ImplementerLogPerCall(unittest.TestCase):
+    def test_second_call_in_the_same_attempt_gets_its_own_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            c = SimpleNamespace(tel_path=Path(d) / "t.json", out=Path(d), sandbox=Path(d),
+                                cfg={"implementer": {"cli": "agy", "model_name": "m"}}, cur={})
+            pipeline.write_implementer_log(c, 1, "P1", 0, "o1", "")
+            c.cur["implementer_calls"] = [{"rc": 0}]
+            pipeline.write_implementer_log(c, 1, "P2", 0, "o2", "")
+            self.assertIn("P1", (Path(d) / "implementer_attempt_1.log").read_text(encoding="utf-8"))
+            self.assertIn("P2", (Path(d) / "implementer_attempt_1_call2.log").read_text(encoding="utf-8"))
+
+
 class InnerWhitelist(unittest.TestCase):
     def test_whitelist_is_checked_right_after_the_implementer_and_before_tests(self):
         src = inspect.getsource(pipeline.attempt)
