@@ -31,3 +31,31 @@ B の pipeline の中（`T1.pipeline.json`）：
 - A：受入 8/8、1 回の呼び出し、220.6 秒
 - B：試行 1・2 とも静的な門の「Game/Assets/Core/MinoShape.cs が存在しません」で RETRY（v1 の名残の whitelist。`gate_static_common` は whitelist のファイルがすべて在ることを要求する）。試行 3 の途中で人間が止めた
 - 直し方：単位定義の whitelist と impl_files を `Game/Assets/Core/GameState.cs` だけにした（`harness/ab/v2prep.py`）
+
+## v2-dry-03（v2.1：stream-json・ファイルの埋め込み・whitelist に Board.cs・内側の whitelist の検査・--sandbox）
+
+集計は `summary_dry03.md`。
+
+| 条件 | 受入（公開＋非公開） | 試行 | 実装役の呼び出し | 手番 | 入力 | 思考 | 出力 | キャッシュ読み | 実装役の秒 | 条件の仕事の秒 | USD |
+|:--|:--|:--|:--|:--|:--|:--|:--|:--|:--|:--|:--|
+| A | 8/8 | 1 | 1 | 26 | 220,272 | 26,101 | 32,004 | 1,135,060 | — | 251.6 | 0.3703 |
+| B | 8/8 | 1 | 1 | 27 | 367,408 | 33,398 | 39,339 | 1,045,139 | 213.3 | 348.1 | 0.5015 |
+
+- B は 1 回の試行・1 回の呼び出しで通った。TTL の打ち切りは 0 回（v2-dry-02 は 2 回）。条件の仕事の秒は 1267.1 → 348.1。内訳は基準の確立 114.8 秒、試行 231.6 秒（うち実装役 213.3 秒）
+- 両条件とも、実装役は whitelist の中（GameState.cs と Board.cs）だけを書き換えた。内側の whitelist の検査は一度も働かなかった
+- `--sandbox` のもとでも、編集の道具（`write_to_file`・`replace_file_content`）は使えた（裁定 4 の確認）
+- 利用量は、両条件とも `result` まで届いたので下限ではない
+
+### 手番の内訳（道具の名前と引数のファイル名・コマンドだけを数えた。中身は見ていない）
+
+| 道具 | A | B |
+|:--|:--|:--|
+| view_file | 9 | 13 |
+| run_command | 7 | 4 |
+| manage_task | 7 | 4 |
+| schedule | 0 | 3 |
+| write_to_file・replace_file_content | 2 | 2 |
+
+- 読んだファイル：base の既存の型（ActiveMino・MinoType・Rotation・GamePhase。B）、生成したテスト（性質テスト・参照モデル・判定・探針）、既存のテスト（Issue12Cases・Issue17Cases）、構造化仕様（`docs/spec/spec.md`）と GDD（`docs/gdd/source.md`）、B は単位定義（`tools/units/issue_12.json`・`issue_17.json`）と、埋め込んだはずの GameState.cs も読み直した
+- 端末：ディレクトリの一覧（再帰を含む）と `git diff --stat`。どれも読むだけ。`--sandbox` はこれらを止めない
+- 目標（改善計画 §4）との比較：手番 26〜27（目標 3 以下）、入力 22 万〜37 万（8 万以下）、実装役の秒 213.3（B。90 以下）。**どれも未達**
