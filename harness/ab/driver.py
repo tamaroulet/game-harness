@@ -126,12 +126,18 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
 
 # ============================================================ 条件 B
 
-def pipeline_args(unit_path, wt, sandbox, out, tel):
+def pipeline_args(unit_path, wt, sandbox, out, tel, known_failures=None):
     # 門の自己検査（--skip-selftest で省く）は門そのものの健全性の検査で、タスクの仕事ではない。
     # dry-01 では 405.9 秒のうち 177.1 秒を占めた。門の健全性は tests/ と pipeline --selftest で別に確かめる
     return [sys.executable, str(common.ROOT / "harness" / "pipeline.py"), "--project", PROJECT,
             "--unit", str(unit_path), "--repo-dir", str(wt), "--local-only", "--skip-selftest",
-            "--sandbox", str(sandbox), "--out-dir", str(out), "--telemetry", str(tel)]
+            "--sandbox", str(sandbox), "--out-dir", str(out), "--telemetry", str(tel)] + (
+                ["--known-failures", str(known_failures)] if known_failures else [])
+
+
+def failing_names(results):
+    """測定の結果で Passed でないテストの名前。ビルドが通らなければ None。"""
+    return None if results is None else sorted(n for n, o in results.items() if o != "Passed")
 
 
 def run_task_b(ctx, task, unit, state, runner=run):
@@ -139,7 +145,12 @@ def run_task_b(ctx, task, unit, state, runner=run):
     out = Path(ctx["out"])
     tel = out / f"{task['id']}.pipeline.json"
     unit_path = Path(ctx["m"]["_base"]) / task["unit"]
-    rc, stdout, stderr = runner(pipeline_args(unit_path, ctx["wt"], ctx["sandbox"], out / "pipeline" / task["id"], tel),
+    # 前のタスクの終わりに落ちていたテストは、base の検査と P2P から外す（S2）。A の測定器も
+    # 「前のタスクの終わりに通っていたもの」だけを P2P に数えるので、同じ扱いになる
+    known = out / f"{task['id']}.known_failures.json"
+    known.write_text(json.dumps(state.get("known_failures") or [], ensure_ascii=False), encoding="utf-8")
+    rc, stdout, stderr = runner(pipeline_args(unit_path, ctx["wt"], ctx["sandbox"], out / "pipeline" / task["id"], tel,
+                                              known),
                                 str(common.ROOT), PIPELINE_TTL, f"pipeline（条件 B、{task['id']}）")
     (out / f"{task['id']}.pipeline.log").write_text(f"{stdout}\n{stderr}\n", encoding="utf-8")
     data, _ = telemetry.read(tel)
@@ -188,7 +199,7 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
 
     results, _ = measure.run_fast(p["wt"], ctx["test_project"], p["out"], "baseline")
     prev = measure.passing(results)
-    state = {"conversation_id": None}
+    state = {"conversation_id": None, "known_failures": failing_names(results) or []}
     for i, (task, unit) in enumerate(zip(m["tasks"], units), start=1):
         ctx["index"] = i
         t0 = time.monotonic()
@@ -218,6 +229,10 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
         print(f"[{condition}] {task['id']}: 受入 {passed}/{total}、P2P の破壊 {len(broken)}、"
               f"不変条件の違反 {inv['failures']}、試行 {rec['attempts']}")
         prev = measure.passing(results)
+        # ビルドが通らなかったときは名前が取れないので、前の一覧のまま
+        known = failing_names(results)
+        if known is not None:
+            state["known_failures"] = known
     return 0
 
 

@@ -834,7 +834,12 @@ def establish_base(c):
         aborts += f2p_aborts
         if aborts:
             return "ABORT", "検査系故障（base）: " + "; ".join(aborts)
-        if fake:
+        if fake and getattr(c, "local_only", False):
+            # A/B 実験（--local-only）だけの扱い（S1、B4-RUN v1.0 の裁定）。タスクを積み重ねると、前のタスクの
+            # 実装だけで通る受入テストが出る。偽テストとせず、P2P（base で Passed なので P_base に入る）として守らせる
+            c.metrics["prepassing"] = len(fake)
+            print(f"    実装前から通っている受入テスト {len(fake)} 件は P2P として扱う（--local-only）")
+        elif fake:
             return "REJECT", (f"偽テスト: 実装前から通っている受入テスト {len(fake)} 件: "
                               + ", ".join(fake[:5]))
 
@@ -1717,6 +1722,21 @@ def git_head(cwd, ttl):
     return out.strip() if rc == 0 and out.strip() else None
 
 
+def with_known_failures(quarantine, path, local_only):
+    """隔離に、前のタスクの終わりに落ちていたテストを足す（S2、B4-RUN v1.0 の裁定）。
+
+    タスクを積み重ねる A/B 実験で、B が落としたタスクのテストが次のタスクの base に残り、
+    「base で既に失敗」の ABORT が連鎖するのを防ぐ。通常の運用では隔離に PR の承認（approved_in）が要るので、
+    --local-only のときだけ受け付ける。
+    """
+    if not local_only:
+        sys.exit("ABORT: --known-failures は --local-only（A/B 実験）のときだけ使えます")
+    names = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(names, list) or not all(isinstance(n, str) and n for n in names):
+        sys.exit(f"ABORT: --known-failures はテスト名の配列にしてください: {path}")
+    return tuple(quarantine) + tuple(n for n in names if n not in quarantine)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", required=True, help="projects/<id>（harness のプロジェクト ID）")
@@ -1728,6 +1748,9 @@ def main():
                                        "（既定は project.json の repo_dir）")
     ap.add_argument("--local-only", action="store_true",
                     help="push・CI・TIMELINE を行わず、--repo-dir の中の commit で終える（A/B 実験用）")
+    ap.add_argument("--known-failures",
+                    help="前のタスクの終わりに落ちていたテストの名前（JSON の配列）。base の検査と P2P から外す"
+                         "（A/B 実験用。--local-only のときだけ）")
     ap.add_argument("--sandbox", help="サンドボックスの置き場（既定は pipeline.json の paths.sandbox）")
     ap.add_argument("--out-dir", help="出力の置き場（既定は pipeline.json の paths.out_dir）")
     args = ap.parse_args()
@@ -1753,6 +1776,10 @@ def main():
         c = Ctx(cfg, unit_path)
         c.local_only = args.local_only
         c.tel, c.tel_path = tel, tel_path
+        if args.known_failures:
+            c.oracle["quarantine"] = with_known_failures(c.oracle["quarantine"], args.known_failures,
+                                                         args.local_only)
+            tel["known_failures"] = len(c.oracle["quarantine"])
         imp = c.cfg["implementer"]
         tel.update(unit_id=c.unit.get("id"),
                    unit_sha256=hashlib.sha256(unit_path.read_bytes()).hexdigest(),

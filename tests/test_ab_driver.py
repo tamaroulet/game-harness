@@ -265,6 +265,22 @@ class ConditionB(unittest.TestCase):
         self.assertEqual((rec["attempts"], rec["implementer_calls"]), (1, 2))
         self.assertEqual(driver._tokens(rec["calls"])["input"], 30)
 
+    def test_known_failures_of_the_previous_task_are_passed_to_the_pipeline(self):
+        """前のタスクの終わりに落ちていたテストを pipeline に渡す（S2）。"""
+        seen = {}
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+
+            def runner(args, cwd, ttl, label):
+                seen["names"] = json.loads(Path(args[args.index("--known-failures") + 1]).read_text(encoding="utf-8"))
+                return 1, "", ""
+            ctx = {"out": out, "m": {"_base": d}, "wt": out / "wt", "sandbox": out / "sb"}
+            driver.run_task_b(ctx, {"id": "T3", "unit": "u.json"}, {}, {"known_failures": ["G.B4abT2Cases.Case_a"]},
+                              runner=runner)
+        self.assertEqual(seen["names"], ["G.B4abT2Cases.Case_a"])
+        self.assertEqual(driver.failing_names({"a": "Passed", "b": "Failed"}), ["b"])
+        self.assertIsNone(driver.failing_names(None))
+
     def test_local_only_commits_without_push_or_ci(self):
         with tempfile.TemporaryDirectory() as d:
             repo, sb = Path(d) / "repo", Path(d) / "sb"
