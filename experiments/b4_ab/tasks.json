@@ -18,7 +18,7 @@
   "common_requirement_sha256": "1462c65f86c79ec803286d3e4676e61760c200cbae8ca624206f8f8cc9a02d2b",
   "templates": {
     "initial": "templates/initial.md",
-    "initial_sha256": "d2b434167b8ffb4cbc3212994845191a5cdd07411a9969742e7eab1eff6047df",
+    "initial_sha256": "fb875100bda8d13aba35873799af8695dc18ccc5bdadc957cc36650583984379",
     "retry": "templates/retry.md",
     "retry_sha256": "36b61f3427c14f481366806e8f2e4f656ec6e4cc9f10d077690681ca6f066640",
     "retry_tail_lines": 40

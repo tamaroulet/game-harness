@@ -180,8 +180,16 @@ tasks:
   title: A/B ドライバ・測定器・集計と pipeline の --local-only
   group: B4
   target_repo: game-harness
+  target_files:
+  - harness/ab/driver.py
+  - harness/ab/measure.py
+  - harness/ab/report.py
+  - harness/ab/common.py
+  - harness/pipeline.py
   status: in_progress
-  verification: null
+  verification:
+    command: python -m unittest tests.test_ab_driver
+    expected_exit_code: 0
 - id: B4-E5
   title: 乾式の走行（T1 を A・B で 1 回ずつ）
   group: B4

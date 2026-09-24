@@ -1255,6 +1255,11 @@ def carry_out_and_ci(c):
     run(["git", "commit", "-m",
          f"feat(ms3): implement {c.unit['id']} via pipeline"],
         c.repo, c.ttl["git"], "commit")
+    if getattr(c, "local_only", False):
+        # A/B 実験の条件 B（docs/design/b4_ab_experiment.md §3.2）。push・CI・TIMELINE を行わず、
+        # 持ち出しを --repo-dir の中の commit で終える。門はここまでですべて通っている
+        print("    --local-only：push と CI を省き、ローカルの commit で終えます")
+        return "SUCCESS", ""
     rc, out, err = run(["git", "push"], c.repo, c.ttl["git"], "push")
     if rc != 0 and "no upstream branch" in (err + out):
         # 新しいブランチで初めて push するとき。追跡先を設定して張り直す。
@@ -1710,6 +1715,10 @@ def main():
     ap.add_argument("--telemetry", help="テレメトリの書き出し先（JSON）。判定には使わない")
     ap.add_argument("--repo-dir", help="Issue の worktree。持ち出し・コミット・push をここで行う"
                                        "（既定は project.json の repo_dir）")
+    ap.add_argument("--local-only", action="store_true",
+                    help="push・CI・TIMELINE を行わず、--repo-dir の中の commit で終える（A/B 実験用）")
+    ap.add_argument("--sandbox", help="サンドボックスの置き場（既定は pipeline.json の paths.sandbox）")
+    ap.add_argument("--out-dir", help="出力の置き場（既定は pipeline.json の paths.out_dir）")
     args = ap.parse_args()
 
     tel = {"schema": telemetry.SCHEMA, "tool": "pipeline",
@@ -1724,7 +1733,14 @@ def main():
         unit_path = Path(args.unit)
         if not unit_path.is_absolute() and not unit_path.exists():
             unit_path = Path(proj["repo_dir"]) / args.unit
-        c = Ctx(project.pipeline_config(proj), unit_path)
+        cfg = project.pipeline_config(proj)
+        # A/B 実験では条件ごとに置き場を分ける（互いの成果物・キャッシュ・ログを混ぜない）
+        if args.sandbox:
+            cfg["paths"]["sandbox"] = args.sandbox
+        if args.out_dir:
+            cfg["paths"]["out_dir"] = args.out_dir
+        c = Ctx(cfg, unit_path)
+        c.local_only = args.local_only
         c.tel, c.tel_path = tel, tel_path
         imp = c.cfg["implementer"]
         tel.update(unit_id=c.unit.get("id"),
