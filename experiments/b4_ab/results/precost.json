@@ -1,0 +1,88 @@
+{
+  "model": "decompose.py（config/decompose.json の cli）",
+  "base_commit": "87bdfdaf183cf220cf2b1e1f795f23bcca45d370",
+  "per_task": [
+    {
+      "task": "T1",
+      "rc": 0,
+      "seconds": 500.8,
+      "calls": 2,
+      "input_tokens": 36,
+      "output_tokens": 41770,
+      "cache_read_tokens": 941745,
+      "cache_creation_tokens": 157176,
+      "cost_usd": 3.0870625,
+      "reused": true
+    },
+    {
+      "task": "T2",
+      "rc": 0,
+      "seconds": 255.7,
+      "calls": 1,
+      "input_tokens": 10,
+      "output_tokens": 21723,
+      "cache_read_tokens": 257627,
+      "cache_creation_tokens": 42993,
+      "cost_usd": 1.1018685,
+      "reused": true
+    },
+    {
+      "task": "T3",
+      "rc": 0,
+      "seconds": 151.7,
+      "calls": 1,
+      "input_tokens": 10,
+      "output_tokens": 14207,
+      "cache_read_tokens": 231072,
+      "cache_creation_tokens": 80401,
+      "cost_usd": 1.274771,
+      "reused": true
+    },
+    {
+      "task": "T4",
+      "rc": 0,
+      "seconds": 189.0,
+      "calls": 1,
+      "input_tokens": 16,
+      "output_tokens": 18626,
+      "cache_read_tokens": 473138,
+      "cache_creation_tokens": 45064,
+      "cost_usd": 1.1529390000000002,
+      "reused": true
+    },
+    {
+      "task": "T5",
+      "rc": 0,
+      "seconds": 360.2,
+      "calls": 1,
+      "input_tokens": 12,
+      "output_tokens": 30223,
+      "cache_read_tokens": 294888,
+      "cache_creation_tokens": 93333,
+      "cost_usd": 1.8364089999999997
+    }
+  ],
+  "total": {
+    "input_tokens": 84,
+    "output_tokens": 126549,
+    "cache_read_tokens": 2198470,
+    "cache_creation_tokens": 418967,
+    "cost_usd": 8.45305,
+    "seconds": 1457.4,
+    "calls": 6,
+    "ok": true
+  },
+  "discarded": [
+    {
+      "task": "T5",
+      "rc": 2,
+      "seconds": 17.2,
+      "calls": 1,
+      "input_tokens": 10,
+      "output_tokens": 737,
+      "cache_read_tokens": 225178,
+      "cache_creation_tokens": 36365,
+      "cost_usd": 0.494714
+    }
+  ]
+}

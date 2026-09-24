@@ -95,7 +95,7 @@ class Report(unittest.TestCase):
                  "budget_exceeded": False, "tokens": {"input": 10}, "seconds": s}
                 for rid, cond, s in (("ab-01", "A", 100.0), ("ab-02", "A", 300.0), ("ab-01", "B", 50.0))]
         text = report.summarize(rows)
-        self.assertIn("| T1 | A | 2/2 | 1.0 | 0.0 | 0.0 | 1.0 / 0.0 | 0 | 10.0 | 200.0 |", text)
+        self.assertIn("| T1 | A | 2/2 | 1.0 | 1.0 | 0.0 | 0.0 | 1.0 / 0.0 | 0 | 10.0 | — | — | — | 200.0 |", text)
         self.assertIn("| 0 | 200.0 | 400.0 |", text, "A：1 走行の秒の中央値と全走行の合計")
         self.assertIn("| 0 | 50.0 | 50.0 |", text)
 
@@ -138,6 +138,14 @@ class CostModel(unittest.TestCase):
         text = report.summarize(rows, model)
         self.assertIn("| USD | 3 | 実測の範囲 |", text)
 
+    def test_task_table_shows_cache_reads_total_input_and_usd(self):
+        row = {"run_id": "ab-01", "condition": "B", "task": "T1", "index": 1, "accepted": True, "attempts": 1,
+               "p2p_broken": 0, "invariants": {"failures": 0}, "diff": {"added": 1, "deleted": 0},
+               "budget_exceeded": False, "seconds": 10.0, "detail": {"implementer_calls": 2},
+               "tokens": {"input": 1_000_000, "output": 0, "cache_read": 400_000}}
+        text = report.summarize([row], {"prices": self.PRICES, "fixed": {}})
+        self.assertIn("| T1 | B | 1/1 | 1 | 2 | 0 | 0 | 1 / 0 | 0 | 1000000 | 400000 | 1400000 | 1.1000 | 10.0 |", text)
+
 
 class ConditionA(unittest.TestCase):
     """同じ会話に積む（2 回目以降は --conversation）。受入を通ったら止め、最大 3 回まで。"""
@@ -175,17 +183,103 @@ class ConditionA(unittest.TestCase):
         self.assertIn(str(self.ctx["wt"]), self.seen[0][0], "初回には作業場所が入る")
         self.assertEqual(state["conversation_id"], "conv-1", "次のタスクへ会話を引き継ぐ")
 
-    def test_gives_up_after_three_attempts(self):
+    def test_gives_up_at_the_same_call_budget_as_b(self):
         rec = driver.run_task_a(self.ctx, self.m["tasks"][0], self.unit, {},
                                 call=self.call, fast=self.fast_passing_at(99))
-        self.assertEqual((rec["attempts"], rec["accepted"]), (3, False))
+        # B の最大（試行 3 × 内側ループ 3 ターン）にそろえる（監査 F1）
+        self.assertEqual((rec["attempts"], rec["accepted"]), (9, False))
+        self.assertEqual(driver.call_budget(self.m), self.m["max_attempts"] * pipeline.MAX_INNER_LOOP_TURNS)
+
+    def test_tools_are_banned_first_and_allowed_on_retry_with_the_same_text_as_b(self):
+        import tool_policy
+        driver.run_task_a(self.ctx, self.m["tasks"][0], self.unit, {}, call=self.call, fast=self.fast_passing_at(2))
+        self.assertIn(tool_policy.FIRST, self.seen[0][0])
+        self.assertNotIn(tool_policy.RETRY, self.seen[0][0])
+        self.assertIn(tool_policy.RETRY, self.seen[1][0])
+
+    def test_retry_carries_the_assertion_message_when_a_trx_exists(self):
+        def fast(wt, proj, out, tag):
+            (Path(out) / f"{tag}.trx").write_text(TRX_ONE_FAILURE, encoding="utf-8")
+            return {"G.B4abT1Cases.Case_x": "Passed" if len(self.seen) >= 2 else "Failed"}, "tail"
+        driver.run_task_a(self.ctx, self.m["tasks"][0], self.unit, {}, call=self.call, fast=fast)
+        self.assertIn("Expected: 3", self.seen[1][0], "期待値の不一致が再試行に入る")
+
+
+TRX_ONE_FAILURE = """<?xml version="1.0" encoding="utf-8"?>
+<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Results>
+    <UnitTestResult testId="1" testName="Case_x" outcome="Failed">
+      <Output><ErrorInfo><Message>  Expected: 3
+  But was:  2
+</Message></ErrorInfo></Output>
+    </UnitTestResult>
+    <UnitTestResult testId="2" testName="Case_y" outcome="Passed" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="Case_x" id="1"><TestMethod className="G.B4abT1Cases" name="Case_x" /></UnitTest>
+    <UnitTest name="Case_y" id="2"><TestMethod className="G.B4abT1Cases" name="Case_y" /></UnitTest>
+  </TestDefinitions>
+</TestRun>
+"""
+
+
+class FailureDigest(unittest.TestCase):
+    def test_lists_failed_tests_with_their_messages(self):
+        from adapters import dotnet
+        with tempfile.TemporaryDirectory() as d:
+            trx = Path(d) / "r.trx"
+            trx.write_text(TRX_ONE_FAILURE, encoding="utf-8")
+            text = dotnet.failure_digest(trx)
+        self.assertEqual(text, "- G.B4abT1Cases.Case_x\n      Expected: 3\n      But was:  2")
+
+
+class Tokens(unittest.TestCase):
+    def test_sums_every_call_including_cache_reads(self):
+        calls = [{"usage": {"input_tokens": 10, "output_tokens": 1, "cache_read_tokens": 100}},
+                 {"usage": {"input_tokens": 20, "output_tokens": 2, "cache_read_tokens": 200}}]
+        self.assertEqual(driver._tokens(calls), {"input": 30, "output": 3, "cache_read": 300, "per_call_input": [10, 20]})
+        calls[1]["usage"]["cache_read_tokens"] = None
+        self.assertIsNone(driver._tokens(calls)["cache_read"], "1 つでも不明なら推測で埋めない")
 
 
 class ConditionB(unittest.TestCase):
     def test_pipeline_is_called_local_only_in_its_own_places(self):
         args = driver.pipeline_args(Path("u.json"), Path("wt"), Path("sb"), Path("out"), Path("t.json"))
-        for flag in ("--local-only", "--sandbox", "--out-dir", "--repo-dir", "--telemetry"):
+        for flag in ("--local-only", "--sandbox", "--out-dir", "--repo-dir", "--telemetry", "--skip-selftest"):
             self.assertIn(flag, args)
+
+    def test_counts_every_inner_loop_call(self):
+        """B の 1 試行の中の内側ループの呼び出しを、最後の 1 回だけでなく全部数える（監査 F2）。"""
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            tel = {"attempts": [{"n": 1, "verdict": "SUCCESS", "stage": "carry",
+                                 "implementer": {"usage": {"input_tokens": 20}},
+                                 "implementer_calls": [{"usage": {"input_tokens": 10}},
+                                                       {"usage": {"input_tokens": 20}}]}]}
+
+            def runner(args, cwd, ttl, label):
+                Path(args[args.index("--telemetry") + 1]).write_text(json.dumps(tel), encoding="utf-8")
+                return 0, "", ""
+            ctx = {"out": out, "m": {"_base": d}, "wt": out / "wt", "sandbox": out / "sb"}
+            rec = driver.run_task_b(ctx, {"id": "T1", "unit": "u.json"}, {}, {}, runner=runner)
+        self.assertEqual((rec["attempts"], rec["implementer_calls"]), (1, 2))
+        self.assertEqual(driver._tokens(rec["calls"])["input"], 30)
+
+    def test_known_failures_of_the_previous_task_are_passed_to_the_pipeline(self):
+        """前のタスクの終わりに落ちていたテストを pipeline に渡す（S2）。"""
+        seen = {}
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+
+            def runner(args, cwd, ttl, label):
+                seen["names"] = json.loads(Path(args[args.index("--known-failures") + 1]).read_text(encoding="utf-8"))
+                return 1, "", ""
+            ctx = {"out": out, "m": {"_base": d}, "wt": out / "wt", "sandbox": out / "sb"}
+            driver.run_task_b(ctx, {"id": "T3", "unit": "u.json"}, {}, {"known_failures": ["G.B4abT2Cases.Case_a"]},
+                              runner=runner)
+        self.assertEqual(seen["names"], ["G.B4abT2Cases.Case_a"])
+        self.assertEqual(driver.failing_names({"a": "Passed", "b": "Failed"}), ["b"])
+        self.assertIsNone(driver.failing_names(None))
 
     def test_local_only_commits_without_push_or_ci(self):
         with tempfile.TemporaryDirectory() as d:

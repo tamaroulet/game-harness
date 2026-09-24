@@ -159,7 +159,7 @@ M = [
      '        if broken:\n            aborts.append(f"base（実装前）',
      '        if False:\n            aborts.append(f"base（実装前）'),
     ("M54 偽テストを REJECT しない", "pipeline.py",
-     '        if fake:\n            return "REJECT"', '        if False:\n            return "REJECT"'),
+     '        elif fake:\n            return "REJECT"', '        elif False:\n            return "REJECT"'),
     ("M55 受入判定が P2P の破壊を無視する", "pipeline.py",
      '    if broken:\n        return f"先祖返り', '    if False:\n        return f"先祖返り'),
     ("M56 受入テストのファイルを重複排除しない", "pipeline.py",

@@ -137,6 +137,40 @@ def run_tests(c, tag):
     return results, None
 
 
+def failure_detail(c, tag):
+    """pipeline の内側ループの再試行に渡す、落ちたテストの知らせ。run_tests(c, tag) の TRX から作る。無ければ空文字。"""
+    trx = c.out / f"{tag}.trx"
+    return failure_digest(trx) if trx.exists() else ""
+
+
+def failure_digest(trx_path, max_tests=8, max_lines=4):
+    """落ちたテストの名前と、アサーションの本文（期待値と実際の値）の先頭数行。実装役への再試行の知らせ。
+
+    A/B 実験の両条件（pipeline の内側ループと driver の条件 A）が同じ整形を使う。無ければ空文字。
+    """
+    root = ET.parse(trx_path).getroot()
+    fullname = {}
+    for ut in root.iter(f"{TRX_NS}UnitTest"):
+        tm = ut.find(f"{TRX_NS}TestMethod")
+        if tm is not None and ut.get("name"):
+            fullname[ut.get("name")] = f"{tm.get('className', '')}.{ut.get('name')}"
+    failed = []
+    for r in root.iter(f"{TRX_NS}UnitTestResult"):
+        if r.get("outcome") != "Failed":
+            continue
+        n = r.get("testName")
+        msg = r.find(f"{TRX_NS}Output/{TRX_NS}ErrorInfo/{TRX_NS}Message")
+        lines = [l.rstrip() for l in (msg.text or "").splitlines() if l.strip()] if msg is not None else []
+        failed.append((fullname.get(n, n), lines[:max_lines]))
+    out = []
+    for name, lines in sorted(failed)[:max_tests]:
+        out.append(f"- {name}")
+        out += [f"    {l}" for l in lines]
+    if len(failed) > max_tests:
+        out.append(f"- ほか {len(failed) - max_tests} 件")
+    return "\n".join(out)
+
+
 def parse_results(trx_path):
     """TRX → ({className.methodName: outcome}, {total, passed, failed, notExecuted})
 

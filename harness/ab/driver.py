@@ -24,14 +24,18 @@ if str(_HARNESS) not in sys.path:
     sys.path.insert(0, str(_HARNESS))
 
 import exitcode  # noqa: E402
+import pipeline  # noqa: E402
 import project  # noqa: E402
 import telemetry  # noqa: E402
 import testgen  # noqa: E402
+import tool_policy  # noqa: E402
+from adapters import dotnet  # noqa: E402
 from ab import common, measure  # noqa: E402
 from proc import resolve_cli, run  # noqa: E402
 
 PROJECT = "falling-blocks"
-PIPELINE_TTL = 3600
+# B の最大 9 回の呼び出し（実装役の TTL 300 秒）と門を収める
+PIPELINE_TTL = 7200
 BUDGET = {"added": 250, "deleted": 100}
 
 
@@ -65,6 +69,20 @@ def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run):
             "usage": telemetry.cli_usage(out, imp["usage_format"]), "out": out, "err": err}
 
 
+def call_budget(m):
+    """条件 A の呼び出しの上限。B の最大（試行 × 内側ループのターン）にそろえる（監査 F1、裁定 1）。"""
+    return m["max_attempts"] * pipeline.MAX_INNER_LOOP_TURNS
+
+
+def failure_list(results, classes, task_id, trx):
+    """再試行に渡す落ちたテスト。B の内側ループと同じ整形（名前と期待値の不一致）。TRX が無ければ名前だけ。"""
+    if trx is not None and Path(trx).exists():
+        text = dotnet.failure_digest(trx)
+        if text:
+            return text
+    return "\n".join(f"- {x}" for x in failing_of(results, classes, task_id))
+
+
 def failing_of(results, classes, task_id):
     return sorted(n for n, o in (results or {}).items()
                   if measure.task_of(n, classes) == task_id and o != "Passed")
@@ -74,8 +92,9 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
     """条件 A の 1 タスク。{"attempts", "accepted", "calls"}。"""
     m, wt, out = ctx["m"], ctx["wt"], ctx["out"]
     tpl = ctx["templates"]
-    calls, accepted, results, text = [], False, None, ""
-    for attempt in range(1, m["max_attempts"] + 1):
+    calls, accepted, results, text, trx = [], False, None, "", None
+    budget = call_budget(m)
+    for attempt in range(1, budget + 1):
         if attempt == 1:
             prompt = tpl["initial"].format(task_id=task["id"], title=task["title"], workdir=str(wt),
                                            prompt=unit["prompt"], interface=testgen.render_interface(unit),
@@ -83,10 +102,12 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
                                            test_dir=m["test_dir"])
         else:
             n = m["templates"]["retry_tail_lines"]
-            prompt = tpl["retry"].format(task_id=task["id"], attempt=attempt - 1, max_attempts=m["max_attempts"],
-                                         failed_tests="\n".join(f"- {x}" for x in failing_of(results, ctx["classes"], task["id"]))
+            prompt = tpl["retry"].format(task_id=task["id"], attempt=attempt - 1, max_attempts=budget,
+                                         failed_tests=failure_list(results, ctx["classes"], task["id"], trx)
                                          or "- （ビルドが通らず、テストを実行できませんでした）",
                                          tail_lines=n, failure_tail="\n".join(text.strip().splitlines()[-n:]))
+        # 道具の段階は B と同じ文面（最初は編集だけ、失敗のあとはテストと探索を解禁。裁定 2）
+        prompt += "\n\n" + tool_policy.text(attempt > 1)
         r = call(ctx["imp"], prompt, wt, state.get("conversation_id"), ctx["ttl"])
         state["conversation_id"] = r["conversation_id"]
         calls.append({"attempt": attempt, "rc": r["rc"], "seconds": r["seconds"], "usage": r["usage"]})
@@ -95,6 +116,7 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
         # 実装役がテストを書き換えていても、凍結したものに戻してから測る
         measure.place_frozen_tests(m, wt, ctx["index"], m["test_dir"])
         results, text = fast(wt, ctx["test_project"], out, f"{task['id']}_a{attempt}")
+        trx = Path(out) / f"{task['id']}_a{attempt}.trx"
         passed, total = measure.acceptance(results, ctx["classes"], task["id"])
         if total and passed == total:
             accepted = True
@@ -104,12 +126,18 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
 
 # ============================================================ 条件 B
 
-def pipeline_args(unit_path, wt, sandbox, out, tel):
+def pipeline_args(unit_path, wt, sandbox, out, tel, known_failures=None):
     # 門の自己検査（--skip-selftest で省く）は門そのものの健全性の検査で、タスクの仕事ではない。
     # dry-01 では 405.9 秒のうち 177.1 秒を占めた。門の健全性は tests/ と pipeline --selftest で別に確かめる
     return [sys.executable, str(common.ROOT / "harness" / "pipeline.py"), "--project", PROJECT,
             "--unit", str(unit_path), "--repo-dir", str(wt), "--local-only", "--skip-selftest",
-            "--sandbox", str(sandbox), "--out-dir", str(out), "--telemetry", str(tel)]
+            "--sandbox", str(sandbox), "--out-dir", str(out), "--telemetry", str(tel)] + (
+                ["--known-failures", str(known_failures)] if known_failures else [])
+
+
+def failing_names(results):
+    """測定の結果で Passed でないテストの名前。ビルドが通らなければ None。"""
+    return None if results is None else sorted(n for n, o in results.items() if o != "Passed")
 
 
 def run_task_b(ctx, task, unit, state, runner=run):
@@ -117,25 +145,33 @@ def run_task_b(ctx, task, unit, state, runner=run):
     out = Path(ctx["out"])
     tel = out / f"{task['id']}.pipeline.json"
     unit_path = Path(ctx["m"]["_base"]) / task["unit"]
-    rc, stdout, stderr = runner(pipeline_args(unit_path, ctx["wt"], ctx["sandbox"], out / "pipeline" / task["id"], tel),
+    # 前のタスクの終わりに落ちていたテストは、base の検査と P2P から外す（S2）。A の測定器も
+    # 「前のタスクの終わりに通っていたもの」だけを P2P に数えるので、同じ扱いになる
+    known = out / f"{task['id']}.known_failures.json"
+    known.write_text(json.dumps(state.get("known_failures") or [], ensure_ascii=False), encoding="utf-8")
+    rc, stdout, stderr = runner(pipeline_args(unit_path, ctx["wt"], ctx["sandbox"], out / "pipeline" / task["id"], tel,
+                                              known),
                                 str(common.ROOT), PIPELINE_TTL, f"pipeline（条件 B、{task['id']}）")
     (out / f"{task['id']}.pipeline.log").write_text(f"{stdout}\n{stderr}\n", encoding="utf-8")
     data, _ = telemetry.read(tel)
     attempts = (data or {}).get("attempts", [])
-    calls = [{"attempt": a.get("n"), "verdict": a.get("verdict"), "stage": a.get("stage"),
-              "usage": (a.get("implementer") or {}).get("usage")} for a in attempts]
-    return {"attempts": len(attempts), "accepted": rc == 0, "calls": calls, "pipeline_rc": rc}
+    # 内側ループの全呼び出しを数える（監査 F2）。implementer_calls の無い古い記録は最後の呼び出しだけ
+    calls = [{"attempt": a.get("n"), "verdict": a.get("verdict"), "stage": a.get("stage"), "usage": call.get("usage")}
+             for a in attempts for call in (a.get("implementer_calls") or [a.get("implementer") or {}])]
+    return {"attempts": len(attempts), "implementer_calls": len(calls), "accepted": rc == 0, "calls": calls,
+            "pipeline_rc": rc}
 
 
 # ============================================================ 1 回の走行
 
 def _tokens(calls):
+    """呼び出しの利用量の合計。1 つでも不明なら None（推測で埋めない）。キャッシュ読みも数える（監査 F6）。"""
+    def total(key):
+        xs = [(c.get("usage") or {}).get(key) for c in calls]
+        return sum(xs) if all(isinstance(x, int) for x in xs) else None
     ins = [((c.get("usage") or {}).get("input_tokens")) for c in calls]
-    outs = [((c.get("usage") or {}).get("output_tokens")) for c in calls]
-    known = [x for x in ins if isinstance(x, int)]
-    return {"input": sum(known) if len(known) == len(ins) else None,
-            "output": sum(x for x in outs if isinstance(x, int)) if all(isinstance(x, int) for x in outs) else None,
-            "per_call_input": ins}
+    return {"input": total("input_tokens"), "output": total("output_tokens"),
+            "cache_read": total("cache_read_tokens"), "per_call_input": ins}
 
 
 def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=common.OUT_ROOT,
@@ -163,7 +199,7 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
 
     results, _ = measure.run_fast(p["wt"], ctx["test_project"], p["out"], "baseline")
     prev = measure.passing(results)
-    state = {"conversation_id": None}
+    state = {"conversation_id": None, "known_failures": failing_names(results) or []}
     for i, (task, unit) in enumerate(zip(m["tasks"], units), start=1):
         ctx["index"] = i
         t0 = time.monotonic()
@@ -193,6 +229,10 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
         print(f"[{condition}] {task['id']}: 受入 {passed}/{total}、P2P の破壊 {len(broken)}、"
               f"不変条件の違反 {inv['failures']}、試行 {rec['attempts']}")
         prev = measure.passing(results)
+        # ビルドが通らなかったときは名前が取れないので、前の一覧のまま
+        known = failing_names(results)
+        if known is not None:
+            state["known_failures"] = known
     return 0
 
 
