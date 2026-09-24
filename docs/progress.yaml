@@ -203,6 +203,7 @@ tasks:
   verification:
     command: python -m harness.ab.check --run-id dry-01 --through T1 --summary experiments/b4_ab/results/dry/summary.md
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/60
 - id: B4-RUN
   title: A/B 実験の本走（T1〜T5 × A・B × 3 回）
   group: B4
