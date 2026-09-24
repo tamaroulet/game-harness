@@ -66,20 +66,27 @@ def summarize(rows, cost_model=None):
     runs = sorted({r["run_id"] for r in rows})
     tasks = sorted({r["task"] for r in rows}, key=lambda t: int(t[1:]) if t[1:].isdigit() else t)
     lines = ["# A/B 実験の集計", "", f"- 走行：{', '.join(runs)}（{len(runs)} 回）",
-             "- 値は走行の中央値。受入は通った走行の数 / 走行の数", "",
-             "| タスク | 条件 | 受入 | 試行 | P2P の破壊 | 不変条件の違反 | 追加 / 削除 | 予算超過 | 入力トークン | 秒 |",
-             "|:--|:--|:--|:--|:--|:--|:--|:--|:--|:--|"]
+             "- 値は走行の中央値。受入は通った走行の数 / 走行の数",
+             "- 総入力 = 入力 + キャッシュ読み（実装役が読んだ文脈の全量）。USD は --cost-model の単価で数える", "",
+             "| タスク | 条件 | 受入 | 試行 | 呼び出し | P2P の破壊 | 不変条件の違反 | 追加 / 削除 | 予算超過 "
+             "| 入力トークン | キャッシュ読み | 総入力 | USD | 秒 |",
+             "|:--|:--|:--|:--|:--|:--|:--|:--|:--|:--|:--|:--|:--|:--|"]
+    prices = (cost_model or {}).get("prices")
     for t in tasks:
         for cond in common.CONDITIONS:
             rs = [r for r in rows if r["task"] == t and r["condition"] == cond]
             if not rs:
                 continue
-            lines.append("| {} | {} | {}/{} | {} | {} | {} | {} / {} | {} | {} | {} |".format(
+            tok = [(r.get("tokens") or {}) for r in rs]
+            usd = _median([call_cost(x, prices) for x in tok]) if _prices_ok(prices) else None
+            lines.append("| {} | {} | {}/{} | {} | {} | {} | {} | {} / {} | {} | {} | {} | {} | {} | {} |".format(
                 t, cond, sum(r["accepted"] for r in rs), len(rs), _median([r["attempts"] for r in rs]),
+                _fmt(_median([implementer_calls(r) for r in rs])),
                 _median([r["p2p_broken"] for r in rs]), _median([r["invariants"]["failures"] for r in rs]),
                 _median([r["diff"]["added"] for r in rs]), _median([r["diff"]["deleted"] for r in rs]),
-                sum(r["budget_exceeded"] for r in rs), _median([(r.get("tokens") or {}).get("input") for r in rs]),
-                _median([r.get("seconds") for r in rs])))
+                sum(r["budget_exceeded"] for r in rs), _median([x.get("input") for x in tok]),
+                _fmt(_median([x.get("cache_read") for x in tok])), _fmt(_median([total_input(x) for x in tok])),
+                _fmt(usd, 4), _median([r.get("seconds") for r in rs])))
     lines += ["", "## トークンの伸び（累積の入力トークンの両対数の傾き）", "",
               "| 条件 | 走行ごとの傾き | 中央値 |", "|:--|:--|:--|"]
     for cond in common.CONDITIONS:
@@ -117,6 +124,24 @@ def run_total(rows, run_id, cond, key):
 
 
 # ============================================================ 総コストと損益分岐（監査 §3）
+
+def implementer_calls(row):
+    """実装役を呼んだ回数。A は試行の数、B は pipeline の内側ループを含めた数（無い古い行は None）。"""
+    if row["condition"] == "A":
+        return row.get("attempts")
+    return (row.get("detail") or {}).get("implementer_calls")
+
+
+def total_input(tokens):
+    """入力 + キャッシュ読み。キャッシュ読みが不明なら None。"""
+    i, cr = (tokens or {}).get("input"), (tokens or {}).get("cache_read")
+    return i + cr if isinstance(i, int) and isinstance(cr, int) else None
+
+
+def _prices_ok(prices):
+    return isinstance(prices, dict) and all(isinstance(prices.get(k), (int, float))
+                                            for k in ("input_per_mtok", "output_per_mtok", "cache_read_per_mtok"))
+
 
 def call_cost(tokens, prices):
     """1 行（1 条件 × 1 タスク）の走行コスト（USD）。入力・出力のどちらかが不明なら None。
@@ -184,7 +209,7 @@ def break_even(fa, ca, fb, cb, horizon=10000):
 
 def cost_section(rows, model):
     prices = model.get("prices") or {}
-    if not all(isinstance(prices.get(k), (int, float)) for k in ("input_per_mtok", "output_per_mtok", "cache_read_per_mtok")):
+    if not _prices_ok(prices):
         return ["", "## 総コストと損益分岐（事前投資を合算）", "", "- 単価が未設定（cost_model.json の prices）。計算しない"]
     lines = ["", "## 総コストと損益分岐（事前投資を合算）", "",
              f"- 単価（USD / 100 万トークン）：入力 {prices['input_per_mtok']}、出力 {prices['output_per_mtok']}、"

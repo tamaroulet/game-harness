@@ -37,6 +37,7 @@ import oracle
 import project
 import telemetry
 import testgen
+import tool_policy
 import unit_schema
 from proc import resolve_cli, run
 
@@ -415,7 +416,7 @@ def write_implementer_log(c, n, prompt, rc, out, err):
     return path
 
 
-def call_implementer(c, feedback=""):
+def call_implementer(c, feedback="", retry=False):
     # 相対パスで渡すと、実装AIが本体リポジトリを編集しうる（実測で発生した）。
     # サンドボックスの絶対パスに展開して曖昧さを消す。ただしこれは
     # 「間違えにくくする」だけで、脱走を防ぐ機構ではない。
@@ -445,11 +446,9 @@ def call_implementer(c, feedback=""):
               f"合意を求める必要も、事前に状況を説明する必要もありません。"
               f"書き終えてから、何をしたかだけを報告してください。"
               f"コード案を本文に貼るだけ、計画だけ返すのは未完了とみなされます。\n"
-              # ビルド・テスト・検証はこの外側で行い、失敗は次の呼び出しに渡す。実装役が自分で
-              # テストや探索を回すと、その出力が文脈に積まれて入力トークンが膨らむ（B4-E5 の dry-01）
-              f"ビルド・テスト・検証はこの外側のパイプラインが一元的に行い、失敗は次の指示で伝えます。"
-              f"あなたはビルドもテストも実行せず、リポジトリの探索も最小限にして、"
-              f"対象ファイルを編集したら直ちに終えてください。\n"
+              # 最初の呼び出しはテストも探索もさせない（入力トークンが膨らむ。B4-E5 の dry-01）。
+              # 失敗を返したあとは、自分でデバッグできるよう解禁する（B4-RUN v1.0 の裁定 2）
+              + tool_policy.text(retry) + "\n"
               f"受入テスト側に明らかな誤謬（手計算ミスや仕様不整合）があり、自身の実装が正当であると判断した場合は、無理にテストに合わせず {{\"status\": \"DISPUTE_TEST\", \"reason\": \"<具体的な不整合理由>\"}} のJSONを出力してください。\n\n" + prompt)
     if feedback:
         prompt += "\n\n前回の失敗:\n" + feedback
@@ -470,6 +469,8 @@ def call_implementer(c, feedback=""):
                  if imp.get("usage_format") and imp.get("output_format_args")
                  else telemetry.usage_unknown("implementer に output_format_args / usage_format が無い"))
         c.cur["implementer"] = {"rc": rc, "seconds": round(time.monotonic() - t0, 1), "usage": usage}
+        # implementer は最後の呼び出しだけ。内側ループの全呼び出しは implementer_calls に積む（監査 F2）
+        c.cur.setdefault("implementer_calls", []).append(c.cur["implementer"])
     if rc != 0:
         return False, f"実装AI が異常終了 (rc={rc}): {(err or out)[:400]}"
     return True, ""
@@ -1077,7 +1078,8 @@ def attempt(c, feedback):
 
         print("[1] 実装AI")
         c.gate = "implementer"
-        ok, msg = call_implementer(c, inner_feedback)
+        # 失敗を返したあとの呼び出し（外側の再試行か、内側ループの 2 ターン目以降）は道具を解禁する
+        ok, msg = call_implementer(c, inner_feedback, retry=c.metrics.get("attempt", 1) > 1 or turn > 1)
         if not ok:
             if turn < MAX_INNER_LOOP_TURNS:
                 inner_feedback = extract_raw_stacktrace(msg, max_lines=40)
@@ -1128,7 +1130,10 @@ def attempt(c, feedback):
                     except Exception:
                         fail_raw_output = ""
                 if not fail_raw_output:
-                    fail_raw_output = "失敗テスト: " + ", ".join(failed_names)
+                    # 落ちたテストの名前と、期待値の不一致（アサーションの本文）。A/B の両条件で同じ整形（監査 §6）
+                    detail = getattr(c.fast, "failure_detail", None)
+                    fail_raw_output = (detail(c, f"impl_fast_turn_{turn}") if callable(detail) else "") \
+                        or "失敗テスト: " + ", ".join(failed_names)
 
         if not test_failed:
             print(f"  [PASS] 内部テスト全件合格 (turn {turn}/{MAX_INNER_LOOP_TURNS}) -> Outer Gate へ進みます")
@@ -1577,6 +1582,7 @@ def record_attempt(c, n, verdict, msg, seconds, feedback):
         entry["stages"] = {k: round(v, 1) for k, v in a["stages"].items()}
     if "implementer" in a:
         entry["implementer"] = a["implementer"]
+        entry["implementer_calls"] = a.get("implementer_calls") or [a["implementer"]]
     else:
         telemetry.put(entry, "implementer", None, "実装役を呼ぶ前に終了した")
     for key, why in (("diff_sha256", "差分を取る前に終了した"),

@@ -198,12 +198,15 @@ def call_claude(prompt):
     args += CFG.get("output_format_args", [])
     t0 = time.monotonic()
     rc, out, err = run(args, CFG["ttl_seconds"]["claude"], "claude")
-    TEL["seconds"] = round(time.monotonic() - t0, 1)
+    seconds = round(time.monotonic() - t0, 1)
     write_decompose_log(prompt, rc, out, err)
     if not CFG.get("output_format_args"):
         TEL["usage"] = telemetry.usage_unknown("config/decompose.json に output_format_args が無い")
     else:
         TEL["usage"] = telemetry.cli_usage(out, CFG["usage_format"])
+    # usage と seconds は最後の呼び出しのもの。出し直し（self_check_retries）を含めた全呼び出しは calls に積む
+    TEL["seconds"] = seconds
+    TEL.setdefault("calls", []).append({"seconds": seconds, "usage": TEL["usage"]})
     if rc != 0:
         sys.exit(f"分解役が異常終了 (rc={rc}): {(err or out)[:500]}")
     if not CFG.get("output_format_args"):
