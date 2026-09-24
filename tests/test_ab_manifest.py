@@ -43,7 +43,7 @@ class Manifest(unittest.TestCase):
                     self.assertEqual(sha(EXP / t["tests"] / name), digest, name)
 
     def test_templates_have_only_known_placeholders(self):
-        allowed = {"initial": {"task_id", "title", "prompt", "interface", "whitelist", "test_dir"},
+        allowed = {"initial": {"task_id", "title", "workdir", "prompt", "interface", "whitelist", "test_dir"},
                    "retry": {"task_id", "attempt", "max_attempts", "failed_tests", "tail_lines", "failure_tail"}}
         for key, names in allowed.items():
             text = (EXP / self.m["templates"][key]).read_text(encoding="utf-8")
