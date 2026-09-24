@@ -222,6 +222,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_ab_driver tests.test_oracle.EstablishBaseTests.test_known_failures_are_tolerated_at_base_only_in_local_only
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/66
 - id: V2-0
   title: v2 の設計（game-harness#64）
   group: B5
