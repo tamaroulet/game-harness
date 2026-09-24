@@ -24,12 +24,12 @@ if sys.platform == "win32":
     _STARTUPINFO.wShowWindow = 0  # SW_HIDE
 
 
-def run(args, cwd, ttl, label, env=None):
-    """shell=False。stdin は塞ぐ。ウィンドウも出さない。TTL は必須。"""
+def run(args, cwd, ttl, label, env=None, input=None):
+    """shell=False。stdin は塞ぐ（input を渡したときだけ、それを標準入力に流す）。ウィンドウも出さない。TTL は必須。"""
     try:
+        stdin = {"input": input} if input is not None else {"stdin": subprocess.DEVNULL}
         r = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True,
-                           timeout=ttl, encoding="utf-8", errors="replace",
-                           stdin=subprocess.DEVNULL, env=env,
+                           timeout=ttl, encoding="utf-8", errors="replace", env=env, **stdin,
                            creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
         return r.returncode, r.stdout or "", r.stderr or ""
     except subprocess.TimeoutExpired as e:

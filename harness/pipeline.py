@@ -492,7 +492,11 @@ def call_implementer(c, feedback=""):
         # 利用量を取るための出力形式。無ければ利用量は不明（null）として記録するだけで、判定は変えない。
         args += imp.get("output_format_args", [])
     t0 = time.monotonic()
-    rc, out, err = run(args, workdir, c.ttl["implementer"], "実装AI")
+    if stream:
+        # プロンプトは標準入力で渡す（Windows のコマンドラインの長さの上限。agy_stream.args）
+        rc, out, err = run(args, workdir, c.ttl["implementer"], "実装AI", input=agy_stream.stdin_for(imp, prompt))
+    else:
+        rc, out, err = run(args, workdir, c.ttl["implementer"], "実装AI")
     written = narrow_dir.write_back(narrow, c.sandbox, placed) if narrow else None
     parsed = agy_stream.parse(out) if stream else None
     c.last_implementer_out = parsed["response"] if stream else (out or "")

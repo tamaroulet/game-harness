@@ -23,8 +23,17 @@ def is_stream(imp):
 
 
 def args(imp, cli, prompt, ttl, conversation_id=None):
-    """agy の引数。cli は resolve_cli の結果（リスト）。"""
-    a = list(cli) + [imp["headless_flag"], prompt, imp["auto_approve_flag"], imp["model_flag"], imp["model_name"]]
+    """agy の引数。cli は resolve_cli の結果（リスト）。
+
+    stream-json のときは、プロンプトを引数に載せず標準入力で渡す（stdin_for）。Windows のコマンドラインは
+    32767 字までで、v2.1c で契約（GddReference）を埋め込んだら内側ループの 2 回目（反例つき）が超えた
+    （v2-dry-05 の B、WinError 206）。
+    """
+    if is_stream(imp):
+        a = list(cli) + [imp["headless_flag"] + "=", "--input-format", STREAM,
+                         imp["auto_approve_flag"], imp["model_flag"], imp["model_name"]]
+    else:
+        a = list(cli) + [imp["headless_flag"], prompt, imp["auto_approve_flag"], imp["model_flag"], imp["model_name"]]
     a += list(imp.get("output_format_args") or [])
     a += list(imp.get("extra_flags") or [])
     if imp.get("effort"):
@@ -34,6 +43,13 @@ def args(imp, cli, prompt, ttl, conversation_id=None):
     if conversation_id:
         a += ["--conversation", conversation_id]
     return a
+
+
+def stdin_for(imp, prompt):
+    """標準入力で渡すもの。stream-json のときは 1 行の {"event": "user", "message": {"content": ...}}（実測）。"""
+    if not is_stream(imp):
+        return None
+    return json.dumps({"event": "user", "message": {"content": prompt}}, ensure_ascii=False) + "\n"
 
 
 def parse(text):

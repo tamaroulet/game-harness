@@ -80,7 +80,13 @@ class StreamParse(unittest.TestCase):
 
     def test_args_carry_print_timeout_sandbox_effort_and_conversation(self):
         a = agy_stream.args(dict(IMP, effort="medium"), ["agy"], "P", 300, "c1")
-        self.assertEqual(a[:6], ["agy", "-p", "P", "--dangerously-skip-permissions", "--model", "m"])
+        # v2.1c：プロンプトは引数に載せず標準入力で渡す（Windows のコマンドラインの上限。v2-dry-05 の WinError 206）
+        self.assertEqual(a[:7], ["agy", "-p=", "--input-format", "stream-json", "--dangerously-skip-permissions",
+                                 "--model", "m"])
+        self.assertNotIn("P", a)
+        self.assertEqual(json.loads(agy_stream.stdin_for(IMP, "P" * 40000)),
+                         {"event": "user", "message": {"content": "P" * 40000}})
+        self.assertIsNone(agy_stream.stdin_for({}, "P"), "stream-json でなければ標準入力は塞いだまま")
         for pair in (["--output-format", "stream-json"], ["--print-timeout", "280s"], ["--effort", "medium"],
                      ["--conversation", "c1"]):
             i = a.index(pair[0])
@@ -127,8 +133,8 @@ class Embedding(unittest.TestCase):
                                 sb=lambda rel: Path(d) / rel, cfg={"implementer": IMP, "project": {"impl_dir": "Core"}},
                                 ttl={"implementer": 300}, metrics={}, cur={})
 
-            def fake_run(args, cwd, ttl, label):
-                seen["prompt"] = args[2]
+            def fake_run(args, cwd, ttl, label, input=None):
+                seen["prompt"] = json.loads(input)["message"]["content"]
                 return 0, stream, ""
             with mock.patch.object(pipeline, "run", side_effect=fake_run), \
                     mock.patch.object(pipeline, "resolve_cli", side_effect=lambda n: [n]), \

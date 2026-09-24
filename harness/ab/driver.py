@@ -68,7 +68,7 @@ def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run):
     if agy_stream.is_stream(imp):
         t0 = time.monotonic()
         rc, out, err = runner(agy_stream.args(imp, resolve_cli(imp["cli"]), prompt, ttl, conversation_id),
-                              cwd, ttl, "実装AI（条件 A）")
+                              cwd, ttl, "実装AI（条件 A）", input=agy_stream.stdin_for(imp, prompt))
         parsed = agy_stream.parse(out)
         return {"rc": rc, "seconds": round(time.monotonic() - t0, 1),
                 "conversation_id": parsed["conversation_id"] or conversation_id, "usage": parsed["usage"],

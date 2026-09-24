@@ -154,8 +154,8 @@ class NarrowDir(unittest.TestCase):
                                 sb=lambda rel: sb / rel, cfg={"implementer": imp, "project": {"impl_dir": "Core"}},
                                 ttl={"implementer": 300}, metrics={}, cur={})
 
-            def fake_run(args, cwd, ttl, label):
-                seen["cwd"], seen["prompt"] = Path(cwd), args[2]
+            def fake_run(args, cwd, ttl, label, input=None):
+                seen["cwd"], seen["prompt"] = Path(cwd), json.loads(input)["message"]["content"]
                 seen["listing"] = sorted(p.relative_to(cwd).as_posix() for p in Path(cwd).rglob("*") if p.is_file())
                 (Path(cwd) / "Core" / "GameState.cs").write_text("class GameState : IGameState {}", encoding="utf-8")
                 return 0, "", ""
