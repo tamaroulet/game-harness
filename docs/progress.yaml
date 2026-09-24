@@ -1,5 +1,5 @@
 project_goal: 'Phase 3: 4 大未踏領域の評価と falling-blocks#17 のスモーク実証'
-active_task_id: B4-E3
+active_task_id: B4-E4
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -172,16 +172,15 @@ tasks:
   - experiments/b4_ab/units/
   - experiments/b4_ab/tests/
   - experiments/b4_ab/templates/
-  status: in_progress
+  status: completed
   verification:
     command: python -m unittest tests.test_ab_manifest
     expected_exit_code: 0
-  review_pr: https://github.com/tamaroulet/game-harness/pull/58
 - id: B4-E4
   title: A/B ドライバ・測定器・集計と pipeline の --local-only
   group: B4
   target_repo: game-harness
-  status: pending
+  status: in_progress
   verification: null
 - id: B4-E5
   title: 乾式の走行（T1 を A・B で 1 回ずつ）
@@ -214,6 +213,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: B4-E2
+  task: B4-E3
   exit_code: 0
-  at: '2026-09-24T10:24:44'
+  at: '2026-09-24T11:27:42'
