@@ -34,7 +34,9 @@ import contract
 import fileops
 import invrun
 import oracle
+import os
 import project
+import propgen
 import telemetry
 import testgen
 import tool_policy
@@ -416,7 +418,7 @@ def write_implementer_log(c, n, prompt, rc, out, err):
     return path
 
 
-def call_implementer(c, feedback="", retry=False):
+def call_implementer(c, feedback=""):
     # 相対パスで渡すと、実装AIが本体リポジトリを編集しうる（実測で発生した）。
     # サンドボックスの絶対パスに展開して曖昧さを消す。ただしこれは
     # 「間違えにくくする」だけで、脱走を防ぐ機構ではない。
@@ -446,9 +448,9 @@ def call_implementer(c, feedback="", retry=False):
               f"合意を求める必要も、事前に状況を説明する必要もありません。"
               f"書き終えてから、何をしたかだけを報告してください。"
               f"コード案を本文に貼るだけ、計画だけ返すのは未完了とみなされます。\n"
-              # 最初の呼び出しはテストも探索もさせない（入力トークンが膨らむ。B4-E5 の dry-01）。
-              # 失敗を返したあとは、自分でデバッグできるよう解禁する（B4-RUN v1.0 の裁定 2）
-              + tool_policy.text(retry) + "\n"
+              # 再試行を含めて編集だけ。検証は外側の門が行い、失敗は反例で返す（v2 §7。v1 の再試行時の
+              # 解禁は、b4-smoke-02 の T4 で 9 回の呼び出しがすべて TTL で打ち切られたので廃止した）
+              + tool_policy.text() + "\n"
               f"受入テスト側に明らかな誤謬（手計算ミスや仕様不整合）があり、自身の実装が正当であると判断した場合は、無理にテストに合わせず {{\"status\": \"DISPUTE_TEST\", \"reason\": \"<具体的な不整合理由>\"}} のJSONを出力してください。\n\n" + prompt)
     if feedback:
         prompt += "\n\n前回の失敗:\n" + feedback
@@ -595,15 +597,11 @@ def missing_symbols(required, text):
 
 def gate_static(c):
     if c.test_driven:
-        ng = gate_static_common(c)
-        if ng:
-            return ng
-        impls = c.unit.get("impl_files") or c.unit["whitelist"]
-        text = "\n".join(c.sb(r).read_text(encoding="utf-8", errors="replace") for r in impls)
-        missing = missing_symbols(c.unit["required_symbols"], text)
-        if missing:
-            return "シグネチャが揃っていません: " + ", ".join(missing)
-        return None
+        # シグネチャは文字列で照合しない。形はコンパイラ（契約の探針を含む高速検査のビルド）が決める
+        # （v2 §3.3・§5.1 の 3）。v1 はここで impl_files の文字列だけを探し、whitelist の外にある
+        # TickInput の宣言を見つけられずに B の試行を 6 回とも落とした（game-harness#63）。
+        # 残すのは禁止パターンと skip 属性の検査だけ（§5.1 の 2）
+        return gate_static_common(c)
 
     core = c.sb(c.unit["core_impl"])
     so = c.sb(c.unit["so_impl"])
@@ -694,9 +692,53 @@ def diff_budget_problem(unit, added, deleted):
 
 # ============================================================ テストの実行（アダプタ）
 
-def run_fast_tests(c, tag):
-    """高速検査（純粋なコードのテスト）。実体は fast アダプタ。"""
-    return c.fast.run_tests(c, tag)
+def run_fast_tests(c, tag, env=None):
+    """高速検査（純粋なコードのテスト）。実体は fast アダプタ。env は非公開シードを渡すときだけ。"""
+    return c.fast.run_tests(c, tag) if env is None else c.fast.run_tests(c, tag, env=env)
+
+
+HIDDEN_SUFFIX = "_Hidden"
+HIDDEN_SEEDS_DEFAULT = 20
+
+
+def hidden_seeds(c, count):
+    """非公開シード（v2 §4.3・§5.1 の 5）。単位・試行・差分から決める。生成物にも実装役への知らせにも出さない。
+
+    差分が変われば変わるので、同じシードに合わせ込む（過剰適合する）ことができない。同じ差分なら同じシード
+    になり、測り直せる。値は 1〜2^31-1。
+    """
+    base = f"{c.unit.get('id')}:{c.metrics.get('attempt', 0)}:{(c.cur or {}).get('diff_sha256', '')}"
+    root, seeds, i = hashlib.sha256(base.encode("utf-8")).digest(), [], 0
+    while len(seeds) < count:
+        d = hashlib.sha256(root + i.to_bytes(4, "big")).digest()
+        seeds.append((int.from_bytes(d[:4], "big") & 0x7FFFFFFF) or 1)
+        i += 1
+    return seeds
+
+
+def attempt_hidden_properties(c, fast):
+    """性質テストの非公開シード。合格か性質テストが無ければ None、そうでなければ (verdict, msg)。
+
+    公開シードの性質テスト（*_Hidden 以外）は内側ループで通っている。ここでは *_Hidden だけを、
+    ハーネスが決めたシードで走らせる。落ちても、反例は実装役に返さない（過剰適合を防ぐ）。
+    """
+    hidden = sorted(n for n in (fast or {}) if n.endswith(HIDDEN_SUFFIX))
+    if not hidden:
+        print("    性質テストの非公開シードは無し")
+        return None
+    count = c.cfg["gates"].get("hidden_seeds", HIDDEN_SEEDS_DEFAULT)
+    env = dict(os.environ, **{propgen.HIDDEN_ENV: ",".join(str(s) for s in hidden_seeds(c, count))})
+    results, err = run_fast_tests(c, "impl_hidden", env=env)
+    if err:
+        return "ABORT", f"非公開シードの性質テストを実行できません（公開シードではビルドできていた）: {err}"
+    failed = [n for n in hidden if results.get(n) != c.fast.PASSED]
+    if isinstance(getattr(c, "cur", None), dict):
+        c.cur["hidden_failed"] = len(failed)
+    if failed:
+        print(f"    非公開シードで破れた性質 {len(failed)} 件（実装役には件数も名前も返さない）")
+        return "RETRY", "非公開シードで性質が破れました（反例は開示しません）"
+    print(f"    合格（非公開シード {count} 本、性質 {len(hidden)} 件）")
+    return None
 
 
 def run_engine_tests(c, tag):
@@ -834,14 +876,12 @@ def establish_base(c):
         aborts += f2p_aborts
         if aborts:
             return "ABORT", "検査系故障（base）: " + "; ".join(aborts)
-        if fake and getattr(c, "local_only", False):
-            # A/B 実験（--local-only）だけの扱い（S1、B4-RUN v1.0 の裁定）。タスクを積み重ねると、前のタスクの
-            # 実装だけで通る受入テストが出る。偽テストとせず、P2P（base で Passed なので P_base に入る）として守らせる
+        if fake:
+            # 実装前から通っている受入テストは正常（S1 を標準にした。v2 §5.2）。タスクを積み重ねると、前のタスクの
+            # 実装だけで成り立つ性質が出る。偽テストとして REJECT せず、P2P（base で Passed なので P_base に入る）
+            # として守らせる。v1 はこれを REJECT して、b4-smoke-01 の B が T2 から走れなかった（game-harness#63）
             c.metrics["prepassing"] = len(fake)
-            print(f"    実装前から通っている受入テスト {len(fake)} 件は P2P として扱う（--local-only）")
-        elif fake:
-            return "REJECT", (f"偽テスト: 実装前から通っている受入テスト {len(fake)} 件: "
-                              + ", ".join(fake[:5]))
+            print(f"    実装前から通っている受入テスト {len(fake)} 件は P2P として守らせる")
 
         c.base = SimpleNamespace(fast=fast_base, fast_p2p=fast_p2p, engine=engine)
         c.metrics["p2p_base"] = (oracle.p2p_count(fast_p2p, F, q)
@@ -1083,8 +1123,7 @@ def attempt(c, feedback):
 
         print("[1] 実装AI")
         c.gate = "implementer"
-        # 失敗を返したあとの呼び出し（外側の再試行か、内側ループの 2 ターン目以降）は道具を解禁する
-        ok, msg = call_implementer(c, inner_feedback, retry=c.metrics.get("attempt", 1) > 1 or turn > 1)
+        ok, msg = call_implementer(c, inner_feedback)
         if not ok:
             if turn < MAX_INNER_LOOP_TURNS:
                 inner_feedback = extract_raw_stacktrace(msg, max_lines=40)
@@ -1189,7 +1228,11 @@ def attempt(c, feedback):
         return "RETRY", "; ".join(ng)
 
     if c.test_driven:
-        print("[5] 非開示ゴールデンは無し（テスト駆動の単位）")
+        print("[5] 性質テスト（非公開シード）")
+        c.gate = "hidden_properties"
+        failed = attempt_hidden_properties(c, fast)
+        if failed:
+            return failed
     else:
         c.gate = "holdout"
         failed = attempt_holdout(c, fast)
@@ -1722,15 +1765,13 @@ def git_head(cwd, ttl):
     return out.strip() if rc == 0 and out.strip() else None
 
 
-def with_known_failures(quarantine, path, local_only):
-    """隔離に、前のタスクの終わりに落ちていたテストを足す（S2、B4-RUN v1.0 の裁定）。
+def with_known_failures(quarantine, path):
+    """隔離に、前のタスクの終わりに落ちていたテストを足す（S2 を標準にした。v2 §5.2）。
 
-    タスクを積み重ねる A/B 実験で、B が落としたタスクのテストが次のタスクの base に残り、
-    「base で既に失敗」の ABORT が連鎖するのを防ぐ。通常の運用では隔離に PR の承認（approved_in）が要るので、
-    --local-only のときだけ受け付ける。
+    タスクを積み重ねると、落としたタスクのテストが次のタスクの base に残り、
+    「base で既に失敗」の ABORT が連鎖する（b4-smoke-01 の B、game-harness#63）。呼び出し側（ドライバ・
+    スケジューラ）が、前のタスクの測定で落ちていたテストの名前を渡す。受入テストの判定（F2P）には使わない。
     """
-    if not local_only:
-        sys.exit("ABORT: --known-failures は --local-only（A/B 実験）のときだけ使えます")
     names = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(names, list) or not all(isinstance(n, str) and n for n in names):
         sys.exit(f"ABORT: --known-failures はテスト名の配列にしてください: {path}")
@@ -1750,7 +1791,7 @@ def main():
                     help="push・CI・TIMELINE を行わず、--repo-dir の中の commit で終える（A/B 実験用）")
     ap.add_argument("--known-failures",
                     help="前のタスクの終わりに落ちていたテストの名前（JSON の配列）。base の検査と P2P から外す"
-                         "（A/B 実験用。--local-only のときだけ）")
+                         "（v2 §5.2。受入テストの判定には使わない）")
     ap.add_argument("--sandbox", help="サンドボックスの置き場（既定は pipeline.json の paths.sandbox）")
     ap.add_argument("--out-dir", help="出力の置き場（既定は pipeline.json の paths.out_dir）")
     args = ap.parse_args()
@@ -1777,8 +1818,7 @@ def main():
         c.local_only = args.local_only
         c.tel, c.tel_path = tel, tel_path
         if args.known_failures:
-            c.oracle["quarantine"] = with_known_failures(c.oracle["quarantine"], args.known_failures,
-                                                         args.local_only)
+            c.oracle["quarantine"] = with_known_failures(c.oracle["quarantine"], args.known_failures)
             tel["known_failures"] = len(c.oracle["quarantine"])
         imp = c.cfg["implementer"]
         tel.update(unit_id=c.unit.get("id"),

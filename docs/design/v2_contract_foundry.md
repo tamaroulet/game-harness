@@ -1,6 +1,6 @@
 # v2（Contract-Driven Foundry）：契約駆動の防壁型
 
-- 状態: 設計（方針と仕様）。V2-1（contractgen）・V2-2（propgen）を実装した（§11）
+- 状態: 設計（方針と仕様）。V2-1（contractgen）・V2-2（propgen）・V2-3（pipeline の門）を実装した（§11）
 - 前提: B4-RUN v1.0 の評価はスモーク（b4-smoke-01・02）で打ち切り（2026-09-24、オーナー判断）。実測と総括は game-harness#63
 - 決定（2026-09-24、オーナー裁定）:
   1. v2 でも条件 A（単一チャット）と比べる。**A にも同じ契約と性質テストを渡す**（同じ情報の原則）
@@ -286,3 +286,10 @@ v1 の分解役は、受入データ（given・op・期待値の例）を大量�
 - V2-1（contractgen）：`harness/contractgen.py`・`tests/test_contractgen.py`。生成物は、C# 9・警告をエラー扱いのクラスライブラリで、正しい形の `GameState` の仮実装とともにコンパイルが通る。コンストラクタの引数の型を変えた仮実装は、契約の探針が CS1503 で落とす（使い捨ての確認。手順は game-harness の PR 本文）
 - V2-2（propgen）：`harness/propgen.py`・`tests/test_propgen.py`。参照データは、構造化仕様 §5 の PR-xx の**名前**（「形状 I 向き 0」「回転補正候補 J・L・S・T・Z 0 → R」「回転補正候補 O 全向き遷移」）から組み立て、欠けた形・遷移があれば生成を拒絶する。§4.1 の式に加えて `occupied_before`・`occupied_after` を足した。非公開シードは生成物に書かず、環境変数 `HARNESS_PROPERTY_SEEDS` で渡す（無ければ Ignore）。反例は、最初に破れた手で切ったうえで、手を 1 つずつ抜いても破れるなら抜いて縮める。開始状態の半分は壁際から始め、壁やキックに当たる操作を系列に含める
 - V2-2 で分かったこと：ランダムな開始状態では「キックが要る回転」がまれで、`given` が回転全般の性質はキックしない実装を通しうる。キックが要る場合だけを前提にした性質（`!fits(rotated(m, 1)) && kick(m, 1) != null`）を足せば、成り立つ回数が 0 のとき `PROPERTY_VACUOUS` で落ちるので、網羅の不足が表に出る。V2-4 の宣言では、分岐ごとに前提を分けた性質を書く
+- V2-3（pipeline の門）：
+  - シグネチャの文字列照合（`gate_static` の `required_symbols`）を、テスト駆動の単位では廃止した。残すのは禁止パターンと skip 属性の検査だけ。形は、契約の探針を含む高速検査のビルドが決め、落ちたら `diagproj` の射影を返す。旧来のゴールデンの単位（unity-2d の MS3 の `core_impl`・`so_impl`）の検査は、この改修の対象外として残した
+  - 実装役への失敗の知らせは、TRX から `PROPERTY_FAIL`・`PROPERTY_VACUOUS` の行だけを取り出し、同じ行をまとめて最大 5 行（`adapters/dotnet.failure_detail`）。性質テストでない失敗だけのときは、従来の名前と本文の要約
+  - 非公開シードの段（`attempt_hidden_properties`）：公開シードの内側ループと受入の後、不変条件の前。`*_Hidden` のテストを、単位・試行・差分から決めたシード（既定 20 本、`gates.hidden_seeds` で変えられる）で走らせる。環境変数が効かずに Ignore のままなら合格としない。落ちたら「非公開シードで性質が破れました（反例は開示しません）」だけを返す
+  - S1（実装前から通る受入テストは P2P として守る）と S2（`--known-failures`）を、`--local-only` に限らない標準の扱いにした
+  - 実装役は再試行を含めて編集だけ（`tool_policy.EDIT_ONLY`。`RETRY` は削除）。A（ドライバ）も同じ文面。TTL は 300 秒のまま
+  - 測定器（`harness/ab/measure.py`）は、まだ非公開シードを渡さない。A・B の測定で非公開シードを使うのは V2-5 で入れる
