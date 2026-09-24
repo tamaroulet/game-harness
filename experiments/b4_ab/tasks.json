@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "experiment": "b4_ab",
+  "_comment": "A/B 実験の凍結した入力（docs/design/b4_ab_experiment.md §4）。実験中は書き換えない。sha256 は tests/test_ab_manifest.py が検査する",
+  "base_commit": "87bdfdaf183cf220cf2b1e1f795f23bcca45d370",
+  "gdd_sha256": "95876782072ebf6a973781f2921e6abe4d2cead5519a09f673fe380991feb7a7",
+  "implementer": {
+    "cli": "agy",
+    "model": "gemini-3.8-flash-high"
+  },
+  "max_attempts": 3,
+  "invariant_seeds": [
+    11,
+    22,
+    33
+  ],
+  "common_requirement": "requirements/common.md",
+  "common_requirement_sha256": "1462c65f86c79ec803286d3e4676e61760c200cbae8ca624206f8f8cc9a02d2b",
+  "templates": {
+    "initial": "templates/initial.md",
+    "initial_sha256": "d2b434167b8ffb4cbc3212994845191a5cdd07411a9969742e7eab1eff6047df",
+    "retry": "templates/retry.md",
+    "retry_sha256": "36b61f3427c14f481366806e8f2e4f656ec6e4cc9f10d077690681ca6f066640",
+    "retry_tail_lines": 40
+  },
+  "test_dir": "tests/Core.Tests/Generated",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "左右移動（壁・盤面外の判定）",
+      "requirement": "requirements/T1.md",
+      "requirement_sha256": "c0645587e0a51736b37b8b5bb8384410e82b18ca70ff12f46ef4b4d879465037",
+      "unit": "units/T1.json",
+      "unit_sha256": "7648f45519efce2d32d5a23e11cd198c7c316cbd66d78f01f61a5d6b2d04c8cb",
+      "tests": "tests/T1/",
+      "tests_sha256": {
+        "B4abT1Cases.cs": "054c7c452066011794ad5346dc70647fce5e081a913c416935b0f1e74c5a8f5c"
+      },
+      "superseded_tests": []
+    },
+    {
+      "id": "T2",
+      "title": "自然落下と接地判定（ロック猶予・固定・次のミノの出現）",
+      "requirement": "requirements/T2.md",
+      "requirement_sha256": "5ea6ea3c28ef05b7b5a59898aef1c44556c783641a821215e6c3118992aab156",
+      "unit": "units/T2.json",
+      "unit_sha256": "079f570cebc2c8ed126748164e52957d3dd5d5934a944f684c8fb2665828c3b5",
+      "tests": "tests/T2/",
+      "tests_sha256": {
+        "B4abT2Cases.cs": "fb7b3200d11e8dd8c8d32c799d59b47c77ecd857232e2dd5365705949834ae05"
+      },
+      "superseded_tests": []
+    },
+    {
+      "id": "T3",
+      "title": "ハードドロップ（即時固定）",
+      "requirement": "requirements/T3.md",
+      "requirement_sha256": "81d14b3e61ea920536c2a005c6500fbeac402f81050393f26cf196f4448542bf",
+      "unit": "units/T3.json",
+      "unit_sha256": "6b4f5eeb57e01bffdfc33899b8dca7f2f91216bb6ebafe53db9d83240aa83032",
+      "tests": "tests/T3/",
+      "tests_sha256": {
+        "B4abT3Cases.cs": "6b1ba6dd97cda8598cfce0228bcd109a76ee646e3a3f8f97688b6b0582d63876"
+      },
+      "superseded_tests": []
+    },
+    {
+      "id": "T4",
+      "title": "回転（壁キックなし）",
+      "requirement": "requirements/T4.md",
+      "requirement_sha256": "822fb3f35b59b067ec1df22eba982d12ebf0e13554a39f630e87b36a51c8f558",
+      "unit": "units/T4.json",
+      "unit_sha256": "5b3f03b8bbf1f1e5d8b03805efcab10d5a0f74b021313075f79fe61a196cc0d5",
+      "tests": "tests/T4/",
+      "tests_sha256": {
+        "B4abT4Cases.cs": "2af28eac75c940465e0c92588685ce2facc50317854e6b02f3bbaecb8e49090a"
+      },
+      "superseded_tests": []
+    },
+    {
+      "id": "T5",
+      "title": "壁キック回転（SRS）",
+      "requirement": "requirements/T5.md",
+      "requirement_sha256": "db41a7aa3d1de7c1c1519c8d2603d36e05944cd3395a75c8bd7622994f609540",
+      "unit": "units/T5.json",
+      "unit_sha256": "640fc98321fe915c04b0779e7f88f29624b61990dcefc71cc085b9d764773724",
+      "tests": "tests/T5/",
+      "tests_sha256": {
+        "B4abT5Cases.cs": "5831448f12b46e3d137cac8b617469aa0c694cfc22df9aa7bd9ab499db4bd63e"
+      },
+      "superseded_tests": []
+    }
+  ]
+}

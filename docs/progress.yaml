@@ -166,8 +166,16 @@ tasks:
   title: マニフェスト・テンプレート・凍結した単位定義と生成テスト
   group: B4
   target_repo: game-harness
+  target_files:
+  - experiments/b4_ab/tasks.json
+  - experiments/b4_ab/requirements/
+  - experiments/b4_ab/units/
+  - experiments/b4_ab/tests/
+  - experiments/b4_ab/templates/
   status: in_progress
-  verification: null
+  verification:
+    command: python -m unittest tests.test_ab_manifest
+    expected_exit_code: 0
 - id: B4-E4
   title: A/B ドライバ・測定器・集計と pipeline の --local-only
   group: B4
