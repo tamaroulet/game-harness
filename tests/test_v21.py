@@ -142,11 +142,10 @@ class Embedding(unittest.TestCase):
 
 
 class WiderContext(unittest.TestCase):
-    """v2.1b：base の既存の型と、仕様の抜き出しまで埋め込む（v2-dry-03 の実装役はそれらを読みに行った）。"""
+    """v2.1b：base の既存の型まで埋め込む（v2-dry-03 の実装役はそれらを読みに行った）。
+    v2.1c：仕様書の抜き出しはやめた（tests/test_v21c.py）。"""
 
-    def test_existing_type_files_and_spec_excerpt_are_embedded(self):
-        sys.path.insert(0, str(ROOT / "tests"))
-        from test_propgen import SPEC
+    def test_existing_type_files_are_embedded_before_the_editable_files(self):
         unit = {"whitelist": ["Core/GameState.cs"], "prompt": "- P-T1-01（RL-16）：前提 … のとき …",
                 "interface": {"types": [{"name": "ActiveMino"}, {"name": "GameState"}, {"name": "Cell"}]}}
         with tempfile.TemporaryDirectory() as d:
@@ -154,20 +153,13 @@ class WiderContext(unittest.TestCase):
             core.mkdir()
             (core / "GameState.cs").write_text("class GameState {}", encoding="utf-8")
             (core / "ActiveMino.cs").write_text("struct ActiveMino {}", encoding="utf-8")
-            (Path(d) / "docs").mkdir()
-            (Path(d) / "docs" / "spec.md").write_text(SPEC, encoding="utf-8")
             self.assertEqual(implementer_context.type_files(d, unit, "Core"), ["Core/ActiveMino.cs"],
                              "whitelist のものと、base に無い型（Cell）は除く")
-            text = implementer_context.for_unit(d, unit, "Core", "docs/spec.md")
+            text = implementer_context.for_unit(d, unit, "Core")
         self.assertIn("struct ActiveMino {}", text)
-        self.assertIn("## 仕様の抜き出し", text)
-        self.assertIn("- RL-16 | 規則", text, "prompt に出てくる規則の行")
-        self.assertNotIn("RL-40", text, "prompt に無い規則は入れない")
-
-    def test_excerpt_skips_unknown_ids(self):
-        sys.path.insert(0, str(ROOT / "tests"))
-        from test_propgen import SPEC
-        self.assertEqual(implementer_context.spec_excerpt(SPEC, ["RL-99"]), "")
+        self.assertLess(text.index("struct ActiveMino {}"), text.index("class GameState {}"),
+                        "変わらない前置き（読み取り専用）を先に置く")
+        self.assertNotIn("仕様の抜き出し", text)
 
 
 class ImplementerLogPerCall(unittest.TestCase):

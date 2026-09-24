@@ -208,6 +208,125 @@ def generate(interface, impl_dir, test_dir, existing=(), subdir=CONTRACTS_DIR):
     return files
 
 
+# ============================================================ 参照データ（v2.1c：docs/design/v2_1c_structure_review.md §3 の 1）
+
+REFERENCE_CLASS = "GddReference"
+ROT_LABELS = ("0", "R", "2", "L")
+_INT_COORD_RE = re.compile(r"\(\s*(-?\d+)\s*,\s*(-?\d+)\s*\)")
+_FLOAT_COORD_RE = re.compile(r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)")
+_PER_RE = re.compile(r"^\s*\d+\s*\S+につき\s*(-?\d+)\s*\S*\s*$")
+_INT_RE = re.compile(r"^\s*(-?\d+)(?:\s*\S+)?\s*$")
+_SHAPE_RE = re.compile(r"^形状 (\S+) 向き (\S+)$")
+_KICK_RE = re.compile(r"^回転補正候補 (\S+) (\S+) → (\S+)$")
+_KICK_ALL_RE = re.compile(r"^回転補正候補 (\S+) 全向き遷移$")
+
+
+def _const_name(pid):
+    return pid.replace("-", "_")
+
+
+def _param_member(pid, name, value, enums, table):
+    """構造化仕様 §5 の 1 行 → C# のメンバー（行の列）。読めない値は ContractError（黙って落とさない）。
+
+    table：形・回転補正候補の行。座標が 1 つでも int[][] にする（Shape・Kicks が同じ型で返すため）。
+    """
+    cid, doc = _const_name(pid), f"        // {pid} {name}"
+    m = _INT_RE.match(value) or _PER_RE.match(value)
+    if m:
+        # 単位（ティック・回・点など）は値の文字列にしか無いので、整数の行だけ注記に残す
+        return [f"{doc}：{value}", f"        public const int {cid} = {int(m.group(1))};"]
+    rest = _FLOAT_COORD_RE.sub("", value).strip()
+    ints, floats = _INT_COORD_RE.findall(value), _FLOAT_COORD_RE.findall(value)
+    if floats and not rest:
+        if len(ints) == len(floats) and (table or len(ints) > 1):
+            cells = ", ".join(f"new[] {{ {x}, {y} }}" for x, y in ints)
+            return [doc, f"        public static readonly int[][] {cid} = {{ {cells} }};"]
+        if len(ints) == len(floats) == 1:
+            return [doc, f"        public static readonly int[] {cid} = {{ {ints[0][0]}, {ints[0][1]} }};"]
+        if len(floats) == 1:
+            return [doc, f"        public static readonly double[] {cid} = {{ {floats[0][0]}, {floats[0][1]} }};"]
+    names = [s.strip() for s in value.split(",")]
+    for enum, values in sorted(enums.items()):
+        if names and all(n in values for n in names):
+            items = ", ".join(f"{enum}.{n}" for n in names)
+            return [doc, f"        public static readonly {enum}[] {cid} = {{ {items} }};"]
+    raise ContractError(f"参照データ {pid}（{name}）の値を C# にできません: {value!r}")
+
+
+def _tables(rows, types):
+    """形と回転補正候補の行の ID。({型: [向き 0・R・2・L の PR]}, {型: {(from, to): PR}})。欠けていれば ContractError。"""
+    rot_of = {lab: i for i, lab in enumerate(ROT_LABELS)}
+    shapes, kicks = {t: [None] * 4 for t in types}, {t: {} for t in types}
+    for pid, (name, _) in rows.items():
+        m, k, k_all = _SHAPE_RE.match(name), _KICK_RE.match(name), _KICK_ALL_RE.match(name)
+        if m and m.group(1) in shapes and m.group(2) in rot_of:
+            shapes[m.group(1)][rot_of[m.group(2)]] = pid
+        elif k and k.group(2) in rot_of and k.group(3) in rot_of:
+            for t in k.group(1).split("・"):
+                kicks.setdefault(t, {})[(rot_of[k.group(2)], rot_of[k.group(3)])] = pid
+        elif k_all:
+            for t in k_all.group(1).split("・"):
+                for f in range(4):
+                    for d in (1, -1):
+                        kicks.setdefault(t, {})[(f, (f + d) % 4)] = pid
+    missing = [f"形 {t} 向き {ROT_LABELS[r]}" for t in types for r in range(4) if shapes[t][r] is None]
+    missing += [f"回転補正候補 {t} {ROT_LABELS[f]} → {ROT_LABELS[(f + d) % 4]}" for t in types for f in range(4)
+                for d in (1, -1) if (f, (f + d) % 4) not in kicks.get(t, {})]
+    unknown = sorted(set(kicks) - set(types))
+    if missing or unknown:
+        raise ContractError(f"参照データの表が欠けています: {missing[:5]}、MinoType に無い型: {unknown}")
+    return shapes, kicks
+
+
+def reference_file(rows, enums, impl_dir, subdir=CONTRACTS_DIR):
+    """構造化仕様 §5 の参照データを、読み取り専用の C# にする。({相対パス: 本文}, 定数にした PR の ID の列)。
+
+    rows：{PR-xx: (名前, 値)}（propgen.param_rows）。enums：{列挙の名前: 値の列}（MinoType と Rotation が要る。
+    Rotation の値の順は向き 0・R・2・L）。
+    実装役に参照データを自然言語の表で渡して C# へ写させない（v1 への後退。決定 2・3、L5）。
+    行ごとに定数（PR-03 → PR_03）を置き、形と回転補正候補は、その定数を名前で引くメソッド（Shape・Kicks）にする。
+    列挙の数値の順には頼らない（base の列挙の宣言順を総監督は見ていない）。値は定数に 1 回だけ書く。
+    """
+    types, rots = enums["MinoType"], enums["Rotation"]
+    shapes, kicks = _tables(rows, types)
+    table_ids = {p for ps in shapes.values() for p in ps} | {p for ks in kicks.values() for p in ks.values()}
+    out = [HEADER, "#nullable disable", f"namespace {testgen.CORE_NAMESPACE}", "{",
+           "    // GDD の参照データ（構造化仕様 §5）。行ごとの定数と、形・回転補正候補を名前で引くメソッド",
+           f"    public static class {REFERENCE_CLASS}", "    {"]
+    ids = []
+    for pid in sorted(rows, key=lambda x: int(x.split("-")[1])):
+        name, value = rows[pid]
+        out += _param_member(pid, name, value, enums, pid in table_ids)
+        ids.append(pid)
+    out += ["", "        // 形 type・向き rotation の 4 マスの (x, y)",
+            "        public static int[][] Shape(MinoType type, Rotation rotation)", "        {"]
+    for t in types:
+        for r in range(4):
+            out.append(f"            if (type == MinoType.{t} && rotation == Rotation.{rots[r]}) "
+                       f"return {_const_name(shapes[t][r])};")
+    out += ["            throw new System.ArgumentException(\"unknown shape\");", "        }", "",
+            "        // 形 type を向き from から to へ回すときの補正候補 (dx, dy)。試す順",
+            "        public static int[][] Kicks(MinoType type, Rotation from, Rotation to)", "        {"]
+    groups = {}
+    for t in types:
+        groups.setdefault(tuple(sorted(kicks[t].items())), []).append(t)
+    for table, members in groups.items():
+        cond = " || ".join(f"type == MinoType.{t}" for t in members)
+        pids = {pid for _, pid in table}
+        if len(pids) == 1:
+            out.append(f"            if ({cond}) return {_const_name(pids.pop())};")
+            continue
+        out.append(f"            if ({cond})")
+        out.append("            {")
+        for (f, to), pid in table:
+            out.append(f"                if (from == Rotation.{rots[f]} && to == Rotation.{rots[to]}) "
+                       f"return {_const_name(pid)};")
+        out.append("            }")
+    out += ["            throw new System.ArgumentException(\"unknown kick\");", "        }", "    }", "}", ""]
+    where = f"{impl_dir}/{subdir}" if subdir else impl_dir
+    return {f"{where}/{REFERENCE_CLASS}.cs": "\n".join(out)}, ids
+
+
 def lock(files):
     """生成物の sha256。測定器と門は、これと違う生成物を「書き換えられた」とみなす（§3.4）。"""
     return {rel: hashlib.sha256(text.encode("utf-8")).hexdigest() for rel, text in sorted(files.items())}

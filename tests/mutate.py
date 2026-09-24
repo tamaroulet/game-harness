@@ -447,8 +447,8 @@ M = [
 M_PIPELINE = [
     # ---- 実装役の観測（docs/design/spec_pipeline.md）
     ('M144 実装役のログを rc != 0 のときだけ書く', 'pipeline.py',
-     '    write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err)',
-     '    if rc != 0:\n        write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err)'),
+     '    write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err, cwd=workdir)',
+     '    if rc != 0:\n        write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err, cwd=workdir)'),
     # ---- required_symbols の照合（docs/design/spec_pipeline.md）
     # 置換元は 1 行に収める。mutate.py は対象をバイト列で読むので、CRLF のファイルでは
     # 複数行の置換元が当たらない（表の検査は改行を正規化して読むため素通りしてしまう）

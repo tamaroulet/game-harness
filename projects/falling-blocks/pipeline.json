@@ -34,6 +34,8 @@
     "extra_flags": [
       "--sandbox"
     ],
+    "_effort_note": "v2.1c（docs/design/v2_1c_structure_review.md、2026-09-25 の裁定 3）：v2-dry-05 で medium を確かめる。受入 8/8 が落ちず、思考のトークンが v2-dry-04 より 3 割以上減れば本走まで medium に固定する。満たさなければ外す",
+    "effort": "medium",
     "usage_format": "agy"
   },
   "control_groups": {

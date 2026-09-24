@@ -33,6 +33,7 @@ import adapters
 import agy_stream
 import contract
 import implementer_context
+import narrow_dir
 import fileops
 import invrun
 import oracle
@@ -381,7 +382,7 @@ def implementer_log_dir(c):
     return c.tel_path.parent if c.tel_path is not None else c.out
 
 
-def write_implementer_log(c, n, prompt, rc, out, err):
+def write_implementer_log(c, n, prompt, rc, out, err, cwd=None):
     """実装役に渡した指示と返ってきた生出力を、試行ごとにそのまま残す。
 
     **rc == 0 でも捨てない。** 実装役が「なぜ書かなかったか」を書くのは応答本文だけで、
@@ -397,7 +398,7 @@ def write_implementer_log(c, n, prompt, rc, out, err):
         f"- cli: {imp['cli']}",
         f"- model: {imp['model_name']}",
         f"- rc: {rc}",
-        f"- cwd: {c.sandbox}",
+        f"- cwd: {cwd or c.sandbox}",
         "",
         "=== プロンプト ===",
         prompt,
@@ -424,19 +425,30 @@ def write_implementer_log(c, n, prompt, rc, out, err):
 
 
 def call_implementer(c, feedback=""):
+    imp = c.cfg["implementer"]
+    stream = agy_stream.is_stream(imp)
+    impl_dir = (c.cfg.get("project") or {}).get("impl_dir")
+    # v2.1c：v2.1 の呼び方（stream-json）のときは、細い作業場所（書き換えてよいファイルと契約と既存の型だけ）で
+    # 動かし、終わったら変わったものをサンドボックスへ書き戻す。書き換えてよいかは、いままでどおり
+    # サンドボックスで門が判定する。サンドボックスのパスはプロンプトに出さない（docs/design/v2_1c_structure_review.md §3 の 3）
+    narrow = placed = None
+    if stream and impl_dir:
+        narrow, placed = narrow_dir.populate(c.sandbox, implementer_context.visible_files(c.sandbox, c.unit, impl_dir))
+    workdir = narrow or c.sandbox
+
     # 相対パスで渡すと、実装AIが本体リポジトリを編集しうる（実測で発生した）。
-    # サンドボックスの絶対パスに展開して曖昧さを消す。ただしこれは
+    # 作業場所の絶対パスに展開して曖昧さを消す。ただしこれは
     # 「間違えにくくする」だけで、脱走を防ぐ機構ではない。
     # 実際の防波堤は gate_repo_untouched（検出して ABORT）。
     prompt = c.unit["prompt"]
     # 単位の種類でキーが違う。無いトークンは置換しないだけで、エラーにしない。
-    tokens = {"{sandbox_abs}": str(c.sandbox)}
+    tokens = {"{sandbox_abs}": str(workdir)}
     if c.unit.get("core_impl"):
-        tokens["{core_abs}"] = str(c.sb(c.unit["core_impl"]))
+        tokens["{core_abs}"] = str(Path(workdir) / c.unit["core_impl"])
     if c.unit.get("so_impl"):
-        tokens["{so_abs}"] = str(c.sb(c.unit["so_impl"]))
+        tokens["{so_abs}"] = str(Path(workdir) / c.unit["so_impl"])
     for i, rel in enumerate(c.unit.get("impl_files") or c.unit["whitelist"]):
-        tokens[f"{{impl_abs_{i}}}"] = str(c.sb(rel))
+        tokens[f"{{impl_abs_{i}}}"] = str(Path(workdir) / rel)
     for token, value in tokens.items():
         prompt = prompt.replace(token, value)
     # v2 の単位定義は、作る形を interface に持つ。prompt だけでは実装役に届かないので展開する（手順 5.6）
@@ -447,8 +459,10 @@ def call_implementer(c, feedback=""):
     # 計画を返して止まる実装役がいる（実測。外部のペルソナ設定が「着手前に計画を提示せよ」と
     # 定めていた）。ハーネスは、そういう設定が正しく書かれていることに依存してはいけない。
     # ここで直接、計画ではなくファイルを書くよう指示する。
-    prompt = (f"作業対象は {c.sandbox} の中だけです。この外にあるファイルは"
-              f"絶対に読み書きしないでください。\n"
+    where = (f"作業場所は {narrow} です。ここには書き換えてよいファイルと契約と既存の型だけがあり、"
+             f"中身は下に埋め込んであります。\n" if narrow else
+             f"作業対象は {c.sandbox} の中だけです。この外にあるファイルは絶対に読み書きしないでください。\n")
+    prompt = (where +
               f"計画・実装案・確認を返さず、いま直接ファイルを作成・編集してください。"
               f"合意を求める必要も、事前に状況を説明する必要もありません。"
               f"書き終えてから、何をしたかだけを報告してください。"
@@ -457,15 +471,14 @@ def call_implementer(c, feedback=""):
               # 解禁は、b4-smoke-02 の T4 で 9 回の呼び出しがすべて TTL で打ち切られたので廃止した）
               + tool_policy.text() + "\n"
               f"受入テスト側に明らかな誤謬（手計算ミスや仕様不整合）があり、自身の実装が正当であると判断した場合は、無理にテストに合わせず {{\"status\": \"DISPUTE_TEST\", \"reason\": \"<具体的な不整合理由>\"}} のJSONを出力してください。\n\n" + prompt)
-    # 書き換えてよいファイルと契約の生成物の中身を埋め込み、実装役がファイルを読む手番をなくす（v2.1 §1.1 の 2）
+    # 契約・既存の型・書き換えてよいファイルの中身を埋め込み、実装役がファイルを読む手番をなくす（v2.1 §1.1 の 2）。
+    # 変わらない前置きを先に、変わるもの（書き換えてよいファイル・前回の失敗）を後に置く（キャッシュ。v2.1c）
     # （v2.1 の呼び方＝stream-json のときだけ。ほかのプロジェクトの従来の単位のプロンプトは変えない）
-    imp = c.cfg["implementer"]
-    stream = agy_stream.is_stream(imp)
-    impl_dir = (c.cfg.get("project") or {}).get("impl_dir")
-    if stream and impl_dir:
-        # v2.1b：契約・base の既存の型・仕様の抜き出しまで埋め込み、読む手番を残さない
-        prompt += "\n\n" + implementer_context.for_unit(c.sandbox, c.unit, impl_dir,
-                                                       project.config("unit_schema").get("spec_path"))
+    if narrow:
+        try:
+            prompt += "\n\n" + implementer_context.for_unit(c.sandbox, c.unit, impl_dir)
+        except implementer_context.ContextError as e:
+            sys.exit(f"ABORT: 実装役に渡す前提が大きすぎます: {e}")
     if feedback:
         prompt += "\n\n前回の失敗:\n" + feedback
 
@@ -479,11 +492,12 @@ def call_implementer(c, feedback=""):
         # 利用量を取るための出力形式。無ければ利用量は不明（null）として記録するだけで、判定は変えない。
         args += imp.get("output_format_args", [])
     t0 = time.monotonic()
-    rc, out, err = run(args, c.sandbox, c.ttl["implementer"], "実装AI")
+    rc, out, err = run(args, workdir, c.ttl["implementer"], "実装AI")
+    written = narrow_dir.write_back(narrow, c.sandbox, placed) if narrow else None
     parsed = agy_stream.parse(out) if stream else None
     c.last_implementer_out = parsed["response"] if stream else (out or "")
     c.last_implementer_err = err or ""
-    write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err)
+    write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err, cwd=workdir)
     if c.cur is not None:
         if stream:
             usage = parsed["usage"]
@@ -496,6 +510,9 @@ def call_implementer(c, feedback=""):
             # 手番ごとの種類・道具・秒・利用量（ファイルの中身や本文は残さない）
             c.cur["implementer"]["steps"] = parsed["steps"]
             c.cur["implementer"]["prompt_chars"] = len(prompt)
+        if narrow:
+            # 細い作業場所から書き戻したファイル（パスだけ。v2.1c）
+            c.cur["implementer"]["narrow_written"] = written
         # implementer は最後の呼び出しだけ。内側ループの全呼び出しは implementer_calls に積む（監査 F2）
         c.cur.setdefault("implementer_calls", []).append(c.cur["implementer"])
     if rc != 0:
