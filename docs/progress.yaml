@@ -190,6 +190,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_ab_driver
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/59
 - id: B4-E5
   title: 乾式の走行（T1 を A・B で 1 回ずつ）
   group: B4
