@@ -209,7 +209,7 @@ tasks:
   target_repo: falling-blocks
   status: in_progress
   verification: null
-  review_pr: https://github.com/tamaroulet/game-harness/pull/64
+  review_pr: https://github.com/tamaroulet/game-harness/pull/62
 - id: Phase 4-1
   title: 3D 物理・メタモルフィックテスト
   group: Phase 4
