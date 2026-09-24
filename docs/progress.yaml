@@ -270,6 +270,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_pipeline_v2 tests.test_oracle tests.test_required_symbols
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/72
 - id: V2-4
   title: T1〜T5 の契約と性質の宣言（事前投資を実測。目標 1 USD 前後）
   group: B5
