@@ -32,8 +32,11 @@ def run(args, cwd, ttl, label, env=None):
                            stdin=subprocess.DEVNULL, env=env,
                            creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
         return r.returncode, r.stdout or "", r.stderr or ""
-    except subprocess.TimeoutExpired:
-        return 124, "", f"TTL超過 ({ttl}s): {label}"
+    except subprocess.TimeoutExpired as e:
+        # 打ち切った時点までの標準出力は返す。実装役の stream-json は、終わった手番の利用量をそこに
+        # 出しているので、捨てると打ち切った呼び出しの費用が丸ごと消える（v2.1 §1.2）
+        out = e.stdout.decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
+        return 124, out, f"TTL超過 ({ttl}s): {label}"
     except FileNotFoundError as e:
         return 127, "", f"コマンドが見つかりません: {e}"
 

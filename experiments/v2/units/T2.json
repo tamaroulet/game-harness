@@ -355,10 +355,12 @@
     ]
   },
   "whitelist": [
-    "Game/Assets/Core/GameState.cs"
+    "Game/Assets/Core/GameState.cs",
+    "Game/Assets/Core/Board.cs"
   ],
   "impl_files": [
-    "Game/Assets/Core/GameState.cs"
+    "Game/Assets/Core/GameState.cs",
+    "Game/Assets/Core/Board.cs"
   ],
   "acceptance": {
     "cases": [],

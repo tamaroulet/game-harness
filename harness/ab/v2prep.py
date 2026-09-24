@@ -36,10 +36,13 @@ V2 = common.ROOT / "experiments" / "v2"
 V1 = common.ROOT / "experiments" / "b4_ab"
 PROJECT = "falling-blocks"
 EXISTING = ["GamePhase", "MinoType", "Rotation", "ActiveMino"]
-# 実装役が書く型は GameState だけ（データ型は契約の生成物。v2 §3.1）。gate_static_common は whitelist の
-# ファイルがすべて在ることを要求するので、base に無いファイル（v1 の MinoShape.cs）を入れると門が必ず落ちる
-# （v2-dry-01 の B で 2 回とも「MinoShape.cs が存在しません」）
-WHITELIST = ["GameState.cs"]
+# 実装役が書くのは振る舞いの型だけ（データ型は契約の生成物。v2 §3.1）。base にある振る舞いの型は GameState と
+# Board で、Board はすでに IsOccupied・InBounds を持つ（falling-blocks の tools/units/issue_12.json）。
+# 盤面の占有を Board に置くのは既存の設計に沿った判断なので、Board.cs も書き換えてよい（v2.1 §1.3 の 1、
+# 2026-09-24 の裁定。v2-dry-02 の B は Board.cs の編集で試行 1 を失った）。
+# gate_static_common は whitelist のファイルがすべて在ることを要求するので、base に無いファイル（v1 の
+# MinoShape.cs）は入れない（v2-dry-01 の B で 2 回とも「MinoShape.cs が存在しません」）
+WHITELIST = ["GameState.cs", "Board.cs"]
 MEASURE_HIDDEN_SEEDS = 20
 
 COMMON = """## 全タスク共通（v2）

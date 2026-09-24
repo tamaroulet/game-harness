@@ -26,9 +26,13 @@
     "model_flag": "--model",
     "model_name": "gemini-3.8-flash-high",
     "_usage_note": "テレメトリ用（判定には使わない）。--output-format json の形は harness/telemetry.py の USAGE_FORMATS に実測で書いてある",
+    "_stream_note": "v2.1（docs/design/v2_1_improvement_plan.md §1.1・§1.2）：stream-json で手番ごとの利用量と種類を記録する（harness/agy_stream.py）。打ち切っても終わった手番までの利用量が残る。--print-timeout は TTL の 20 秒前を自動で付ける。--sandbox は端末の操作を制限する（ビルド・テスト・探索のコマンドを使わせない）",
     "output_format_args": [
       "--output-format",
-      "json"
+      "stream-json"
+    ],
+    "extra_flags": [
+      "--sandbox"
     ],
     "usage_format": "agy"
   },

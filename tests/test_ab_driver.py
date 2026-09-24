@@ -239,7 +239,8 @@ class Tokens(unittest.TestCase):
     def test_sums_every_call_including_cache_reads(self):
         calls = [{"usage": {"input_tokens": 10, "output_tokens": 1, "cache_read_tokens": 100}},
                  {"usage": {"input_tokens": 20, "output_tokens": 2, "cache_read_tokens": 200}}]
-        self.assertEqual(driver._tokens(calls), {"input": 30, "output": 3, "cache_read": 300, "per_call_input": [10, 20]})
+        self.assertEqual(driver._tokens(calls), {"input": 30, "output": 3, "cache_read": 300, "per_call_input": [10, 20],
+                                                 "partial": False})
         calls[1]["usage"]["cache_read_tokens"] = None
         self.assertIsNone(driver._tokens(calls)["cache_read"], "1 つでも不明なら推測で埋めない")
 

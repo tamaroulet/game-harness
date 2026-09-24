@@ -30,7 +30,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import adapters
+import agy_stream
 import contract
+import implementer_context
 import fileops
 import invrun
 import oracle
@@ -452,25 +454,44 @@ def call_implementer(c, feedback=""):
               # 解禁は、b4-smoke-02 の T4 で 9 回の呼び出しがすべて TTL で打ち切られたので廃止した）
               + tool_policy.text() + "\n"
               f"受入テスト側に明らかな誤謬（手計算ミスや仕様不整合）があり、自身の実装が正当であると判断した場合は、無理にテストに合わせず {{\"status\": \"DISPUTE_TEST\", \"reason\": \"<具体的な不整合理由>\"}} のJSONを出力してください。\n\n" + prompt)
+    # 書き換えてよいファイルと契約の生成物の中身を埋め込み、実装役がファイルを読む手番をなくす（v2.1 §1.1 の 2）
+    # （v2.1 の呼び方＝stream-json のときだけ。ほかのプロジェクトの従来の単位のプロンプトは変えない）
+    imp = c.cfg["implementer"]
+    stream = agy_stream.is_stream(imp)
+    impl_dir = (c.cfg.get("project") or {}).get("impl_dir")
+    if stream and impl_dir:
+        prompt += "\n\n" + implementer_context.blocks(
+            c.sandbox, c.unit.get("whitelist") or [], implementer_context.contract_files(c.sandbox, impl_dir))
     if feedback:
         prompt += "\n\n前回の失敗:\n" + feedback
 
-    imp = c.cfg["implementer"]
-    args = resolve_cli(imp["cli"]) + [imp["headless_flag"], prompt,
-                                      imp["auto_approve_flag"],
-                                      imp["model_flag"], imp["model_name"]]
-    # 利用量を取るための出力形式。無ければ利用量は不明（null）として記録するだけで、判定は変えない。
-    args += imp.get("output_format_args", [])
+    if stream:
+        # stream-json：手番ごとの利用量を足し込む。TTL で打ち切っても終わった手番までは残る（v2.1 §1.2）
+        args = agy_stream.args(imp, resolve_cli(imp["cli"]), prompt, c.ttl["implementer"])
+    else:
+        args = resolve_cli(imp["cli"]) + [imp["headless_flag"], prompt,
+                                          imp["auto_approve_flag"],
+                                          imp["model_flag"], imp["model_name"]]
+        # 利用量を取るための出力形式。無ければ利用量は不明（null）として記録するだけで、判定は変えない。
+        args += imp.get("output_format_args", [])
     t0 = time.monotonic()
     rc, out, err = run(args, c.sandbox, c.ttl["implementer"], "実装AI")
-    c.last_implementer_out = out or ""
+    parsed = agy_stream.parse(out) if stream else None
+    c.last_implementer_out = parsed["response"] if stream else (out or "")
     c.last_implementer_err = err or ""
     write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err)
     if c.cur is not None:
-        usage = (telemetry.cli_usage(out, imp["usage_format"])
-                 if imp.get("usage_format") and imp.get("output_format_args")
-                 else telemetry.usage_unknown("implementer に output_format_args / usage_format が無い"))
+        if stream:
+            usage = parsed["usage"]
+        else:
+            usage = (telemetry.cli_usage(out, imp["usage_format"])
+                     if imp.get("usage_format") and imp.get("output_format_args")
+                     else telemetry.usage_unknown("implementer に output_format_args / usage_format が無い"))
         c.cur["implementer"] = {"rc": rc, "seconds": round(time.monotonic() - t0, 1), "usage": usage}
+        if stream:
+            # 手番ごとの種類・道具・秒・利用量（ファイルの中身や本文は残さない）
+            c.cur["implementer"]["steps"] = parsed["steps"]
+            c.cur["implementer"]["prompt_chars"] = len(prompt)
         # implementer は最後の呼び出しだけ。内側ループの全呼び出しは implementer_calls に積む（監査 F2）
         c.cur.setdefault("implementer_calls", []).append(c.cur["implementer"])
     if rc != 0:
@@ -1141,6 +1162,22 @@ def attempt(c, feedback):
                              + ", ".join(escaped[:5]))
         capture_diff(c)
 
+        # 書き換えてよいファイルの外への変更は、試行を捨てずにこのターンで知らせる（v2.1 §1.3 の 3）。
+        # 変更は取り消す。外側の whitelist の門はそのまま残す（最後の確認）
+        c.gate = "whitelist_inner"
+        outside = gate_whitelist(c)
+        if outside:
+            purge_unwhitelisted_in_sandbox(c)
+            msg = ("書き換えてよいファイルの外を変更しました（変更は取り消しました）: " + ", ".join(outside[:5])
+                   + "。書き換えてよいのは " + ", ".join(c.unit["whitelist"]) + " だけです")
+            print(f"  [WHITELIST] {msg}")
+            if isinstance(c.cur, dict):
+                c.cur["whitelist_inner"] = c.cur.get("whitelist_inner", 0) + 1
+            if turn < MAX_INNER_LOOP_TURNS:
+                inner_feedback = msg
+                continue
+            return "RETRY", msg
+
         # [DISPUTE 判定 (One-Strike Rule)]
         dispute_reason = extract_dispute(getattr(c, "last_implementer_out", ""))
         if dispute_reason is not None:
@@ -1637,6 +1674,9 @@ def record_attempt(c, n, verdict, msg, seconds, feedback):
         entry["implementer_calls"] = a.get("implementer_calls") or [a["implementer"]]
     else:
         telemetry.put(entry, "implementer", None, "実装役を呼ぶ前に終了した")
+    for key in ("whitelist_inner", "hidden_failed"):
+        if key in a:
+            entry[key] = a[key]
     for key, why in (("diff_sha256", "差分を取る前に終了した"),
                      ("added_lines", "差分を取る前に終了した"),
                      ("p2p_broken", "受入判定まで到達していない"),
