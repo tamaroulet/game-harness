@@ -141,6 +141,47 @@ class Embedding(unittest.TestCase):
         self.assertEqual(c.last_implementer_out, "ok")
 
 
+class WiderContext(unittest.TestCase):
+    """v2.1b：base の既存の型と、仕様の抜き出しまで埋め込む（v2-dry-03 の実装役はそれらを読みに行った）。"""
+
+    def test_existing_type_files_and_spec_excerpt_are_embedded(self):
+        sys.path.insert(0, str(ROOT / "tests"))
+        from test_propgen import SPEC
+        unit = {"whitelist": ["Core/GameState.cs"], "prompt": "- P-T1-01（RL-16）：前提 … のとき …",
+                "interface": {"types": [{"name": "ActiveMino"}, {"name": "GameState"}, {"name": "Cell"}]}}
+        with tempfile.TemporaryDirectory() as d:
+            core = Path(d) / "Core"
+            core.mkdir()
+            (core / "GameState.cs").write_text("class GameState {}", encoding="utf-8")
+            (core / "ActiveMino.cs").write_text("struct ActiveMino {}", encoding="utf-8")
+            (Path(d) / "docs").mkdir()
+            (Path(d) / "docs" / "spec.md").write_text(SPEC, encoding="utf-8")
+            self.assertEqual(implementer_context.type_files(d, unit, "Core"), ["Core/ActiveMino.cs"],
+                             "whitelist のものと、base に無い型（Cell）は除く")
+            text = implementer_context.for_unit(d, unit, "Core", "docs/spec.md")
+        self.assertIn("struct ActiveMino {}", text)
+        self.assertIn("## 仕様の抜き出し", text)
+        self.assertIn("- RL-16 | 規則", text, "prompt に出てくる規則の行")
+        self.assertNotIn("RL-40", text, "prompt に無い規則は入れない")
+
+    def test_excerpt_skips_unknown_ids(self):
+        sys.path.insert(0, str(ROOT / "tests"))
+        from test_propgen import SPEC
+        self.assertEqual(implementer_context.spec_excerpt(SPEC, ["RL-99"]), "")
+
+
+class ImplementerLogPerCall(unittest.TestCase):
+    def test_second_call_in_the_same_attempt_gets_its_own_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            c = SimpleNamespace(tel_path=Path(d) / "t.json", out=Path(d), sandbox=Path(d),
+                                cfg={"implementer": {"cli": "agy", "model_name": "m"}}, cur={})
+            pipeline.write_implementer_log(c, 1, "P1", 0, "o1", "")
+            c.cur["implementer_calls"] = [{"rc": 0}]
+            pipeline.write_implementer_log(c, 1, "P2", 0, "o2", "")
+            self.assertIn("P1", (Path(d) / "implementer_attempt_1.log").read_text(encoding="utf-8"))
+            self.assertIn("P2", (Path(d) / "implementer_attempt_1_call2.log").read_text(encoding="utf-8"))
+
+
 class InnerWhitelist(unittest.TestCase):
     def test_whitelist_is_checked_right_after_the_implementer_and_before_tests(self):
         src = inspect.getsource(pipeline.attempt)

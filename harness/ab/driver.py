@@ -119,8 +119,8 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
             if agy_stream.is_stream(ctx["imp"]):
                 # B と同じく、書き換えてよいファイルと契約の中身を埋め込む（v2.1 §1.1 の 2）。A は会話を積むので、
                 # 埋め込むのは最初の呼び出しだけ（単一チャットで最初にファイルを貼るのと同じ）
-                prompt += "\n\n" + implementer_context.blocks(
-                    wt, unit["whitelist"], implementer_context.contract_files(wt, ctx["impl_dir"]))
+                prompt += "\n\n" + implementer_context.for_unit(wt, unit, ctx["impl_dir"],
+                                                               project.config("unit_schema").get("spec_path"))
         else:
             n = m["templates"]["retry_tail_lines"]
             prompt = tpl["retry"].format(task_id=task["id"], attempt=attempt - 1, max_attempts=budget,

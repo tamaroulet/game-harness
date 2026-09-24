@@ -409,7 +409,10 @@ def write_implementer_log(c, n, prompt, rc, out, err):
         err,
         "",
     ])
-    path = implementer_log_dir(c) / f"implementer_attempt_{n}.log"
+    # 1 試行の中で内側ループが何回も呼ぶので、2 回目からは別のファイルにする（上書きで前の呼び出しが消えていた。
+    # v2-dry-04 の B は 3 回呼んで、最後の 1 回分しか残っていなかった）
+    k = len((c.cur or {}).get("implementer_calls", [])) + 1 if isinstance(getattr(c, "cur", None), dict) else 1
+    path = implementer_log_dir(c) / (f"implementer_attempt_{n}.log" if k == 1 else f"implementer_attempt_{n}_call{k}.log")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(body, encoding="utf-8")
@@ -460,8 +463,9 @@ def call_implementer(c, feedback=""):
     stream = agy_stream.is_stream(imp)
     impl_dir = (c.cfg.get("project") or {}).get("impl_dir")
     if stream and impl_dir:
-        prompt += "\n\n" + implementer_context.blocks(
-            c.sandbox, c.unit.get("whitelist") or [], implementer_context.contract_files(c.sandbox, impl_dir))
+        # v2.1b：契約・base の既存の型・仕様の抜き出しまで埋め込み、読む手番を残さない
+        prompt += "\n\n" + implementer_context.for_unit(c.sandbox, c.unit, impl_dir,
+                                                       project.config("unit_schema").get("spec_path"))
     if feedback:
         prompt += "\n\n前回の失敗:\n" + feedback
 
