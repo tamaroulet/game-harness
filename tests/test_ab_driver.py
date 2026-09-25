@@ -126,6 +126,12 @@ class CostModel(unittest.TestCase):
         self.assertEqual(report.break_even(None, [1], 0, [1])[0], None)
         # A が伸びなければ回収しない
         self.assertIsNone(report.break_even(0, [1, 1, 1], 5, [1, 1, 1], horizon=100)[0])
+        # 傾きが負（v2-smoke-04 の A：T3 が高く T4・T5 が安い）なら外挿しない。「N ≤ 10000 では回収しない」と言わない
+        self.assertLess(report.loglog_slope([0.3, 0.2, 0.3, 0.05, 0.04]), 0)
+        n, why = report.break_even(0.1, [0.3, 0.2, 0.3, 0.05, 0.04], 0.5, [0.3, 0.2, 0.3, 0.05, 0.04])
+        self.assertIsNone(n)
+        self.assertIn("外挿しない", why)
+        self.assertNotIn("10000", why)
 
     def test_summary_has_cost_section_only_with_a_model(self):
         rows = [{"run_id": "ab-01", "condition": c, "task": f"T{k}", "index": k, "accepted": True, "attempts": 1,

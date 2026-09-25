@@ -73,6 +73,9 @@ class EditOnly(unittest.TestCase):
         for prompt, ttl in seen:
             self.assertIn(tool_policy.EDIT_ONLY, prompt)
             self.assertEqual(ttl, 300, "TTL は 300 秒のまま")
+            # v2.2：DISPUTE_TEST の段落は外した。手順の結び（直ちに編集の道具を呼ぶ）で終わる（A と同じ）
+            self.assertNotIn("DISPUTE_TEST", prompt)
+            self.assertTrue(prompt.endswith(tool_policy.EDIT_ONLY))
         self.assertIn("PROPERTY_FAIL id=P-T1-01", seen[1][0])
 
 
