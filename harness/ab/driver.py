@@ -105,6 +105,11 @@ def failing_of(results, classes, task_id):
                   if measure.task_of(n, classes) == task_id and o != "Passed")
 
 
+def first_dir(out, task):
+    """最初の提出の変更の置き場（A も B も同じ）。"""
+    return Path(out) / f"{task['id']}.first"
+
+
 def _pipeline_judge(ctx, task, state):
     """A の判定（B と同じ検査の列）を用意する。(judge(n) -> (verdict, 知らせ), base で止まった理由, サンドボックス)。
 
@@ -194,6 +199,9 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast, jud
                       "steps": r.get("steps"), "prompt_chars": len(prompt)})
         if narrow:
             calls[-1]["narrow_written"] = written
+        if attempt == 1 and judge is not None:
+            # 最初の提出（門を通す前）を残す。タスクの後に測定器で測る。実装役には知らせない（V2-6。v1 の走行には無い）
+            pipeline.save_changes(wt, first_dir(out, task), common.GIT_TTL)
         (Path(out) / f"{task['id']}_a{attempt}.implementer.log").write_text(
             f"# prompt\n{prompt}\n\n# stdout\n{r['out']}\n\n# stderr\n{r['err']}\n", encoding="utf-8")
         # 実装役がテストを書き換えていても、凍結したものに戻してから測る
@@ -226,13 +234,14 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast, jud
 
 # ============================================================ 条件 B
 
-def pipeline_args(unit_path, wt, sandbox, out, tel, known_failures=None):
+def pipeline_args(unit_path, wt, sandbox, out, tel, known_failures=None, first=None):
     # 門の自己検査（--skip-selftest で省く）は門そのものの健全性の検査で、タスクの仕事ではない。
     # dry-01 では 405.9 秒のうち 177.1 秒を占めた。門の健全性は tests/ と pipeline --selftest で別に確かめる
     return [sys.executable, str(common.ROOT / "harness" / "pipeline.py"), "--project", PROJECT,
             "--unit", str(unit_path), "--repo-dir", str(wt), "--local-only", "--skip-selftest",
             "--sandbox", str(sandbox), "--out-dir", str(out), "--telemetry", str(tel)] + (
-                ["--known-failures", str(known_failures)] if known_failures else [])
+                ["--known-failures", str(known_failures)] if known_failures else []) + (
+                ["--first-submission", str(first)] if first else [])
 
 
 def failing_names(results):
@@ -250,7 +259,7 @@ def run_task_b(ctx, task, unit, state, runner=run):
     known = out / f"{task['id']}.known_failures.json"
     known.write_text(json.dumps(state.get("known_failures") or [], ensure_ascii=False), encoding="utf-8")
     rc, stdout, stderr = runner(pipeline_args(unit_path, ctx["wt"], ctx["sandbox"], out / "pipeline" / task["id"], tel,
-                                              known),
+                                              known, first=first_dir(out, task)),
                                 str(common.ROOT), PIPELINE_TTL, f"pipeline（条件 B、{task['id']}）")
     (out / f"{task['id']}.pipeline.log").write_text(f"{stdout}\n{stderr}\n", encoding="utf-8")
     data, _ = telemetry.read(tel)
@@ -337,6 +346,10 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
                 "tokens": _tokens(rec["calls"]), "tests_tampered": tampered,
                 # seconds は条件の仕事（実装役と B の門）だけ。測定器は両条件に同じなので別に数える
                 "seconds": seconds, "seconds_measure": round(time.monotonic() - t1, 1), "detail": {k: v for k, v in rec.items() if k != "calls"}}
+        # 最初の提出（門を通す前）を、同じ測定器・同じ非公開シードで測る（V2-6。実装役には知らせない）
+        first = measure_first(ctx, proj, run_id, condition, task, start, prev, env, decl, p["out"], wt_root)
+        if first is not None:
+            line["first_submission"] = first
         with metrics.open("a", encoding="utf-8") as f:
             f.write(json.dumps(line, ensure_ascii=False) + "\n")
         print(f"[{condition}] {task['id']}: 受入 {passed}/{total}、P2P の破壊 {len(broken)}、"
@@ -347,6 +360,35 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
         if known is not None:
             state["known_failures"] = known
     return 0
+
+
+def measure_first(ctx, proj, run_id, condition, task, start, prev, env, decl, out, wt_root=common.WT_ROOT):
+    """最初の提出を測る。タスクの始めのコミットから一時の worktree を作り、残した変更を当てて、最終と同じ測定をする。
+
+    docs/design/v2_6_exam_symmetry.md §3.2。門の効果を、条件の中の比較（最初の提出 → 最終）として示すための記録。
+    残した変更が無ければ None（実装役を呼ばなかったタスク）。
+    """
+    saved = first_dir(out, task)
+    if not saved.exists():
+        return None
+    repo = proj["repo_dir"]
+    fw = Path(wt_root) / f"{run_id}-{condition}-first"
+    if fw.exists():
+        common.git(["worktree", "remove", "--force", str(fw)], repo, "git worktree remove（最初の提出）", check=False)
+    common.git(["worktree", "add", "-q", "--detach", str(fw), start], repo, "git worktree add（最初の提出）")
+    try:
+        pipeline.restore_changes(saved, fw)
+        results, _ = measure.run_fast(fw, ctx["test_project"], out, f"{task['id']}_first", env=env)
+        passed, total = measure.acceptance(results, ctx["classes"], task["id"])
+        pub_passed, pub_total = measure.acceptance(results, ctx["classes"], task["id"], public_only=True)
+        broken = measure.p2p_broken(prev, results, task.get("superseded_tests", []))
+        inv = measure.invariants(fw, Path(out) / task["id"] / "first", ctx["m"]["invariant_seeds"],
+                                 proj["impl_dir"], decl)
+        return {"accepted": bool(total) and passed == total, "acceptance": {"passed": passed, "total": total},
+                "acceptance_public": {"passed": pub_passed, "total": pub_total}, "build_ok": results is not None,
+                "p2p_broken": len(broken), "p2p_broken_tests": broken, "invariants": inv}
+    finally:
+        common.git(["worktree", "remove", "--force", str(fw)], repo, "git worktree remove（最初の提出）", check=False)
 
 
 def cleanup(run_id, wt_root=common.WT_ROOT):
