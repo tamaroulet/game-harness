@@ -163,4 +163,21 @@ def parse(text, workdir=None):
     usage.update(format="agy-stream", cache_creation_tokens=None, cost_usd=None, model_steps=len(with_usage),
                  lost_steps=sum(1 for s in ordered if s.get("state") not in ("DONE", None) and not s.get("usage")))
     return {"conversation_id": conv, "response": (result or {}).get("response") or "".join(reply),
-            "usage": usage, "steps": ordered, "complete": result is not None}
+            "usage": usage, "steps": ordered, "complete": result is not None, "outcome": outcome(result, ordered)}
+
+
+def outcome(result, steps):
+    """呼び出しの終わり方（v2-smoke-04 の後）。{"status", "error", "error_steps", "thinking_only_steps"}。
+
+    - status：agy の result の status（SUCCESS・ERROR）。result が無ければ None（打ち切り）
+    - error：agy のエラーの先頭 1 行（実装役の応答の本文ではない。例：出力トークンの上限を超えた）
+    - error_steps：手番の中の error_message の数（agy が内部でやり直した回数）
+    - thinking_only_steps：出力がすべて思考で、道具も応答も出さなかった手番の数
+    v2-smoke-02〜04 では、長い呼び出しの多くが「思考だけの手番 → error_message → やり直し」だった。
+    """
+    err = (result or {}).get("error")
+    return {"status": (result or {}).get("status"),
+            "error": err.splitlines()[0][:200] if isinstance(err, str) and err.strip() else None,
+            "error_steps": sum(1 for s in steps if s.get("type") == "error_message"),
+            "thinking_only_steps": sum(1 for s in steps if (s.get("usage") or {}).get("output_tokens")
+                                       and (s["usage"].get("thinking_tokens") or 0) >= s["usage"]["output_tokens"])}
