@@ -3,8 +3,9 @@
 pipeline（条件 B）とドライバ（条件 A）が同じものを使う。
 
 **stream-json**：agy は手番（step）が終わるたびに `step_update`（`state: DONE`）の中にその手番の利用量を出し、
-最後に `result` で合計を出す。`result` があればそれを使い、無ければ（TTL で打ち切った）終わった手番の利用量を
-足し込む。後者は下限なので `partial: true` を付ける。推測で埋めない。
+最後に `result` で合計を出す。**この呼び出しの利用量は手番の足し込み**にする。`result` の合計は会話全体の累計で、
+会話を続けた呼び出し（`--conversation`）では前の呼び出しの分まで入る（v2-smoke-02 で判明。`conversation_*` に残す）。
+`result` が無ければ（TTL で打ち切った）足し込みは下限なので `partial: true` を付ける。推測で埋めない。
 
 **手番の記録**：手番ごとに種類（step_type）・状態・秒・利用量と、道具の名前（あれば）だけを残す。
 ファイルの中身や応答の本文は残さない。
@@ -13,8 +14,10 @@ pipeline（条件 B）とドライバ（条件 A）が同じものを使う。
 """
 import json
 import re
+from pathlib import Path
 
 STREAM = "stream-json"
+AGY_BRAIN = Path.home() / ".gemini" / "antigravity-cli" / "brain"
 PRINT_TIMEOUT_MARGIN = 20
 _TOOL_KEYS = ("tool_name", "tool", "name")
 
@@ -56,7 +59,7 @@ def stdin_for(imp, prompt):
 _ABS_PATH_RE = re.compile(r"[A-Za-z]:[\\/][^\"'\s|;,]*")
 
 
-def _tool_summary(params, workdir):
+def _tool_summary(params, workdir, own=()):
     """道具の引数の要約（v2.1d）。コマンドの先頭の語・manage_task の Action・作業場所の外を指したか。
 
     引数の本文（コマンドの全文・ファイルの中身）は残さない。v2-dry-05c では、何のコマンドかが分からず、
@@ -74,8 +77,20 @@ def _tool_summary(params, workdir):
                  and isinstance(v, str)]
         paths = [p.replace("/", "\\").rstrip("\\").lower() for t in texts for p in _ABS_PATH_RE.findall(t)]
         if paths:
-            out["outside"] = any(not (p == base or p.startswith(base + "\\")) for p in paths)
+            inside = [base] + [str(o).replace("/", "\\").rstrip("\\").lower() for o in own]
+            out["outside"] = any(not any(p == b or p.startswith(b + "\\") for b in inside) for p in paths)
     return out
+
+
+def own_state(conversation_id):
+    """実装役（agy）が自分の会話について持つ場所（その会話の記録）。作業場所の外だが、実装役自身の文脈なので外に数えない。
+
+    v2-smoke-02 の A は、自分の会話の記録（brain/<会話の ID>/.system_generated/logs）を読んだ。ほかの会話の記録は
+    ほかの走行の中身を含みうるので、外に数える。
+    """
+    if not conversation_id:
+        return ()
+    return (AGY_BRAIN / conversation_id,)
 
 
 def parse(text, workdir=None):
@@ -109,7 +124,7 @@ def parse(text, workdir=None):
                     rec["tool"] = su[k]
             params = (su.get("tool_info") or {}).get("parameters")
             if isinstance(params, dict):
-                rec.update(_tool_summary(params, workdir))
+                rec.update(_tool_summary(params, workdir, own_state(conv)))
             if su.get("step_type") == "agent_response" and isinstance(su.get("text_delta"), str):
                 reply.append(su["text_delta"])
             if su.get("state") == "DONE":
@@ -128,10 +143,18 @@ def parse(text, workdir=None):
         vals = [s["usage"].get(key) for s in with_usage]
         return sum(v for v in vals if isinstance(v, int)) if with_usage else None
 
-    if result is not None and isinstance(result.get("usage"), dict):
+    keys = ("input_tokens", "output_tokens", "thinking_tokens", "cache_read_tokens")
+    if result is not None and isinstance(result.get("usage"), dict) and with_usage:
+        # この呼び出しの利用量は手番の足し込み。result の usage は**会話全体の累計**で、会話を続けた呼び出し
+        # （条件 A の --conversation）では前の呼び出しの分まで入る（v2-smoke-02 で判明。新しい会話では両者が一致する）。
+        # 累計は監査のために conversation_* に残す
+        usage = {k: total(k) for k in keys}
+        usage["total_tokens"] = (usage["input_tokens"] or 0) + (usage["output_tokens"] or 0)
+        usage["partial"] = False
+        usage.update({f"conversation_{k}": result["usage"].get(k) for k in keys})
+    elif result is not None and isinstance(result.get("usage"), dict):
         u = result["usage"]
-        usage = {k: u.get(k) for k in ("input_tokens", "output_tokens", "thinking_tokens", "cache_read_tokens",
-                                       "total_tokens")}
+        usage = {k: u.get(k) for k in keys + ("total_tokens",)}
         usage["partial"] = False
     else:
         usage = {k: total(k) for k in ("input_tokens", "output_tokens", "thinking_tokens", "cache_read_tokens")}
