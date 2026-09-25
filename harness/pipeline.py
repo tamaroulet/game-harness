@@ -520,6 +520,7 @@ def call_implementer(c, feedback=""):
         if stream:
             # 手番ごとの種類・道具・秒・利用量（ファイルの中身や本文は残さない）
             c.cur["implementer"]["steps"] = parsed["steps"]
+            c.cur["implementer"]["outcome"] = parsed["outcome"]
             c.cur["implementer"]["prompt_chars"] = len(prompt)
         if narrow:
             # 細い作業場所から書き戻したファイル（パスだけ。v2.1c）
