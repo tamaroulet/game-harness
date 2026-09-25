@@ -13,7 +13,7 @@
   },
   "steps": 50,
   "seeds": {
-    "public": 5,
+    "public": 30,
     "hidden": 20
   },
   "properties": [
