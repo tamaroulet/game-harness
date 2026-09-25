@@ -497,8 +497,11 @@ def call_implementer(c, feedback=""):
         rc, out, err = run(args, workdir, c.ttl["implementer"], "実装AI", input=agy_stream.stdin_for(imp, prompt))
     else:
         rc, out, err = run(args, workdir, c.ttl["implementer"], "実装AI")
-    written = narrow_dir.write_back(narrow, c.sandbox, placed) if narrow else None
-    parsed = agy_stream.parse(out) if stream else None
+    written = None
+    if narrow:
+        written = narrow_dir.write_back(narrow, c.sandbox, placed)
+        narrow_dir.discard(narrow)
+    parsed = agy_stream.parse(out, workdir) if stream else None
     c.last_implementer_out = parsed["response"] if stream else (out or "")
     c.last_implementer_err = err or ""
     write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err, cwd=workdir)
