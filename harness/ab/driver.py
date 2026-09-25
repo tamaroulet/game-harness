@@ -137,6 +137,9 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast):
                                          failed_tests=failure_list(results, ctx["classes"], task["id"], trx)
                                          or "- （ビルドが通らず、テストを実行できませんでした）",
                                          tail_lines=n, failure_tail="\n".join(text.strip().splitlines()[-n:]))
+            # 失敗の出力の中の作業ツリーのパスは作業場所のパスに置き換える。v2-smoke-01 の A は、ここに出た
+            # 作業ツリーのパスをたどって作業場所の外のテストを読み、dotnet を走らせた
+            prompt = narrow_dir.relocate(prompt, wt, narrow)
         # 道具の指示は B と同じ文面（再試行を含めて編集だけ。v2 §7）
         prompt += "\n\n" + tool_policy.text()
         r = call(ctx["imp"], prompt, workdir, state.get("conversation_id"), ctx["ttl"])
