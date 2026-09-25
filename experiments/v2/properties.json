@@ -57,21 +57,48 @@
       "task": "T2",
       "rule": "RL-43",
       "given": "before.Phase == GamePhase.Playing && after.LockedMinoCount != before.LockedMinoCount",
-      "then": "after.LockedMinoCount == before.LockedMinoCount + 1"
+      "then": "after.LockedMinoCount == before.LockedMinoCount + 1",
+      "sampling": {
+        "start": "before.ActiveMino != null && !fits(moved(before.ActiveMino, 0, -1))",
+        "quiet": {
+          "param": "PR-03",
+          "add": 1
+        },
+        "rate": 0,
+        "count": 3
+      }
     },
     {
       "id": "P-T2-03",
       "task": "T2",
       "rule": "RL-32",
       "given": "before.Phase == GamePhase.Playing && after.LockedMinoCount == before.LockedMinoCount + 1 && after.Phase == GamePhase.Playing && after.ActiveMino != null",
-      "then": "after.ActiveMino.X == 3 && after.ActiveMino.Y == 19 && after.ActiveMino.Rotation == Rotation.Spawn"
+      "then": "after.ActiveMino.X == 3 && after.ActiveMino.Y == 19 && after.ActiveMino.Rotation == Rotation.Spawn",
+      "sampling": {
+        "start": "before.ActiveMino != null && !fits(moved(before.ActiveMino, 0, -1))",
+        "quiet": {
+          "param": "PR-03",
+          "add": 1
+        },
+        "rate": 0,
+        "count": 3
+      }
     },
     {
       "id": "P-T2-04",
       "task": "T2",
       "rule": "RL-36",
       "given": "before.Phase == GamePhase.Playing && after.LockedMinoCount == before.LockedMinoCount + 1 && after.LinesCleared == before.LinesCleared",
-      "then": "after.BlockCount == before.BlockCount + 4"
+      "then": "after.BlockCount == before.BlockCount + 4",
+      "sampling": {
+        "start": "before.ActiveMino != null && !fits(moved(before.ActiveMino, 0, -1))",
+        "quiet": {
+          "param": "PR-03",
+          "add": 1
+        },
+        "rate": 0,
+        "count": 3
+      }
     },
     {
       "id": "P-T3-01",

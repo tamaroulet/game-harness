@@ -467,6 +467,50 @@ def directed(p):
     return pre, first
 
 
+SAMPLING_KEYS = {"start", "quiet", "rate", "count"}
+MAX_DIRECTED_COUNT = 10
+
+
+def sampling(p, rows):
+    """前提を狙う抽出（Targeted State Sampling、v2.1f）の材料。(開始状態の制約の式の列, quiet, 千分率, 本数)。
+
+    性質の宣言の任意のキー `sampling`：
+    - `start`：開始状態の制約（開始状態だけで評価できる式。`_pre_ok`）。開始状態の分布をこの領域に絞る（拒否抽出）
+    - `quiet`：開始から何手、入力を低頻度にするか。整数か `{"param": "PR-xx", "add": n}`（構造化仕様から引く）
+    - `rate`：その区間で各キーを押す確率（0〜1）。0 なら無入力
+    - `count`：足す系列の本数（1〜10。既定 3）
+    固定のように「状態がある区間続いて初めて起きる」希薄な前提を、特定の操作列を書かずに、開始状態の領域と
+    入力の分布で起こす。宣言が無ければ ([], 0, 0, 既定の本数)。
+    """
+    spec = p.get("sampling")
+    if spec is None:
+        return [], 0, 0, DIRECTED_COUNT
+    where = f"{p['id']}.sampling"
+    if not isinstance(spec, dict) or not spec.keys() <= SAMPLING_KEYS or "start" not in spec:
+        raise PropertyError(f"{where}: キーは start（必須）・quiet・rate・count です")
+    start = _conjuncts(parse(str(spec["start"]), f"{where}.start"))
+    if not all(_pre_ok(c) for c in start):
+        raise PropertyError(f"{where}.start: 開始状態だけで評価できる式にしてください（before の Phase・ActiveMino と、"
+                            f"after を使わない関数）")
+    q = spec.get("quiet", 0)
+    if isinstance(q, dict):
+        if set(q) - {"param", "add"} or q.get("param") not in rows:
+            raise PropertyError(f"{where}.quiet: {{\"param\": \"PR-xx\", \"add\": 整数}} で構造化仕様にある ID を書いてください")
+        base = unit_schema.resolve_param(rows[q["param"]][1], None)
+        if not isinstance(base, int):
+            raise PropertyError(f"{where}.quiet: {q['param']} の値が整数ではありません")
+        q = base + int(q.get("add", 0))
+    if isinstance(q, bool) or not isinstance(q, int) or not 0 <= q <= MAX_STEPS:
+        raise PropertyError(f"{where}.quiet: 0 以上 {MAX_STEPS} 以下の整数にしてください")
+    rate = spec.get("rate", 0)
+    if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not 0 <= rate <= 1:
+        raise PropertyError(f"{where}.rate: 0 以上 1 以下にしてください")
+    count = spec.get("count", DIRECTED_COUNT)
+    if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= MAX_DIRECTED_COUNT:
+        raise PropertyError(f"{where}.count: 1 以上 {MAX_DIRECTED_COUNT} 以下の整数にしてください")
+    return start, q, round(rate * 1000), count
+
+
 def validate(decl, spec_text, gdd_text, interface):
     """問題の一覧（空なら合格）。"""
     if not isinstance(decl, dict):
@@ -488,7 +532,8 @@ def validate(decl, spec_text, gdd_text, interface):
         ref = decl["reference"]
         if not isinstance(ref, dict) or set(ref) != REF_KEYS:
             raise PropertyError(f"reference のキーは {sorted(REF_KEYS)} です")
-        reference(ref, param_rows(spec_text), contract)
+        rows = param_rows(spec_text)
+        reference(ref, rows, contract)
     except PropertyError as e:
         return [str(e)]
 
@@ -516,8 +561,8 @@ def validate(decl, spec_text, gdd_text, interface):
     ids, live = set(), {}
     for k, p in enumerate(props):
         where = f"properties[{k}]"
-        if not isinstance(p, dict) or set(p) - {"_comment"} != {"id", "task", "rule", "given", "then"}:
-            problems.append(f"{where}: キーは id・task・rule・given・then です")
+        if not isinstance(p, dict) or set(p) - {"_comment", "sampling"} != {"id", "task", "rule", "given", "then"}:
+            problems.append(f"{where}: キーは id・task・rule・given・then（と任意の sampling）です")
             continue
         if not PROP_ID_RE.match(str(p["id"])) or p["id"] in ids:
             problems.append(f"{where}: id は P-T<n>-<2 桁以上> で重複しないこと: {p['id']!r}")
@@ -541,6 +586,7 @@ def validate(decl, spec_text, gdd_text, interface):
             pass
         try:
             directed(p)
+            sampling(p, rows)
         except PropertyError as e:
             problems.append(str(e))
     for task, ok in sorted(live.items()):
@@ -757,11 +803,12 @@ namespace {NAMESPACE}
         // 1 度も前提を満たさず、正しい実装でも VACUOUS になっていた）。開始状態で pre が成り立つシードを探し、
         // 最初の手を first（前提の入力）、残りを乱数の手にする。見つからなければ宣言か生成器の欠陥
         public static global::System.Collections.Generic.List<(int, global::System.Collections.Generic.List<{ns}.TickInput>)>
-            Directed(Pre pre, {ns}.TickInput first, int steps, out int searched)
+            Directed(Pre pre, {ns}.TickInput first, int steps, out int searched, int quiet = 0, int ratePerMille = 0,
+                int count = DirectedCount)
         {{
             var found = new global::System.Collections.Generic.List<(int, global::System.Collections.Generic.List<{ns}.TickInput>)>();
             searched = 0;
-            for (int k = 0; k < DirectedMax && found.Count < DirectedCount; k++)
+            for (int k = 0; k < DirectedMax && found.Count < count; k++)
             {{
                 int seed = DirectedBase + k;
                 var rnd = new global::System.Random(seed);
@@ -770,12 +817,22 @@ namespace {NAMESPACE}
                 bool ok;
                 try {{ ok = pre(AtStart(occ, m)); }} catch (PropertyNull) {{ ok = false; }}
                 if (!ok) continue;
-                var ops = new global::System.Collections.Generic.List<{ns}.TickInput> {{ first }};
-                for (int s = 1; s < steps; s++) ops.Add(RandomInput(rnd));
+                // quiet > 0：開始から quiet 手は、各キーを ratePerMille / 1000 の確率でだけ押す（低頻度・無入力の区間）。
+                // 希薄な前提（固定など、状態がある区間続いて初めて起きるもの）を起こすための入力の分布（v2.1f）
+                var ops = new global::System.Collections.Generic.List<{ns}.TickInput>();
+                if (quiet > 0)
+                    for (int s = 0; s < quiet && s < steps; s++) ops.Add(RandomInputRate(rnd, ratePerMille));
+                else
+                    ops.Add(first);
+                while (ops.Count < steps) ops.Add(RandomInput(rnd));
                 found.Add((seed, ops));
             }}
             return found;
         }}
+
+        static {ns}.TickInput RandomInputRate(global::System.Random rnd, int perMille) =>
+            new {ns}.TickInput(rnd.Next(1000) < perMille, rnd.Next(1000) < perMille, rnd.Next(1000) < perMille,
+                rnd.Next(1000) < perMille, rnd.Next(1000) < perMille, rnd.Next(1000) < perMille);
 
         static {ns}.TickInput RandomInput(global::System.Random rnd) =>
             new {ns}.TickInput(rnd.Next(4) == 0, rnd.Next(4) == 0, rnd.Next(4) == 0, rnd.Next(4) == 0,
@@ -821,14 +878,15 @@ namespace {NAMESPACE}
         }}
 
         public static void Run(string id, string rule, int[] seeds, int steps, Check check,
-            Pre pre = null, {ns}.TickInput first = default)
+            Pre pre = null, {ns}.TickInput first = default, int quiet = 0, int ratePerMille = 0,
+            int count = DirectedCount)
         {{
             long given = 0;
             var runs = new global::System.Collections.Generic.List<(int, global::System.Collections.Generic.List<{ns}.TickInput>)>();
             if (pre != null)
             {{
                 // 実装を動かす前に、前提が成り立つ系列があることを確かめる（実装に依らない検査）
-                runs.AddRange(Directed(pre, first, steps, out int searched));
+                runs.AddRange(Directed(pre, first, steps, out int searched, quiet, ratePerMille, count));
                 if (runs.Count == 0)
                     global::NUnit.Framework.Assert.Fail("PROPERTY_UNSATISFIABLE id=" + id + " rule=" + rule
                         + " searched=" + searched);
@@ -882,7 +940,7 @@ namespace {NAMESPACE}
 """
 
 
-def _check_method(p, contract):
+def _check_method(p, contract, rows=None):
     name = p["id"].replace("-", "_")
     given, _ = _Typer(contract, f"{p['id']}.given").emit(parse(p["given"], f"{p['id']}.given"))
     typer = _Typer(contract, f"{p['id']}.then")
@@ -914,6 +972,8 @@ def _check_method(p, contract):
     lines.append("        }")
     # 前提の探索（Directed）の材料：開始状態だけで評価する前提と、最初の手
     pre, first = directed(p)
+    # 抽出の宣言（sampling.start）があれば、開始状態の制約として前提に足す（v2.1f）
+    pre = pre + sampling(p, rows or {})[0]
     pre_cs = " && ".join(_Typer(contract, f"{p['id']}.given").emit(c)[0] for c in pre) or "true"
     args = ", ".join("true" if first.get(n) else "false" for n in INPUT_ORDER)
     lines += ["", f"        public static bool Pre_{name}(Snapshot b) => {pre_cs};",
@@ -922,7 +982,15 @@ def _check_method(p, contract):
     return lines
 
 
-def _tests(task, props, decl):
+def _sampling_args(p, rows):
+    """Run に渡す抽出の引数（quiet・千分率・本数）。宣言が無ければ空（既定のまま）。"""
+    if p.get("sampling") is None:
+        return ""
+    _, quiet, rate, count = sampling(p, rows or {})
+    return f", quiet: {quiet}, ratePerMille: {rate}, count: {count}"
+
+
+def _tests(task, props, decl, rows=None):
     ns = f"global::{NAMESPACE}"
     out = [HEADER, "#nullable disable", f"namespace {NAMESPACE}", "{",
            "    [global::NUnit.Framework.TestFixture]",
@@ -936,7 +1004,7 @@ def _tests(task, props, decl):
                     f"        [global::NUnit.Framework.Description(\"{p['rule']}\")]",
                     f"        public void {name}_{suffix}() =>",
                     f"            PropertyRunner.Run(\"{p['id']}\", \"{p['rule']}\", {seeds}, Steps, {ns}.Checks.{name},",
-                    f"                {ns}.Checks.Pre_{name}, {ns}.Checks.First_{name});",
+                    f"                {ns}.Checks.Pre_{name}, {ns}.Checks.First_{name}{_sampling_args(p, rows)});",
                     ""]
     out[-1:] = ["    }", "}", ""]
     return "\n".join(out)
@@ -952,13 +1020,14 @@ def generate(decl, spec_text, gdd_text, interface, test_dir, tasks=None):
     if problems:
         raise PropertyError("性質の宣言が検査を通りません: " + "; ".join(problems[:5]))
     contract = Contract(interface)
-    ref = reference(decl["reference"], param_rows(spec_text), contract)
+    rows = param_rows(spec_text)
+    ref = reference(decl["reference"], rows, contract)
     base = f"{test_dir}/{OUT_DIR}"
     files = {f"{base}/PropertyModel.cs": _model(ref, contract, decl["start"])}
     checks = [HEADER, "#nullable disable", f"using ActiveMino = global::{testgen.CORE_NAMESPACE}.ActiveMino;", "",
               f"namespace {NAMESPACE}", "{", "    internal static class Checks", "    {"]
     for p in decl["properties"]:
-        checks += _check_method(p, contract) + [""]
+        checks += _check_method(p, contract, rows) + [""]
     checks[-1:] = ["    }", "}", ""]
     files[f"{base}/Checks.cs"] = "\n".join(checks)
     wanted = tasks
@@ -967,7 +1036,7 @@ def generate(decl, spec_text, gdd_text, interface, test_dir, tasks=None):
         if wanted is not None and task not in wanted:
             continue
         files[f"{base}/Properties{task}Cases.cs"] = _tests(task, [p for p in decl["properties"] if p["task"] == task],
-                                                            decl)
+                                                            decl, rows)
     return files
 
 

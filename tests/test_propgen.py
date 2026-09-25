@@ -276,5 +276,41 @@ class Directed(unittest.TestCase):
         self.assertIn("PROPERTY_UNSATISFIABLE ", dotnet.PROPERTY_LINE_PREFIXES, "反例の行として実装役に届く")
 
 
+class TargetedSampling(unittest.TestCase):
+    """v2.1f：希薄な前提（固定など、状態がある区間続いて初めて起きるもの）を、特定の操作列を書かずに、
+    開始状態の領域（start）と入力の分布（quiet の区間の rate）で起こす。T2 の固定の性質が、ランダム 50 手では
+    ほぼ起きず VACUOUS で手探りになっていた（game-harness#93）。"""
+
+    GROUNDED = {"start": "before.ActiveMino != null && !fits(moved(before.ActiveMino, 0, -1))",
+                "quiet": {"param": "PR-06", "add": 1}, "rate": 0, "count": 4}
+
+    def decl(self, **sampling):
+        return mutated(lambda d: d["properties"][1].update(sampling=dict(self.GROUNDED, **sampling)))
+
+    def test_declaration_is_resolved_from_the_spec(self):
+        rows = g.param_rows(SPEC)
+        start, quiet, rate, count = g.sampling(self.decl()["properties"][1], rows)
+        self.assertEqual((quiet, rate, count), (11, 0, 4), "quiet は構造化仕様の PR から引く（PR-06 = 10 に 1 を足す）")
+        self.assertTrue(start)
+        self.assertEqual(g.sampling(DECL["properties"][0], rows), ([], 0, 0, g.DIRECTED_COUNT), "宣言が無ければ既定")
+
+    def test_bad_declarations_are_refused(self):
+        for bad in ({"start": "after.ActiveMino != null"}, {"quiet": {"param": "PR-99"}}, {"rate": 1.5},
+                    {"count": 0}, {"unknown": 1}):
+            problems = g.validate(self.decl(**bad), SPEC, GDD, INTERFACE)
+            self.assertTrue(any("sampling" in p for p in problems), bad)
+
+    def test_generated_runner_uses_the_quiet_interval_and_the_start_constraint(self):
+        files = g.generate(self.decl(), SPEC, GDD, INTERFACE, "tests")
+        t1, checks, model = (files["tests/Properties/PropertiesT1Cases.cs"], files["tests/Properties/Checks.cs"],
+                             files["tests/Properties/PropertyModel.cs"])
+        self.assertIn("Checks.First_P_T1_02, quiet: 11, ratePerMille: 0, count: 4);", t1)
+        self.assertIn("Checks.First_P_T1_01);", t1, "宣言の無い性質は既定のまま")
+        pre = next(l for l in checks.splitlines() if "Pre_P_T1_02" in l)
+        self.assertIn("PropertyModel.Fits(b, PropertyModel.Moved(PropertyModel.Req(b.ActiveMino), 0, (-1)))", pre)
+        self.assertIn("RandomInputRate(rnd, ratePerMille)", model)
+        self.assertIn("for (int k = 0; k < DirectedMax && found.Count < count; k++)", model)
+
+
 if __name__ == "__main__":
     unittest.main()
