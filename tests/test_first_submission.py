@@ -63,6 +63,22 @@ class WhenSaved(unittest.TestCase):
         self.assertEqual(args[args.index("--first-submission") + 1], str(Path("o/T1.first")))
         self.assertNotIn("--first-submission", driver.pipeline_args("u.json", "wt", "sb", "out", "tel.json"))
 
+    def test_b_keeps_telemetry_and_implementer_logs_per_task(self):
+        """v2-smoke-03：走行の直下に置くと、T2 以降の実装役の生ログが T1 のものを上書きしていた。"""
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        m = common.load_manifest(ROOT / "experiments" / "b4_ab" / "tasks.json")
+        seen = {}
+
+        def runner(args, cwd, ttl, label):
+            seen["tel"] = Path(args[args.index("--telemetry") + 1])
+            seen["first"] = Path(args[args.index("--first-submission") + 1])
+            return 0, "", ""
+        ctx = {"m": m, "out": tmp, "wt": tmp / "wt", "sandbox": tmp / "sb"}
+        driver.run_task_b(ctx, m["tasks"][1], None, {}, runner=runner)
+        self.assertEqual(seen["tel"].parent, tmp / m["tasks"][1]["id"])
+        self.assertEqual(seen["first"], driver.first_dir(tmp, m["tasks"][1]))
+
     def test_a_saves_the_state_right_after_its_first_call(self):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, True)
