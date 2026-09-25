@@ -252,7 +252,10 @@ def failing_names(results):
 def run_task_b(ctx, task, unit, state, runner=run):
     """条件 B の 1 タスク。pipeline の試行・門はそのまま。{"attempts", "accepted", "calls", "pipeline_rc"}。"""
     out = Path(ctx["out"])
-    tel = out / f"{task['id']}.pipeline.json"
+    # テレメトリはタスクごとのディレクトリに置く。pipeline は実装役の生ログをテレメトリと同じ所に書くので、
+    # 走行の直下に置くと、T2 以降の implementer_attempt_*.log が T1 のものを上書きしていた（v2-smoke-03）
+    (out / task["id"]).mkdir(parents=True, exist_ok=True)
+    tel = out / task["id"] / f"{task['id']}.pipeline.json"
     unit_path = Path(ctx["m"]["_base"]) / task["unit"]
     # 前のタスクの終わりに落ちていたテストは、base の検査と P2P から外す（S2）。A の測定器も
     # 「前のタスクの終わりに通っていたもの」だけを P2P に数えるので、同じ扱いになる
