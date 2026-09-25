@@ -72,7 +72,7 @@ def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run):
         parsed = agy_stream.parse(out, cwd)
         return {"rc": rc, "seconds": round(time.monotonic() - t0, 1),
                 "conversation_id": parsed["conversation_id"] or conversation_id, "usage": parsed["usage"],
-                "steps": parsed["steps"], "out": out, "err": err}
+                "steps": parsed["steps"], "outcome": parsed["outcome"], "out": out, "err": err}
     args = resolve_cli(imp["cli"]) + [imp["headless_flag"], prompt, imp["auto_approve_flag"],
                                       imp["model_flag"], imp["model_name"]] + imp.get("output_format_args", [])
     if conversation_id:
@@ -196,7 +196,7 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast, jud
             narrow_dir.discard(narrow)
         state["conversation_id"] = r["conversation_id"]
         calls.append({"attempt": attempt, "rc": r["rc"], "seconds": r["seconds"], "usage": r["usage"],
-                      "steps": r.get("steps"), "prompt_chars": len(prompt)})
+                      "steps": r.get("steps"), "outcome": r.get("outcome"), "prompt_chars": len(prompt)})
         if narrow:
             calls[-1]["narrow_written"] = written
         if attempt == 1 and judge is not None:
