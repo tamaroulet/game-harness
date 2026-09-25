@@ -65,6 +65,19 @@ class StreamParse(unittest.TestCase):
         self.assertEqual([s.get("tool") for s in r["steps"]], [None, None, "edit_file"])
         self.assertNotIn("text_delta", json.dumps(r["steps"]), "本文は手番の記録に残さない")
 
+    def test_resumed_conversation_counts_only_this_calls_steps(self):
+        """v2-smoke-02：会話を続けた呼び出しの result は会話全体の累計。この呼び出しの利用量は手番の足し込み。"""
+        text = "\n".join([step(1, "DONE", usage=U1), step(2, "DONE", "tool_call", usage=U2, tool_name="edit_file"),
+                          ev(event="result", result={"conversation_id": "c1", "response": "done", "usage": {
+                              "input_tokens": 900000, "output_tokens": 280000, "thinking_tokens": 270000,
+                              "cache_read_tokens": 4000000, "total_tokens": 1180000}})])
+        u = agy_stream.parse(text)["usage"]
+        self.assertEqual((u["input_tokens"], u["output_tokens"], u["cache_read_tokens"], u["thinking_tokens"]),
+                         (33000, 500, 5000, 250))
+        self.assertFalse(u["partial"])
+        self.assertEqual((u["conversation_input_tokens"], u["conversation_output_tokens"]), (900000, 280000),
+                         "累計は監査のために残す")
+
     def test_cut_stream_keeps_finished_steps_as_a_lower_bound(self):
         text = "\n".join([step(0, "DONE", "user_input"), step(1, "DONE", usage=U1), step(2, "DONE", usage=U2),
                           step(3, "ACTIVE")])

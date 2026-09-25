@@ -119,6 +119,21 @@ class Relocate(unittest.TestCase):
         self.assertIn(str(narrow_dir.path_for(wt)), prompts[1])
 
 
+class OwnState(unittest.TestCase):
+    """v2-smoke-02：実装役が自分の会話の記録を読むのは外に数えない。ほかの会話の記録は外。"""
+
+    def test_own_conversation_record_is_not_outside(self):
+        wd = r"C:\Temp\harness-narrow\aaa"
+        own = agy_stream.AGY_BRAIN / "conv-1" / ".system_generated" / "logs" / "t.md"
+        other = agy_stream.AGY_BRAIN / "conv-2" / ".system_generated" / "logs" / "t.md"
+        out = "\n".join([
+            json.dumps({"event": "init", "conversation_id": "conv-1"}),
+            tool_step(1, AbsolutePath=str(own)), tool_step(2, AbsolutePath=str(other))])
+        steps = {s["index"]: s for s in agy_stream.parse(out, wd)["steps"]}
+        self.assertFalse(steps[1]["outside"])
+        self.assertTrue(steps[2]["outside"])
+
+
 class DiscardAfterCall(unittest.TestCase):
     def test_pipeline_removes_the_workspace_after_writing_back(self):
         seen = {}
