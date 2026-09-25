@@ -28,6 +28,9 @@ nodes:
 - id: B5
   title: v2 Contract-Driven Foundry（契約駆動の防壁型。docs/design/v2_contract_foundry.md）
   parent: A
+- id: B5.6
+  title: スモークと本走の前の改善（v2-smoke-01〜05、v2.2、狭い文脈）
+  parent: B5
 - id: Phase 4
   title: 3D 物理・推論・知覚
   parent: A
@@ -293,12 +296,64 @@ tasks:
     command: python -m unittest tests.test_ab_driver
     expected_exit_code: 0
 - id: V2-6
-  title: スモーク（T1〜T5 × A・B、N=1）
-  group: B5
+  title: スモーク v2-smoke-01〜04（T1〜T5 × A・B、N=1）と B の効率の実測（game-harness#95〜#97）
+  group: B5.6
   target_repo: game-harness
   status: in_progress
   verification:
     command: python -m unittest tests.test_ab_driver
+    expected_exit_code: 0
+- id: V2-6.1
+  title: v2.2 の改善（DISPUTE の除去・GddReference の抜粋・手順の結び・break_even。game-harness#98）
+  group: B5.6
+  target_repo: game-harness
+  target_files:
+  - harness/pipeline.py
+  - harness/implementer_context.py
+  - harness/tool_policy.py
+  - harness/ab/report.py
+  status: pending
+  verification:
+    command: python -m unittest tests.test_v22 tests.test_ab_driver
+    expected_exit_code: 0
+- id: V2-6.2
+  title: 自己批判と狭い文脈の原則 N1〜N7（game-harness#99）
+  group: B5.6
+  target_repo: game-harness
+  target_files:
+  - docs/design/v2_2_architecture_self_critique.md
+  status: pending
+  verification:
+    command: python -c "import pathlib,sys; sys.exit(0 if pathlib.Path('docs/design/v2_2_architecture_self_critique.md').exists() else 1)"
+    expected_exit_code: 0
+- id: V2-6.3
+  title: 案 1（自然言語の要求の除去・関数の定義の描画・interface の絞り込み・指示の統合・語彙の閉包の検査）
+  group: B5.6
+  target_repo: game-harness
+  target_files:
+  - harness/ab/v2prep.py
+  - harness/propgen.py
+  - harness/testgen.py
+  - harness/implementer_context.py
+  - harness/pipeline.py
+  - harness/tool_policy.py
+  - harness/ab/driver.py
+  - experiments/v2/units
+  - experiments/v2/templates
+  - experiments/v2/tasks.json
+  status: pending
+  verification:
+    command: python -m unittest tests.test_v23 tests.test_v22 tests.test_ab_driver
+    expected_exit_code: 0
+- id: V2-6.4
+  title: v2-smoke-05（T1〜T5 × A・B、N=1）と本走への移行の判定
+  group: B5.6
+  target_repo: game-harness
+  target_files:
+  - experiments/v2/results/smoke/summary_smoke05.md
+  status: pending
+  verification:
+    command: python experiments/v2/tools/smoke_gate.py v2-smoke-05
     expected_exit_code: 0
 - id: V2-RUN
   title: 本走（T1〜T5 × A・B × 4 回）

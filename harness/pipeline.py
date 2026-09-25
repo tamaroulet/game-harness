@@ -451,39 +451,52 @@ def call_implementer(c, feedback=""):
         tokens[f"{{impl_abs_{i}}}"] = str(Path(workdir) / rel)
     for token, value in tokens.items():
         prompt = prompt.replace(token, value)
-    # v2 の単位定義は、作る形を interface に持つ。prompt だけでは実装役に届かないので展開する（手順 5.6）
+    # 要素ごとの字数（v2.3、N7：文脈の伸びを要素ごとに見る。本文は残さない）
+    parts = {"unit": len(prompt)}
+    # v2 の単位定義は、作る形を interface に持つ。prompt だけでは実装役に届かないので展開する（手順 5.6）。
+    # 細い作業場所では、中身を埋め込む型（契約・既存の型）の宣言は描かない（v2.3、N4・F4）
     if c.unit.get("schema") == unit_schema.SCHEMA and isinstance(c.unit.get("interface"), dict):
-        prompt += "\n\n" + testgen.render_interface(c.unit)
+        only = implementer_context.interface_scope(c.sandbox, c.unit, impl_dir) if narrow else None
+        rendered = testgen.render_interface(c.unit, only=only)
+        parts["interface"] = len(rendered)
+        prompt += "\n\n" + rendered
 
     # 作業場所を必ず伝える。相対パスだけだと本体を編集しうる（実測で発生した）。
-    # 計画を返して止まる実装役がいる（実測。外部のペルソナ設定が「着手前に計画を提示せよ」と
-    # 定めていた）。ハーネスは、そういう設定が正しく書かれていることに依存してはいけない。
-    # ここで直接、計画ではなくファイルを書くよう指示する。
-    where = (f"作業場所は {narrow} です。ここには書き換えてよいファイルと契約と既存の型だけがあり、"
-             f"中身は下に埋め込んであります。\n" if narrow else
-             f"作業対象は {c.sandbox} の中だけです。この外にあるファイルは絶対に読み書きしないでください。\n")
-    prompt = (where +
-              f"計画・実装案・確認を返さず、いま直接ファイルを作成・編集してください。"
-              f"合意を求める必要も、事前に状況を説明する必要もありません。"
-              f"書き終えてから、何をしたかだけを報告してください。"
-              f"コード案を本文に貼るだけ、計画だけ返すのは未完了とみなされます。\n\n"
-              # DISPUTE_TEST の段落は外した（v2.2、docs/design/v2_b_efficiency.md §6）。B にだけあり、テストの正しさを
-              # 検討させる文で、最初の手番の長考の引き金になりうる。A と同じく、与えた性質を満たす実装に専念させる
-              + prompt)
+    if narrow:
+        # v2.3（案 1 の F5）：作業場所の中身と「計画を返さず、直ちに編集する」は、作業場所の決まり（tool_policy。末尾）に
+        # 一本化した。A（driver）と同じく、ここではパスだけを書く
+        where = f"作業場所は {narrow} です。\n\n"
+    else:
+        # 計画を返して止まる実装役がいる（実測。外部のペルソナ設定が「着手前に計画を提示せよ」と
+        # 定めていた）。ハーネスは、そういう設定が正しく書かれていることに依存してはいけない。
+        # ここで直接、計画ではなくファイルを書くよう指示する（従来の単位の呼び方。v2 の実験では使わない）
+        where = (f"作業対象は {c.sandbox} の中だけです。この外にあるファイルは絶対に読み書きしないでください。\n"
+                 f"計画・実装案・確認を返さず、いま直接ファイルを作成・編集してください。"
+                 f"合意を求める必要も、事前に状況を説明する必要もありません。"
+                 f"書き終えてから、何をしたかだけを報告してください。"
+                 f"コード案を本文に貼るだけ、計画だけ返すのは未完了とみなされます。\n\n")
+    # DISPUTE_TEST の段落は外した（v2.2、docs/design/v2_b_efficiency.md §6）。B にだけあり、テストの正しさを
+    # 検討させる文で、最初の手番の長考の引き金になりうる。A と同じく、与えた性質を満たす実装に専念させる
+    parts["where"] = len(where)
+    prompt = where + prompt
     # 契約・既存の型・書き換えてよいファイルの中身を埋め込み、実装役がファイルを読む手番をなくす（v2.1 §1.1 の 2）。
-    # 変わらない前置きを先に、変わるもの（書き換えてよいファイル・前回の失敗）を後に置く（キャッシュ。v2.1c）
     # （v2.1 の呼び方＝stream-json のときだけ。ほかのプロジェクトの従来の単位のプロンプトは変えない）
     if narrow:
         try:
-            prompt += "\n\n" + implementer_context.for_unit(c.sandbox, c.unit, impl_dir)
+            embed = implementer_context.for_unit(c.sandbox, c.unit, impl_dir)
         except implementer_context.ContextError as e:
             sys.exit(f"ABORT: 実装役に渡す前提が大きすぎます: {e}")
+        parts["embed"] = len(embed)
+        prompt += "\n\n" + embed
     if feedback:
         # 反例・出力の中のサンドボックスのパスは作業場所のパスに置き換える（v2-smoke-01 で A が外へ出た経路）
-        prompt += "\n\n前回の失敗:\n" + narrow_dir.relocate(feedback, c.sandbox, narrow)
+        fb = narrow_dir.relocate(feedback, c.sandbox, narrow)
+        parts["feedback"] = len(fb)
+        prompt += "\n\n前回の失敗:\n" + fb
     # 再試行を含めて編集だけ。検証は外側の門が行い、失敗は反例で返す（v2 §7。v1 の再試行時の
     # 解禁は、b4-smoke-02 の T4 で 9 回の呼び出しがすべて TTL で打ち切られたので廃止した）。
     # 手順の結び（直ちに編集の道具を呼ぶ）で終わるよう、A（driver）と同じく末尾に置く（v2.2、§6）
+    parts["protocol"] = len(tool_policy.text())
     prompt += "\n\n" + tool_policy.text()
 
     if stream:
@@ -522,6 +535,7 @@ def call_implementer(c, feedback=""):
             c.cur["implementer"]["steps"] = parsed["steps"]
             c.cur["implementer"]["outcome"] = parsed["outcome"]
             c.cur["implementer"]["prompt_chars"] = len(prompt)
+            c.cur["implementer"]["prompt_parts"] = parts
         if narrow:
             # 細い作業場所から書き戻したファイル（パスだけ。v2.1c）
             c.cur["implementer"]["narrow_written"] = written

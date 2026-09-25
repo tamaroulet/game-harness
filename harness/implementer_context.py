@@ -67,6 +67,13 @@ def readonly_files(root, unit, impl_dir):
     return out
 
 
+def interface_scope(root, unit, impl_dir):
+    """interface のうち、実装役に宣言を描く型の名前（v2.3、N4・F4）。読み取り専用で中身を埋め込む型（契約・既存の型）は
+    除く。書き換えてよいファイルの型と、どこにもファイルが無い型は残す。"""
+    embedded = {Path(rel).stem for rel in readonly_files(root, unit, impl_dir) if (Path(root) / rel).exists()}
+    return {t["name"] for t in (unit.get("interface") or {}).get("types", []) if t["name"] not in embedded}
+
+
 def visible_files(root, unit, impl_dir):
     """実装役の作業場所に置くもの（= 埋め込むもの）。書き換えてよいファイルと、読み取り専用のもの。"""
     return list(unit.get("whitelist") or []) + readonly_files(root, unit, impl_dir)
