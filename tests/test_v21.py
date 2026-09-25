@@ -183,13 +183,14 @@ class ImplementerLogPerCall(unittest.TestCase):
 class InnerWhitelist(unittest.TestCase):
     def test_whitelist_is_checked_right_after_the_implementer_and_before_tests(self):
         src = inspect.getsource(pipeline.attempt)
-        i_call, i_inner = src.index("call_implementer(c, inner_feedback)"), src.index('c.gate = "whitelist_inner"')
-        i_tests = src.index("run_fast_tests(c, f\"impl_fast_turn_{turn}\")")
+        i_call, i_inner = src.index("call_implementer(c, inner_feedback)"), src.index("check_whitelist_inner(c)")
+        i_tests = src.index('check_fast(c, f"impl_fast_turn_{turn}")')
         self.assertLess(i_call, i_inner)
         self.assertLess(i_inner, i_tests)
-        body = src[i_inner:i_tests]
-        self.assertIn("purge_unwhitelisted_in_sandbox(c)", body, "外への変更は取り消す")
-        self.assertIn("inner_feedback = msg", body, "試行を捨てずに次のターンで知らせる")
+        self.assertIn("inner_feedback = msg", src[i_inner:i_tests], "試行を捨てずに次のターンで知らせる")
+        inner = inspect.getsource(pipeline.check_whitelist_inner)
+        self.assertIn("purge_unwhitelisted_in_sandbox(c)", inner, "外への変更は取り消す")
+        self.assertIn('c.gate = "whitelist_inner"', inner)
 
 
 class LowerBound(unittest.TestCase):

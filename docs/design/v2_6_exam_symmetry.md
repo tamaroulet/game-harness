@@ -86,3 +86,40 @@ v2 の主張（型・コンパイラ・性質テストの反例で、長期に�
 2. **「最初の提出」の記録（3.2）を足すか**（推奨：足す。門の効果を条件の中で示す唯一の方法）
 3. **A の作業ツリーの扱い**：B は試行の境目でサンドボックスを base に戻す。A は戻さない（会話と同じく積む）。推奨：戻さない（単一チャットで人がファイルを戻さないのと同じ。これも文脈の持ち方の一部として扱う）
 4. 過去の記録の訂正：v2-dry-04 の A の 7/8 を「A の合わせ込み」と書いた箇所に、試験制度の差があったことを注記する（推奨：注記する。この PR の後の記録の PR で行う）
+
+## 6. 実装（2026-09-25、裁定 1〜3 のとおり）
+
+| # | 内容 | 場所 |
+|:--|:--|:--|
+| 1 | B の試行（`attempt`）の検査を関数に切り出した：`check_whitelist_inner`・`check_fast`・`check_outer`・`outer_feedback`。B の振る舞いは変えていない（既存のテストがそのまま通る。構造を見る 2 件は、切り出した関数を見るように直した） | `harness/pipeline.py` |
+| 2 | A の判定：`judge_context`（main と同じ準備で base を測る。repo は A の作業ツリー、サンドボックスは A 専用）と `judge`（A の作業ツリーの変更をサンドボックスに写し、1 と同じ関数を同じ順で通す） | `harness/pipeline.py` |
+| 3 | A の再試行ループ：呼び出しの後に判定を通し、落ちたら判定の知らせを次の入力にする。公開の受入だけの測りと、生の出力の末尾（40 行）はやめた（v2 のときだけ。v1 の走行の再現には旧来の形が残る）。上限は B と同じ 9 回。検査系の故障（ABORT）でそのタスクを止める | `harness/ab/driver.py` |
+| 4 | A の再試行のテンプレートを「検査の知らせ」だけの形にした | `harness/ab/v2prep.py`、`experiments/v2/templates/retry.md` |
+| 5 | 単体テスト | `tests/test_exam_symmetry.py` |
+
+実物での配管の確認：falling-blocks の base に T1 の生成物を置いた作業ツリーで、`judge_context` と `judge`（実装役を呼ばず、変更なし）を走らせた。base の測定は 158.4 秒で通り、判定は `INNER`（契約を満たさずビルドが通らない：`BUILD_DIAG kind=contract symbol=GameState.IsOccupied …` の診断の射影）を返した。B が同じ状態で返す知らせと同じ形。
+
+### 残る違い（文脈の持ち方以外）
+
+| 違い | 理由 |
+|:--|:--|
+| A は実装役が本体を書き換えたかの検査（`gate_repo_untouched`）をしない | A は作業ツリーをそのまま編集する条件で、「本体」が無い |
+| A には DISPUTE_TEST の指示が無く、判定もしない | A の固定テンプレートに無い（B の指示の文面の一部）。本走の前に揃えるかは別に決める |
+| B は試行の 3 ターン目で内側に落ちると「内部試行ループ上限到達 (3 ターン失敗)」を前置きして次の試行へ渡す。A は試行の区切りが無いので前置きが無い | 試行の区切りは文脈の持ち方（B は試行ごとにサンドボックスを戻す）の一部 |
+
+### 後始末（人間の作業）
+
+配管の確認に使った worktree（`C:\src\.local\wt\ab\judgecheck-01-A`・`judgecheck-01-A-sandbox`、ブランチ `ab/judgecheck-01/A`）が残っている。`python -m harness.ab.driver cleanup --run-id judgecheck-01` は、このセッションでは実行を許可されなかった。
+
+## 7. 最初の提出の記録の実装（裁定 2）
+
+| # | 内容 | 場所 |
+|:--|:--|:--|
+| 1 | 変更を残す・当て直す：`save_changes`（HEAD からの変更＝変えた・足した・消したファイル）と `restore_changes` | `harness/pipeline.py` |
+| 2 | B：`--first-submission <置き場>` を渡すと、試行 1 の 1 ターン目の実装役の呼び出しの直後に、サンドボックスの変更を残す | `harness/pipeline.py`、`harness/ab/driver.py`（`pipeline_args`） |
+| 3 | A：最初の呼び出しの直後（作業場所から書き戻した後）に、作業ツリーの変更を残す | `harness/ab/driver.py` |
+| 4 | 測る：タスクの後に、タスクの始めのコミットから一時の worktree を作り、残した変更を当てて、最終と**同じ測定器・同じ非公開シード**で測る（受入・公開の受入・P2P・不変条件）。metrics の `first_submission` に残す。一時の worktree は消す | `harness/ab/driver.py`（`measure_first`） |
+| 5 | 集計に「最初の提出（門を通す前）と最終」の節 | `harness/ab/report.py` |
+| 6 | 単体テスト | `tests/test_first_submission.py` |
+
+実装役には何も知らせない（測るのはタスクの後で、知らせの経路に入らない）。

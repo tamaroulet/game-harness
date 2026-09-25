@@ -110,10 +110,10 @@ class Relocate(unittest.TestCase):
             prompts.append(prompt)
             return {"rc": 0, "seconds": 1.0, "conversation_id": "c", "usage": {}, "out": "", "err": ""}
 
-        def fast(wt_, proj, out, tag):
-            return {"G.B4abT1Cases.Case_x": "Passed" if len(prompts) >= 2 else "Failed"}, \
-                f"{wt}\\tests\\Core.Tests\\T.cs(10,1): error"
-        driver.run_task_a(ctx, m["tasks"][0], unit, {}, call=call, fast=fast)
+        # V2-6 からは、再試行の知らせは判定（pipeline.judge）の知らせ。そこに出るパスも置き換える
+        def judge(n):
+            return ("SUCCESS", "") if n >= 2 else ("INNER", f"{wt}\\tests\\Core.Tests\\T.cs(10,1): error")
+        driver.run_task_a(ctx, m["tasks"][0], unit, {}, call=call, judge=judge)
         self.assertEqual(len(prompts), 2)
         self.assertNotIn(str(wt), prompts[1])
         self.assertIn(str(narrow_dir.path_for(wt)), prompts[1])

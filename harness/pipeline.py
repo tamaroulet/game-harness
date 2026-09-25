@@ -1160,116 +1160,78 @@ def purge_unwhitelisted_in_sandbox(c):
                 run(["git", "checkout", "--", rel], c.sandbox, c.ttl["git"], "restore unwhitelisted file")
 
 
-def attempt(c, feedback):
-    sandbox_reset(c)
+def check_whitelist_inner(c):
+    """書き換えてよいファイルの外への変更を取り消して、知らせの文を返す。無ければ None（v2.1 §1.3 の 3）。
 
-    inner_feedback = feedback
-    last_failure_text = ""
-    fast = None
-    is_loop_success = False
+    試行を捨てずに次のターンで知らせる。外側の whitelist の門はそのまま残す（最後の確認）。
+    """
+    c.gate = "whitelist_inner"
+    outside = gate_whitelist(c)
+    if not outside:
+        return None
+    purge_unwhitelisted_in_sandbox(c)
+    msg = ("書き換えてよいファイルの外を変更しました（変更は取り消しました）: " + ", ".join(outside[:5])
+           + "。書き換えてよいのは " + ", ".join(c.unit["whitelist"]) + " だけです")
+    print(f"  [WHITELIST] {msg}")
+    if isinstance(c.cur, dict):
+        c.cur["whitelist_inner"] = c.cur.get("whitelist_inner", 0) + 1
+    return msg
 
-    # ===== 内部自己修復ループ (Inner Loop: 最大 MAX_INNER_LOOP_TURNS ターン) =====
-    for turn in range(1, MAX_INNER_LOOP_TURNS + 1):
-        print(f"--- 内部試行ループ ターン {turn}/{MAX_INNER_LOOP_TURNS} ---")
-        if turn > 1:
-            # Dirty Sandbox 防止: 前ターンで生成された未許可ファイルを自動パージ
-            purge_unwhitelisted_in_sandbox(c)
 
-        print("[1] 実装AI")
-        c.gate = "implementer"
-        ok, msg = call_implementer(c, inner_feedback)
-        if not ok:
-            if turn < MAX_INNER_LOOP_TURNS:
-                inner_feedback = extract_raw_stacktrace(msg, max_lines=40)
-                continue
-            return "RETRY", msg
+def check_fast(c, tag):
+    """高速検査（全テスト）。(結果, ビルドのエラー, 落ちたときの知らせの文 | None)。
 
-        c.gate = "escape"
-        escaped = gate_repo_untouched(c)
-        if escaped:
-            return "ABORT", ("実装AIがサンドボックス外（本体リポジトリ）を書き換えました: "
-                             + ", ".join(escaped[:5]))
-        capture_diff(c)
+    知らせは、性質テストなら反例の 1 行（最大 5 行）、例示テストなら名前と期待値の不一致。ビルドが通らなければ
+    診断を interface の識別子に射影したもの（ADR-003 §3.11）。B の内側ループと A の判定が同じものを通る。
+    """
+    print(f"[3] 高速検査（{c.fast.LABEL}）")
+    c.gate = "fast"
+    fast, err = run_fast_tests(c, tag)
 
-        # 書き換えてよいファイルの外への変更は、試行を捨てずにこのターンで知らせる（v2.1 §1.3 の 3）。
-        # 変更は取り消す。外側の whitelist の門はそのまま残す（最後の確認）
-        c.gate = "whitelist_inner"
-        outside = gate_whitelist(c)
-        if outside:
-            purge_unwhitelisted_in_sandbox(c)
-            msg = ("書き換えてよいファイルの外を変更しました（変更は取り消しました）: " + ", ".join(outside[:5])
-                   + "。書き換えてよいのは " + ", ".join(c.unit["whitelist"]) + " だけです")
-            print(f"  [WHITELIST] {msg}")
-            if isinstance(c.cur, dict):
-                c.cur["whitelist_inner"] = c.cur.get("whitelist_inner", 0) + 1
-            if turn < MAX_INNER_LOOP_TURNS:
-                inner_feedback = msg
-                continue
-            return "RETRY", msg
-
-        # [DISPUTE 判定 (One-Strike Rule)]
-        dispute_reason = extract_dispute(getattr(c, "last_implementer_out", ""))
-        if dispute_reason is not None:
-            dispute_count = getattr(c, "dispute_count", 0) + 1
-            c.dispute_count = dispute_count
-            if dispute_count == 1:
-                c.dispute_status = {"disputed": True, "reason": dispute_reason}
-                print(f"  [DISPUTE_TEST 検知 (1回目)] 受入テスト不整合の申し立てを記録: {dispute_reason[:150]}")
-                return "DISPUTE", f"受入テストに対する異議申し立て (DISPUTE_TEST): {dispute_reason}"
-            else:
-                print("  [DISPUTE_TEST 拒否] 2回目以降の異議申し立ては One-Strike Rule により却下")
-                return "REJECT", f"DISPUTE_TEST の再発行は禁止されています（One-Strike Rule 違反）: {dispute_reason}"
-
-        # [決定論的テスト実行 (言語中立名称)]
-        print(f"[3] 高速検査（{c.fast.LABEL}）")
-        c.gate = "fast"
-        fast, err = run_fast_tests(c, f"impl_fast_turn_{turn}")
-
-        test_failed = False
-        fail_raw_output = ""
-        if err:
+    test_failed = False
+    fail_raw_output = ""
+    if err:
+        test_failed = True
+        fail_raw_output = err
+    elif fast is None:
+        test_failed = True
+        fail_raw_output = "高速検査で結果が取得できませんでした（テスト結果未生成）"
+    else:
+        failed_names = [n for n, o in fast.items() if o in (c.fast.FAILED, "Failed")]
+        if failed_names:
             test_failed = True
-            fail_raw_output = err
-        elif fast is None:
-            test_failed = True
-            fail_raw_output = "高速検査で結果が取得できませんでした（テスト結果未生成）"
-        else:
-            failed_names = [n for n, o in fast.items() if o in (c.fast.FAILED, "Failed")]
-            if failed_names:
-                test_failed = True
-                log_candidates = list(c.out.glob(f"impl_fast_turn_{turn}.*.log"))
-                if log_candidates and log_candidates[0].exists():
-                    try:
-                        fail_raw_output = log_candidates[0].read_text(encoding="utf-8", errors="replace")
-                    except Exception:
-                        fail_raw_output = ""
-                if not fail_raw_output:
-                    # 落ちたテストの名前と、期待値の不一致（アサーションの本文）。A/B の両条件で同じ整形（監査 §6）
-                    detail = getattr(c.fast, "failure_detail", None)
-                    fail_raw_output = (detail(c, f"impl_fast_turn_{turn}") if callable(detail) else "") \
-                        or "失敗テスト: " + ", ".join(failed_names)
+            log_candidates = list(c.out.glob(f"{tag}.*.log"))
+            if log_candidates and log_candidates[0].exists():
+                try:
+                    fail_raw_output = log_candidates[0].read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    fail_raw_output = ""
+            if not fail_raw_output:
+                # 落ちたテストの名前と、期待値の不一致（アサーションの本文）。A/B の両条件で同じ整形（監査 §6）
+                detail = getattr(c.fast, "failure_detail", None)
+                fail_raw_output = (detail(c, tag) if callable(detail) else "") \
+                    or "失敗テスト: " + ", ".join(failed_names)
+    if not test_failed:
+        return fast, err, None
+    text = extract_raw_stacktrace(fail_raw_output, max_lines=40)
+    # ビルドが通らなかった回は、診断を interface の識別子に射影して渡す（ADR-003 §3.11、因果盲目の防止）
+    diagnose = getattr(c.fast, "diagnose_build", None)
+    projected = diagnose(c, tag) if err and callable(diagnose) else None
+    return fast, err, projected or text
 
-        if not test_failed:
-            print(f"  [PASS] 内部テスト全件合格 (turn {turn}/{MAX_INNER_LOOP_TURNS}) -> Outer Gate へ進みます")
-            is_loop_success = True
-            break
-        else:
-            print(f"  [FAIL] 内部テスト不合格 (turn {turn}/{MAX_INNER_LOOP_TURNS})")
-            last_failure_text = extract_raw_stacktrace(fail_raw_output, max_lines=40)
-            # ビルドが通らなかった回は、診断を interface の識別子に射影して渡す（ADR-003 §3.11、因果盲目の防止）
-            diagnose = getattr(c.fast, "diagnose_build", None)
-            projected = diagnose(c, f"impl_fast_turn_{turn}") if err and callable(diagnose) else None
-            if projected:
-                last_failure_text = projected
-            if turn < MAX_INNER_LOOP_TURNS:
-                inner_feedback = last_failure_text
-                continue
-            else:
-                break
 
-    if not is_loop_success:
-        return "RETRY", f"内部試行ループ上限到達 ({MAX_INNER_LOOP_TURNS} ターン失敗):\n{last_failure_text}"
+def outer_feedback(c, msg):
+    """外側の門で落ちたときに、次の呼び出しへ渡す知らせ（holdout と制御群の名前を除く。最大 2,000 字）。"""
+    return "\n".join(l for l in str(msg).splitlines()
+                     if "holdout" not in l.lower() and c.ctrl_fail not in l)[:2000]
 
+
+def check_outer(c, fast):
+    """外側の門（whitelist・静的・差分・受入と P2P・非公開シード・ヘッドレス・不変条件）。
+
+    合格なら None、落ちたら (verdict, msg)。B の試行（attempt）と、A の判定（judge、V2-6 の試験制度の対称化）が
+    同じものを通る。
+    """
     # ===== Outer Gate（境界確定ゲート / 決定論的防壁） =====
     print("[2] 静的機械判定")
     c.gate = "whitelist"
@@ -1323,6 +1285,88 @@ def attempt(c, feedback):
     print("[5.7] 不変条件（Outer 段）")
     c.gate = "invariants"
     failed = invrun.check(c)
+    if failed:
+        return failed
+
+    return None
+
+
+def attempt(c, feedback):
+    sandbox_reset(c)
+
+    inner_feedback = feedback
+    last_failure_text = ""
+    fast = None
+    is_loop_success = False
+
+    # ===== 内部自己修復ループ (Inner Loop: 最大 MAX_INNER_LOOP_TURNS ターン) =====
+    for turn in range(1, MAX_INNER_LOOP_TURNS + 1):
+        print(f"--- 内部試行ループ ターン {turn}/{MAX_INNER_LOOP_TURNS} ---")
+        if turn > 1:
+            # Dirty Sandbox 防止: 前ターンで生成された未許可ファイルを自動パージ
+            purge_unwhitelisted_in_sandbox(c)
+
+        print("[1] 実装AI")
+        c.gate = "implementer"
+        ok, msg = call_implementer(c, inner_feedback)
+        first = getattr(c, "first_submission", None)
+        if first is not None and turn == 1 and c.metrics.get("attempt") == 1:
+            # 最初の提出（門を通す前）を残す。測るのは呼び出し側（A/B の測定器）で、実装役には知らせない（V2-6）
+            save_changes(c.sandbox, first, c.ttl["git"])
+        if not ok:
+            if turn < MAX_INNER_LOOP_TURNS:
+                inner_feedback = extract_raw_stacktrace(msg, max_lines=40)
+                continue
+            return "RETRY", msg
+
+        c.gate = "escape"
+        escaped = gate_repo_untouched(c)
+        if escaped:
+            return "ABORT", ("実装AIがサンドボックス外（本体リポジトリ）を書き換えました: "
+                             + ", ".join(escaped[:5]))
+        capture_diff(c)
+
+        msg = check_whitelist_inner(c)
+        if msg:
+            if turn < MAX_INNER_LOOP_TURNS:
+                inner_feedback = msg
+                continue
+            return "RETRY", msg
+
+        # [DISPUTE 判定 (One-Strike Rule)]
+        dispute_reason = extract_dispute(getattr(c, "last_implementer_out", ""))
+        if dispute_reason is not None:
+            dispute_count = getattr(c, "dispute_count", 0) + 1
+            c.dispute_count = dispute_count
+            if dispute_count == 1:
+                c.dispute_status = {"disputed": True, "reason": dispute_reason}
+                print(f"  [DISPUTE_TEST 検知 (1回目)] 受入テスト不整合の申し立てを記録: {dispute_reason[:150]}")
+                return "DISPUTE", f"受入テストに対する異議申し立て (DISPUTE_TEST): {dispute_reason}"
+            else:
+                print("  [DISPUTE_TEST 拒否] 2回目以降の異議申し立ては One-Strike Rule により却下")
+                return "REJECT", f"DISPUTE_TEST の再発行は禁止されています（One-Strike Rule 違反）: {dispute_reason}"
+
+        # [決定論的テスト実行 (言語中立名称)]
+        fast, err, failure_text = check_fast(c, f"impl_fast_turn_{turn}")
+
+        if failure_text is None:
+            print(f"  [PASS] 内部テスト全件合格 (turn {turn}/{MAX_INNER_LOOP_TURNS}) -> Outer Gate へ進みます")
+            is_loop_success = True
+            break
+        else:
+            print(f"  [FAIL] 内部テスト不合格 (turn {turn}/{MAX_INNER_LOOP_TURNS})")
+            last_failure_text = failure_text
+            if turn < MAX_INNER_LOOP_TURNS:
+                inner_feedback = last_failure_text
+                continue
+            else:
+                break
+
+    if not is_loop_success:
+        return "RETRY", f"内部試行ループ上限到達 ({MAX_INNER_LOOP_TURNS} ターン失敗):\n{last_failure_text}"
+
+    # ===== Outer Gate（境界確定ゲート / 決定論的防壁） =====
+    failed = check_outer(c, fast)
     if failed:
         return failed
 
@@ -1821,8 +1865,7 @@ def run_unit(c, args):
             return 1
 
         print(f"REJECT: {msg}")
-        feedback = "\n".join(l for l in str(msg).splitlines()
-                             if "holdout" not in l.lower() and c.ctrl_fail not in l)[:2000]
+        feedback = outer_feedback(c, msg)
 
     print("\n" + "=" * 56)
     print(f"不合格。{max_retry + 1} 回とも通りませんでした。")
@@ -1838,6 +1881,113 @@ def git_head(cwd, ttl):
     return out.strip() if rc == 0 and out.strip() else None
 
 
+# ============================================================ A の判定（V2-6 の試験制度の対称化）
+
+def judge_context(project_id, unit_path, repo_dir, sandbox, out_dir, known_failures=()):
+    """条件 A の判定の文脈。main と同じ準備（単位の検査・契約・既知の失敗）をして base を測る。
+
+    docs/design/v2_6_exam_symmetry.md §3.1：A にも B と同じ検査の列を同じ順で当てる。repo_dir は A の作業ツリー
+    （タスクの始めにコミットしてある）で、base はその HEAD。サンドボックスは A 専用。戻り値 (c, verdict, msg)。
+    """
+    proj = project.load(project_id)
+    proj["repo_dir"] = str(repo_dir)
+    cfg = project.pipeline_config(proj)
+    cfg["paths"]["sandbox"], cfg["paths"]["out_dir"] = str(sandbox), str(out_dir)
+    c = Ctx(cfg, unit_path)
+    c.local_only = True
+    c.oracle["quarantine"] = _add_known(c.oracle["quarantine"], list(known_failures))
+    require_unit_safe(c)
+    apply_contract(c)
+    require_unit_schema(c, Path(unit_path).read_bytes())
+    require_repo_clean(c)
+    verdict, msg = establish_base(c)
+    return c, verdict, msg
+
+
+def copy_changes(source, sandbox, ttl):
+    """source（A の作業ツリー）の HEAD からの変更（新しいファイル・消したファイルを含む）をサンドボックスに写す。"""
+    copied = []
+    for _, rel in changed_entries(source, ttl):
+        src, dst = Path(source) / rel, Path(sandbox) / rel
+        if src.is_file():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst)
+        elif dst.is_file():
+            fileops.unlink(dst)
+        copied.append(rel)
+    return copied
+
+
+def save_changes(source, dst, ttl):
+    """source の HEAD からの変更を dst に残す（最初の提出の記録、V2-6）。files/ の下に変わったファイル、deleted.json に消したもの。"""
+    dst = Path(dst)
+    if dst.exists():
+        shutil.rmtree(dst)
+    (dst / "files").mkdir(parents=True)
+    deleted = []
+    for _, rel in changed_entries(source, ttl):
+        src = Path(source) / rel
+        if src.is_file():
+            (dst / "files" / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst / "files" / rel)
+        else:
+            deleted.append(rel)
+    (dst / "deleted.json").write_text(json.dumps(sorted(set(deleted)), ensure_ascii=False), encoding="utf-8")
+
+
+def restore_changes(saved, target):
+    """save_changes で残した変更を target（同じ HEAD の作業ツリー）に当てる。"""
+    saved = Path(saved)
+    for p in sorted((saved / "files").rglob("*")):
+        if p.is_file():
+            rel = p.relative_to(saved / "files")
+            (Path(target) / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(p, Path(target) / rel)
+    for rel in json.loads((saved / "deleted.json").read_text(encoding="utf-8")):
+        if (Path(target) / rel).is_file():
+            fileops.unlink(Path(target) / rel)
+
+
+def judge(c, source, n):
+    """条件 A の実装役の 1 回の呼び出しの後の判定。(verdict, 次の呼び出しへの知らせ)。
+
+    source の変更をサンドボックスに写し、B の内側ループ（whitelist の内側の検査・全テストの高速検査）と外側の門
+    （check_outer）を、B と同じ関数で通す。知らせも B と同じ関数（check_fast・check_whitelist_inner・outer_feedback）
+    から出る。verdict は "SUCCESS"、内側で落ちたら "INNER"、外側で落ちたら B と同じ verdict。
+
+    B と違うところ（文脈の持ち方の一部）：A はサンドボックスを試行ごとに戻さず、作業ツリーに積む。実装役が本体を
+    書き換えたかの検査（gate_repo_untouched）は、A が作業ツリーをそのまま編集する条件なので行わない。
+    DISPUTE_TEST は A の指示に無いので見ない。
+    """
+    c.metrics["attempt"] = n
+    c.cur, c.gate = {}, None
+    sandbox_reset(c)
+    copy_changes(source, c.sandbox, c.ttl["git"])
+    capture_diff(c)
+    outside = gate_whitelist(c)
+    msg = check_whitelist_inner(c)
+    if msg:
+        # B は外への変更をサンドボックスで取り消す。A は作業ツリーで同じく取り消す
+        for code, rel in changed_entries(source, c.ttl["git"]):
+            if rel in outside:
+                if code == "??":
+                    fileops.unlink(Path(source) / rel)
+                else:
+                    run(["git", "checkout", "--", rel], source, c.ttl["git"], "restore unwhitelisted file (A)")
+        return "INNER", msg
+    fast, _, text = check_fast(c, f"judge_{n}")
+    if text is not None:
+        return "INNER", text
+    failed = check_outer(c, fast)
+    if failed:
+        return failed[0], outer_feedback(c, failed[1])
+    return "SUCCESS", ""
+
+
+def _add_known(quarantine, names):
+    return tuple(quarantine) + tuple(n for n in names if n not in quarantine)
+
+
 def with_known_failures(quarantine, path):
     """隔離に、前のタスクの終わりに落ちていたテストを足す（S2 を標準にした。v2 §5.2）。
 
@@ -1848,7 +1998,7 @@ def with_known_failures(quarantine, path):
     names = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(names, list) or not all(isinstance(n, str) and n for n in names):
         sys.exit(f"ABORT: --known-failures はテスト名の配列にしてください: {path}")
-    return tuple(quarantine) + tuple(n for n in names if n not in quarantine)
+    return _add_known(quarantine, names)
 
 
 def main():
@@ -1867,6 +2017,7 @@ def main():
                          "（v2 §5.2。受入テストの判定には使わない）")
     ap.add_argument("--sandbox", help="サンドボックスの置き場（既定は pipeline.json の paths.sandbox）")
     ap.add_argument("--out-dir", help="出力の置き場（既定は pipeline.json の paths.out_dir）")
+    ap.add_argument("--first-submission", help="最初の実装役の呼び出しの後の変更を残す置き場（A/B 実験の最初の提出の記録。判定には使わない）")
     args = ap.parse_args()
 
     tel = {"schema": telemetry.SCHEMA, "tool": "pipeline",
@@ -1889,6 +2040,7 @@ def main():
             cfg["paths"]["out_dir"] = args.out_dir
         c = Ctx(cfg, unit_path)
         c.local_only = args.local_only
+        c.first_submission = Path(args.first_submission) if args.first_submission else None
         c.tel, c.tel_path = tel, tel_path
         if args.known_failures:
             c.oracle["quarantine"] = with_known_failures(c.oracle["quarantine"], args.known_failures)
