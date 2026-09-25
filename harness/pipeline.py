@@ -1309,6 +1309,10 @@ def attempt(c, feedback):
         print("[1] 実装AI")
         c.gate = "implementer"
         ok, msg = call_implementer(c, inner_feedback)
+        first = getattr(c, "first_submission", None)
+        if first is not None and turn == 1 and c.metrics.get("attempt") == 1:
+            # 最初の提出（門を通す前）を残す。測るのは呼び出し側（A/B の測定器）で、実装役には知らせない（V2-6）
+            save_changes(c.sandbox, first, c.ttl["git"])
         if not ok:
             if turn < MAX_INNER_LOOP_TURNS:
                 inner_feedback = extract_raw_stacktrace(msg, max_lines=40)
@@ -1914,6 +1918,36 @@ def copy_changes(source, sandbox, ttl):
     return copied
 
 
+def save_changes(source, dst, ttl):
+    """source の HEAD からの変更を dst に残す（最初の提出の記録、V2-6）。files/ の下に変わったファイル、deleted.json に消したもの。"""
+    dst = Path(dst)
+    if dst.exists():
+        shutil.rmtree(dst)
+    (dst / "files").mkdir(parents=True)
+    deleted = []
+    for _, rel in changed_entries(source, ttl):
+        src = Path(source) / rel
+        if src.is_file():
+            (dst / "files" / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst / "files" / rel)
+        else:
+            deleted.append(rel)
+    (dst / "deleted.json").write_text(json.dumps(sorted(set(deleted)), ensure_ascii=False), encoding="utf-8")
+
+
+def restore_changes(saved, target):
+    """save_changes で残した変更を target（同じ HEAD の作業ツリー）に当てる。"""
+    saved = Path(saved)
+    for p in sorted((saved / "files").rglob("*")):
+        if p.is_file():
+            rel = p.relative_to(saved / "files")
+            (Path(target) / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(p, Path(target) / rel)
+    for rel in json.loads((saved / "deleted.json").read_text(encoding="utf-8")):
+        if (Path(target) / rel).is_file():
+            fileops.unlink(Path(target) / rel)
+
+
 def judge(c, source, n):
     """条件 A の実装役の 1 回の呼び出しの後の判定。(verdict, 次の呼び出しへの知らせ)。
 
@@ -1983,6 +2017,7 @@ def main():
                          "（v2 §5.2。受入テストの判定には使わない）")
     ap.add_argument("--sandbox", help="サンドボックスの置き場（既定は pipeline.json の paths.sandbox）")
     ap.add_argument("--out-dir", help="出力の置き場（既定は pipeline.json の paths.out_dir）")
+    ap.add_argument("--first-submission", help="最初の実装役の呼び出しの後の変更を残す置き場（A/B 実験の最初の提出の記録。判定には使わない）")
     args = ap.parse_args()
 
     tel = {"schema": telemetry.SCHEMA, "tool": "pipeline",
@@ -2005,6 +2040,7 @@ def main():
             cfg["paths"]["out_dir"] = args.out_dir
         c = Ctx(cfg, unit_path)
         c.local_only = args.local_only
+        c.first_submission = Path(args.first_submission) if args.first_submission else None
         c.tel, c.tel_path = tel, tel_path
         if args.known_failures:
             c.oracle["quarantine"] = with_known_failures(c.oracle["quarantine"], args.known_failures)

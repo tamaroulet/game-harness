@@ -90,6 +90,7 @@ def summarize(rows, cost_model=None):
                 _fmt(_median([x.get("cache_read") for x in tok])), _fmt(_median([total_input(x) for x in tok])),
                 _fmt(usd, 4) + ("（下限）" if usd is not None and any(x.get("partial") for x in tok) else ""),
                 _median([r.get("seconds") for r in rs])))
+    lines += first_submission_section(rows, tasks)
     lines += ["", "## トークンの伸び（累積の入力トークンの両対数の傾き）", "",
               "| 条件 | 走行ごとの傾き | 中央値 |", "|:--|:--|:--|"]
     for cond in common.CONDITIONS:
@@ -110,6 +111,29 @@ def summarize(rows, cost_model=None):
     if cost_model is not None:
         lines += cost_section(rows, cost_model)
     return "\n".join(lines) + "\n"
+
+
+def first_submission_section(rows, tasks):
+    """最初の提出（門を通す前）と最終の並び（V2-6、docs/design/v2_6_exam_symmetry.md §3.2）。記録が無ければ出さない。"""
+    if not any(r.get("first_submission") for r in rows):
+        return []
+    lines = ["", "## 最初の提出（門を通す前）と最終", "",
+             "- 最初の提出：最初の実装役の呼び出しの直後を、最終と同じ測定器・同じ非公開シードで測った。実装役には知らせていない",
+             "- 門の効果は、条件の中の比較（最初 → 最終）で見る", "",
+             "| タスク | 条件 | 受入（最初） | 受入（最終） | P2P の破壊（最初） | P2P の破壊（最終） "
+             "| 不変条件の違反（最初） | 不変条件の違反（最終） |",
+             "|:--|:--|:--|:--|:--|:--|:--|:--|"]
+    for t in tasks:
+        for cond in common.CONDITIONS:
+            rs = [r for r in rows if r["task"] == t and r["condition"] == cond and r.get("first_submission")]
+            if not rs:
+                continue
+            fs = [r["first_submission"] for r in rs]
+            lines.append("| {} | {} | {}/{} | {}/{} | {} | {} | {} | {} |".format(
+                t, cond, sum(f["accepted"] for f in fs), len(fs), sum(r["accepted"] for r in rs), len(rs),
+                _median([f["p2p_broken"] for f in fs]), _median([r["p2p_broken"] for r in rs]),
+                _median([f["invariants"]["failures"] for f in fs]), _median([r["invariants"]["failures"] for r in rs])))
+    return lines
 
 
 def _fmt(x, nd=1):

@@ -110,3 +110,16 @@ v2 の主張（型・コンパイラ・性質テストの反例で、長期に�
 ### 後始末（人間の作業）
 
 配管の確認に使った worktree（`C:\src\.local\wt\ab\judgecheck-01-A`・`judgecheck-01-A-sandbox`、ブランチ `ab/judgecheck-01/A`）が残っている。`python -m harness.ab.driver cleanup --run-id judgecheck-01` は、このセッションでは実行を許可されなかった。
+
+## 7. 最初の提出の記録の実装（裁定 2）
+
+| # | 内容 | 場所 |
+|:--|:--|:--|
+| 1 | 変更を残す・当て直す：`save_changes`（HEAD からの変更＝変えた・足した・消したファイル）と `restore_changes` | `harness/pipeline.py` |
+| 2 | B：`--first-submission <置き場>` を渡すと、試行 1 の 1 ターン目の実装役の呼び出しの直後に、サンドボックスの変更を残す | `harness/pipeline.py`、`harness/ab/driver.py`（`pipeline_args`） |
+| 3 | A：最初の呼び出しの直後（作業場所から書き戻した後）に、作業ツリーの変更を残す | `harness/ab/driver.py` |
+| 4 | 測る：タスクの後に、タスクの始めのコミットから一時の worktree を作り、残した変更を当てて、最終と**同じ測定器・同じ非公開シード**で測る（受入・公開の受入・P2P・不変条件）。metrics の `first_submission` に残す。一時の worktree は消す | `harness/ab/driver.py`（`measure_first`） |
+| 5 | 集計に「最初の提出（門を通す前）と最終」の節 | `harness/ab/report.py` |
+| 6 | 単体テスト | `tests/test_first_submission.py` |
+
+実装役には何も知らせない（測るのはタスクの後で、知らせの経路に入らない）。
