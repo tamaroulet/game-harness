@@ -480,7 +480,8 @@ def call_implementer(c, feedback=""):
         except implementer_context.ContextError as e:
             sys.exit(f"ABORT: 実装役に渡す前提が大きすぎます: {e}")
     if feedback:
-        prompt += "\n\n前回の失敗:\n" + feedback
+        # 反例・出力の中のサンドボックスのパスは作業場所のパスに置き換える（v2-smoke-01 で A が外へ出た経路）
+        prompt += "\n\n前回の失敗:\n" + narrow_dir.relocate(feedback, c.sandbox, narrow)
 
     if stream:
         # stream-json：手番ごとの利用量を足し込む。TTL で打ち切っても終わった手番までは残る（v2.1 §1.2）

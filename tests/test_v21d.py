@@ -73,6 +73,52 @@ class ToolSummary(unittest.TestCase):
         self.assertNotIn("GameState.cs", json.dumps(steps, ensure_ascii=False), "引数の本文は残さない")
 
 
+class Relocate(unittest.TestCase):
+    """v2-smoke-01：再試行の指示に入った作業ツリーのパスをたどって、A が作業場所の外のテストを読んだ。"""
+
+    def test_origin_paths_in_feedback_become_workspace_paths(self):
+        with tempfile.TemporaryDirectory() as d:
+            origin = Path(d) / "wt"
+            dst = Path(d) / narrow_dir.ROOT_NAME / "x"
+            text = (f"{origin}\\tests\\T.cs(12,5): error\n{str(origin).replace(chr(92), '/')}/Core/A.cs:3\n"
+                    f"{str(origin).upper()}\\X.cs")
+            out = narrow_dir.relocate(text, origin, dst)
+        self.assertNotIn(str(origin).lower(), out.lower())
+        self.assertIn(f"{dst}\\tests\\T.cs(12,5)", out)
+        self.assertEqual(out.count(str(dst)), 3)
+        self.assertEqual(narrow_dir.relocate("x", origin, None), "x")
+
+    def test_condition_a_retry_prompt_carries_no_worktree_path(self):
+        import shutil
+        from ab import common, driver
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        m = common.load_manifest(ROOT / "experiments" / "b4_ab" / "tasks.json")
+        unit = dict(common.unit_of(m, m["tasks"][0]), whitelist=["Core/GameState.cs"])
+        wt = tmp / "wt"
+        (wt / "Core").mkdir(parents=True)
+        (wt / "Core" / "GameState.cs").write_text("class GameState {}", encoding="utf-8")
+        v2 = json.loads((ROOT / "experiments" / "v2" / "tasks.json").read_text(encoding="utf-8"))
+        ctx = {"m": m, "wt": wt, "out": tmp / "out", "ttl": 60, "impl_dir": "Core", "imp": IMP,
+               "test_project": "t.csproj", "index": 1, "classes": {"B4abT1Cases": "T1"},
+               "templates": {k: (ROOT / "experiments" / "v2" / v2["templates"][k]).read_text(encoding="utf-8")
+                             for k in ("initial", "retry")}}
+        ctx["out"].mkdir(parents=True)
+        prompts = []
+
+        def call(imp, prompt, cwd, cid, ttl):
+            prompts.append(prompt)
+            return {"rc": 0, "seconds": 1.0, "conversation_id": "c", "usage": {}, "out": "", "err": ""}
+
+        def fast(wt_, proj, out, tag):
+            return {"G.B4abT1Cases.Case_x": "Passed" if len(prompts) >= 2 else "Failed"}, \
+                f"{wt}\\tests\\Core.Tests\\T.cs(10,1): error"
+        driver.run_task_a(ctx, m["tasks"][0], unit, {}, call=call, fast=fast)
+        self.assertEqual(len(prompts), 2)
+        self.assertNotIn(str(wt), prompts[1])
+        self.assertIn(str(narrow_dir.path_for(wt)), prompts[1])
+
+
 class DiscardAfterCall(unittest.TestCase):
     def test_pipeline_removes_the_workspace_after_writing_back(self):
         seen = {}
@@ -93,12 +139,14 @@ class DiscardAfterCall(unittest.TestCase):
             with mock.patch.object(pipeline, "run", side_effect=fake_run), \
                     mock.patch.object(pipeline, "resolve_cli", side_effect=lambda n: [n]), \
                     mock.patch.object(pipeline, "write_implementer_log"):
-                pipeline.call_implementer(c)
+                pipeline.call_implementer(c, feedback=f"{sb}\\tests\\T.cs(3,1): error")
             self.assertEqual((sb / "Core" / "GameState.cs").read_text(encoding="utf-8"),
                              "class GameState : IGameState {}", "書き戻してから消す")
         self.assertFalse(seen["cwd"].exists(), "呼び出しの後に作業場所を残さない")
         self.assertIn(tool_policy.PROTOCOL, seen["prompt"])
         self.assertIn("- Core/IGameState.cs", seen["prompt"])
+        self.assertNotIn(str(sb), seen["prompt"], "反例・出力のサンドボックスのパスも作業場所に置き換える")
+        self.assertIn(f"{seen['cwd']}\\tests\\T.cs(3,1)", seen["prompt"])
 
     def test_discard_refuses_other_directories(self):
         with tempfile.TemporaryDirectory() as d:

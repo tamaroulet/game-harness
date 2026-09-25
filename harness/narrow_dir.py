@@ -14,6 +14,7 @@ OS の権限で読み取りを禁じてはいない（同じユーザーで動�
 プロンプトに出さない。
 """
 import hashlib
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -77,3 +78,18 @@ def write_back(dst, origin, placed):
                 target.unlink()
             changed.append(rel)
     return sorted(changed)
+
+
+def relocate(text, origin, dst):
+    """文章の中の origin（サンドボックスか作業ツリー）の絶対パスを、作業場所 dst のパスに置き換える（v2-smoke-01）。
+
+    反例やビルド・テストの出力（再試行の指示に入れるもの）には、元の場所の絶対パスが出る。v2-smoke-01 の A は、
+    再試行の指示に入った作業ツリーのパスをたどって、作業場所の外のテストのファイルを読み、dotnet を走らせた。
+    作業場所は元の場所と同じ相対パスの並びなので、置き換えても行番号つきのファイル名はそのまま通じる。
+    """
+    if not text or dst is None:
+        return text
+    src = str(Path(origin).resolve())
+    for form in {src, src.replace("\\", "/"), str(origin), str(origin).replace("\\", "/")}:
+        text = re.sub(re.escape(form), lambda m: str(dst), text, flags=re.IGNORECASE)
+    return text
