@@ -378,14 +378,21 @@ def generate(unit, spec_text, gdd_text, unit_bytes):
 
 # ============================================================ 実装役への提示
 
-def render_interface(unit):
+def render_interface(unit, only=None):
     """interface を、実装役に渡すシグネチャの一覧（Markdown）にする。決定論。
 
     実装役が受入テストから名前を推し量らなくて済むよう、作る形そのものを渡す（手順 5.6）。
     const の値は構造化仕様の ID で示す（値そのものは仕様から引く）。
+    only（型の名前の集合）を渡すと、その型だけを描く（v2.3、N4・F4）。既存の型と契約は、ファイルの中身を埋め込むので
+    二重に描かない。
     """
-    lines = ["## 作る型とメンバー（単位定義の interface。名前・型・static の有無・引数を厳密に合わせる）", ""]
+    head = ("## 作る型とメンバー（単位定義の interface。名前・型・static の有無・引数を厳密に合わせる）" if only is None else
+            "## 作る型とメンバー（単位定義の interface のうち、既存のファイルが無い型と書き換えてよいファイルの型。"
+            "名前・型・static の有無・引数を厳密に合わせる。ほかの型は下に埋め込んだファイルのとおり）")
+    lines = [head, ""]
     for t in unit["interface"]["types"]:
+        if only is not None and t["name"] not in only:
+            continue
         if t["kind"] == "enum":
             lines.append(f"- enum {t['name']}: {', '.join(t['values'])}（この順。明示的な数値は振らない）")
             continue

@@ -188,6 +188,9 @@ class ConditionA(unittest.TestCase):
         self.assertIn("G.B4abT1Cases.Case_x", self.seen[1][0], "再試行には落ちたテストの名前が入る")
         self.assertIn(str(self.ctx["wt"]), self.seen[0][0], "初回には作業場所が入る")
         self.assertEqual(state["conversation_id"], "conv-1", "次のタスクへ会話を引き継ぐ")
+        # v2.3（N7）：要素ごとの字数を残す（本文は残さない）
+        self.assertEqual(set(rec["calls"][0]["prompt_parts"]), {"unit", "interface", "template", "protocol"})
+        self.assertEqual(set(rec["calls"][1]["prompt_parts"]), {"retry", "protocol"})
 
     def test_gives_up_at_the_same_call_budget_as_b(self):
         rec = driver.run_task_a(self.ctx, self.m["tasks"][0], self.unit, {},

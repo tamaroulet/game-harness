@@ -47,39 +47,29 @@ MEASURE_HIDDEN_SEEDS = 20
 
 COMMON = """## 全タスク共通（v2）
 
-- IGameState・TickInput・Cell・GddReference は契約の生成物で、書き換えない（whitelist の外にある）。GameState は IGameState を実装する
-- 参照データ（PR-xx）は、GddReference の定数（PR-03 なら GddReference.PR_03）と、形の表 GddReference.Shape、回転補正候補の表 GddReference.Kicks を使う。値を書き写さない
-- 既存の GamePhase・MinoType・Rotation・ActiveMino はそのまま使う。既存の公開メンバーの名前・型・引数を変えない。消さない
-- 受入は、上の性質（前提が成り立つティックでは、帰結が必ず成り立つ）を、ランダムな開始状態と入力の列で確かめる性質テスト。前のタスクの性質も守り続ける
-- 保存則（RL-36）が常に成り立つこと
+- GameState は IGameState を実装する。既存の公開メンバー（GamePhase・MinoType・Rotation・ActiveMino を含む）の名前・型・引数を変えない。消さない
+- 参照データ（PR-xx）は値を書き写さず、GddReference の定数（PR-03 なら GddReference.PR_03）と、表 GddReference.Shape・GddReference.Kicks を使う
 - 差分は追加 250 行以下かつ削除 100 行以下"""
+# v2.3（docs/design/v2_2_architecture_self_critique.md §4.1 の案 1）：「契約は書き換えない」（埋め込みの見出しと門が示す）、
+# 受入の説明（作業場所の決まりが示す）、保存則（RL-36）の行を外した。RL-36 は T1 では性質が無く、宙に浮いた ID だった
+# （T2 からは性質 P-T2-04 が示す）
 
 
 # 条件 A の固定テンプレート（v2.1c）。v1 の文面から、受入テストの置き場と「読まない・書き換えない」の頼みを外した。
 # 再試行は、B と同じ検査の知らせ（pipeline.judge）だけを入れる（V2-6 の試験制度の対称化。生の出力の末尾は渡さない）。
-# 実装役は細い作業場所（書き換えてよいファイルと契約だけ）で動き、テストはそこに無い（v2.1c §3 の 3、裁定 2）
+# 実装役は細い作業場所（書き換えてよいファイルと契約だけ）で動き、テストはそこに無い（v2.1c §3 の 3、裁定 2）。
+# v2.3（案 1 の F5）：作業場所の中身・受入・答え方・「計画を返さず」は、B と同じ作業場所の決まり（tool_policy。末尾に
+# 足す）に一本化した。書き換えてよいファイルは埋め込みの見出しが示す。題名は単位定義の prompt の先頭にある（B と同じ）
 TEMPLATES = {
     "initial": """あなたは落ちものパズル falling-blocks の実装者です。次のタスクを実装してください。
 
-作業場所は {workdir} です。ここには書き換えてよいファイルと契約だけがあり、中身は下に埋め込んであります。
-計画・実装案・確認を返さず、いま直接ファイルを作成・編集してください。
+作業場所は {workdir} です。
 
-# タスク {task_id}：{title}
+# タスク {task_id}
 
 {prompt}
 
-## 作る型とメンバー
-
 {interface}
-
-## 書き換えてよいファイル
-
-{whitelist}
-
-## 受入
-
-受入は、上の性質を確かめる性質テストです。外側で実行し、破れたら反例を伝えます。
-実装が終わったら、変更したファイルの一覧だけを答えてください。
 """,
     "retry": """タスク {task_id} の検査に通りませんでした（{attempt} 回目 / 最大 {max_attempts} 回）。
 
@@ -87,7 +77,7 @@ TEMPLATES = {
 
 {failed_tests}
 
-実装を直してください。直したら、変更したファイルの一覧だけを答えてください。
+実装を直してください。
 """,
 }
 
@@ -113,14 +103,18 @@ def _prop_line(p):
 
 
 def unit_for(task, contract, props, impl_dir, template):
-    title, body = requirement(task)
+    title, _ = requirement(task)
     mine = [p for p in props["properties"] if p["task"] == task]
-    parts = [body, "## このタスクの性質（受入）", "\n".join(_prop_line(p) for p in mine)]
+    # v2.3（N1）：自然言語の要求（要求・範囲・満足の基準）は渡さない。性質と同じことを二重に述べ、性質の無い仕様 ID を
+    # 名指していた（56 のうち 13）。仕様は型（契約・interface）・性質・参照データに一元化し、自然言語は題名 1 行だけ
+    parts = [f"## タスク：{title}", "## このタスクの性質（受入）", "\n".join(_prop_line(p) for p in mine)]
     # 前のタスクの性質も、性質の宣言から機械的に渡す（v2.1c §3 の 2）。累積で守らせるものを実装役にも見せる。
     # 仕様書の文章の抜き出し（v2.1b）はやめた。自然言語の prompt から ID を拾う正規表現は、範囲の表記で欠けた
     prior = [p for p in props["properties"] if _task_no(p["task"]) < _task_no(task)]
     if prior:
         parts += ["## 前のタスクの性質（守り続ける）", "\n".join(_prop_line(p) for p in prior)]
+    # v2.3（N2）：性質が使う関数と before・after・input の意味を、propgen の定義（唯一の出どころ）から描く
+    parts.append(propgen.render_vocabulary([x for p in mine + prior for x in (p["given"], p["then"])]))
     prompt = "\n\n".join(parts + [COMMON])
     unit = {k: template[k] for k in template if k not in ("id", "title", "prompt", "interface", "whitelist",
                                                           "impl_files", "acceptance", "task_kind")}
@@ -130,6 +124,24 @@ def unit_for(task, contract, props, impl_dir, template):
                 acceptance={"cases": [], "required_tests": [f"Properties{task}Cases.{p['id'].replace('-', '_')}_Public"
                                                              for p in mine]})
     return unit
+
+
+SPEC_ID_RE = re.compile(r"\b(?:RL|ST|LP)-\d+")
+
+
+def vocabulary_problems(prompt, shown):
+    """prompt の語彙が閉じているか（v2.3、docs/design/v2_2_architecture_self_critique.md の N2）。問題の一覧。
+
+    - 仕様 ID（RL-xx・ST-xx・LP-xx）は、見せている性質の出典（rule）であること。性質の無い ID は意味の無い義務になる
+    - 見せている性質が使う関数は、prompt に定義（propgen.FUNC_DOCS）があること
+    参照データ（PR-xx）が契約にあることは、prepare が別に確かめる。
+    """
+    rules = {p["rule"] for p in shown}
+    out = [f"性質の無い仕様 ID {i}" for i in sorted(set(SPEC_ID_RE.findall(prompt)) - rules)]
+    for name in propgen.used_funcs([x for p in shown for x in (p["given"], p["then"])]):
+        if propgen.FUNC_DOCS[name] not in prompt:
+            out.append(f"定義の無い関数 {name}")
+    return out
 
 
 def reference(contract, props, spec_text, proj):
@@ -170,6 +182,11 @@ def prepare():
         missing = sorted(implementer_context.referenced_params(unit["prompt"]) - ref_ids)
         if missing:
             raise common.ABError(f"{t['id']} が参照する参照データが契約にありません: {missing}")
+        # 語彙の閉包（v2.3、N2）：prompt に出る仕様 ID には見せている性質があり、性質が使う関数には定義がある
+        vocab = vocabulary_problems(unit["prompt"], [p for p in props["properties"]
+                                                     if _task_no(p["task"]) <= _task_no(t["id"])])
+        if vocab:
+            raise common.ABError(f"{t['id']} の prompt の語彙が閉じていません: {vocab}")
         path = V2 / "units" / f"{t['id']}.json"
         path.write_text(json.dumps(unit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
         tasks.append({"id": t["id"], "title": unit["title"], "unit": f"units/{t['id']}.json", "unit_sha256": sha(path),

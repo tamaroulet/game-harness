@@ -133,3 +133,41 @@ A・B とも共有の入力が変わるので、比較は v2-smoke-05 の中の 
 2. §4.1 の案 1〜3 のどれで v2-smoke-05 に進むか
 3. N1（自然言語の要求を実装役に渡さない）は共有の入力の変更で、A の「単一チャットで要求を貼る」という形も変える。A にも同じく当ててよいか
 4. §1.4 のキャッシュ（agy の制約）を、Phase 4 の設計で再検討する課題として残すか
+
+## 6. 案 1 の実装（v2.3、2026-09-26。V2-6.3）
+
+合意（2026-09-26）：§0 の主張を前提にする。案 1 を 1 PR で入れる。N1 は A・B に対称に当てる。キャッシュは Phase 4 の設計の課題として残す。
+
+| 所見 | 入れたもの | 場所 |
+|:--|:--|:--|
+| F1・F6（N1） | 単位定義の prompt から自然言語の要求（要求・範囲・満足の基準）を外し、題名 1 行（`## タスク：…`）にした。COMMON から保存則（RL-36）・受入の説明・「契約は書き換えない」を外した | `harness/ab/v2prep.py` |
+| F3（N2） | 性質が使う関数と before・after・input・ミノの 4 マスの意味を、`propgen.FUNC_DOCS`・`EXPR_VARS`（唯一の出どころ）から、その単位で使うものだけ描く | `harness/propgen.py`、`harness/ab/v2prep.py` |
+| N2 の検査 | v2prep が、prompt に出る仕様 ID には見せている性質があり、使う関数には定義があることを確かめ、無ければ止める（`vocabulary_problems`） | `harness/ab/v2prep.py` |
+| F4（N4） | 細い作業場所では、interface は中身を埋め込まない型（書き換えてよいファイルの型・ファイルの無い型）だけを描く（`interface_scope`） | `harness/implementer_context.py`、`harness/testgen.py`、`harness/pipeline.py`、`harness/ab/driver.py` |
+| F5 | B の作業場所の段落と「計画を返さず」、A のテンプレートの受入・書き換えてよいファイル・答え方を、作業場所の決まり（`tool_policy`。両条件とも末尾）に一本化した。従来の単位の呼び方（細い作業場所でないもの）の文面は変えない | `harness/tool_policy.py`、`harness/pipeline.py`、`harness/ab/v2prep.py` |
+| N7 の記録 | 呼び出しごとに要素の字数（`prompt_parts`）を残す。本文は残さない | `harness/pipeline.py`、`harness/ab/driver.py` |
+| §4.2・§4.3 | v2-smoke-05 の門 `experiments/v2/tools/smoke_gate.py`（H1 と H2 を判定、H3 は記録だけ）。V2-6.4 の検証コマンド | `experiments/v2/tools/smoke_gate.py` |
+
+### 6.1 字数（実測）
+
+| タスク | 単位定義の prompt（前 → 後） |
+|:--|:--|
+| T1 | 2,141 → 1,808 |
+| T2 | 3,058 → 2,674 |
+| T3 | 3,873 → 3,542 |
+| T4 | 5,191 → 4,919 |
+| T5 | 6,584 → 6,509 |
+
+- 自然言語の要求を外した分と、関数の定義を足した分が相殺する（T5 は `kick`・`rotated` の定義が入る）。狙いは字数ではなく語彙の閉包
+- interface：T1 で、GameState だけを描くなら 1,790 → 880。どの型が埋め込まれるかは作業場所で決まるので、実数は v2-smoke-05 の `prompt_parts` で測る
+- A の最初のテンプレート（固定部分）は 111 字。作業場所の決まりは 619 字（両条件で同じ）
+- 性質の宣言（properties.json）と契約の生成物は変えていない（マニフェストの `generated_sha256` は同じ）
+
+### 6.2 v2-smoke-04 に門を当てた結果（門の較正）
+
+`smoke_gate.py v2-smoke-04` は不合格（2 件）：A の T3 の 2 回目と B の T3 の 2 回目に error_message の手番が 1 ずつ。H1（健全性）は通る。v2-smoke-05 では、これが 0 になることを H2 として見る。
+
+### 6.3 入れていないもの
+
+- N3（足跡で絞る）と N6（前提の `after.` の分離）：Phase 4 の前提として設計に回す（§4.1）
+- 仕様 ID のうち、性質の無いもの（T1 の ST-09・ST-10・RL-41 など）は、v2 の受入では検査していなかった。自然言語の要求を外したので、実装役にも求めなくなる。検査したい振る舞いなら、性質として宣言する

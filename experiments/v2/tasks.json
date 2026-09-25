@@ -114,9 +114,9 @@
   },
   "templates": {
     "initial": "templates/initial.md",
-    "initial_sha256": "4e16338b35873c0dbb5168e2c84f31d0789ea0a5dcf7736e11fd28f82bf2d658",
+    "initial_sha256": "725e9804e853e49d34864b66e5a0c0f8f92b05824bf6d7c52dc63a0ae389212d",
     "retry": "templates/retry.md",
-    "retry_sha256": "78aa8fa6ecd850c96a16dc95539d01edf489b995b60bee189a12b0747aea51e7",
+    "retry_sha256": "78749867c5edc4acd30c015a4c19d8af37a7f32c47c79a84d32786c8524256a9",
     "retry_tail_lines": 40
   },
   "test_dir": "tests/Core.Tests/Properties",
@@ -125,35 +125,35 @@
       "id": "T1",
       "title": "左右移動（壁・盤面外の判定）",
       "unit": "units/T1.json",
-      "unit_sha256": "f34b401b84ca1c83564c8205df26ee644181f48230e7e7f4498264ed171a3ac1",
+      "unit_sha256": "2c8e782844ccfd8a6f5974ac2629d952c9b85c244aea4bec332eb0185cbc411f",
       "superseded_tests": []
     },
     {
       "id": "T2",
       "title": "自然落下と接地判定（ロック猶予・固定・次のミノの出現）",
       "unit": "units/T2.json",
-      "unit_sha256": "3690e338a0712d23471ac902c016995a82933344f373fd8b09a0d237cdfd7d10",
+      "unit_sha256": "d35a682688350484bf7d8f9938b5eb3858946715aee84511209cc6a2b1eb32b7",
       "superseded_tests": []
     },
     {
       "id": "T3",
       "title": "ハードドロップ（即時固定）",
       "unit": "units/T3.json",
-      "unit_sha256": "517f3c7d249ee6d73283e44994a59d8909a9b6c2c7a718d0e1f74f289cacd9c7",
+      "unit_sha256": "04aca869499893e8c7388f6b893132f5e3bafcd0e0f363fdf56aad6ddbef439c",
       "superseded_tests": []
     },
     {
       "id": "T4",
       "title": "回転（壁キックなし）",
       "unit": "units/T4.json",
-      "unit_sha256": "2712569e8b630f2557aeb7ec13fc4dc9fca5b04f71785291eae62102bba47b20",
+      "unit_sha256": "8098b04a3983fd3490e40e72804aef78d77f4862cf939a65f79e43b4e9b2967f",
       "superseded_tests": []
     },
     {
       "id": "T5",
       "title": "壁キック回転（SRS）",
       "unit": "units/T5.json",
-      "unit_sha256": "3ce3b3b15ad614627adeafc73a9fc2c0aa9c79d5b2ce4ff67799bec554054e8a",
+      "unit_sha256": "c7d25d09cb1cdd6aa64e30611dd8e707288260d294fb6e32a9abc5c45018b596",
       "superseded_tests": []
     }
   ]

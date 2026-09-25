@@ -159,18 +159,26 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast, jud
         if stream:
             narrow, placed = narrow_dir.populate(wt, implementer_context.visible_files(wt, unit, ctx["impl_dir"]))
         workdir = narrow or wt
+        parts = {}  # 要素ごとの字数（v2.3、N7。本文は残さない）
         if attempt == 1:
+            # B と同じく、細い作業場所では中身を埋め込む型の宣言は描かない（v2.3、N4・F4）
+            only = implementer_context.interface_scope(wt, unit, ctx["impl_dir"]) if stream else None
+            interface = testgen.render_interface(unit, only=only)
             prompt = tpl["initial"].format(task_id=task["id"], title=task["title"], workdir=str(workdir),
-                                           prompt=unit["prompt"], interface=testgen.render_interface(unit),
+                                           prompt=unit["prompt"], interface=interface,
                                            whitelist="\n".join(f"- {p}" for p in unit["whitelist"]),
                                            test_dir=m["test_dir"])
+            parts = {"unit": len(unit["prompt"]), "interface": len(interface),
+                     "template": len(prompt) - len(unit["prompt"]) - len(interface)}
             if stream:
                 # B と同じく、契約・既存の型・書き換えてよいファイルの中身を埋め込む（v2.1 §1.1 の 2）。A は会話を積むので、
                 # 埋め込むのは最初の呼び出しだけ（単一チャットで最初にファイルを貼るのと同じ）
                 try:
-                    prompt += "\n\n" + implementer_context.for_unit(wt, unit, ctx["impl_dir"])
+                    embed = implementer_context.for_unit(wt, unit, ctx["impl_dir"])
                 except implementer_context.ContextError as e:
                     raise common.ABError(f"実装役に渡す前提が大きすぎます: {e}")
+                parts["embed"] = len(embed)
+                prompt += "\n\n" + embed
         elif judge is not None:
             # B と同じ知らせ（内側の反例・診断の射影、外側の門の知らせ）。生の出力の末尾は渡さない
             prompt = tpl["retry"].format(task_id=task["id"], attempt=attempt - 1, max_attempts=budget,
@@ -188,6 +196,9 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast, jud
             # 作業ツリーのパスをたどって作業場所の外のテストを読み、dotnet を走らせた
             prompt = narrow_dir.relocate(prompt, wt, narrow)
         # 道具の指示は B と同じ文面（再試行を含めて編集だけ。v2 §7）
+        if attempt > 1:
+            parts["retry"] = len(prompt)
+        parts["protocol"] = len(tool_policy.text())
         prompt += "\n\n" + tool_policy.text()
         r = call(ctx["imp"], prompt, workdir, state.get("conversation_id"), ctx["ttl"])
         written = None
@@ -196,7 +207,8 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast, jud
             narrow_dir.discard(narrow)
         state["conversation_id"] = r["conversation_id"]
         calls.append({"attempt": attempt, "rc": r["rc"], "seconds": r["seconds"], "usage": r["usage"],
-                      "steps": r.get("steps"), "outcome": r.get("outcome"), "prompt_chars": len(prompt)})
+                      "steps": r.get("steps"), "outcome": r.get("outcome"), "prompt_chars": len(prompt),
+                      "prompt_parts": parts})
         if narrow:
             calls[-1]["narrow_written"] = written
         if attempt == 1 and judge is not None:

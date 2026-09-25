@@ -194,6 +194,39 @@ FUNCS = {  # 名前: (引数の型, 戻りの型, C# の組み立て)
     "occupied_after": (("int", "int"), "bool", lambda a: f"a.Occupied({a[0]}, {a[1]})"),
 }
 
+# 実装役に見せる、式の語彙の定義（v2.3、docs/design/v2_2_architecture_self_critique.md の N2・F3）。FUNCS と同じ名前の
+# 集合で、ここが唯一の出どころ。性質が使う関数の意味を、実装役が性質の文面から逆算しなくて済むようにする。
+# 単位定義の prompt の門（unit_schema の PROMPT_FORBIDDEN）を通る文字だけで書く。盤面の大きさは参照データの ID で示す
+EXPR_VARS = ("- before・after：その Tick の前と後の状態（IGameState）。input：その Tick の TickInput\n"
+             "- ミノ m の 4 マス：GddReference.Shape(m.Type, m.Rotation) の各 (x, y) について (m.X + x, m.Y + y)。"
+             "y が 1 減る向きが下")
+FUNC_DOCS = {
+    "fits": "fits(m)：前の盤面で、m の 4 マスがすべて盤面の内側（幅 PR-06、高さ PR-08）にあり、固定ブロックに重ならない",
+    "in_board": "in_board(m)：m の 4 マスがすべて盤面の内側にある",
+    "moved": "moved(m, dx, dy)：m を x に dx、y に dy だけ動かしたミノ（形と向きは同じ）",
+    "rotated": "rotated(m, dir)：m の向きを 1 段回したミノ（位置は同じ）。dir が 1 なら Spawn → Right → Two → Left → Spawn の順に"
+               "進め（時計回り）、-1 なら逆に戻す",
+    "kick": "kick(m, dir)：rotated(m, dir) に GddReference.Kicks(m.Type, m.Rotation, 回した後の向き) の候補 (dx, dy) を"
+            "表の順に足し、前の盤面で最初に fits となるミノ。どれも fits でなければ null",
+    "drop": "drop(m)：前の盤面で、m を fits である限り下へ 1 マスずつ動かしきったミノ",
+    "occupied_before": "occupied_before(x, y)：前の盤面で (x, y) が固定ブロックか。盤面の外は true",
+    "occupied_after": "occupied_after(x, y)：後の盤面で (x, y) が固定ブロックか。盤面の外は true",
+}
+_CALL_RE = re.compile(r"\b([a-z_]+)\(")
+
+
+def used_funcs(exprs):
+    """式の列が使う関数の名前（FUNCS にあるものだけ。決定論の順）。"""
+    names = {n for e in exprs for n in _CALL_RE.findall(e or "")}
+    return [n for n in FUNCS if n in names]
+
+
+def render_vocabulary(exprs):
+    """式の列を読むための定義（Markdown）。使う関数だけを並べる。"""
+    lines = ["## 性質の式の読み方", "", EXPR_VARS]
+    lines += [f"- {FUNC_DOCS[n]}" for n in used_funcs(exprs)]
+    return "\n".join(lines)
+
 
 def tokenize(text, where):
     tokens, pos = [], 0
