@@ -168,7 +168,9 @@ class GateOrder(unittest.TestCase):
     """§5.1：テスト駆動の単位では、非公開ゴールデンの代わりに非公開シードの性質テストを通す。"""
 
     def test_attempt_runs_the_hidden_stage_for_test_driven_units(self):
-        src = inspect.getsource(pipeline.attempt)
+        # V2-6：外側の門は check_outer に切り出した（A の判定も同じものを通る）。attempt はそれを呼ぶ
+        self.assertIn("failed = check_outer(c, fast)", inspect.getsource(pipeline.attempt))
+        src = inspect.getsource(pipeline.check_outer)
         self.assertIn("attempt_hidden_properties(c, fast)", src)
         self.assertLess(src.index("check_acceptance(c, fast, engine"), src.index("attempt_hidden_properties(c, fast)"))
         self.assertLess(src.index("attempt_hidden_properties(c, fast)"), src.index("invrun.check(c)"))

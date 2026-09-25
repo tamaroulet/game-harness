@@ -116,7 +116,7 @@
     "initial": "templates/initial.md",
     "initial_sha256": "4e16338b35873c0dbb5168e2c84f31d0789ea0a5dcf7736e11fd28f82bf2d658",
     "retry": "templates/retry.md",
-    "retry_sha256": "785a9949c9697d5f852ee2435637e5a6f4c5c33dc0a461cbc11b5e9bdcfd2100",
+    "retry_sha256": "78aa8fa6ecd850c96a16dc95539d01edf489b995b60bee189a12b0747aea51e7",
     "retry_tail_lines": 40
   },
   "test_dir": "tests/Core.Tests/Properties",
