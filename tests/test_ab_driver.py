@@ -191,6 +191,10 @@ class ConditionA(unittest.TestCase):
         # v2.3（N7）：要素ごとの字数を残す（本文は残さない）
         self.assertEqual(set(rec["calls"][0]["prompt_parts"]), {"unit", "interface", "template", "protocol"})
         self.assertEqual(set(rec["calls"][1]["prompt_parts"]), {"retry", "protocol"})
+        # metrics に残すのは要約だけ（手番・利用量の中身は残さない。v2-smoke-05 の後）
+        kept = driver.call_records(rec["calls"])
+        self.assertEqual(set(kept[0]), set(driver.CALL_RECORD))
+        self.assertEqual(kept[1]["prompt_parts"], rec["calls"][1]["prompt_parts"])
 
     def test_gives_up_at_the_same_call_budget_as_b(self):
         rec = driver.run_task_a(self.ctx, self.m["tasks"][0], self.unit, {},

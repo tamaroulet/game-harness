@@ -261,6 +261,14 @@ def failing_names(results):
     return None if results is None else sorted(n for n, o in results.items() if o != "Passed")
 
 
+CALL_RECORD = ("attempt", "rc", "seconds", "prompt_chars", "prompt_parts", "outcome")
+
+
+def call_records(calls):
+    """metrics に残す呼び出しの要約（本文・手番の中身は残さない）。"""
+    return [{k: c.get(k) for k in CALL_RECORD} for c in calls]
+
+
 def run_task_b(ctx, task, unit, state, runner=run):
     """条件 B の 1 タスク。pipeline の試行・門はそのまま。{"attempts", "accepted", "calls", "pipeline_rc"}。"""
     out = Path(ctx["out"])
@@ -280,7 +288,8 @@ def run_task_b(ctx, task, unit, state, runner=run):
     data, _ = telemetry.read(tel)
     attempts = (data or {}).get("attempts", [])
     # 内側ループの全呼び出しを数える（監査 F2）。implementer_calls の無い古い記録は最後の呼び出しだけ
-    calls = [{"attempt": a.get("n"), "verdict": a.get("verdict"), "stage": a.get("stage"), "usage": call.get("usage")}
+    calls = [{"attempt": a.get("n"), "verdict": a.get("verdict"), "stage": a.get("stage"), "usage": call.get("usage"),
+              **{k: call.get(k) for k in CALL_RECORD if k != "attempt"}}
              for a in attempts for call in (a.get("implementer_calls") or [a.get("implementer") or {}])]
     return {"attempts": len(attempts), "implementer_calls": len(calls), "accepted": rc == 0, "calls": calls,
             "pipeline_rc": rc}
@@ -360,7 +369,9 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
                 "budget_exceeded": added > BUDGET["added"] or deleted > BUDGET["deleted"],
                 "tokens": _tokens(rec["calls"]), "tests_tampered": tampered,
                 # seconds は条件の仕事（実装役と B の門）だけ。測定器は両条件に同じなので別に数える
-                "seconds": seconds, "seconds_measure": round(time.monotonic() - t1, 1), "detail": {k: v for k, v in rec.items() if k != "calls"}}
+                "seconds": seconds, "seconds_measure": round(time.monotonic() - t1, 1), "detail": {k: v for k, v in rec.items() if k != "calls"},
+                # 呼び出しごとの字数・要素の字数・終わり方（v2.3、N7。v2-smoke-05 まで A の分はどこにも残っていなかった）
+                "calls": call_records(rec["calls"])}
         # 最初の提出（門を通す前）を、同じ測定器・同じ非公開シードで測る（V2-6。実装役には知らせない）
         first = measure_first(ctx, proj, run_id, condition, task, start, prev, env, decl, p["out"], wt_root)
         if first is not None:
