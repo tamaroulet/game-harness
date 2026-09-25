@@ -1,5 +1,5 @@
 project_goal: B4 v1.0（A/B 実験）の総括と、v2（契約駆動の防壁型）での A/B 実験の完走
-active_task_id: V2-5
+active_task_id: V2-6
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -288,7 +288,7 @@ tasks:
   title: 乾式の走行（T1 を A・B で 1 回ずつ）
   group: B5
   target_repo: game-harness
-  status: in_progress
+  status: completed
   verification:
     command: python -m unittest tests.test_ab_driver
     expected_exit_code: 0
@@ -296,7 +296,7 @@ tasks:
   title: スモーク（T1〜T5 × A・B、N=1）
   group: B5
   target_repo: game-harness
-  status: pending
+  status: in_progress
   verification:
     command: python -m unittest tests.test_ab_driver
     expected_exit_code: 0
@@ -327,6 +327,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: V2-4
+  task: V2-5
   exit_code: 0
-  at: '2026-09-24T22:22:41'
+  at: '2026-09-25T09:25:20'
