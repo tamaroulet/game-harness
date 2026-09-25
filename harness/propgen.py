@@ -420,6 +420,53 @@ def _split_eq(text):
 
 # ============================================================ 検査
 
+DIRECTED_BASE, DIRECTED_MAX, DIRECTED_COUNT = 1_000_000_000, 20000, 3
+PRE_STATE = ("Phase", "ActiveMino")   # 開始状態で実装を使わずに分かるもの（AtStart）
+PRE_FUNCS = {"fits", "in_board", "moved", "rotated", "kick", "drop", "occupied_before"}
+
+
+def _conjuncts(e):
+    if e[0] == "bin" and e[1] == "&&":
+        return _conjuncts(e[2]) + _conjuncts(e[3])
+    return [e]
+
+
+def _pre_ok(e):
+    """開始状態だけで評価できる式か（before の Phase・ActiveMino、列挙・定数、after を使わない関数だけ）。"""
+    kind = e[0]
+    if kind == "int":
+        return True
+    if kind == "name":
+        parts = e[1].split(".")
+        if parts[0] == "before":
+            return len(parts) >= 2 and parts[1] in PRE_STATE
+        return parts[0] not in ("after", "input")
+    if kind == "call":
+        return e[1] in PRE_FUNCS and all(_pre_ok(a) for a in e[2])
+    if kind == "un":
+        return _pre_ok(e[2])
+    return _pre_ok(e[2]) and _pre_ok(e[3])
+
+
+def directed(p):
+    """前提の探索（v2.1e）の材料：(開始状態で評価する前提の式の列, 最初の手の入力 {名前: bool})。
+
+    given を && で分け、`input.X`・`!input.X` を最初の手に、開始状態だけで評価できるものを前提にする。
+    after を使うもの（固定ブロックが増えない、など）は、実装を動かさないと分からないので外す。
+    """
+    pre, first = [], {}
+    for c in _conjuncts(parse(str(p["given"]), f"{p['id']}.given")):
+        lit = c[2] if c[0] == "un" and c[1] == "!" else c
+        if lit[0] == "name" and lit[1].startswith("input.") and lit[1].count(".") == 1:
+            name, val = lit[1].split(".")[1], c is lit
+            if first.get(name, val) != val:
+                raise PropertyError(f"{p['id']}.given: input.{name} が真と偽の両方を求めています")
+            first[name] = val
+        elif _pre_ok(c):
+            pre.append(c)
+    return pre, first
+
+
 def validate(decl, spec_text, gdd_text, interface):
     """問題の一覧（空なら合格）。"""
     if not isinstance(decl, dict):
@@ -492,6 +539,10 @@ def validate(decl, spec_text, gdd_text, interface):
                 live[p["task"]] = True
         except PropertyError:
             pass
+        try:
+            directed(p)
+        except PropertyError as e:
+            problems.append(str(e))
     for task, ok in sorted(live.items()):
         if not ok:
             problems.append(f"{task}: then が == の性質（活性の性質）が 1 つもありません（§4.2）")
@@ -630,6 +681,11 @@ namespace {NAMESPACE}
 
         const {ns}.GamePhase StartPhase = {ns}.GamePhase.{start['phase']};
         const int LockedMax = {start['locked_max']};
+        // 前提の探索（Directed）：公開・非公開のシードと重ならない範囲から、最大 DirectedMax 個を順に試し、
+        // 前提が成り立つ系列を DirectedCount 本まで足す
+        const int DirectedBase = {DIRECTED_BASE};
+        const int DirectedMax = {DIRECTED_MAX};
+        const int DirectedCount = {DIRECTED_COUNT};
 
         public static int[] Public(int n)
         {{
@@ -650,6 +706,14 @@ namespace {NAMESPACE}
 
         static {ns}.GameState Start(global::System.Random rnd)
         {{
+            StartParts(rnd, out var occ, out var locked, out var m);
+            return new {ns}.GameState(StartPhase, m, locked);
+        }}
+
+        // 開始状態の材料（盤面・固定ブロック・ミノ）。実装を使わない。前提の探索（Directed）も同じ乱数の消費で作る
+        static void StartParts(global::System.Random rnd, out bool[,] occOut,
+            out global::System.Collections.Generic.List<{ns}.Cell> lockedOut, out ActiveMino mOut)
+        {{
             for (int tries = 0; tries < 1000; tries++)
             {{
                 var occ = new bool[PropertyModel.Width, PropertyModel.Height];
@@ -668,9 +732,49 @@ namespace {NAMESPACE}
                     : rnd.Next(-2, PropertyModel.Width);
                 var m = new ActiveMino(({ns}.MinoType)rnd.Next(PropertyModel.TypeCount),
                     mx, rnd.Next(0, PropertyModel.Height), ({ns}.Rotation)rnd.Next(4));
-                if (PropertyModel.FitsGrid(occ, m)) return new {ns}.GameState(StartPhase, m, locked);
+                if (PropertyModel.FitsGrid(occ, m))
+                {{
+                    occOut = occ; lockedOut = locked; mOut = m;
+                    return;
+                }}
             }}
             throw new global::System.InvalidOperationException("置ける開始状態を作れませんでした");
+        }}
+
+        // 開始状態の Snapshot（実装を使わない）。前提の探索で、開始時点で分かるもの（局面・ミノ・盤面）だけを持つ
+        static Snapshot AtStart(bool[,] occ, ActiveMino m)
+        {{
+            var o = new Snapshot();
+            o.Phase = StartPhase;
+            o.ActiveMino = m;
+            o.Occ = occ;
+            return o;
+        }}
+
+        public delegate bool Pre(Snapshot b);
+
+        // 前提が最初の手で成り立つ系列を、実装を使わずに決定論で探す（v2.1e：T5 のキックの性質が公開シードで
+        // 1 度も前提を満たさず、正しい実装でも VACUOUS になっていた）。開始状態で pre が成り立つシードを探し、
+        // 最初の手を first（前提の入力）、残りを乱数の手にする。見つからなければ宣言か生成器の欠陥
+        public static global::System.Collections.Generic.List<(int, global::System.Collections.Generic.List<{ns}.TickInput>)>
+            Directed(Pre pre, {ns}.TickInput first, int steps, out int searched)
+        {{
+            var found = new global::System.Collections.Generic.List<(int, global::System.Collections.Generic.List<{ns}.TickInput>)>();
+            searched = 0;
+            for (int k = 0; k < DirectedMax && found.Count < DirectedCount; k++)
+            {{
+                int seed = DirectedBase + k;
+                var rnd = new global::System.Random(seed);
+                searched++;
+                StartParts(rnd, out var occ, out var locked, out var m);
+                bool ok;
+                try {{ ok = pre(AtStart(occ, m)); }} catch (PropertyNull) {{ ok = false; }}
+                if (!ok) continue;
+                var ops = new global::System.Collections.Generic.List<{ns}.TickInput> {{ first }};
+                for (int s = 1; s < steps; s++) ops.Add(RandomInput(rnd));
+                found.Add((seed, ops));
+            }}
+            return found;
         }}
 
         static {ns}.TickInput RandomInput(global::System.Random rnd) =>
@@ -716,15 +820,29 @@ namespace {NAMESPACE}
             return -1;
         }}
 
-        public static void Run(string id, string rule, int[] seeds, int steps, Check check)
+        public static void Run(string id, string rule, int[] seeds, int steps, Check check,
+            Pre pre = null, {ns}.TickInput first = default)
         {{
             long given = 0;
+            var runs = new global::System.Collections.Generic.List<(int, global::System.Collections.Generic.List<{ns}.TickInput>)>();
+            if (pre != null)
+            {{
+                // 実装を動かす前に、前提が成り立つ系列があることを確かめる（実装に依らない検査）
+                runs.AddRange(Directed(pre, first, steps, out int searched));
+                if (runs.Count == 0)
+                    global::NUnit.Framework.Assert.Fail("PROPERTY_UNSATISFIABLE id=" + id + " rule=" + rule
+                        + " searched=" + searched);
+            }}
             foreach (var seed in seeds)
             {{
                 var rnd = new global::System.Random(seed);
-                Start(rnd);   // 開始状態の分だけ乱数を進める（Replay は同じシードから同じ開始状態を作る）
+                StartParts(rnd, out _, out _, out _);   // 開始状態の分だけ乱数を進める（Replay は同じシードから同じ開始状態を作る）
                 var ops = new global::System.Collections.Generic.List<{ns}.TickInput>();
                 for (int k = 0; k < steps; k++) ops.Add(RandomInput(rnd));
+                runs.Add((seed, ops));
+            }}
+            foreach (var (seed, ops) in runs)
+            {{
                 string expected, actual;
                 int at = Replay(seed, ops, check, ref given, out expected, out actual);
                 if (at >= 0) Shrink(id, rule, seed, ops.GetRange(0, at + 1), check, expected, actual);
@@ -794,6 +912,13 @@ def _check_method(p, contract):
                   f"            actual = \"{label}:false\";",
                   "            return 2;"]
     lines.append("        }")
+    # 前提の探索（Directed）の材料：開始状態だけで評価する前提と、最初の手
+    pre, first = directed(p)
+    pre_cs = " && ".join(_Typer(contract, f"{p['id']}.given").emit(c)[0] for c in pre) or "true"
+    args = ", ".join("true" if first.get(n) else "false" for n in INPUT_ORDER)
+    lines += ["", f"        public static bool Pre_{name}(Snapshot b) => {pre_cs};",
+              f"        public static global::{testgen.CORE_NAMESPACE}.TickInput First_{name} =>",
+              f"            new global::{testgen.CORE_NAMESPACE}.TickInput({args});"]
     return lines
 
 
@@ -810,7 +935,8 @@ def _tests(task, props, decl):
             out += ["        [global::NUnit.Framework.Test]",
                     f"        [global::NUnit.Framework.Description(\"{p['rule']}\")]",
                     f"        public void {name}_{suffix}() =>",
-                    f"            PropertyRunner.Run(\"{p['id']}\", \"{p['rule']}\", {seeds}, Steps, {ns}.Checks.{name});",
+                    f"            PropertyRunner.Run(\"{p['id']}\", \"{p['rule']}\", {seeds}, Steps, {ns}.Checks.{name},",
+                    f"                {ns}.Checks.Pre_{name}, {ns}.Checks.First_{name});",
                     ""]
     out[-1:] = ["    }", "}", ""]
     return "\n".join(out)

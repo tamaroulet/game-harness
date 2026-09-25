@@ -239,5 +239,42 @@ class Generate(unittest.TestCase):
             g.generate(mutated(lambda d: d.update(steps=0)), SPEC, GDD, INTERFACE, "tests")
 
 
+class Directed(unittest.TestCase):
+    """v2.1e：公開シードだけでは前提が 1 度も成り立たず、正しい実装でも VACUOUS になる性質があった（T5 のキック）。
+    開始状態だけで評価できる前提と最初の手を宣言から取り出し、実装を使わずに前提が成り立つ系列を探して足す。"""
+
+    KICK = ("before.Phase == GamePhase.Playing && before.ActiveMino != null && input.RotateCw && !input.Left "
+            "&& !fits(rotated(before.ActiveMino, 1)) && kick(before.ActiveMino, 1) != null "
+            "&& after.LockedMinoCount == before.LockedMinoCount")
+
+    def test_given_splits_into_start_state_precondition_and_first_input(self):
+        pre, first = g.directed({"id": "P-T5-09", "given": self.KICK})
+        self.assertEqual(first, {"RotateCw": True, "Left": False})
+        text = " ".join(str(c) for c in pre)
+        self.assertIn("fits", text)
+        self.assertIn("kick", text)
+        self.assertNotIn("after", text, "after を使う前提は実装を動かさないと分からないので外す")
+        self.assertNotIn("LockedMinoCount", text, "開始状態で分からない before のメンバーも外す")
+
+    def test_contradicting_inputs_are_refused(self):
+        with self.assertRaises(g.PropertyError):
+            g.directed({"id": "P-T1-09", "given": "input.Left && !input.Left"})
+        bad = mutated(lambda d: d["properties"].__setitem__(0, dict(d["properties"][0], given="input.Left && !input.Left")))
+        self.assertTrue(any("input.Left" in p for p in g.validate(bad, SPEC, GDD, INTERFACE)))
+
+    def test_generated_runner_searches_before_running_the_implementation(self):
+        files = g.generate(DECL, SPEC, GDD, INTERFACE, "tests")
+        model, checks = files["tests/Properties/PropertyModel.cs"], files["tests/Properties/Checks.cs"]
+        t5 = files["tests/Properties/PropertiesT5Cases.cs"]
+        self.assertIn('"PROPERTY_UNSATISFIABLE id=" + id + " rule=" + rule', model)
+        self.assertIn(f"const int DirectedBase = {g.DIRECTED_BASE};", model)
+        self.assertIn("StartParts(rnd, out var occ, out var locked, out var m);", model)
+        self.assertIn("public static bool Pre_P_T5_01(Snapshot b) =>", checks)
+        self.assertIn("new global::Game.Core.TickInput(false, false, true, false, false, false);", checks)
+        self.assertIn("Checks.Pre_P_T5_01, global::Game.Core.Tests.Properties.Checks.First_P_T5_01);", t5)
+        from adapters import dotnet
+        self.assertIn("PROPERTY_UNSATISFIABLE ", dotnet.PROPERTY_LINE_PREFIXES, "反例の行として実装役に届く")
+
+
 if __name__ == "__main__":
     unittest.main()

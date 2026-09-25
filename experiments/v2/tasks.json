@@ -18,7 +18,7 @@
   "contract": "contract.json",
   "contract_sha256": "07fd11f5a1ac76502da0bf3129c8f2a7ce314934cf52e59db6d8ae7f2b7a9d2b",
   "properties": "properties.json",
-  "properties_sha256": "389062469816acf1c936bc35f10ec6136a8defe0ccd4a0135c24a1b2d4e858ef",
+  "properties_sha256": "9dfd31baba7e7c354492bd4a23ab3d5df9ee04fc6172b48ae9ec7eabb8c9f6b3",
   "existing_types": [
     "GamePhase",
     "MinoType",
@@ -104,13 +104,13 @@
     "Game/Assets/Core/IGameState.cs": "8e15790843bca74ff2404f48cee9d7d22d87365adc7bdaf7b13de20c8a8cf9b4",
     "Game/Assets/Core/TickInput.cs": "1eab3cd28312d0e39991e790d7bc9b676e27689ef309abb7ef404d9fed23f13d",
     "tests/Core.Tests/Contracts/ContractProbe.cs": "48e7242099ff80bc1a41b0cc4ac1870f68fdfc0a8c9c9d2dbd6fcc24aa37fafd",
-    "tests/Core.Tests/Properties/Checks.cs": "4f58a6cb702d23d0d2f8e2d0ab9589766c2500000918acc316f9be8cdc44b1dd",
-    "tests/Core.Tests/Properties/PropertiesT1Cases.cs": "6345cd940fcc354a42312bef3afe603553a0de3cb90b02ef6b0478f42eaa1ee1",
-    "tests/Core.Tests/Properties/PropertiesT2Cases.cs": "fa6e84c1a99e7dc443f931d90a31ee0df0a8be57a0fb75569c8d44585ece1e6d",
-    "tests/Core.Tests/Properties/PropertiesT3Cases.cs": "4d9409a444f1472fc364ce5f91ae90227094d8d903611ca22599c1d0518b503c",
-    "tests/Core.Tests/Properties/PropertiesT4Cases.cs": "9ad4fb7834818802737976e1ac8c77df16555e5bc8cc428eab25acc41fc9ded6",
-    "tests/Core.Tests/Properties/PropertiesT5Cases.cs": "08f389c8db79dfc1278ccaa125cca2a8d44f834734601c3638e48db5c3df46d4",
-    "tests/Core.Tests/Properties/PropertyModel.cs": "7b7d385135d08d181859b79c6bf658371a1d66e66366921043060a9c14104922"
+    "tests/Core.Tests/Properties/Checks.cs": "3455b90c6cca8444d0622d604835455e1da702c517290eb801350e80ca44205b",
+    "tests/Core.Tests/Properties/PropertiesT1Cases.cs": "69326bdb482da2830c5fe64186ab06ed3b593864e73d873831b14e533f8f132b",
+    "tests/Core.Tests/Properties/PropertiesT2Cases.cs": "35ba107a21ac1eb92eecee3c38a7474409bfc3370e4d634b960daad4578e2f28",
+    "tests/Core.Tests/Properties/PropertiesT3Cases.cs": "1e958d1ac1f81e08b6357fa57da9e805ad01fcd44ebec3a6cf1a755c3f27466b",
+    "tests/Core.Tests/Properties/PropertiesT4Cases.cs": "5ec360591be9bad35ee1b5a2e75b5c5f214074b023fb35ca906cbc47945092f1",
+    "tests/Core.Tests/Properties/PropertiesT5Cases.cs": "8fe9405475eced3ae4f6705ee279f01876b7111a74830d07111768ab240b987a",
+    "tests/Core.Tests/Properties/PropertyModel.cs": "c5304f7cd57f2d83dd51cf7c042588e8cf765d93f9c4f07868b4be4cf1d7c10f"
   },
   "templates": {
     "initial": "templates/initial.md",
