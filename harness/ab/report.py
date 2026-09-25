@@ -214,7 +214,11 @@ def power_fit(ys):
 def break_even(fa, ca, fb, cb, horizon=10000):
     """S_X(N) = F_X + Σ_{k≤N} c_X(k) として、S_B(N) ≤ S_A(N) となる最小の N。
     まず実測の列で探し、決まらなければ A を a·k^α、B を実測の平均で外挿する。
-    (N, "measured" | "extrapolated") か (None, 理由)。"""
+    (N, "measured" | "extrapolated") か (None, 理由)。
+
+    α ≤ 0 なら外挿しない（v2.2、docs/design/v2_b_efficiency.md §6）。タスクの難しさが揃っていない列（v2-smoke-04 の
+    A は T3 の再試行が高く T4・T5 が安い）では傾きが負になり、「A の 1 タスクの費用は減り続ける」という外挿から
+    「N ≤ 10000 では回収しない」が出た。これは文脈の累積による伸びの推定ではなく、タスクの並びの効果である。"""
     if fa is None or fb is None or not ca or not cb or None in ca or None in cb:
         return None, "未計測の値がある"
     sa, sb = fa, fb
@@ -226,6 +230,9 @@ def break_even(fa, ca, fb, cb, horizon=10000):
     if fit is None:
         return None, "A の伸びを当てはめられない（2 タスク以上が要る）"
     a, alpha = fit
+    if alpha <= 0:
+        return None, (f"外挿しない（A の当てはめの傾き α = {alpha} ≤ 0。タスクの難しさの差が文脈の累積の伸びを"
+                      f"覆っている。実測の範囲 N ≤ {min(len(ca), len(cb))} では回収しない）")
     b = sum(cb) / len(cb)
     for n in range(len(ca) + 1, horizon + 1):
         sa, sb = sa + a * n ** alpha, sb + b

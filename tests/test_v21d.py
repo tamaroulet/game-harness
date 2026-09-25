@@ -45,6 +45,9 @@ class Protocol(unittest.TestCase):
         for phrase in ("がすべて", "作業場所の外", "dotnet", "性質の出典を示すラベル", "GddReference の定数",
                        "manage_task・schedule も要りません", "そのまま終えてください"):
             self.assertIn(phrase, text)
+        # v2.2：結びは手順の事実（埋め込みで足りる。最初の手番で直ちに編集の道具を呼ぶ）
+        for phrase in ("作業には足ります", "最初の手番で、直ちに編集の道具", "replace_file_content"):
+            self.assertIn(phrase, text)
 
     def test_embedding_lists_every_file_in_the_workspace_first(self):
         with tempfile.TemporaryDirectory() as d:
