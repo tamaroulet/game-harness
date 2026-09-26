@@ -392,10 +392,8 @@ tasks:
   title: 残りの未検証の項目（U4 nlgen の対応表の凍結・U7 Release への公開の通し・U2 の Stryker の実行）
   group: B6
   target_repo: game-harness
-  status: completed
-  verification:
-    command: python experiments/v2r/tools/mutation.py summarize T1=C:\src\.local\tmp\u2-out\T1\reports\mutation-report.json
-    expected_exit_code: 1
+  status: in_progress
+  verification: null
   review_pr: https://github.com/tamaroulet/game-harness/pull/115
 - id: V2R-SMOKE
   title: 乾式の走行（天井の検査：A0 の欠陥が 1 件以上）と繰り返し R の決定（U5・U6）
@@ -428,6 +426,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: V2R-4
+  task: V2R-3
   exit_code: 0
-  at: '2026-09-26T20:41:00' 
+  at: '2026-09-26T20:15:59'
