@@ -24,6 +24,13 @@ class ABError(Exception):
     pass
 
 
+class ReplicateStop(ABError):
+    """その繰り返し（1 つの run-id）を止める。一時的な失敗が続いたとき（docs/design/v2r_protocol.md §10）。
+
+    run-all は、この繰り返しの残りの条件を飛ばして、次の繰り返しへ進む。
+    """
+
+
 def sha256_file(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 

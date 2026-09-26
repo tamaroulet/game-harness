@@ -1,0 +1,11 @@
+{
+  "_comment": "v2r の実行環境の固定値（docs/design/v2r_protocol.md §5.1、2026-09-26 に実測）。harness/envcheck.py が起動時に実測と照合し、1 つでも違えば起動しない。変えるときは main への PR で行う",
+  "os": "Microsoft Windows NT 10.0.26200.0",
+  "python": "3.12.10",
+  "python_packages": {"pyyaml": "6.0.3"},
+  "cli": {
+    "agy": "1.2.11",
+    "claude": "2.1.258",
+    "dotnet": "8.0.413"
+  }
+}

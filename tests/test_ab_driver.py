@@ -14,6 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
@@ -179,6 +180,33 @@ class ConditionA(unittest.TestCase):
             return {"G.B4abT1Cases.Case_x": "Passed" if ok else "Failed"}, "tail line"
         return fast
 
+    def test_a_rate_limit_is_retried_without_using_the_call_budget(self):
+        """一時的な失敗は 60 秒待って呼び直す。試行（呼び出しの上限）には数えず、利用量は記録する（v2r §10）。"""
+        limited = {"rc": 1, "seconds": 1.0, "conversation_id": "conv-1", "out": "RL", "err": "",
+                   "usage": {"input_tokens": 7, "output_tokens": 0},
+                   "outcome": {"status": "ERROR", "error": "429 RESOURCE_EXHAUSTED"}}
+        replies = [limited]
+
+        def call(imp, prompt, cwd, cid, ttl):
+            return replies.pop(0) if replies else self.call(imp, prompt, cwd, cid, ttl)
+        waits = []
+        with mock.patch.object(driver.transient.time, "sleep", side_effect=waits.append):
+            rec = driver.run_task_a(self.ctx, self.m["tasks"][0], self.unit, {}, call=call, fast=self.fast_passing_at(1))
+        self.assertEqual((rec["attempts"], rec["accepted"], waits), (1, True, [60]))
+        self.assertEqual(rec["calls"][0]["transient"][0]["usage"]["input_tokens"], 7)
+        self.assertTrue((self.ctx["out"] / "T1_a1_t1.implementer.log").exists(), "一時的な失敗の生の出力も残す")
+        self.assertEqual(driver._tokens(rec["calls"])["transient_calls"], 1)
+
+    def test_three_failed_retries_stop_the_replicate(self):
+        limited = {"rc": 1, "seconds": 1.0, "conversation_id": "c", "out": "", "err": "", "usage": {},
+                   "outcome": {"status": "ERROR", "error": "rate limit exceeded"}}
+        waits = []
+        with mock.patch.object(driver.transient.time, "sleep", side_effect=waits.append), \
+                self.assertRaises(common.ReplicateStop):
+            driver.run_task_a(self.ctx, self.m["tasks"][0], self.unit, {}, call=lambda *a: dict(limited),
+                              fast=self.fast_passing_at(1))
+        self.assertEqual(waits, [60, 120, 240])
+
     def test_retries_in_the_same_conversation_until_accepted(self):
         state = {}
         rec = driver.run_task_a(self.ctx, self.m["tasks"][0], self.unit, state,
@@ -253,7 +281,11 @@ class Tokens(unittest.TestCase):
         calls = [{"usage": {"input_tokens": 10, "output_tokens": 1, "cache_read_tokens": 100}},
                  {"usage": {"input_tokens": 20, "output_tokens": 2, "cache_read_tokens": 200}}]
         self.assertEqual(driver._tokens(calls), {"input": 30, "output": 3, "cache_read": 300, "per_call_input": [10, 20],
-                                                 "partial": False})
+                                                 "partial": False, "transient_calls": 0})
+        # 一時的な失敗の呼び出しの利用量も足す（呼び出しの一覧 per_call_input には入れない。harness/transient.py）
+        calls[0]["transient"] = [{"usage": {"input_tokens": 5, "output_tokens": 0, "cache_read_tokens": 0}}]
+        got = driver._tokens(calls)
+        self.assertEqual((got["input"], got["per_call_input"], got["transient_calls"]), (35, [10, 20], 1))
         calls[1]["usage"]["cache_read_tokens"] = None
         self.assertIsNone(driver._tokens(calls)["cache_read"], "1 つでも不明なら推測で埋めない")
 

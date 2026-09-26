@@ -25,6 +25,7 @@ if str(_HARNESS) not in sys.path:
     sys.path.insert(0, str(_HARNESS))
 
 import agy_stream  # noqa: E402
+import envcheck  # noqa: E402
 import exitcode  # noqa: E402
 import implementer_context  # noqa: E402
 import model_pin  # noqa: E402
@@ -35,6 +36,7 @@ import project  # noqa: E402
 import telemetry  # noqa: E402
 import testgen  # noqa: E402
 import tool_policy  # noqa: E402
+import transient  # noqa: E402
 from adapters import dotnet  # noqa: E402
 from ab import common, measure  # noqa: E402
 from proc import resolve_cli, run  # noqa: E402
@@ -201,7 +203,17 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast, jud
             parts["retry"] = len(prompt)
         parts["protocol"] = len(tool_policy.text())
         prompt += "\n\n" + tool_policy.text()
-        r = call(ctx["imp"], prompt, workdir, state.get("conversation_id"), ctx["ttl"])
+        # レートリミット・一時的な失敗は 60・120・240 秒で呼び直す。呼び直しは呼び出しの上限に数えない（harness/transient.py）
+        try:
+            r, retries = transient.with_backoff(
+                lambda: call(ctx["imp"], prompt, workdir, state.get("conversation_id"), ctx["ttl"]),
+                lambda x: transient.classify(x.get("outcome")))
+        except transient.TransientFailure as e:
+            log_transients(out, task, attempt, prompt, e.retries)
+            if narrow:
+                narrow_dir.discard(narrow)
+            raise common.ReplicateStop(f"{task['id']} の試行 {attempt}: {e}")
+        transients = log_transients(out, task, attempt, prompt, retries)
         if agy_stream.is_stream(ctx["imp"]) and (r.get("conversation_id") or r.get("steps")):
             # 使ったモデルを設定と照合する。報告が無い・違うなら止める（harness/model_pin.py）
             try:
@@ -217,6 +229,8 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast, jud
                       "steps": r.get("steps"), "outcome": r.get("outcome"), "model": r.get("model"),
                       "prompt_chars": len(prompt),
                       "prompt_parts": parts})
+        if transients:
+            calls[-1]["transient"] = transients
         if narrow:
             calls[-1]["narrow_written"] = written
         if attempt == 1 and judge is not None:
@@ -269,12 +283,24 @@ def failing_names(results):
     return None if results is None else sorted(n for n, o in results.items() if o != "Passed")
 
 
-CALL_RECORD = ("attempt", "rc", "seconds", "model", "prompt_chars", "prompt_parts", "outcome")
+CALL_RECORD = ("attempt", "rc", "seconds", "model", "prompt_chars", "prompt_parts", "outcome", "transient")
 
 
 def call_records(calls):
     """metrics に残す呼び出しの要約（本文・手番の中身は残さない）。"""
     return [{k: c.get(k) for k in CALL_RECORD} for c in calls]
+
+
+def log_transients(out, task, attempt, prompt, retries):
+    """一時的な失敗の呼び出しの生の出力を別のログに残し、記録（利用量・理由・待った秒）を返す。guard はこれも費用に数える。"""
+    recs = []
+    for j, r in enumerate(retries, start=1):
+        x = r["result"]
+        (Path(out) / f"{task['id']}_a{attempt}_t{j}.implementer.log").write_text(
+            f"# prompt\n{prompt}\n\n# stdout\n{x.get('out', '')}\n\n# stderr\n{x.get('err', '')}\n", encoding="utf-8")
+        recs.append({"rc": x.get("rc"), "reason": r["reason"], "wait": r["wait"], "usage": x.get("usage"),
+                     "outcome": x.get("outcome")})
+    return recs
 
 
 def run_task_b(ctx, task, unit, state, runner=run):
@@ -294,10 +320,12 @@ def run_task_b(ctx, task, unit, state, runner=run):
                                 str(common.ROOT), PIPELINE_TTL, f"pipeline（条件 B、{task['id']}）")
     (out / f"{task['id']}.pipeline.log").write_text(f"{stdout}\n{stderr}\n", encoding="utf-8")
     data, _ = telemetry.read(tel)
+    if (data or {}).get("transient_abort"):
+        raise common.ReplicateStop(f"{task['id']}（条件 B）: {data['transient_abort']}")
     attempts = (data or {}).get("attempts", [])
     # 内側ループの全呼び出しを数える（監査 F2）。implementer_calls の無い古い記録は最後の呼び出しだけ
     calls = [{"attempt": a.get("n"), "verdict": a.get("verdict"), "stage": a.get("stage"), "usage": call.get("usage"),
-              **{k: call.get(k) for k in CALL_RECORD if k != "attempt"}}
+              **{k: call.get(k) for k in CALL_RECORD if k != "attempt"}, "transient": call.get("transient") or []}
              for a in attempts for call in (a.get("implementer_calls") or [a.get("implementer") or {}])]
     return {"attempts": len(attempts), "implementer_calls": len(calls), "accepted": rc == 0, "calls": calls,
             "pipeline_rc": rc}
@@ -306,15 +334,21 @@ def run_task_b(ctx, task, unit, state, runner=run):
 # ============================================================ 1 回の走行
 
 def _tokens(calls):
-    """呼び出しの利用量の合計。1 つでも不明なら None（推測で埋めない）。キャッシュ読みも数える（監査 F6）。"""
+    """呼び出しの利用量の合計。1 つでも不明なら None（推測で埋めない）。キャッシュ読みも数える（監査 F6）。
+
+    一時的な失敗の呼び出し（calls[].transient）の利用量も足す（払っているので。harness/transient.py）。
+    """
+    spent = list(calls) + [t for c in calls for t in (c.get("transient") or [])]
+
     def total(key):
-        xs = [(c.get("usage") or {}).get(key) for c in calls]
+        xs = [(c.get("usage") or {}).get(key) for c in spent]
         return sum(xs) if all(isinstance(x, int) for x in xs) else None
     ins = [((c.get("usage") or {}).get("input_tokens")) for c in calls]
     # partial：TTL で打ち切った呼び出しがあり、その分は終わった手番までの足し込み（下限）（v2.1 §1.2）
     return {"input": total("input_tokens"), "output": total("output_tokens"),
             "cache_read": total("cache_read_tokens"), "per_call_input": ins,
-            "partial": any((c.get("usage") or {}).get("partial") for c in calls)}
+            "partial": any((c.get("usage") or {}).get("partial") for c in spent),
+            "transient_calls": len(spent) - len(calls)}
 
 
 def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=common.OUT_ROOT,
@@ -451,6 +485,10 @@ def run_all(manifest, repeat, prefix):
         for cond in order:
             try:
                 run_condition(manifest, cond, f"{prefix}-{k:02d}")
+            except common.ReplicateStop as e:
+                print(f"ABORT（{prefix}-{k:02d} {cond}、繰り返しを止めます）: {e}")
+                rc = exitcode.ABORT
+                break
             except common.ABError as e:
                 print(f"ABORT（{prefix}-{k:02d} {cond}）: {e}")
                 rc = exitcode.ABORT
@@ -472,6 +510,14 @@ def main(argv=None):
     c = sub.add_parser("cleanup")
     c.add_argument("--run-id", required=True)
     args = ap.parse_args(argv)
+    if args.cmd in ("run", "run-all"):
+        # 実行環境を実測し、固定値（config/environment.json）と違えば起動しない。実測値は env.json に残す（v2r §5）
+        name = args.run_id if args.cmd == "run" else args.prefix
+        try:
+            envcheck.require(common.OUT_ROOT / f"{name}.env.json")
+        except envcheck.EnvError as e:
+            print(f"ABORT: {e}")
+            return exitcode.ABORT
     try:
         if args.cmd == "run":
             return run_condition(args.manifest, args.condition, args.run_id, through=args.through)
