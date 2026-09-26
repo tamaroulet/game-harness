@@ -389,14 +389,16 @@ tasks:
     command: python -m harness.envcheck
     expected_exit_code: 0
 - id: V2R-4
-  title: 残りの未検証の項目（U4 nlgen の対応表の凍結・U7 Release への公開の通し・U2 の Stryker の実行）
+  title: 残りの未検証の項目（U4 nlgen の対応表の凍結・U2 の Stryker の実行。U7 の残りは V2R-SMOKE へ）
   group: B6
   target_repo: game-harness
   status: in_progress
-  verification: null
-  review_pr: https://github.com/tamaroulet/game-harness/pull/115
+  verification:
+    command: python -m unittest tests.test_nlgen tests.test_v2r_tools tests.test_v2r_series
+    expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/116
 - id: V2R-SMOKE
-  title: 乾式の走行（天井の検査：A0 の欠陥が 1 件以上）と繰り返し R の決定（U5・U6）
+  title: 乾式の走行（天井の検査：A0 の欠陥が 1 件以上）と繰り返し R の決定（U5・U6）、Release への公開の通し（U7 の残り）
   group: B6
   target_repo: game-harness
   status: pending
