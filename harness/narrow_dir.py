@@ -19,6 +19,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import fileops
+
 ROOT_NAME = "harness-narrow"
 
 
@@ -39,7 +41,7 @@ def populate(origin, rels, dst=None):
     if dst.exists():
         if ROOT_NAME not in dst.parts:
             raise ValueError(f"作業場所ではないディレクトリは消しません: {dst}")
-        shutil.rmtree(dst)
+        fileops.rmtree(dst)
     dst.mkdir(parents=True)
     for rel in rels:
         src = Path(origin) / rel

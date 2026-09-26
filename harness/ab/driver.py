@@ -15,6 +15,7 @@
 """
 import argparse
 import json
+import re
 import os
 import sys
 import time
@@ -32,6 +33,7 @@ import model_pin  # noqa: E402
 import narrow_dir  # noqa: E402
 import nlgen  # noqa: E402
 import pipeline  # noqa: E402
+import propaudit  # noqa: E402
 import propgen  # noqa: E402
 import project  # noqa: E402
 import telemetry  # noqa: E402
@@ -309,12 +311,24 @@ def run_task_v2r(ctx, task, unit, state, call=agy_call, judge=None):
         measure.place_frozen_tests(m, wt, ctx["index"], m["test_dir"])
         if not f["gate"]:
             break
+        if not written and len(calls) >= 2 and not calls[-2].get("narrow_written"):
+            # 2 回続けて何も書かなかった（原則 P4）。同じ作業ツリーを同じ門で測り直しても知らせは変わらないので、
+            # 呼び直さずに打ち切る（実装の失敗として数える）。v2r-dry-02 の B の T6 は 3 回目に思考だけで 6.4 万トークン
+            calls[-1]["verdict"] = "NO_PROGRESS"
+            print(f"[v2r] {task['id']}: 2 回続けて変更が無いので打ち切りました")
+            break
         if r["rc"] != 0:
             verdict = "IMPLEMENTER_FAILED"
             feedback = pipeline.extract_raw_stacktrace(
                 f"実装AI が異常終了 (rc={r['rc']}): {(r['err'] or r['out'])[:400]}", max_lines=40)
         else:
             verdict, feedback = judge(attempt)
+            faults = instrument_faults(feedback, v2r.properties(m))
+            if verdict != "SUCCESS" and faults:
+                # 実装に依らず作れるはずの前提が成り立たない＝測定器の故障（原則 P2）。実装役に知らせても直せないので
+                # 呼び直さない。欠陥として数えないよう、行を書かずに走行を止める（途中で止まった走行は判定しない）
+                raise common.ABError(f"{task['id']}: 測定器の故障（前提を実装に依らず作れるはずの性質が空虚）: "
+                                     + "; ".join(faults))
         calls[-1]["verdict"] = verdict
         if verdict == "SUCCESS":
             accepted = True
@@ -323,6 +337,28 @@ def run_task_v2r(ctx, task, unit, state, call=agy_call, judge=None):
             print(f"[v2r] {task['id']}: 検査系の故障で止めました: {feedback[:300]}")
             break
     return {"attempts": len(calls), "accepted": accepted, "calls": calls, "factors": f}
+
+
+FAULT_LINE_RE = re.compile(r"PROPERTY_(VACUOUS|UNSATISFIABLE) id=(\S+)")
+
+
+def instrument_faults(feedback, props):
+    """知らせのうち、測定器の故障と決まるもの（原則 P2。docs/design/v2r_instrument_redesign.md）。
+
+    - PROPERTY_UNSATISFIABLE：開始状態の前提を満たす系列が無い。実装を動かす前の検査なので、いつも測定器の故障
+    - PROPERTY_VACUOUS：前提が 1 回も成り立たない。前提が実装の結果（after）を使わない性質なら、成り立つかどうかは
+      実装に依らないので測定器の故障。after を使う性質（P1 に反する宣言）では、実装が出来事を起こさないせいかもしれず
+      見分けられないので、ここでは故障にしない（知らせとして渡す）
+    """
+    by = {p["id"]: p for p in props}
+    out = []
+    for kind, pid in FAULT_LINE_RE.findall(feedback or ""):
+        p = by.get(pid)
+        if kind == "UNSATISFIABLE" or (p is not None and not any(r["outcome"] for r in propaudit.audit([p]))):
+            item = f"{kind} {pid}"
+            if item not in out:
+                out.append(item)
+    return out
 
 
 # ============================================================ 条件 B

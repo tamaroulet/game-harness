@@ -18,9 +18,9 @@ import hashlib
 import json
 import os
 import re
-import shutil
 from pathlib import Path
 
+import fileops
 import invgen
 import project
 import unit_schema
@@ -78,7 +78,7 @@ def materialize(workdir, sandbox, impl_dir, files, cfg=None):
     for p in workdir.iterdir():
         if p.name in ("obj", "bin"):
             continue
-        shutil.rmtree(p) if p.is_dir() else p.unlink()
+        fileops.rmtree(p) if p.is_dir() else fileops.unlink(p)
     impl = str(sandbox / impl_dir).replace("/", "\\") + "\\**\\*." + "cs"
     packages = "\n".join(f'    <PackageReference Include="{k}" Version="{v}" />' for k, v in cfg["packages"].items())
     (workdir / "Invariants.csproj").write_text(

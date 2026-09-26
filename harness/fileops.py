@@ -9,6 +9,7 @@ TTL で子プロセスの木を止めた直後や、エンジン・ビルドの�
 そのまま上げる（原因を隠さない）。
 """
 import os
+import shutil
 import time
 
 DELAYS = (0.2, 0.5, 1, 2, 4)
@@ -46,3 +47,17 @@ def unlink(path, sleep=time.sleep):
 
 def replace(src, dst, sleep=time.sleep):
     return retry_os(lambda: os.replace(src, dst), f"置き換え {dst}", sleep=sleep)
+
+
+def rmtree(path, sleep=time.sleep):
+    """ディレクトリを消す。無ければ何もしない。ロック系のエラーなら再試行する（原則 P5）。
+
+    shutil.rmtree を直に呼ぶと、ビルドやウイルス対策が掴んでいる 1 ファイルで走行ごと落ちる。消せなかったときは
+    FileLockError（何が掴まれていたかを添える）で上げ、呼び出し側が ABORT の理由として出す。
+    """
+    path = os.fspath(path)
+
+    def go():
+        if os.path.exists(path):
+            shutil.rmtree(path)
+    return retry_os(go, f"削除 {path}", sleep=sleep)

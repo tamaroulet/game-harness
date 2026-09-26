@@ -93,17 +93,22 @@ class Dispatch(unittest.TestCase):
             patch.start()
             self.addCleanup(patch.stop)
 
-    def run_condition(self, condition):
+    def run_condition(self, condition, writes=True, verdicts=None):
         prompts, cids, judged = [], [], []
 
         def call(imp, prompt, cwd, cid, ttl):
             prompts.append(prompt)
             cids.append(cid)
+            if writes:
+                (Path(cwd) / "Core" / "GameState.cs").write_text(f"class GameState {{}} // {len(prompts)}",
+                                                                 encoding="utf-8")
             return {"rc": 0, "seconds": 1.0, "conversation_id": "c", "model": "m", "usage": {"input_tokens": 1},
                     "out": "", "err": "", "outcome": {"status": "SUCCESS"}, "steps": []}
 
         def judge(n):
             judged.append(n)
+            if verdicts is not None:
+                return verdicts[min(n, len(verdicts)) - 1]
             return ("SUCCESS", "") if n >= 2 else ("PROPERTY_FAIL", FAIL)
         ctx = {"m": self.m, "wt": self.wt, "out": self.tmp / f"out-{condition}", "impl_dir": "Core", "index": 1,
                "imp": {"model_name": "m", "output_format_args": ["--output-format", "stream-json"]}, "ttl": 60,
@@ -136,8 +141,22 @@ class Dispatch(unittest.TestCase):
         self.assertIn("前回の失敗:\n" + FAIL, prompts[1])
         self.assertNotIn("この性質", prompts[1], "形式の条件は知らせの行だけ")
 
+    def test_two_attempts_without_changes_stop_the_retries(self):
+        """原則 P4：2 回続けて何も書かなければ、同じ門で測り直さずに打ち切る（v2r-dry-02 の B の T6）。"""
+        rec, prompts, cids, judged = self.run_condition("B", writes=False)
+        self.assertEqual((len(prompts), judged, rec["accepted"]), (2, [1], False))
+        self.assertEqual(rec["calls"][-1]["verdict"], "NO_PROGRESS")
+
+    def test_a_vacuous_constructible_property_is_an_instrument_fault(self):
+        """原則 P2：前提が after を使わない性質の PROPERTY_VACUOUS は、実装役に渡さずに走行を止める。"""
+        vac = "PROPERTY_VACUOUS id=P-T1-01 rule=RL-16 given=0"
+        with self.assertRaises(common.ABError) as ctx:
+            self.run_condition("B", verdicts=[("PROPERTY_FAIL", vac)])
+        self.assertIn("測定器の故障", str(ctx.exception))
+
     def test_everything_but_the_spec_and_the_feedback_is_shared_and_stateless(self):
-        recs = {c: self.run_condition(c) for c in v2r.ORDER}
+        # 作業ツリーを共有するので、書かない呼び出しで比べる（書くと後の条件の埋め込みの字数が変わる）
+        recs = {c: self.run_condition(c, writes=False) for c in v2r.ORDER}
         first = {c: r[0]["calls"][0]["prompt_parts"] for c, r in recs.items()}
         for key in ("where", "interface", "embed", "protocol"):
             self.assertEqual(len({first[c][key] for c in v2r.ORDER}), 1, f"{key} の字数が条件で違う")

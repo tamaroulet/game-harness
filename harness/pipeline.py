@@ -1995,8 +1995,7 @@ def copy_changes(source, sandbox, ttl):
 def save_changes(source, dst, ttl):
     """source の HEAD からの変更を dst に残す（最初の提出の記録、V2-6）。files/ の下に変わったファイル、deleted.json に消したもの。"""
     dst = Path(dst)
-    if dst.exists():
-        shutil.rmtree(dst)
+    fileops.rmtree(dst)
     (dst / "files").mkdir(parents=True)
     deleted = []
     for _, rel in changed_entries(source, ttl):
