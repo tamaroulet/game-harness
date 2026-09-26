@@ -200,8 +200,24 @@ class Environment(unittest.TestCase):
     def test_the_repository_pins_match_the_protocol_and_the_lock(self):
         pinned = envcheck.load_pinned()
         self.assertEqual({k: v for k, v in pinned.items() if not k.startswith("_")},
-                         {**self.PINNED, "tools": {"dotnet-stryker": "5.0.0"}, "test_packages": None})
+                         {**self.PINNED, "tools": {"dotnet-stryker": "5.0.0"},
+                          # U1：人間が envcheck --test-packages で取った値（2026-09-26、game-harness#112 のレビュー）
+                          "test_packages": {"Microsoft.NET.Test.Sdk": "17.8.0", "NUnit": "3.14.0",
+                                            "NUnit.Analyzers": "3.9.0", "NUnit3TestAdapter": "4.5.0"}})
         self.assertEqual(envcheck.lock_packages(), {"pyyaml": "6.0.3"})
+
+    def test_cli_output_is_read_as_utf8(self):
+        """日本語の Windows で dotnet の出力を CP932 で読めず、UnicodeDecodeError で落ちていた（2026-09-26）。
+        CLI を呼ぶ 3 か所すべてで、UTF-8 で読み、読めない字は置き換える。"""
+        seen = []
+
+        def fake(args, **kw):
+            seen.append((args[:2], kw.get("encoding"), kw.get("errors")))
+            return SimpleNamespace(returncode=0, stdout="1.2.3\n   > NUnit   3.14.0   3.14.0\n", stderr="")
+        envcheck.cli_version("agy", run=fake)
+        envcheck.tool_versions(["dotnet-stryker"], run=fake)
+        envcheck.test_packages("x.csproj", run=fake)
+        self.assertEqual([s[1:] for s in seen], [("utf-8", "replace")] * 3)
 
     def test_unpinned_test_packages_refuse_to_start(self):
         """U1：テストのパッケージの固定値が未設定（null）のあいだは起動しない。"""

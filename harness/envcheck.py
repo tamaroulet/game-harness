@@ -46,7 +46,8 @@ def os_string():
 def cli_version(name, run=subprocess.run):
     """`<name> --version` の最初の x.y.z。取れなければ None。"""
     try:
-        r = run([name, "--version"], capture_output=True, text=True, timeout=60, shell=(sys.platform == "win32"))
+        r = run([name, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+                shell=(sys.platform == "win32"))
     except (OSError, subprocess.TimeoutExpired):
         return None
     m = VERSION_RE.search((r.stdout or "") + (r.stderr or ""))
@@ -59,7 +60,8 @@ def tool_versions(tools, run=subprocess.run):
     for pkg in tools:
         cmd = pkg.split("dotnet-", 1)[1] if pkg.startswith("dotnet-") else pkg
         try:
-            r = run(["dotnet", cmd, "--version"], capture_output=True, text=True, timeout=120,
+            r = run(["dotnet", cmd, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    timeout=120,
                     shell=(sys.platform == "win32"))
         except (OSError, subprocess.TimeoutExpired):
             out[pkg] = None
@@ -75,7 +77,10 @@ PACKAGE_LINE_RE = re.compile(r"^\s*>\s*(\S+)\s+(\S+)\s+(\S+)")
 def test_packages(csproj, run=subprocess.run):
     """テストのプロジェクトの NuGet パッケージ {名前: 解決した版}（`dotnet list package` の出力の `>` の行）。取れなければ None。"""
     try:
-        r = run(["dotnet", "list", str(csproj), "package"], capture_output=True, text=True, timeout=300,
+        # 日本語の Windows では、dotnet の出力の日本語を既定（CP932）で読めずに UnicodeDecodeError で落ちていた
+        # （2026-09-26、人間の環境での実測）。UTF-8 で読み、読めない字は置き換える（CLI の版と道具の版の読み取りも同じ）
+        r = run(["dotnet", "list", str(csproj), "package"], capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=300,
                 shell=(sys.platform == "win32"))
     except (OSError, subprocess.TimeoutExpired):
         return None
