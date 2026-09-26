@@ -41,6 +41,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import model_pin
 import project
 import telemetry
 import testgen
@@ -70,6 +71,13 @@ def configure(project_id, repo_dir=None):
                impl_dir=p["impl_dir"], fast_test_project=p["fast_test_project"],
                units_dir=p["units_dir"])
     CFG["prompt_file"] = CFG["prompt_file"].format(project=p["id"])
+    # 起動の時点で、モデルの明示を確かめる（CLI の既定のモデルには頼らない。harness/model_pin.py）
+    try:
+        model_pin.require(CFG, "config/decompose.json")
+        model_pin.auxiliary_prefixes(CFG, "config/decompose.json")
+    except model_pin.ModelPinError as e:
+        sys.exit(f"ABORT: {e}")
+    TEL["model_requested"] = CFG["model"]
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -188,12 +196,16 @@ def call_claude(prompt):
     リポジトリの外に書く。ここを汚すとパイプラインの require_repo_clean が
     次回 ABORT する。
     """
+    if not CFG.get("output_format_args"):
+        # 平文の出力では、どのモデルが書いたかを記録できない（modelUsage は JSON にしか無い。model_pin）
+        sys.exit("ABORT: config/decompose.json に output_format_args がありません（使われたモデルを記録できません）")
     pf = Path(CFG["prompt_file"])
     pf.parent.mkdir(parents=True, exist_ok=True)
     pf.write_text(prompt, encoding="utf-8")
 
     args = [resolve_cli(CFG["cli"]), CFG["headless_flag"],
-            CFG["prompt_arg_template"].format(prompt_file=pf)] + CFG["extra_flags"]
+            CFG["prompt_arg_template"].format(prompt_file=pf),
+            CFG["model_flag"], CFG["model"]] + CFG["extra_flags"]
     # 利用量を取るため JSON で受け取り、本文だけを取り出す（テレメトリ。判定には使わない）。
     args += CFG.get("output_format_args", [])
     t0 = time.monotonic()
@@ -206,9 +218,17 @@ def call_claude(prompt):
         TEL["usage"] = telemetry.cli_usage(out, CFG["usage_format"])
     # usage と seconds は最後の呼び出しのもの。出し直し（self_check_retries）を含めた全呼び出しは calls に積む
     TEL["seconds"] = seconds
-    TEL.setdefault("calls", []).append({"seconds": seconds, "usage": TEL["usage"]})
+    call = {"seconds": seconds, "usage": TEL["usage"]}
+    TEL.setdefault("calls", []).append(call)
     if rc != 0:
         sys.exit(f"分解役が異常終了 (rc={rc}): {(err or out)[:500]}")
+    # 使われたモデルを記録し、設定のモデルと照合する。報告が無い・違うなら止める（model_pin）
+    used, why = model_pin.claude_models(out)
+    try:
+        call["models_used"] = model_pin.check_claude(CFG, used, why, "分解役（config/decompose.json）")
+    except model_pin.ModelPinError as e:
+        call["models_used"], call["models_used_null_reason"] = (sorted(used) if used else None), str(e)
+        sys.exit(f"ABORT: {e}")
     if not CFG.get("output_format_args"):
         return out
     # 封筒（CLI の JSON）が読めないのは CLI 側の異常。LLM の出力不良（rc=1）とは分けて rc=2 にする。

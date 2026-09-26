@@ -30,6 +30,7 @@ from datetime import datetime
 from pathlib import Path
 
 import gdd_check
+import model_pin
 import project
 import telemetry
 from proc import resolve_cli, run
@@ -110,63 +111,28 @@ def cli_version(cfg):
 
 def model_usage(out):
     """CLI の JSON にある modelUsage。({モデル: 利用量}, None) か (None, 理由)。"""
-    try:
-        doc = json.loads(out)
-    except ValueError as e:
-        return None, f"CLI の出力を JSON として読めません: {e}"
-    if not isinstance(doc, dict):
-        return None, "CLI の出力が表ではありません"
-    got = doc.get("modelUsage")
-    if not isinstance(got, dict):
-        return None, "CLI の出力に modelUsage がありません（この CLI の版は報告しない）"
-    return got, None
+    return model_pin.claude_models(out)
 
 
 def auxiliary_prefixes(cfg):
-    """CLI の内部処理用として許すモデルの接頭辞。設定が無い・形が違うなら止める。
+    """CLI の内部処理用として許すモデルの接頭辞（model_pin.auxiliary_prefixes）。設定の不備は Env。"""
+    try:
+        return model_pin.auxiliary_prefixes(cfg, "config/spec.json")
+    except model_pin.ModelPinError as e:
+        raise Env(str(e))
 
-    既定値をコード側に持たない。持つと、設定を消したときに黙って「haiku は許す」に戻り、
-    どの版で何を許していたかが設定から読めなくなる（判定の出所は 1 か所に保つ）。
+
+def check_models(cfg, used, why=None):
+    """固定したモデルが実際に使われ、ほかは CLI の内部処理用だけであることを確かめる（model_pin.check_claude）。
+
+    CLI は要求したモデルのほかに内部処理で小型のモデルを呼ぶ（claude 2.1.258 の -p が claude-opus-5 の要求に
+    claude-haiku-4-5 を併用した）。それは config/spec.json の auxiliary_models の接頭辞で許す。
+    **modelUsage が無いときも止める**（2026-09-26 の是正。以前は判定材料が無いとして通していた）。
     """
-    aux = cfg.get("auxiliary_models")
-    if (not isinstance(aux, list) or not aux
-            or not all(isinstance(x, str) and x.strip() for x in aux)):
-        raise Env("config/spec.json の auxiliary_models が、空でない文字列の配列ではありません"
-                  "（CLI の内部処理用として許すモデルの接頭辞。例: [\"claude-haiku-\"]）")
-    bad = [x for x in aux if cfg["model"].startswith(x)]
-    if bad:
-        raise Env(f"auxiliary_models の {bad} が、固定したモデル {cfg['model']} に当たります"
-                  "（固定したモデル自身を内部処理用に数えると、使われたかどうかを確かめられません）")
-    return tuple(aux)
-
-
-def check_models(cfg, used):
-    """固定したモデルが実際に使われ、ほかは CLI の内部処理用だけであることを確かめる。
-
-    **なぜ「全部が固定モデル」ではないのか**: CLI は、要求したモデルのほかに自分の内部処理
-    （要約・見出しの生成など）で小型のモデルを呼ぶ。実測では claude 2.1.258 の -p が
-    claude-opus-5 の要求に対して claude-haiku-4-5 を併用した。それを「別のモデルが使われた」と
-    数えると、構造化役を 1 度も動かせない。
-
-    **それでも緩めていない点**: 固定したモデルが modelUsage に**現れないこと**は止める
-    （要求したのに使われていない。誰が書いたのか分からない）。設定に挙げていないモデルが
-    混ざることも止める（sonnet で書かれていても通る、という穴を開けない）。
-
-    **許す接頭辞はコードに直書きしない。** CLI の版が上がって別の小型モデルを使い始めたら、
-    ここは止まる。そのとき attempt_N/cli.json で実測を確かめ、config/spec.json に 1 行足せば
-    復旧できる（コードの PR も単体テストの再実行も挟まない）。
-    """
-    aux = auxiliary_prefixes(cfg)
-    if used is None:
-        return   # modelUsage を報告しない CLI の版。判定材料が無い（理由はテレメトリに残す）
-    models = sorted(used)
-    if not any(m.startswith(cfg["model"]) for m in models):
-        raise Env(f"固定したモデル {cfg['model']} が使われていません: {models}"
-                  "（要求したモデルで書かれていないので止めます）")
-    stray = [m for m in models if not m.startswith(cfg["model"]) and not m.startswith(aux)]
-    if stray:
-        raise Env(f"固定したモデル {cfg['model']} と、CLI の内部処理用（{', '.join(aux)}）以外が"
-                  f"使われました: {stray}（実験の条件がずれるので止めます）")
+    try:
+        return model_pin.check_claude(cfg, used, why, "構造化役（config/spec.json）")
+    except model_pin.ModelPinError as e:
+        raise Env(str(e))
 
 
 def call_cli(cfg, prompt_path):
@@ -188,7 +154,7 @@ def call_cli(cfg, prompt_path):
     if text is None:
         raise Env(f"構造化役の CLI の出力を読めません（{why}）: {out[:300]}")
     used, used_why = model_usage(out)
-    check_models(cfg, used)
+    check_models(cfg, used, used_why)
     return text, usage, used, used_why
 
 
@@ -261,6 +227,12 @@ def main(argv=None):
     try:
         p = project.load(a.project)
         cfg = project.config("spec")
+        # 起動の時点で、モデルの明示と内部処理用の接頭辞を確かめる（CLI の既定のモデルには頼らない）
+        try:
+            model_pin.require(cfg, "config/spec.json")
+        except model_pin.ModelPinError as e:
+            raise Env(str(e))
+        auxiliary_prefixes(cfg)
         gdd_check.CFG = gdd_check.load_config()
         terms = gdd_check.load_terms(a.project)
         tel["harness_sha"] = harness_sha()

@@ -27,6 +27,7 @@ from pathlib import Path
 import contractgen
 import exitcode
 import gdd_check
+import model_pin
 import project
 import propgen
 import telemetry
@@ -111,8 +112,13 @@ v1 の interface：
 
 
 def call_claude(prompt, cfg, session=None):
-    """(rc, 応答の本文, 利用量, 秒, session_id)。プロンプトは標準入力で渡す。"""
-    args = [_resolve(cfg["cli"]), cfg["headless_flag"], "--tools", ""] + cfg.get("output_format_args", [])
+    """(rc, 応答の本文, 利用量, 秒, session_id, 使われたモデル)。プロンプトは標準入力で渡す。
+
+    モデルは設定で明示し（model_flag・model）、CLI の JSON の modelUsage と照合する（harness/model_pin.py）。
+    報告が無い・違うときは止める（v2 の事前投資は、このモデルが記録されていなかった）。
+    """
+    args = ([_resolve(cfg["cli"]), cfg["headless_flag"], "--tools", "", cfg["model_flag"], cfg["model"]]
+            + cfg.get("output_format_args", []))
     if session:
         args += ["--resume", session]
     t0 = time.monotonic()
@@ -129,7 +135,14 @@ def call_claude(prompt, cfg, session=None):
         sid = json.loads(out).get("session_id")
     except ValueError:
         sid = None
-    return rc, text or "", usage, seconds, sid
+    models = None
+    if rc == 0:
+        used, why = model_pin.claude_models(out)
+        try:
+            models = model_pin.check_claude(cfg, used, why, "分解役（declare、config/decompose.json）")
+        except model_pin.ModelPinError as e:
+            sys.exit(f"ABORT: {e}")
+    return rc, text or "", usage, seconds, sid, models
 
 
 def _resolve(name):
@@ -183,13 +196,19 @@ def declare(project_id, out):
     cfg_schema, cfg = project.config("unit_schema"), project.config("decompose")
     read = unit_schema.git_reader(proj["repo_dir"], f"origin/{proj['base_branch']}", 120)
     spec_text, gdd_text = read(cfg_schema["spec_path"]), read(cfg_schema["gdd_path"])
+    # 起動の時点で、モデルの明示を確かめる（CLI の既定のモデルには頼らない。harness/model_pin.py）
+    try:
+        model_pin.require(cfg, "config/decompose.json")
+        model_pin.auxiliary_prefixes(cfg, "config/decompose.json")
+    except model_pin.ModelPinError as e:
+        sys.exit(f"ABORT: {e}")
     prompt = build_prompt(spec_text, gdd_text)
     calls, session, d, problems = [], None, None, ["未実行"]
     for attempt in range(RETRIES + 1):
-        rc, text, usage, seconds, session = call_claude(prompt, cfg, session)
+        rc, text, usage, seconds, session, models = call_claude(prompt, cfg, session)
         d, why = extract(text) if rc == 0 else (None, f"分解役が異常終了（rc={rc}）")
         problems = [why] if why else check(d, spec_text, gdd_text, proj["test_dir"], proj["impl_dir"])
-        calls.append({"attempt": attempt + 1, "rc": rc, "seconds": seconds, "usage": usage,
+        calls.append({"attempt": attempt + 1, "rc": rc, "seconds": seconds, "usage": usage, "models_used": models,
                       "prompt_chars": len(prompt), "problems": problems[:10]})
         print(f"呼び出し {attempt + 1}: rc={rc}、{seconds} 秒、{usage.get('cost_usd')} USD、問題 {len(problems)} 件")
         if not problems or rc != 0 or not session:
@@ -197,7 +216,9 @@ def declare(project_id, out):
         prompt = ("書いた JSON は検査に通りませんでした。次の問題を直した JSON 全体を、説明なしで返してください。\n"
                   + "\n".join(f"- {p}" for p in problems[:10]))
     out = Path(out)
-    record = {"tool": "declare", "model_note": "config/decompose.json の cli の既定のモデル。道具なし（--tools \"\"）",
+    record = {"tool": "declare", "cli": cfg["cli"], "model_requested": cfg["model"],
+              "models_used": sorted({m for c in calls for m in (c["models_used"] or [])}),
+              "model_note": "config/decompose.json の model を --model で明示。道具なし（--tools \"\"）",
               "gdd_sha256": hashlib.sha256(gdd_text.encode("utf-8")).hexdigest(), "ok": not problems,
               "calls": calls,
               "total": {"calls": len(calls), "seconds": round(sum(c["seconds"] for c in calls), 1),

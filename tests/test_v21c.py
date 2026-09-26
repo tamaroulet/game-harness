@@ -187,7 +187,7 @@ class NarrowDir(unittest.TestCase):
         (wt / "Core").mkdir(parents=True)
         (wt / "Core" / "GameState.cs").write_text("class GameState {}", encoding="utf-8")
         ctx = {"m": m, "wt": wt, "out": tmp / "out", "ttl": 60, "impl_dir": "Core",
-               "imp": {"output_format_args": ["--output-format", "stream-json"]},
+               "imp": {"model_name": "m", "output_format_args": ["--output-format", "stream-json"]},
                "test_project": "t.csproj", "index": 1, "classes": {"B4abT1Cases": "T1"},
                "templates": {k: (V2 / v2_template(k)).read_text(encoding="utf-8") for k in ("initial", "retry")}}
         ctx["out"].mkdir(parents=True)
@@ -196,7 +196,7 @@ class NarrowDir(unittest.TestCase):
         def call(imp, prompt, cwd, cid, ttl):
             cwds.append(Path(cwd))
             (Path(cwd) / "Core" / "GameState.cs").write_text(f"edit {len(cwds)}", encoding="utf-8")
-            return {"rc": 0, "seconds": 1.0, "conversation_id": "conv-1", "usage": {}, "out": "", "err": ""}
+            return {"rc": 0, "seconds": 1.0, "conversation_id": "conv-1", "model": "m", "usage": {}, "out": "", "err": ""}
 
         def fast(wt_, proj, out, tag):
             return {"G.B4abT1Cases.Case_x": "Passed" if len(cwds) >= 2 else "Failed"}, "tail"

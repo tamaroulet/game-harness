@@ -113,7 +113,7 @@ class ConditionA(unittest.TestCase):
         (wt / "Core" / "GameState.cs").write_text("class GameState {}", encoding="utf-8")
         v2 = json.loads((ROOT / "experiments" / "v2" / "tasks.json").read_text(encoding="utf-8"))
         self.ctx = {"m": self.m, "wt": wt, "out": self.tmp / "out", "ttl": 60, "impl_dir": "Core",
-                    "imp": {"output_format_args": ["--output-format", "stream-json"]},
+                    "imp": {"model_name": "m", "output_format_args": ["--output-format", "stream-json"]},
                     "test_project": "t.csproj", "index": 1, "classes": {"B4abT1Cases": "T1"},
                     "templates": {k: (ROOT / "experiments" / "v2" / v2["templates"][k]).read_text(encoding="utf-8")
                                   for k in ("initial", "retry")}}
@@ -122,7 +122,7 @@ class ConditionA(unittest.TestCase):
 
     def call(self, imp, prompt, cwd, cid, ttl):
         self.prompts.append(prompt)
-        return {"rc": 0, "seconds": 1.0, "conversation_id": "c", "usage": {}, "out": "", "err": ""}
+        return {"rc": 0, "seconds": 1.0, "conversation_id": "c", "model": "m", "usage": {}, "out": "", "err": ""}
 
     def test_retries_carry_the_judge_feedback_and_stop_on_success(self):
         wt = self.ctx["wt"]
@@ -161,7 +161,7 @@ class ConditionA(unittest.TestCase):
 
         def failing(imp, prompt, cwd, cid, ttl):
             self.prompts.append(prompt)
-            return {"rc": 124 if not self.prompts[1:] else 0, "seconds": 1.0, "conversation_id": "c", "usage": {},
+            return {"rc": 124 if not self.prompts[1:] else 0, "seconds": 1.0, "conversation_id": "c", "model": "m", "usage": {},
                     "out": "", "err": "TTL超過 (300s)"}
 
         def judge(n):
