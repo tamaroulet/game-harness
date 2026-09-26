@@ -46,7 +46,7 @@ def load_manifest(path):
         if not (base / rel).exists() or sha256_file(base / rel) != digest:
             problems.append(rel)
 
-    if m.get("kind") == "v2":
+    if m.get("kind") in ("v2", "v2r"):
         # v2：生成物は置くときに作り直して generated_sha256 と照合する（v2_files）
         check(m["contract"], m["contract_sha256"])
         check(m["properties"], m["properties_sha256"])
@@ -65,7 +65,13 @@ def load_manifest(path):
 
 
 def is_v2(m):
-    return m.get("kind") == "v2"
+    """v2 の形のマニフェスト（契約と性質の宣言から生成物を作る）。v2r（再実験）も含む。"""
+    return m.get("kind") in ("v2", "v2r")
+
+
+def is_v2r(m):
+    """再実験 v2r（4 条件・ステートレス。docs/design/v2r_protocol.md）のマニフェスト。"""
+    return m.get("kind") == "v2r"
 
 
 def v2_files(m, upto, project_id="falling-blocks"):
@@ -85,7 +91,7 @@ def v2_files(m, upto, project_id="falling-blocks"):
     files = v2prep.generated(json.loads((base / m["contract"]).read_text(encoding="utf-8")),
                              json.loads((base / m["properties"]).read_text(encoding="utf-8")),
                              read(cfg["spec_path"]), read(cfg["gdd_path"]), proj,
-                             tasks={t["id"] for t in m["tasks"][:upto]})
+                             tasks={t["id"] for t in m["tasks"][:upto]}, report_hits=is_v2r(m))
     bad = [rel for rel, text in files.items()
            if hashlib.sha256(text.encode("utf-8")).hexdigest() != m["generated_sha256"].get(rel)]
     if bad:

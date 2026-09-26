@@ -150,11 +150,15 @@ def reference(contract, props, spec_text, proj):
     return contractgen.reference_file(propgen.param_rows(spec_text), enums, proj["impl_dir"], subdir="")
 
 
-def generated(contract, props, spec_text, gdd_text, proj, tasks=None):
-    """置く生成物 {リポジトリからの相対パス: 本文}。tasks で性質テストのクラスを絞る。"""
+def generated(contract, props, spec_text, gdd_text, proj, tasks=None, report_hits=False):
+    """置く生成物 {リポジトリからの相対パス: 本文}。tasks で性質テストのクラスを絞る。
+
+    report_hits：性質テストが前提の成立回数を出す（v2r。V2 のマニフェストの生成物は変えない）。
+    """
     files = contractgen.generate(contract, proj["impl_dir"], proj["test_dir"], existing=EXISTING, subdir="")
     files.update(reference(contract, props, spec_text, proj)[0])
-    files.update(propgen.generate(props, spec_text, gdd_text, contract, proj["test_dir"], tasks=tasks))
+    files.update(propgen.generate(props, spec_text, gdd_text, contract, proj["test_dir"], tasks=tasks,
+                                  report_hits=report_hits))
     return files
 
 

@@ -634,7 +634,13 @@ def _cs_coords(cs):
     return "new[] { " + ", ".join(f"new[] {{ {x}, {y} }}" for x, y in cs) + " }"
 
 
-def _model(ref, contract, start):
+# 前提の成立回数の行（v2r、docs/design/v2r_protocol.md §8）。report_hits のときだけ出す（V2 の生成物の sha256 を変えない）
+HITS_PREFIX = "PROPERTY_HITS "
+HITS_LINE = ('            global::System.Console.WriteLine("PROPERTY_HITS id=" + id + " rule=" + rule + " given=" + given\n'
+             '                + " runs=" + runs.Count);\n')
+
+
+def _model(ref, contract, start, report_hits=False):
     types = contract.enums["MinoType"]
     shapes = ",\n            ".join("new[] { " + ", ".join(_cs_coords(ref["shapes"][t][r]) for r in range(4)) + " }"
                                     for t in types)
@@ -651,6 +657,7 @@ def _model(ref, contract, start):
     fields = "\n".join(f"        public {ns}.{t} {n};" if t.rstrip("?") in contract.types else f"        public {t} {n};"
                        for n, t in state.items())
     copies = "\n".join(f"            o.{n} = s.{n};" for n in state)
+    hits_line = HITS_LINE if report_hits else ""
     return f"""{HEADER}
 // 参照モデル（docs/design/v2_contract_foundry.md §4.1）。値は構造化仕様 §5 から名前で引いた。実装役には見せない。
 #nullable disable
@@ -938,7 +945,7 @@ namespace {NAMESPACE}
                 int at = Replay(seed, ops, check, ref given, out expected, out actual);
                 if (at >= 0) Shrink(id, rule, seed, ops.GetRange(0, at + 1), check, expected, actual);
             }}
-            if (given == 0)
+{hits_line}            if (given == 0)
                 global::NUnit.Framework.Assert.Fail("PROPERTY_VACUOUS id=" + id + " rule=" + rule + " given=0");
         }}
 
@@ -1043,8 +1050,11 @@ def _tests(task, props, decl, rows=None):
     return "\n".join(out)
 
 
-def generate(decl, spec_text, gdd_text, interface, test_dir, tasks=None):
+def generate(decl, spec_text, gdd_text, interface, test_dir, tasks=None, report_hits=False):
     """{リポジトリからの相対パス: C#}。決定論。検査に落ちる宣言は PropertyError。
+
+    report_hits：性質ごとに前提が成り立った回数（given）を標準出力に 1 行（PROPERTY_HITS）出す（v2r §8）。
+    測定器は TRX の標準出力から読む（adapters/dotnet.property_hits）。
 
     tasks：テストのクラスを出すタスク（例 {"T1"}）。None なら全部。参照モデルと判定（Checks.cs）は常に全部出す。
     タスクを積み重ねるとき、まだ実装していないタスクの性質を置くと、それが落ちて受入の判定を汚す。
@@ -1056,7 +1066,7 @@ def generate(decl, spec_text, gdd_text, interface, test_dir, tasks=None):
     rows = param_rows(spec_text)
     ref = reference(decl["reference"], rows, contract)
     base = f"{test_dir}/{OUT_DIR}"
-    files = {f"{base}/PropertyModel.cs": _model(ref, contract, decl["start"])}
+    files = {f"{base}/PropertyModel.cs": _model(ref, contract, decl["start"], report_hits)}
     checks = [HEADER, "#nullable disable", f"using ActiveMino = global::{testgen.CORE_NAMESPACE}.ActiveMino;", "",
               f"namespace {NAMESPACE}", "{", "    internal static class Checks", "    {"]
     for p in decl["properties"]:
