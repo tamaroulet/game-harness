@@ -36,6 +36,14 @@ class Vocabulary(unittest.TestCase):
     def test_the_table_is_bijective_and_covers_the_functions(self):
         self.assertEqual(nlgen.check_vocabulary(), [])
 
+    def test_the_table_is_frozen(self):
+        """U4：人間が査読した対応表の sha256（docs/design/v2r_nlgen_table.md）。変えるときは本書と同じ PR で改めて査読する。"""
+        self.assertEqual(nlgen.table_sha256(), "959aedeb8eec960a0ec56b813c77d1af0d55709ceef30c512a27088836f60047")
+        doc = (Path(__file__).resolve().parent.parent / "docs" / "design" / "v2r_nlgen_table.md").read_text(
+            encoding="utf-8")
+        self.assertIn(nlgen.table_sha256(), doc)
+        self.assertIn(json.dumps(nlgen.table(), ensure_ascii=False, indent=2, sort_keys=True), doc)
+
     def test_the_table_covers_every_member_of_the_contract(self):
         contract = json.loads((V2 / "contract.json").read_text(encoding="utf-8"))
         self.assertEqual(nlgen.check_contract(contract), [])
