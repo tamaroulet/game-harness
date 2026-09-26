@@ -30,20 +30,22 @@ THRESHOLD = 0.8
 HIDDEN_ENV = "HARNESS_PROPERTY_SEEDS"  # propgen.HIDDEN_ENV と同じ（tests/test_v2r_tools.py で一致を確かめる）
 
 
-def stryker_args(test_project, mutate, out_dir):
+def stryker_args(test_project, mutate, out_dir, project=None):
     """`dotnet stryker` の引数。報告は JSON だけ、変異を入れるのは mutate のファイルだけ。"""
     args = ["dotnet", "stryker", "--test-project", str(test_project), "--reporter", "json", "--output", str(out_dir)]
+    if project:
+        args += ["--project", str(project)]
     for m in mutate:
         args += ["--mutate", f"**/{Path(m).name}"]
     return args
 
 
-def run(wt, test_project, mutate, out_dir, seeds=None, runner=subprocess.run, ttl=7200):
+def run(wt, test_project, mutate, out_dir, seeds=None, runner=subprocess.run, ttl=7200, project=None):
     """Stryker を動かし、JSON の報告のパスを返す。見つからなければ None。"""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, **({HIDDEN_ENV: ",".join(str(s) for s in seeds)} if seeds else {}))
-    r = runner(stryker_args(test_project, mutate, out_dir), cwd=str(wt), capture_output=True, text=True,
+    r = runner(stryker_args(test_project, mutate, out_dir, project=project), cwd=str(wt), capture_output=True, text=True,
                encoding="utf-8", errors="replace", timeout=ttl, env=env)
     (out_dir / "stryker.rc").write_text(str(r.returncode), encoding="utf-8")
     reports = sorted(out_dir.rglob("mutation-report.json"))
@@ -103,6 +105,7 @@ def main(argv=None):
     r = sub.add_parser("run")
     r.add_argument("--wt", required=True)
     r.add_argument("--test-project", required=True)
+    r.add_argument("--project", help="変異対象の csproj（例 Core.csproj）")
     r.add_argument("--task", required=True)
     r.add_argument("--mutate", nargs="+", required=True)
     r.add_argument("--out", required=True)
@@ -113,7 +116,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
     if args.cmd == "run":
         seeds = [int(x) for x in args.seeds.split(",")] if args.seeds else None
-        path = run(args.wt, args.test_project, args.mutate, Path(args.out) / args.task, seeds)
+        path = run(args.wt, args.test_project, args.mutate, Path(args.out) / args.task, seeds, project=args.project)
         print(f"報告: {path}" if path else "NG: Stryker の報告が見つかりません（U2：Stryker.NET が動くかを確かめる）")
         return 0 if path else 1
     reports = {}

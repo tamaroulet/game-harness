@@ -141,9 +141,11 @@ class Mutation(unittest.TestCase):
             return type("R", (), {"returncode": 0})()
         with tempfile.TemporaryDirectory() as d:
             path = mutation.run(d, "t.csproj", ["Game/Assets/Core/GameState.cs"], Path(d) / "out", seeds=[3, 5],
-                                runner=runner)
+                                runner=runner, project="Core.csproj")
             self.assertTrue(path and path.name == "mutation-report.json")
         self.assertEqual(seen["args"][:2], ["dotnet", "stryker"])
+        self.assertIn("--project", seen["args"])
+        self.assertEqual(seen["args"][seen["args"].index("--project") + 1], "Core.csproj")
         self.assertIn("**/GameState.cs", seen["args"])
         self.assertEqual(seen["env"][mutation.HIDDEN_ENV], "3,5")
         self.assertEqual(mutation.HIDDEN_ENV, propgen.HIDDEN_ENV)
