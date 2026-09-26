@@ -10,9 +10,9 @@
     "claude": "2.1.258",
     "dotnet": "8.0.413"
   },
-  "_tools_note": "§8 の変異の死滅率（U2）。2026-09-26 の時点でこの機械に未導入（dotnet tool list -g が空）。NuGet の最新は 5.0.0（dotnet tool search dotnet-stryker）。導入は人間の承認の後：dotnet tool install -g dotnet-stryker --version 5.0.0",
+  "_tools_note": "§8 の変異の死滅率（U2）。5.0.0 は NuGet のパッケージの不備（DotnetToolSettings.xml が無い）で導入できなかったので、1 つ前の安定版 4.16.0 を人間が導入した（2026-09-26、dotnet tool list -g で確認）。照合は dotnet tool list -g の表で行う",
   "tools": {
-    "dotnet-stryker": "5.0.0"
+    "dotnet-stryker": "4.16.0"
   },
   "_test_packages_note": "ゲームのテストのプロジェクトの NuGet パッケージ（NUnit など。U1）。総監督は防壁①の deny ルールでテストの プロジェクトに触れられないので、人間が python -m harness.envcheck --test-packages で取った値（2026-09-26、game-harness#112 のレビュー）",
   "test_packages": {

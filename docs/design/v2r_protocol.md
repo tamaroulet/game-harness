@@ -130,7 +130,7 @@
 | Python の依存 | pyyaml 6.0.3（ハーネスの外部の依存はこれだけ。ほかは標準ライブラリ） | `harness/` の import を数えた。CI も `pyyaml==6.0.3` |
 | .NET SDK | 8.0.413 | `dotnet --version` |
 | テストのフレームワーク | NUnit 3.14.0、NUnit.Analyzers 3.9.0、NUnit3TestAdapter 4.5.0、Microsoft.NET.Test.Sdk 17.8.0（`config/environment.json` の `test_packages`。U1 を閉じた：総監督は防壁①の deny ルールでテストのプロジェクトに触れられないので、人間が `python -m harness.envcheck --test-packages` で取った値。2026-09-26、game-harness#112 のレビュー） | `dotnet list <テストの csproj> package`（harness/envcheck.py） |
-| dotnet-stryker（変異の死滅率） | 5.0.0 に固定（`config/environment.json` の `tools`）。2026-09-26 の時点で**未導入**（`dotnet tool list -g` が空、falling-blocks に道具の目録も無い）。NuGet の最新は 5.0.0（`dotnet tool search dotnet-stryker`）。導入は人間の承認の後に `dotnet tool install -g dotnet-stryker --version 5.0.0`（U2） | `dotnet stryker --version` |
+| dotnet-stryker（変異の死滅率） | 4.16.0 に固定（`config/environment.json` の `tools`）。5.0.0 は NuGet のパッケージの不備（`DotnetToolSettings.xml` が無い）で導入できず、1 つ前の安定版 4.16.0 を人間が導入した（2026-09-26） | `dotnet tool list -g` の表（`dotnet stryker --version` は Stryker では引数エラーになる） |
 | ハーネス | 本走の開始時の main のコミット | git |
 | ゲーム | falling-blocks の base のコミット（v2r の系列で決める） | マニフェスト |
 
@@ -284,7 +284,7 @@
 | # | 項目 | 閉じ方 |
 |:--|:--|:--|
 | U1 | NUnit と関連パッケージの版 | **閉じた**（2026-09-26）：人間が `python -m harness.envcheck --test-packages` で取った値を `config/environment.json` の `test_packages` に固定した。取得の途中で見つけた欠陥（日本語の Windows で dotnet の出力を CP932 で読めず UnicodeDecodeError）も直した |
-| U2 | Stryker.NET が falling-blocks の構成（NUnit）で動くこと、その版 | 版は 5.0.0 に固定。導入は操縦士が行う（`dotnet tool install -g dotnet-stryker --version 5.0.0`）。導入の後、乾式で 1 タスク分を `experiments/v2r/tools/mutation.py run` で実行する。動かなければ代わりの変異の方法を本書の改訂で決める |
+| U2 | Stryker.NET が falling-blocks の構成（NUnit）で動くこと、その版 | **版と導入は閉じた**（2026-09-26）：5.0.0 は NuGet のパッケージの不備（`DotnetToolSettings.xml` が無い）で導入できなかったので、1 つ前の安定版 4.16.0 を人間が導入し、`config/environment.json` に固定した。`harness/envcheck.py` の照合も `dotnet tool list -g` の表を読むように直した（`dotnet stryker --version` は引数エラーで実測値が取れなかった）。**残り**：乾式で 1 タスク分を `experiments/v2r/tools/mutation.py run` で実行する（V2R-4）。動かなければ代わりの変異の方法を本書の改訂で決める |
 | U3 | レートリミットのときの agy のエラーの文字列 | agy の出力の実例、または agy の文書で確かめる。確かめられなければ「status が ERROR で手番の利用量が 0」を一時的な失敗とみなす規則に改訂する |
 | U4 | 描画器の対応表の査読 | 別の PR で人間が査読して凍結 |
 | U5 | タスクの系列と天井の検査 | 系列（T1〜T10）と性質の宣言・契約・マニフェストは作った（§15）。天井の検査（乾式の走行で A0 の欠陥が 1 件以上）が残る |

@@ -200,7 +200,7 @@ class Environment(unittest.TestCase):
     def test_the_repository_pins_match_the_protocol_and_the_lock(self):
         pinned = envcheck.load_pinned()
         self.assertEqual({k: v for k, v in pinned.items() if not k.startswith("_")},
-                         {**self.PINNED, "tools": {"dotnet-stryker": "5.0.0"},
+                         {**self.PINNED, "tools": {"dotnet-stryker": "4.16.0"},
                           # U1：人間が envcheck --test-packages で取った値（2026-09-26、game-harness#112 のレビュー）
                           "test_packages": {"Microsoft.NET.Test.Sdk": "17.8.0", "NUnit": "3.14.0",
                                             "NUnit.Analyzers": "3.9.0", "NUnit3TestAdapter": "4.5.0"}})
@@ -244,10 +244,19 @@ class Environment(unittest.TestCase):
                          {"Microsoft.NET.Test.Sdk": "17.8.0", "NUnit": "4.2.2"})
         self.assertIsNone(envcheck.test_packages("x.csproj", run=lambda *a, **k: SimpleNamespace(
             returncode=1, stdout="", stderr="")))
+
+    def test_tool_versions_are_read_from_dotnet_tool_list(self):
+        """`dotnet stryker --version` は引数エラーになる（2026-09-26）ので、`dotnet tool list -g` の表から読む。
+        見出しは UI の言語で変わる（日本語の Windows では「パッケージ ID」）。"""
         seen = []
-        envcheck.tool_versions(["dotnet-stryker"], run=lambda args, **k: seen.append(args) or SimpleNamespace(
-            returncode=0, stdout="Version: 5.0.0", stderr=""))
-        self.assertEqual(seen[0], ["dotnet", "stryker", "--version"])
+        for head in ("Package Id          Version      Commands", "パッケージ ID            バージョン       コマンド"):
+            out = f"{head}\n-----------------------------------------------\ndotnet-stryker      4.16.0       dotnet-stryker\n"
+            got = envcheck.tool_versions(["dotnet-stryker", "dotnet-ef"], run=lambda args, **k: seen.append(args) or
+                                         SimpleNamespace(returncode=0, stdout=out, stderr=""))
+            self.assertEqual(got, {"dotnet-stryker": "4.16.0", "dotnet-ef": None})
+        self.assertEqual(seen[0], ["dotnet", "tool", "list", "-g"])
+        self.assertEqual(envcheck.tool_versions(["dotnet-stryker"], run=lambda *a, **k: SimpleNamespace(
+            returncode=1, stdout="", stderr="")), {"dotnet-stryker": None})
 
     def test_matching_environment_passes_and_is_written(self):
         with tempfile.TemporaryDirectory() as d:

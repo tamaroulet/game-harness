@@ -55,20 +55,29 @@ def cli_version(name, run=subprocess.run):
 
 
 def tool_versions(tools, run=subprocess.run):
-    """.NET の道具の版（`dotnet <道具> --version`）。{道具のパッケージ名: 版 or None}。dotnet-stryker は `dotnet stryker`。"""
-    out = {}
-    for pkg in tools:
-        cmd = pkg.split("dotnet-", 1)[1] if pkg.startswith("dotnet-") else pkg
-        try:
-            r = run(["dotnet", cmd, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace",
-                    timeout=120,
-                    shell=(sys.platform == "win32"))
-        except (OSError, subprocess.TimeoutExpired):
-            out[pkg] = None
-            continue
-        m = VERSION_RE.search((r.stdout or "") + (r.stderr or ""))
-        out[pkg] = m.group(1) if m and r.returncode == 0 else None
-    return out
+    """.NET の道具の版（`dotnet tool list -g` の表）。{道具のパッケージ名: 版 or None}。
+
+    `dotnet stryker --version` は Stryker では「Missing value for option 'version'」の引数エラーになり、
+    実測値が None になっていた（2026-09-26、人間の環境での実測）。表の見出しは UI の言語で変わるので、
+    罫線（---）の行より後の行を「パッケージ ID・版・コマンド」の順に読む。ID は大文字と小文字を区別しない。
+    """
+    try:
+        r = run(["dotnet", "tool", "list", "-g"], capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=120,
+                shell=(sys.platform == "win32"))
+    except (OSError, subprocess.TimeoutExpired):
+        return {pkg: None for pkg in tools}
+    listed = {}
+    if r.returncode == 0:
+        body = False
+        for line in (r.stdout or "").splitlines():
+            if re.fullmatch(r"\s*-{3,}\s*", line):
+                body = True
+                continue
+            cols = line.split()
+            if body and len(cols) >= 2:
+                listed[cols[0].lower()] = cols[1]
+    return {pkg: listed.get(pkg.lower()) for pkg in tools}
 
 
 PACKAGE_LINE_RE = re.compile(r"^\s*>\s*(\S+)\s+(\S+)\s+(\S+)")
