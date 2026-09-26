@@ -3,8 +3,9 @@
     python -m harness.ab.v2r_report --prefix v2r-run --cost-model experiments/v2/cost_model.json \\
         [--out-root <展開したアーカイブの走行の親>] [--f-b-only 0 0.5 1 2 5 10 20] [--stat median] [--dest summary.md]
 
-**効果の推定（§11.2）**：タスク × 繰り返しを単位に、条件の組の差（左 − 右）を並べ、差の統計量（既定は中央値。
---stat mean で平均）と、ブートストラップ（10,000 回、乱数の種は固定）の 95% 信頼区間を出す。区間が 0 を含むときは
+**効果の推定（§11.2、2026-09-26 改定）**：タスク × 繰り返しを単位に、条件の組の差（左 − 右）を並べ、差の統計量と、
+ブートストラップ（10,000 回、乱数の種は固定）の 95% 信頼区間を出す。統計量は指標ごとに決める（`STATS`）：欠陥と P2P の
+破壊は平均（発生率の差。0 か 1 の差の中央値はほとんど 0 で、効果を見分けられない）、費用は中央値。区間が 0 を含むときは
 「差があるとは言えない」と書く。費用の差も同じ扱い（V2-RUN の「0.89 倍」の誤りを繰り返さない）。
 
 | 問い | 組（左 − 右） |
@@ -31,6 +32,8 @@ import exitcode  # noqa: E402
 from ab import common, report, v2r  # noqa: E402
 
 GATE_PAIRS = (("A1", "A0"), ("B", "B-G"))
+# 指標ごとの差の統計量（§11.2、2026-09-26 改定。game-harness#111 で提案、承認）
+STATS = {"defect": "mean", "p2p": "mean", "usd": "median"}
 FORM_PAIRS = (("B", "A1"), ("B-G", "A0"))
 DEFAULT_F_B_ONLY = (0, 0.5, 1, 2, 5, 10, 20)
 RESAMPLES = 10000
@@ -126,10 +129,12 @@ def _fmt(x, nd=4):
     return "—" if x is None else (f"{x:.{nd}f}" if isinstance(x, float) else str(x))
 
 
-def summarize(rows, cost_model, f_b_only_values=DEFAULT_F_B_ONLY, stat="median"):
+def summarize(rows, cost_model, f_b_only_values=DEFAULT_F_B_ONLY, stat=None):
+    """stat を渡すと全指標をその統計量にする（既定は STATS の指標ごとの統計量）。"""
     prices = cost_model["prices"]
     lines = ["# v2r の集計", "", f"- 走行：{', '.join(sorted({r['run_id'] for r in rows}))}",
-             f"- 統計量：差の{'中央値' if stat == 'median' else '平均'}。ブートストラップ {RESAMPLES:,} 回（種 {SEED}）の 95% 信頼区間",
+             "- 統計量：" + "、".join(f"{k} は差の{'中央値' if (stat or v) == 'median' else '平均'}" for k, v in STATS.items())
+             + f"。ブートストラップ {RESAMPLES:,} 回（種 {SEED}）の 95% 信頼区間",
              "- 差は 左 − 右。欠陥・P2P は小さいほど良い、費用は小さいほど安い", "",
              "## 条件ごと（タスク × 繰り返し）", "", "| 条件 | 行 | 欠陥 | P2P の破壊 | 費用 USD（合計） |", "|:--|:--|:--|:--|:--|"]
     for cond in v2r.ORDER:
@@ -140,7 +145,7 @@ def summarize(rows, cost_model, f_b_only_values=DEFAULT_F_B_ONLY, stat="median")
     lines += ["", "## 効果", "", "| 問い | 組 | 指標 | 組の数 | 差 | 95% 信頼区間 | 判定 |", "|:--|:--|:--|:--|:--|:--|:--|"]
     for label, plist in (("H1 門", GATE_PAIRS), ("H2 仕様の形", FORM_PAIRS)):
         for name in ("defect", "p2p", "usd"):
-            e = effect(rows, plist, metric(name, prices), stat)
+            e = effect(rows, plist, metric(name, prices), stat or STATS[name])
             ci = "—" if e["n"] == 0 else f"[{_fmt(e['lo'])}, {_fmt(e['hi'])}]"
             lines.append(f"| {label} | {'、'.join(f'{a} − {b}' for a, b in plist)} | {name} | {e['n']} | "
                          f"{_fmt(e['point'])} | {ci} | {verdict(e)} |")
@@ -163,7 +168,7 @@ def main(argv=None):
     ap.add_argument("--cost-model", required=True)
     ap.add_argument("--out-root", default=str(common.OUT_ROOT))
     ap.add_argument("--f-b-only", nargs="*", type=float, default=list(DEFAULT_F_B_ONLY))
-    ap.add_argument("--stat", choices=("median", "mean"), default="median")
+    ap.add_argument("--stat", choices=("median", "mean"), help="全指標をこの統計量にする（既定は指標ごと：STATS）")
     ap.add_argument("--dest")
     args = ap.parse_args(argv)
     run_ids = sorted(p.name for p in Path(args.out_root).glob(f"{args.prefix}-*") if p.is_dir())

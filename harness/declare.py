@@ -58,19 +58,23 @@ def spec_digest(spec_text):
     return "\n".join(lines)
 
 
-def requirements():
-    parts = [(REQ_DIR / f"{t}.md").read_text(encoding="utf-8").strip() for t in TASKS]
-    return "\n\n".join(parts + [(REQ_DIR / "common.md").read_text(encoding="utf-8").strip()])
+def requirements(req_dir=REQ_DIR, tasks=TASKS):
+    parts = [(Path(req_dir) / f"{t}.md").read_text(encoding="utf-8").strip() for t in tasks]
+    return "\n\n".join(parts + [(Path(req_dir) / "common.md").read_text(encoding="utf-8").strip()])
 
 
-def build_prompt(spec_text, gdd_text):
+def build_prompt(spec_text, gdd_text, req_dir=REQ_DIR, tasks=TASKS):
+    """分解役へのプロンプト。req_dir・tasks で要求文とタスクの範囲を替える（v2r の系列は experiments/v2r/requirements）。"""
+    span = f"{tasks[0]}〜{tasks[-1]}"
+    gap_note = ("\n- ライン消去の前提（1 マスだけ空いた行）を起こすなら、start に \"gap_rows\": 1〜4 を書く"
+                "（下からその数までの行を、1 マスの穴だけ残して埋めた開始状態が混ざる）" if tuple(tasks) != TASKS else "")
     v1 = contractgen.load_interface(V1_INTERFACE)
     grammar = propgen.__doc__.split("**式**：", 1)[1].split("**性質の強さ**", 1)[0].strip()
     decl_shape = {
         "schema": 1, "gdd_sha256": hashlib.sha256(gdd_text.encode("utf-8")).hexdigest(), "reference": REFERENCE,
         "start": {"phase": "Playing", "locked_max": 12}, "steps": 60, "seeds": {"public": 5, "hidden": 20},
         "properties": [{"id": "P-T1-01", "task": "T1", "rule": "RL-xx", "given": "式", "then": "式"}]}
-    return f"""あなたは分解役です。落ちものパズル falling-blocks の T1〜T5 について、契約（interface）と性質の宣言（properties）を
+    return f"""あなたは分解役です。落ちものパズル falling-blocks の {span} について、契約（interface）と性質の宣言（properties）を
 JSON 1 つで返してください。道具は使えません。ここに書いたものだけを根拠にしてください。説明の文章は書かず、JSON だけを返します。
 
 # 返す JSON
@@ -87,7 +91,7 @@ v1 の interface：
 
 # properties の形
 {json.dumps(decl_shape, ensure_ascii=False)}
-- schema・gdd_sha256・reference・seeds はこのとおりに書く。start.locked_max と steps は選んでよい
+- schema・gdd_sha256・reference・seeds はこのとおりに書く。start.locked_max と steps は選んでよい{gap_note}
 - 開始状態は、復元用コンストラクタで Playing・固定ブロック 0〜locked_max 個・置けるミノ 1 つ。入力は各ティックでランダム
 
 # 式
@@ -96,7 +100,7 @@ v1 の interface：
 - ActiveMino のメンバーは Type・X・Y・Rotation。null と比べられるのは ActiveMino? だけ。方向 dir は 1（右回り）か -1（左回り）
 
 # 守ること
-1. 性質は、T1〜T5 がすべて入った GDD v10 の最終形で、どのティックでも真であること。後のタスクで偽になるもの（例：自然落下で Y が変わる）は書かない。
+1. 性質は、{span} がすべて入った GDD v10 の最終形で、どのティックでも真であること。後のタスクで偽になるもの（例：自然落下で Y が変わる）は書かない。
    1 ティックの中で、入力・回転・落下・固定・出現・ライン消去が起きうる（処理順は §1 と §3）。前提（given）で、その性質が見ていない出来事を除く。
    ② の中でも、左右移動 → 回転 → ハードドロップの順に効く。fits・kick・drop は before の位置で計算するので、同じティックのほかの入力で位置が変わる場合は前提で除く
 2. 各タスクに、then が「左辺 == 右辺」の性質（結果を一意に決める活性の性質）を 1 つ以上
@@ -104,7 +108,7 @@ v1 の interface：
 4. 各タスク 2〜4 個。rule は下の構造化仕様の RL の ID。式は短く
 
 # タスク（要求文）
-{requirements()}
+{requirements(req_dir, tasks)}
 
 # 構造化仕様（GDD v10 から作ったもの）
 {spec_digest(spec_text)}
@@ -191,7 +195,7 @@ def total(calls, key):
     return round(sum(vals), 6) if vals and all(isinstance(v, (int, float)) for v in vals) else None
 
 
-def declare(project_id, out):
+def declare(project_id, out, req_dir=REQ_DIR, tasks=TASKS):
     proj = project.load(project_id)
     cfg_schema, cfg = project.config("unit_schema"), project.config("decompose")
     read = unit_schema.git_reader(proj["repo_dir"], f"origin/{proj['base_branch']}", 120)
@@ -202,10 +206,13 @@ def declare(project_id, out):
         model_pin.auxiliary_prefixes(cfg, "config/decompose.json")
     except model_pin.ModelPinError as e:
         sys.exit(f"ABORT: {e}")
-    prompt = build_prompt(spec_text, gdd_text)
+    prompt = build_prompt(spec_text, gdd_text, req_dir, tasks)
     calls, session, d, problems = [], None, None, ["未実行"]
     for attempt in range(RETRIES + 1):
         rc, text, usage, seconds, session, models = call_claude(prompt, cfg, session)
+        # 生の応答を残す。検査に落ちても、何を書いたかを後から追え、直すために呼び直す費用をかけずに済むように
+        (Path(out) / "results").mkdir(parents=True, exist_ok=True)
+        (Path(out) / "results" / f"declare_attempt_{attempt + 1}.txt").write_text(text or "", encoding="utf-8")
         d, why = extract(text) if rc == 0 else (None, f"分解役が異常終了（rc={rc}）")
         problems = [why] if why else check(d, spec_text, gdd_text, proj["test_dir"], proj["impl_dir"])
         calls.append({"attempt": attempt + 1, "rc": rc, "seconds": seconds, "usage": usage, "models_used": models,
@@ -239,8 +246,10 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="v2 の契約と性質の宣言を分解役に書かせ、事前投資を測る")
     ap.add_argument("--project", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--requirements", default=str(REQ_DIR), help="要求文の置き場（<タスク>.md と common.md）")
+    ap.add_argument("--tasks", nargs="+", default=list(TASKS), help="タスクの ID（既定は V2 の T1〜T5）")
     args = ap.parse_args(argv)
-    rec = declare(args.project, args.out)
+    rec = declare(args.project, args.out, args.requirements, tuple(args.tasks))
     t = rec["total"]
     print(f"{'合格' if rec['ok'] else '不合格'}：呼び出し {t['calls']} 回、{t['seconds']} 秒、{t['cost_usd']} USD")
     return 0 if rec["ok"] else 1

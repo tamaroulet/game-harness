@@ -1,0 +1,7 @@
+タスク {task_id} の検査に通りませんでした（{attempt} 回目 / 最大 {max_attempts} 回）。
+
+## 検査の知らせ
+
+{failed_tests}
+
+実装を直してください。

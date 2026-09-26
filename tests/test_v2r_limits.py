@@ -199,8 +199,39 @@ class Environment(unittest.TestCase):
 
     def test_the_repository_pins_match_the_protocol_and_the_lock(self):
         pinned = envcheck.load_pinned()
-        self.assertEqual({k: v for k, v in pinned.items() if not k.startswith("_")}, self.PINNED)
+        self.assertEqual({k: v for k, v in pinned.items() if not k.startswith("_")},
+                         {**self.PINNED, "tools": {"dotnet-stryker": "5.0.0"}, "test_packages": None})
         self.assertEqual(envcheck.lock_packages(), {"pyyaml": "6.0.3"})
+
+    def test_unpinned_test_packages_refuse_to_start(self):
+        """U1：テストのパッケージの固定値が未設定（null）のあいだは起動しない。"""
+        pinned = {**self.PINNED, "test_packages": None}
+        with self.assertRaises(envcheck.EnvError) as ctx:
+            envcheck.require(measured={**self.measured(), "test_packages": {"NUnit": "4.2.2"}}, pinned=pinned)
+        self.assertIn("U1", str(ctx.exception))
+        pinned["test_packages"] = {"NUnit": "4.2.2"}
+        envcheck.require(measured={**self.measured(), "test_packages": {"NUnit": "4.2.2"}}, pinned=pinned)
+        with self.assertRaises(envcheck.EnvError):
+            envcheck.require(measured={**self.measured(), "test_packages": {"NUnit": "4.3.0"}}, pinned=pinned)
+
+    def test_a_missing_tool_refuses_to_start(self):
+        pinned = {**self.PINNED, "tools": {"dotnet-stryker": "5.0.0"}}
+        with self.assertRaises(envcheck.EnvError):
+            envcheck.require(measured={**self.measured(), "tools": {"dotnet-stryker": None}}, pinned=pinned)
+
+    def test_test_packages_are_read_from_dotnet_list_package(self):
+        out = ("Project 'Core.Tests' has the following package references\n   [net8.0]: \n"
+               "   Top-level Package      Requested   Resolved\n"
+               "   > Microsoft.NET.Test.Sdk      17.8.0      17.8.0\n   > NUnit                       4.2.2       4.2.2\n")
+        fake = lambda *a, **k: SimpleNamespace(returncode=0, stdout=out, stderr="")
+        self.assertEqual(envcheck.test_packages("x.csproj", run=fake),
+                         {"Microsoft.NET.Test.Sdk": "17.8.0", "NUnit": "4.2.2"})
+        self.assertIsNone(envcheck.test_packages("x.csproj", run=lambda *a, **k: SimpleNamespace(
+            returncode=1, stdout="", stderr="")))
+        seen = []
+        envcheck.tool_versions(["dotnet-stryker"], run=lambda args, **k: seen.append(args) or SimpleNamespace(
+            returncode=0, stdout="Version: 5.0.0", stderr=""))
+        self.assertEqual(seen[0], ["dotnet", "stryker", "--version"])
 
     def test_matching_environment_passes_and_is_written(self):
         with tempfile.TemporaryDirectory() as d:
