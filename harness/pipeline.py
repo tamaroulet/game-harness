@@ -34,6 +34,7 @@ import agy_stream
 import contract
 import implementer_context
 import narrow_dir
+import nlgen
 import fileops
 import invrun
 import model_pin
@@ -492,6 +493,13 @@ def call_implementer(c, feedback=""):
     if feedback:
         # 反例・出力の中のサンドボックスのパスは作業場所のパスに置き換える（v2-smoke-01 で A が外へ出た経路）
         fb = narrow_dir.relocate(feedback, c.sandbox, narrow)
+        if c.unit.get("nl_properties"):
+            # v2r の A1（自然言語の仕様＋門）：同じ知らせの、性質を指す行に自然言語の文を添える（docs/design/v2r_protocol.md §3）。
+            # 単位定義に nl_properties が無ければ（条件 B・従来の単位）何もしない
+            try:
+                fb = nlgen.annotate_feedback(fb, c.unit["nl_properties"])
+            except nlgen.NLGenError as e:
+                sys.exit(f"ABORT: 知らせに自然言語の文を添えられません: {e}")
         parts["feedback"] = len(fb)
         prompt += "\n\n前回の失敗:\n" + fb
     # 再試行を含めて編集だけ。検証は外側の門が行い、失敗は反例で返す（v2 §7。v1 の再試行時の

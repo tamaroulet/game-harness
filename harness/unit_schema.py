@@ -61,7 +61,9 @@ TOP_REQUIRED = {"schema", "id", "title", "prompt", "interface", "whitelist", "im
                 "acceptance", "human_check_point", "playtest"}
 TOP_OPTIONAL = {"required_symbols", "fast_test_project", "forbidden_leftover",
                 "forbidden_skip_attribute_regex", "max_impl_lines", "forbidden_patterns",
-                "selftest_forbidden_probe", "task_kind", "max_add_lines", "max_del_lines"}
+                "selftest_forbidden_probe", "task_kind", "max_add_lines", "max_del_lines",
+                # v2r の A1：知らせの性質の行に添える自然言語の文 {性質の ID: 文}（harness/nlgen.py、v2r_protocol.md §3）
+                "nl_properties"}
 # property：v2（docs/design/v2_contract_foundry.md §4）。受入は性質テスト（propgen の生成物）で、例示の受入データは持たない
 TASK_KINDS = ("feature", "refactor", "property")
 PROPERTY_TEST_RE = re.compile(r"^Properties(T\d+)Cases\.P_\1_\d{2,}_Public$")
@@ -461,6 +463,10 @@ def validate(unit, spec_text, gdd_text, cfg=None):
     _cases(unit["acceptance"], ctx, problems, refactor=kind == "refactor", prop=kind == "property")
     _timed_ops(unit, cfg, problems)
     _prompt(unit["prompt"], ctx, unit["whitelist"] if isinstance(unit["whitelist"], list) else [], problems)
+    nl = unit.get("nl_properties")
+    if nl is not None and (not isinstance(nl, dict) or not nl
+                           or not all(isinstance(k, str) and isinstance(v, str) and v for k, v in nl.items())):
+        problems.append("nl_properties は {性質の ID: 空でない文} の表にしてください")
     return problems
 
 
