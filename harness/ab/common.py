@@ -17,6 +17,10 @@ EXP_DIR = ROOT / "experiments" / "b4_ab"
 WT_ROOT = Path(r"C:\src\.local\wt\ab")
 OUT_ROOT = Path(r"C:\src\.local\out\ab")
 CONDITIONS = ("A", "B")
+# 再実験 v2r の 4 条件（docs/design/v2r_protocol.md §1。ab.v2r.ORDER と同じ。v2r は common を読むので、ここに置く）
+V2R_CONDITIONS = ("A0", "A1", "B-G", "B")
+# 作業ツリーと出力の置き場所を作ってよい条件（V2 の A・B と v2r の 4 条件）
+ALL_CONDITIONS = tuple(dict.fromkeys(CONDITIONS + V2R_CONDITIONS))
 GIT_TTL = 120
 
 
@@ -125,8 +129,10 @@ def unit_of(m, task):
 
 
 def paths(run_id, condition, wt_root=WT_ROOT, out_root=OUT_ROOT):
-    if condition not in CONDITIONS:
-        raise ABError(f"条件は {CONDITIONS} のどちらかです: {condition!r}")
+    # v2r の条件（A0 など）も通す。V2 の A・B だけで判定していたので、v2r-dry-01 の driver と guard が
+    # 起動の直後に ABError で止まった（2026-09-27）
+    if condition not in ALL_CONDITIONS:
+        raise ABError(f"条件は {ALL_CONDITIONS} のどれかです: {condition!r}")
     return {"wt": Path(wt_root) / f"{run_id}-{condition}",
             "sandbox": Path(wt_root) / f"{run_id}-{condition}-sandbox",
             "out": Path(out_root) / run_id / condition,

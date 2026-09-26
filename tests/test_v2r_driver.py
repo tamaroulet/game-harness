@@ -38,6 +38,27 @@ class Factors(unittest.TestCase):
         with self.assertRaises(common.ABError):
             v2r.factors("A")
 
+    def test_every_v2r_condition_has_its_own_paths(self):
+        """paths が V2 の A・B だけを通し、v2r-dry-01 の driver と guard が起動の直後に止まった（2026-09-27）。"""
+        self.assertEqual(v2r.ORDER, common.V2R_CONDITIONS)
+        ps = [common.paths("v2r-dry-01", c, wt_root="W", out_root="O") for c in v2r.ORDER]
+        self.assertEqual([p["out"] for p in ps], [Path("O") / "v2r-dry-01" / c for c in v2r.ORDER])
+        self.assertEqual(len({p["wt"] for p in ps} | {p["sandbox"] for p in ps}), 8)
+        self.assertEqual(common.paths("v2-run-01", "A", out_root="O")["out"], Path("O") / "v2-run-01" / "A")
+        with self.assertRaises(common.ABError):
+            common.paths("v2r-dry-01", "C")
+
+    def test_cleanup_covers_the_v2r_conditions(self):
+        seen = []
+        with tempfile.TemporaryDirectory() as d:
+            for c in ("A0", "B-G"):
+                (Path(d) / f"v2r-dry-01-{c}").mkdir()
+            with mock.patch.object(driver.project, "load", return_value={"repo_dir": d}), \
+                    mock.patch.object(driver.common, "git", side_effect=lambda args, *a, **k: seen.append(args)):
+                driver.cleanup("v2r-dry-01", wt_root=d)
+        removed = sorted(Path(a[-1]).name for a in seen if a[:2] == ["worktree", "remove"])
+        self.assertEqual(removed, ["v2r-dry-01-A0", "v2r-dry-01-B-G"])
+
     def test_the_order_rotates_per_replicate(self):
         self.assertEqual([v2r.order_for(k) for k in (1, 2, 5)],
                          [("A0", "A1", "B-G", "B"), ("A1", "B-G", "B", "A0"), ("A0", "A1", "B-G", "B")])

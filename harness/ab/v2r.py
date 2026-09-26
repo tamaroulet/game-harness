@@ -23,7 +23,7 @@ from ab import common  # noqa: E402
 
 # 条件 → (仕様の形, 門の有無)
 CONDITIONS = {"A0": ("nl", False), "A1": ("nl", True), "B-G": ("formal", False), "B": ("formal", True)}
-ORDER = ("A0", "A1", "B-G", "B")
+ORDER = common.V2R_CONDITIONS
 
 
 def factors(condition):

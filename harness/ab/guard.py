@@ -93,7 +93,7 @@ def split_log(text, condition=None):
 
 
 # 見る条件：V2 の A・B と、v2r の 4 条件（ディレクトリが無い条件は飛ばす）
-CONDITIONS = tuple(dict.fromkeys(common.CONDITIONS + ("A0", "A1", "B-G", "B")))
+CONDITIONS = common.ALL_CONDITIONS
 # 費用の上限（docs/design/v2r_protocol.md §4.2）。「超えたら」は >、Hard Cap の「達したら」は >=
 LIMITS = {"per_call": 0.5, "per_replicate": 15.0, "warn": 25.0, "hard_cap": 50.0}
 

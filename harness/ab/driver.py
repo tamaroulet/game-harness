@@ -564,7 +564,7 @@ def measure_first(ctx, proj, run_id, condition, task, start, prev, env, decl, ou
 
 def cleanup(run_id, wt_root=common.WT_ROOT):
     repo = project.load(PROJECT)["repo_dir"]
-    for cond in common.CONDITIONS:
+    for cond in common.ALL_CONDITIONS:
         p = common.paths(run_id, cond, wt_root)
         for wt in (p["sandbox"], p["wt"]):
             if wt.exists():
