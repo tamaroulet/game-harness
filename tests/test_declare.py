@@ -66,13 +66,28 @@ class Prompt(unittest.TestCase):
         def fake_run(args, **kw):
             seen["args"], seen["input"] = args, kw.get("input")
             return mock.Mock(returncode=0, stdout=json.dumps({"result": "{}", "session_id": "s1",
-                                                              "total_cost_usd": 0.1, "usage": {}}))
+                                                              "total_cost_usd": 0.1, "usage": {},
+                                                              "modelUsage": seen.get("models", MODELS)}))
         with mock.patch.object(declare.subprocess, "run", side_effect=fake_run), \
                 mock.patch.object(declare, "_resolve", return_value="claude"):
-            declare.call_claude("P", {"cli": "claude", "headless_flag": "-p", "usage_format": "claude",
-                                      "response_key": "result", "output_format_args": ["--output-format", "json"]})
+            got = declare.call_claude("P", CFG)
         self.assertEqual(seen["args"][:4], ["claude", "-p", "--tools", ""], "道具を 1 つも与えない")
+        self.assertEqual(seen["args"][4:6], ["--model", "claude-opus-5"], "モデルを明示して呼ぶ")
         self.assertEqual(seen["input"], "P", "プロンプトは標準入力で渡す")
+        self.assertEqual(got[5], ["claude-haiku-4-5-20251001", "claude-opus-5"], "使われたモデルを記録する")
+        # 報告が無い・固定したモデルが使われていないなら止める
+        for models in ({}, {"claude-sonnet-5": {}}):
+            seen["models"] = models
+            with mock.patch.object(declare.subprocess, "run", side_effect=fake_run), \
+                    mock.patch.object(declare, "_resolve", return_value="claude"), \
+                    self.assertRaises(SystemExit):
+                declare.call_claude("P", CFG)
+
+
+CFG = {"cli": "claude", "headless_flag": "-p", "usage_format": "claude", "response_key": "result",
+       "output_format_args": ["--output-format", "json"], "model_flag": "--model", "model": "claude-opus-5",
+       "auxiliary_models": ["claude-haiku-"]}
+MODELS = {"claude-opus-5": {"outputTokens": 1}, "claude-haiku-4-5-20251001": {"outputTokens": 1}}
 
 
 class Flow(unittest.TestCase):
@@ -82,7 +97,7 @@ class Flow(unittest.TestCase):
         def fake_call(prompt, cfg, session=None):
             calls.append((prompt, session))
             text, cost = replies[len(calls) - 1]
-            return 0, text, usage(cost), 12.5, "s1"
+            return 0, text, usage(cost), 12.5, "s1", ["claude-opus-5"]
         out = Path(tempfile.mkdtemp())
         reader = {"docs/spec/spec.md": SPEC, "docs/gdd/source.md": GDD}
         with mock.patch.object(declare, "call_claude", side_effect=fake_call), \
@@ -90,7 +105,7 @@ class Flow(unittest.TestCase):
                                   return_value=lambda p: reader[p]), \
                 mock.patch.object(declare.project, "config",
                                   side_effect=lambda n: {"spec_path": "docs/spec/spec.md",
-                                                         "gdd_path": "docs/gdd/source.md"} if n == "unit_schema" else {}), \
+                                                         "gdd_path": "docs/gdd/source.md"} if n == "unit_schema" else CFG), \
                 mock.patch.object(declare, "build_prompt", return_value="PROMPT"):
             rec = declare.declare("falling-blocks", out)
         return rec, calls, out
@@ -102,6 +117,9 @@ class Flow(unittest.TestCase):
         self.assertEqual(json.loads((out / "properties.json").read_text(encoding="utf-8")), DECL)
         self.assertEqual(json.loads((out / "contract.json").read_text(encoding="utf-8")), INTERFACE)
         self.assertEqual(json.loads((out / "results" / "precost.json").read_text(encoding="utf-8"))["total"]["calls"], 1)
+        pre = json.loads((out / "results" / "precost.json").read_text(encoding="utf-8"))
+        self.assertEqual((pre["model_requested"], pre["models_used"]), ("claude-opus-5", ["claude-opus-5"]),
+                         "事前投資の記録に、要求したモデルと使われたモデルを残す")
 
     def test_retry_sends_only_the_problems_in_the_same_conversation(self):
         bad = copy.deepcopy(GOOD)

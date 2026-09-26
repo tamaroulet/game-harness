@@ -7,6 +7,8 @@
 
 ## 0. 要旨
 
+> **訂正（2026-09-26、査読の後）**：下の「B / A = 0.89」と「損益分岐 N* = 5」は主張として取り下げる。走行ごとの費用の範囲は A 0.2973〜0.4284、B 0.3107〜0.3618 USD で重なっていて、差は走行のばらつきの中にある。N* = 5 は、B の固有の事前投資を 0 とした会計（ハーネスの開発・保守と、総監督の手直しの費用を含めない）の上の値で、差 0.0159 USD は A の T5 の 1 タスクで決まっている。また V2-RUN では A にも同じ形式仕様と門の知らせを与えていて、門は 1 度も働いていない。**門が品質を保ったことは、この走行からは言えない**。詳細は `docs/design/v2_run_design_critique.md`
+
 | 項目 | 結果 |
 |:--|:--|
 | 頑健性 | 4 走行 × 2 条件 × 5 タスク = 40 タスクのすべてで受入 8/8、最初の提出も合格、P2P の破壊 0、不変条件の違反 0、テストの改ざん 0 |
@@ -39,7 +41,7 @@
 | 実装役（A・B 共通） | CLI `agy`、モデル `gemini-3.8-flash-medium`（思考の重さはモデル名の medium で選ぶ。`--effort` は使わない）、`--output-format stream-json`、`--sandbox`、`--dangerously-skip-permissions` | `projects/falling-blocks/pipeline.json` の `implementer`、`experiments/v2/tasks.json` の `implementer` |
 | 実装役の TTL | 300 秒。agy の `--print-timeout` は TTL の 20 秒前（280 秒）を自動で付ける | `projects/falling-blocks/pipeline.json` の `ttl_seconds.implementer` と `_stream_note` |
 | 試行の上限 | `max_attempts` 3。呼び出しの上限は A・B とも 9（試行 3 × 内側ループ 3） | `tasks.json`、`harness/ab/driver.py` の `call_budget` |
-| 仕様分解役（事前投資の宣言） | CLI `claude` の既定のモデル、道具なし。**モデル名は記録なし**（`precost.json` の `model_note` は「config/decompose.json の cli の既定のモデル」） | `experiments/v2/results/precost.json`、`config/decompose.json` |
+| 仕様分解役（事前投資の宣言） | CLI `claude` の既定のモデル、道具なし。**モデル名は記録なし**（`precost.json` の `model_note` は「config/decompose.json の cli の既定のモデル」）。これを欠陥として、2026-09-26 以降は `config/decompose.json` に `--model claude-opus-5` を明示し、使われたモデルを precost.json・テレメトリに記録して照合する（`harness/model_pin.py`）。V2-4 の事前投資のモデルは遡って特定できない | `experiments/v2/results/precost.json`、`config/decompose.json` |
 | 測定 | 非公開シード 20 本（`measure_hidden_seeds`）、不変条件のシード [11, 22, 33] | `tasks.json` |
 | 監視（guard） | `python -u -m harness.ab.guard v2-run-01 v2-run-02 v2-run-03 v2-run-04 --limit-usd 5 --midpoint-usd 2.5`（人間の承認、2026-09-26）。実装役のログを 15 秒ごとに読み、止める条件に当たればドライバを止める。止める条件・警告とも 0 回。guard が数えた費用の合計 2.8445 USD | `harness/ab/guard.py`、guard のログ |
 

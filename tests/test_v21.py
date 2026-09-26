@@ -135,7 +135,8 @@ class Embedding(unittest.TestCase):
         self.assertIn("読み取り専用", text)
 
     def test_stream_call_embeds_files_and_records_steps(self):
-        stream = "\n".join([step(1, "DONE", usage=U1), ev(event="result", result={
+        stream = "\n".join([ev(event="init", conversation_id="c1", init={"model": "m"}),
+                             step(1, "DONE", usage=U1), ev(event="result", result={
             "response": "ok", "usage": {"input_tokens": 13000, "output_tokens": 200, "cache_read_tokens": 0,
                                         "thinking_tokens": 150, "total_tokens": 13200}})])
         seen = {}
@@ -158,6 +159,25 @@ class Embedding(unittest.TestCase):
         self.assertEqual(c.cur["implementer"]["usage"]["input_tokens"], 13000)
         self.assertEqual(len(c.cur["implementer"]["steps"]), 1)
         self.assertEqual(c.last_implementer_out, "ok")
+        self.assertEqual(c.cur["implementer"]["model"], "m", "使ったモデルを記録する（harness/model_pin.py）")
+
+    def test_a_different_or_unreported_model_stops_the_pipeline(self):
+        """agy が報告したモデルが設定と違う・報告が無いなら止める（2026-09-26 の是正）。"""
+        for init in ({"model": "other"}, {}):
+            stream = "\n".join([ev(event="init", conversation_id="c1", init=init), step(1, "DONE", usage=U1)])
+            with self.subTest(init=init), tempfile.TemporaryDirectory() as d:
+                (Path(d) / "Core").mkdir()
+                (Path(d) / "Core" / "GameState.cs").write_text("class GameState {}", encoding="utf-8")
+                c = SimpleNamespace(unit={"prompt": "作る", "whitelist": ["Core/GameState.cs"]}, sandbox=Path(d),
+                                    sb=lambda rel: Path(d) / rel,
+                                    cfg={"implementer": IMP, "project": {"impl_dir": "Core"}},
+                                    ttl={"implementer": 300}, metrics={}, cur={})
+                with mock.patch.object(pipeline, "run", return_value=(0, stream, "")), \
+                        mock.patch.object(pipeline, "resolve_cli", side_effect=lambda n: [n]), \
+                        mock.patch.object(pipeline, "write_implementer_log"), \
+                        self.assertRaises(SystemExit) as ctx:
+                    pipeline.call_implementer(c)
+                self.assertIn("ABORT", str(ctx.exception.code))
 
 
 class WiderContext(unittest.TestCase):

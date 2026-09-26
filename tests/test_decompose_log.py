@@ -11,6 +11,7 @@ rc=124 で落ちた。当時は打ち切り時点の出力を捨てていた（`
 
 `TimeoutExpired` は kill のあとに communicate() した結果を持っている。捨てる理由は無い。
 """
+import json
 import shutil
 import subprocess
 import sys
@@ -23,6 +24,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 
 import decompose  # noqa: E402
+
+
+def envelope(text, models=("claude-opus-5",)):
+    """claude CLI の JSON の封筒（本文と、使われたモデルの modelUsage）。"""
+    return json.dumps({"result": text, "usage": {"input_tokens": 1, "output_tokens": 1},
+                       "modelUsage": {m: {"outputTokens": 1} for m in models}})
 
 
 class DecomposeLogTests(unittest.TestCase):
@@ -42,7 +49,12 @@ class DecomposeLogTests(unittest.TestCase):
             "headless_flag": "-p",
             "prompt_arg_template": "{prompt_file} を読んでください",
             "extra_flags": ["--dangerously-skip-permissions"],
-            "output_format_args": [],
+            "output_format_args": ["--output-format", "json"],
+            "usage_format": "claude",
+            "response_key": "result",
+            "model_flag": "--model",
+            "model": "claude-opus-5",
+            "auxiliary_models": ["claude-haiku-"],
             "prompt_file": str(self.prompt_dir / "prompt.md"),
             "ttl_seconds": {"claude": 600, "gh": 60},
         }
@@ -90,16 +102,16 @@ class DecomposeLogTests(unittest.TestCase):
 
     def test_the_log_is_written_on_success(self):
         with mock.patch.object(decompose, "resolve_cli", return_value="claude.exe"), \
-             mock.patch.object(decompose, "run", return_value=(0, '{"ok": true}', "")), \
+             mock.patch.object(decompose, "run", return_value=(0, envelope('{"ok": true}'), "")), \
              mock.patch("builtins.print"):
             out = decompose.call_claude("指示の本文")
         self.assertEqual(out, '{"ok": true}')
-        self.assertIn('{"ok": true}', self.log().read_text(encoding="utf-8"))
+        self.assertIn("claude-opus-5", self.log().read_text(encoding="utf-8"), "生の応答（封筒）を残す")
 
     def test_the_prompt_is_kept(self):
         """指示ファイルはプロジェクトごとに使い回して上書きされる。何を渡した出力かが要る。"""
         with mock.patch.object(decompose, "resolve_cli", return_value="claude.exe"), \
-             mock.patch.object(decompose, "run", return_value=(0, "x", "")), \
+             mock.patch.object(decompose, "run", return_value=(0, envelope("x"), "")), \
              mock.patch("builtins.print"):
             decompose.call_claude("この単位のプロンプト本文")
         self.assertIn("この単位のプロンプト本文", self.log().read_text(encoding="utf-8"))

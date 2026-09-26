@@ -88,7 +88,7 @@ class WhenSaved(unittest.TestCase):
         git_repo(wt, {"Core/GameState.cs": "class GameState {}"})
         v2 = json.loads((ROOT / "experiments" / "v2" / "tasks.json").read_text(encoding="utf-8"))
         ctx = {"m": m, "wt": wt, "out": tmp / "out", "ttl": 60, "impl_dir": "Core",
-               "imp": {"output_format_args": ["--output-format", "stream-json"]},
+               "imp": {"model_name": "m", "output_format_args": ["--output-format", "stream-json"]},
                "test_project": "t.csproj", "index": 1, "classes": {"B4abT1Cases": "T1"},
                "templates": {k: (ROOT / "experiments" / "v2" / v2["templates"][k]).read_text(encoding="utf-8")
                              for k in ("initial", "retry")}}
@@ -98,7 +98,7 @@ class WhenSaved(unittest.TestCase):
         def call(imp, prompt, cwd, cid, ttl):
             n.append(1)
             (Path(cwd) / "Core" / "GameState.cs").write_text(f"call {len(n)}", encoding="utf-8")
-            return {"rc": 0, "seconds": 1.0, "conversation_id": "c", "usage": {}, "out": "", "err": ""}
+            return {"rc": 0, "seconds": 1.0, "conversation_id": "c", "model": "m", "usage": {}, "out": "", "err": ""}
         driver.run_task_a(ctx, m["tasks"][0], unit, {}, call=call,
                           judge=lambda k: ("SUCCESS", "") if k >= 2 else ("INNER", "x"))
         saved = driver.first_dir(ctx["out"], m["tasks"][0])
