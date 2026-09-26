@@ -339,3 +339,13 @@ T1〜T5 は V2 と同じ要求文（`experiments/b4_ab/requirements` の写し�
 - U1（テストのパッケージの版）と U2（dotnet-stryker の導入）が閉じないと、ドライバは環境の照合で起動しない
 - 性質の宣言の空虚さ（前提の成立回数 0）は、乾式の走行の `property_hits`・`vacuous_properties` で確かめる。特に T6・T7（ライン消去）と T10-01・T10-02（GameOver の後）は、無作為の系列で前提が成り立つかが実物で確かめるまで分からない
 
+### 15.5 乾式の走行の手順（V2R-SMOKE、2026-09-26）
+
+- 範囲：A0 だけを T1〜T10 で 1 回（run-id `v2r-dry-01`）。呼び出しは 10 回、最悪 10 × 0.5 ＝ 5 USD（§4.2 の 1 呼び出しの上限で見積もる）。1 繰り返しの上限 15 USD の内側
+- 前提：本書の承認の記録（冒頭の「状態」）が main に入っていること。`python -m harness.envcheck` が終了コード 0
+- 起動（操縦士の端末で 2 つ）：
+  1. `python -m harness.ab.guard v2r-dry-01`（費用の上限と緊急停止。§4.2・§4.3）
+  2. `python -m harness.ab.driver run --condition A0 --run-id v2r-dry-01 --manifest experiments/v2r/tasks.json`
+- 判定（U5）：`python -m harness.ab.v2r_ceiling --run-id v2r-dry-01`。A0 の走行が T1〜T10 をちょうど 1 行ずつ持ち、欠陥（受入の不合格・P2P の破壊・不変条件の違反）が 1 件以上なら合格。途中で止まった走行は不合格（天井を判定しない）。V2R-SMOKE の検証コマンド
+- 空虚な性質（§15.4）：同じ出力の表に、タスクごとの `vacuous_properties` を並べる。判定には入れず、扱いは人間が決める
+- 残り（この走行の後）：U6（R の決定。ばらつきを見るには 4 条件の走行が要るので、A0 の結果を見て範囲を決め、人間が承認）、U7 の残り（この走行の記録で pack → Release → 取得 → verify → 集計。公開は人間の承認の後）。V2R-SMOKE の検証コマンドは U5 だけを見るので、`complete` は U6・U7 が閉じてから行う
