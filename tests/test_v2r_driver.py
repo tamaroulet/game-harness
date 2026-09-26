@@ -136,6 +136,34 @@ class Hits(unittest.TestCase):
         self.assertIn("PROPERTY_HITS id=", hits[model])
         self.assertEqual({k: v for k, v in plain.items() if k != model}, {k: v for k, v in hits.items() if k != model})
 
+    def test_a_phase_other_than_the_start_is_not_a_start_precondition(self):
+        """before.Phase == GameOver は開始状態（Playing）では成り立たない。開始状態の前提に入れると、実装に依らず
+        PROPERTY_UNSATISFIABLE になっていた（v2r の T10 の宣言で見つけた）。系列の途中で起きる状態として扱う。"""
+        p = {"id": "P-T10-01", "given": "before.Phase == GameOver && input.Left", "then": "true"}
+        self.assertEqual(propgen.directed(p, "Playing")[0], [], "開始状態の前提から外す")
+        self.assertEqual(len(propgen.directed(p)[0]), 1, "start_phase を渡さなければ従来どおり")
+        same = {"id": "P-T1-01", "given": "before.Phase == GamePhase.Playing", "then": "true"}
+        self.assertEqual(len(propgen.directed(same, "Playing")[0]), 1, "開始状態の局面と同じなら前提に残す")
+        ne = {"id": "P-X-01", "given": "before.Phase != Playing", "then": "true"}
+        self.assertEqual(propgen.directed(ne, "Playing")[0], [])
+
+    def test_gap_rows_is_opt_in_and_validated(self):
+        """start.gap_rows（ライン消去の前提を起こす開始状態）。書かなければ生成物は同じ（V2 の凍結した sha256）。"""
+        import copy
+        plain = propgen.generate(tp.DECL, tp.SPEC, tp.GDD, tp.INTERFACE, "tests")
+        d = copy.deepcopy(tp.DECL)
+        d["start"]["gap_rows"] = 2
+        self.assertEqual(propgen.validate(d, tp.SPEC, tp.GDD, tp.INTERFACE), [])
+        gapped = propgen.generate(d, tp.SPEC, tp.GDD, tp.INTERFACE, "tests")
+        model = next(k for k in plain if k.endswith("PropertyModel.cs"))
+        self.assertNotIn("GapRows", plain[model])
+        self.assertIn("const int GapRows = 2;", gapped[model])
+        self.assertEqual(gapped[model].count("{"), gapped[model].count("}"), "括弧の釣り合い")
+        self.assertEqual({k: v for k, v in plain.items() if k != model}, {k: v for k, v in gapped.items() if k != model})
+        for bad in (5, -1, True, "2"):
+            d["start"]["gap_rows"] = bad
+            self.assertTrue(propgen.validate(d, tp.SPEC, tp.GDD, tp.INTERFACE), bad)
+
     def test_hits_are_read_from_the_test_output_and_the_smallest_wins(self):
         ns = dotnet.TRX_NS.strip("{}")
         rows = "".join(

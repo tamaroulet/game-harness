@@ -2,7 +2,10 @@
 
     python -m harness.envcheck [--out env.json]      実測して固定値（config/environment.json）と照合する
 
-実測するもの：OS、Python、Python の依存（requirements.lock の各パッケージ）、CLI（agy・claude・dotnet）の版。
+実測するもの：OS、Python、Python の依存（requirements.lock の各パッケージ）、CLI（agy・claude・dotnet）の版、
+.NET の道具（dotnet-stryker。§8 の変異の死滅率、U2）、ゲームのテストのプロジェクトの NuGet パッケージ（NUnit など。U1）。
+テストのパッケージは `dotnet list <テストの csproj> package` の出力から機械的に取る（総監督はテストのコードを見ない）。
+固定値の test_packages が null（未固定）なら、起動しない（U1 が閉じていない）。
 固定値と 1 つでも違えば起動しない（`require`）。実測値は env.json に書く（`write`）。
 
 サンプリングのパラメータ（temperature・top_p・seed）は、agy 1.2.11・claude 2.1.258 の CLI では指定できない
@@ -43,11 +46,52 @@ def os_string():
 def cli_version(name, run=subprocess.run):
     """`<name> --version` の最初の x.y.z。取れなければ None。"""
     try:
-        r = run([name, "--version"], capture_output=True, text=True, timeout=60, shell=(sys.platform == "win32"))
+        r = run([name, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+                shell=(sys.platform == "win32"))
     except (OSError, subprocess.TimeoutExpired):
         return None
     m = VERSION_RE.search((r.stdout or "") + (r.stderr or ""))
     return m.group(1) if m and r.returncode == 0 else None
+
+
+def tool_versions(tools, run=subprocess.run):
+    """.NET の道具の版（`dotnet <道具> --version`）。{道具のパッケージ名: 版 or None}。dotnet-stryker は `dotnet stryker`。"""
+    out = {}
+    for pkg in tools:
+        cmd = pkg.split("dotnet-", 1)[1] if pkg.startswith("dotnet-") else pkg
+        try:
+            r = run(["dotnet", cmd, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    timeout=120,
+                    shell=(sys.platform == "win32"))
+        except (OSError, subprocess.TimeoutExpired):
+            out[pkg] = None
+            continue
+        m = VERSION_RE.search((r.stdout or "") + (r.stderr or ""))
+        out[pkg] = m.group(1) if m and r.returncode == 0 else None
+    return out
+
+
+PACKAGE_LINE_RE = re.compile(r"^\s*>\s*(\S+)\s+(\S+)\s+(\S+)")
+
+
+def test_packages(csproj, run=subprocess.run):
+    """テストのプロジェクトの NuGet パッケージ {名前: 解決した版}（`dotnet list package` の出力の `>` の行）。取れなければ None。"""
+    try:
+        # 日本語の Windows では、dotnet の出力の日本語を既定（CP932）で読めずに UnicodeDecodeError で落ちていた
+        # （2026-09-26、人間の環境での実測）。UTF-8 で読み、読めない字は置き換える（CLI の版と道具の版の読み取りも同じ）
+        r = run(["dotnet", "list", str(csproj), "package"], capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=300,
+                shell=(sys.platform == "win32"))
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    pkgs = {}
+    for line in (r.stdout or "").splitlines():
+        m = PACKAGE_LINE_RE.match(line)
+        if m:
+            pkgs[m.group(1)] = m.group(3)
+    return dict(sorted(pkgs.items())) or None
 
 
 def lock_packages(lock=LOCK):
@@ -61,16 +105,21 @@ def lock_packages(lock=LOCK):
     return out
 
 
-def measure(clis=("agy", "claude", "dotnet"), run=subprocess.run, lock=LOCK):
-    """実測値の表。"""
+def measure(clis=("agy", "claude", "dotnet"), run=subprocess.run, lock=LOCK, tools=(), csproj=None):
+    """実測値の表。tools（.NET の道具）と csproj（ゲームのテストのプロジェクト）は、渡したときだけ測る。"""
     pkgs = {}
     for name in lock_packages(lock):
         try:
             pkgs[name] = metadata.version(name)
         except metadata.PackageNotFoundError:
             pkgs[name] = None
-    return {"os": os_string(), "python": platform.python_version(), "python_packages": pkgs,
-            "cli": {c: cli_version(c, run) for c in clis}}
+    out = {"os": os_string(), "python": platform.python_version(), "python_packages": pkgs,
+           "cli": {c: cli_version(c, run) for c in clis}}
+    if tools:
+        out["tools"] = tool_versions(tools, run)
+    if csproj is not None:
+        out["test_packages"] = test_packages(csproj, run)
+    return out
 
 
 def problems(measured, pinned):
@@ -79,7 +128,10 @@ def problems(measured, pinned):
     for key in ("os", "python"):
         if measured.get(key) != pinned.get(key):
             out.append(f"{key}：実測 {measured.get(key)!r}、固定 {pinned.get(key)!r}")
-    for group in ("python_packages", "cli"):
+    if "test_packages" in pinned and pinned["test_packages"] is None:
+        out.append("test_packages：固定値が未設定（U1。人間が python -m harness.envcheck --test-packages の出力を "
+                   "config/environment.json に書く）")
+    for group in ("python_packages", "cli", "tools", "test_packages"):
         for name, want in (pinned.get(group) or {}).items():
             got = (measured.get(group) or {}).get(name)
             if got != want:
@@ -106,10 +158,19 @@ def write(path, rec):
     Path(path).write_text(json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
-def require(out_path=None, measured=None, pinned=None):
+def game_csproj(project_id="falling-blocks"):
+    """ゲームのテストのプロジェクトの csproj（projects/<id>/project.json の repo_dir と fast_test_project）。"""
+    import project
+    p = project.load(project_id)
+    return Path(p["repo_dir"]) / p["fast_test_project"]
+
+
+def require(out_path=None, measured=None, pinned=None, project_id="falling-blocks"):
     """実測して照合し、env.json を書く（out_path があれば）。違えば EnvError（起動しない）。記録を返す。"""
     pinned = pinned if pinned is not None else load_pinned()
-    measured = measured if measured is not None else measure()
+    if measured is None:
+        measured = measure(tools=tuple(pinned.get("tools") or ()),
+                           csproj=game_csproj(project_id) if "test_packages" in pinned else None)
     rec = record(measured, pinned)
     if out_path:
         write(out_path, rec)
@@ -121,7 +182,12 @@ def require(out_path=None, measured=None, pinned=None):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="実行環境の記録と照合")
     ap.add_argument("--out", help="env.json の書き出し先")
+    ap.add_argument("--test-packages", action="store_true",
+                    help="ゲームのテストのプロジェクトの NuGet パッケージだけを測って JSON で出す（U1 の固定値を作る。人間が実行する）")
     args = ap.parse_args(argv)
+    if args.test_packages:
+        print(json.dumps(test_packages(game_csproj()), ensure_ascii=False, indent=2))
+        return 0
     try:
         rec = require(args.out)
     except EnvError as e:

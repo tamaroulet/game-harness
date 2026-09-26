@@ -1,0 +1,73 @@
+{
+  "tool": "declare",
+  "cli": "claude",
+  "model_requested": "claude-opus-5",
+  "models_used": [
+    "claude-opus-5"
+  ],
+  "model_note": "config/decompose.json の model を --model で明示。道具なし（--tools \"\"）",
+  "gdd_sha256": "95876782072ebf6a973781f2921e6abe4d2cead5519a09f673fe380991feb7a7",
+  "ok": true,
+  "calls": [
+    {
+      "attempt": 1,
+      "rc": 0,
+      "seconds": 268.1,
+      "usage": {
+        "format": "claude",
+        "input_tokens": 2,
+        "output_tokens": 23097,
+        "cache_read_tokens": 5567,
+        "cache_creation_tokens": 20541,
+        "cost_usd": 0.7856285,
+        "num_turns": 1,
+        "total_tokens": 49207
+      },
+      "models_used": [
+        "claude-opus-5"
+      ],
+      "prompt_chars": 20644,
+      "problems": [
+        "P-T3-02.given: 読めない字があります: '.Y == befo'",
+        "P-T3-02.given: 読めない字があります: '.Y == befo'",
+        "P-T4-01.then: 読めない字があります: '.Rotation'",
+        "P-T4-02.then: 読めない字があります: '.Rotation '",
+        "P-T5-01.then: 読めない字があります: '.X'",
+        "P-T5-03.then: 読めない字があります: '.Rotation'",
+        "P-T7-01.given: 読めない字があります: '.Y == befo'",
+        "P-T7-01.given: 読めない字があります: '.Y == befo'",
+        "P-T7-02.given: 読めない字があります: '.Y == befo'",
+        "P-T7-02.given: 読めない字があります: '.Y == befo'"
+      ]
+    },
+    {
+      "attempt": 2,
+      "rc": 0,
+      "seconds": 86.7,
+      "usage": {
+        "format": "claude",
+        "input_tokens": 2,
+        "output_tokens": 8976,
+        "cache_read_tokens": 26108,
+        "cache_creation_tokens": 23427,
+        "cost_usd": 0.471734,
+        "num_turns": 1,
+        "total_tokens": 58513
+      },
+      "models_used": [
+        "claude-opus-5"
+      ],
+      "prompt_chars": 459,
+      "problems": []
+    }
+  ],
+  "total": {
+    "calls": 2,
+    "seconds": 354.8,
+    "input_tokens": 4,
+    "output_tokens": 32073,
+    "cache_read_tokens": 31675,
+    "cache_creation_tokens": 43968,
+    "cost_usd": 1.257362
+  }
+}

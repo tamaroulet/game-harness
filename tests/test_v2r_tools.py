@@ -189,6 +189,20 @@ class Report(unittest.TestCase):
         self.assertIn("| 1000 | — |", text, "大きな F_B_only では回収しない")
         self.assertIn("F_B_only", text)
 
+    def test_default_statistics_are_mean_for_defects_and_median_for_cost(self):
+        """§11.2 の改定（game-harness#111 で提案、承認）：欠陥と P2P は差の平均（発生率の差）、費用は差の中央値。"""
+        self.assertEqual(v2r_report.STATS, {"defect": "mean", "p2p": "mean", "usd": "median"})
+        rows = []
+        for r in ("r1", "r2"):
+            for i, t in enumerate(("T1", "T2", "T3", "T4"), start=1):
+                bad = i == 1   # 4 タスクのうち 1 つだけ、門なしで欠陥
+                rows += [row(r, "A0", t, i, accepted=not bad), row(r, "A1", t, i),
+                         row(r, "B-G", t, i, accepted=not bad), row(r, "B", t, i)]
+        text = v2r_report.summarize(rows, {"prices": PRICES, "fixed": {"shared": {"usd": 1.0}}}, (0,))
+        self.assertIn("| H1 門 | A1 − A0、B − B-G | defect | 16 | -0.2500 |", text, "平均なら発生率の差 −0.25")
+        self.assertIn("defect は差の平均", text)
+        self.assertIn("usd は差の中央値", text)
+
     def test_sensitivity_break_even_grows_with_f_b_only(self):
         rows = [row("r1", "A0", f"T{i}", i, inp=4000 * i) for i in range(1, 6)] + \
                [row("r1", "B", f"T{i}", i, inp=4000) for i in range(1, 6)]

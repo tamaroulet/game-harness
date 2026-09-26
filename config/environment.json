@@ -2,10 +2,23 @@
   "_comment": "v2r の実行環境の固定値（docs/design/v2r_protocol.md §5.1、2026-09-26 に実測）。harness/envcheck.py が起動時に実測と照合し、1 つでも違えば起動しない。変えるときは main への PR で行う",
   "os": "Microsoft Windows NT 10.0.26200.0",
   "python": "3.12.10",
-  "python_packages": {"pyyaml": "6.0.3"},
+  "python_packages": {
+    "pyyaml": "6.0.3"
+  },
   "cli": {
     "agy": "1.2.11",
     "claude": "2.1.258",
     "dotnet": "8.0.413"
+  },
+  "_tools_note": "§8 の変異の死滅率（U2）。2026-09-26 の時点でこの機械に未導入（dotnet tool list -g が空）。NuGet の最新は 5.0.0（dotnet tool search dotnet-stryker）。導入は人間の承認の後：dotnet tool install -g dotnet-stryker --version 5.0.0",
+  "tools": {
+    "dotnet-stryker": "5.0.0"
+  },
+  "_test_packages_note": "ゲームのテストのプロジェクトの NuGet パッケージ（NUnit など。U1）。総監督は防壁①の deny ルールでテストの プロジェクトに触れられないので、人間が python -m harness.envcheck --test-packages で取った値（2026-09-26、game-harness#112 のレビュー）",
+  "test_packages": {
+    "Microsoft.NET.Test.Sdk": "17.8.0",
+    "NUnit": "3.14.0",
+    "NUnit.Analyzers": "3.9.0",
+    "NUnit3TestAdapter": "4.5.0"
   }
 }

@@ -10,7 +10,8 @@ docs/design/v2_contract_foundry.md §4。Claude が書くのは宣言（JSON）�
 - `reference`：参照データの出どころ。`board_width`・`board_height` は PR の ID、`shapes`・`kicks` は
   `"PR-17..PR-51"` の形の範囲。値は構造化仕様 §5 から**名前で**引く（「形状 I 向き 0」「回転補正候補 J・L・S・T・Z 0 → R」）。
   宣言に値を書き写さない（2026-09-17 の前例）
-- `start`：`{"phase": "<GamePhase の値>", "locked_max": 整数}`。復元用コンストラクタで、固定ブロックを 0〜locked_max 個
+- `start`：`{"phase": "<GamePhase の値>", "locked_max": 整数[, "gap_rows": 0〜4]}`。gap_rows を書くと、下から 0〜gap_rows 行を
+  1 マスの穴だけ残して埋める（ライン消去の前提を起こすため。v2r）。書かなければ従来どおり。復元用コンストラクタで、固定ブロックを 0〜locked_max 個
   置いた盤面と、そこに置けるミノから始める
 - `steps`・`seeds`：1 本の操作列の長さと、`{"public": 公開シードの本数, "hidden": 非公開シードの本数}`
 - `properties`：`{"id": "P-T1-01", "task": "T1", "rule": "RL-16", "given": 式, "then": 式}`
@@ -49,7 +50,9 @@ REF_KEYS = {"board_width", "board_height", "shapes", "kicks"}
 MAX_STEPS, MAX_PUBLIC, MAX_HIDDEN = 1000, 50, 1000
 PROP_ID_RE = re.compile(r"^P-T\d+-\d{2,}$")
 TASK_RE = re.compile(r"^T\d+$")
-RULE_RE = re.compile(r"^RL-\d+$")
+# 性質の出典（rule）：構造化仕様の ID。§3 の規則（RL）に加え、§1 のループ（LP）と §2 の状態遷移（ST）も出典にできる
+# （v2r の T10 のゲームオーバーは LP-05・ST-02 などが出典。2026-09-26）。構造化仕様に無い ID は従来どおり落とす
+RULE_RE = re.compile(r"^(?:RL|ST|LP)-\d+$")
 RANGE_RE = re.compile(r"^PR-(\d+)\.\.PR-(\d+)$")
 SHAPE_RE = re.compile(r"^形状 (\S+) 向き (\S+)$")
 ORIGIN_RE = re.compile(r"^形状 (\S+) 回転原点$")
@@ -481,11 +484,28 @@ def _pre_ok(e):
     return _pre_ok(e[2]) and _pre_ok(e[3])
 
 
-def directed(p):
+def _phase_conflict(c, start_phase):
+    """`before.Phase == X`（または `!=`）が、開始状態の局面（start.phase）では成り立たないか。
+
+    開始状態はいつも start.phase なので、別の局面を求める前提（例：before.Phase == GameOver）は開始状態では決して成り立たない。
+    その局面は系列の途中で起きる（v2r の T10）。これを開始状態の前提に入れると、探索が 0 本になり、実装に依らず
+    PROPERTY_UNSATISFIABLE で落ちていた。
+    """
+    if start_phase is None or c[0] != "bin" or c[1] not in ("==", "!="):
+        return False
+    sides = [x for x in (c[2], c[3]) if x[0] == "name"]
+    if len(sides) != 2 or "before.Phase" not in (sides[0][1], sides[1][1]):
+        return False
+    value = (sides[1] if sides[0][1] == "before.Phase" else sides[0])[1].split(".")[-1]
+    return (value != start_phase) if c[1] == "==" else (value == start_phase)
+
+
+def directed(p, start_phase=None):
     """前提の探索（v2.1e）の材料：(開始状態で評価する前提の式の列, 最初の手の入力 {名前: bool})。
 
     given を && で分け、`input.X`・`!input.X` を最初の手に、開始状態だけで評価できるものを前提にする。
     after を使うもの（固定ブロックが増えない、など）は、実装を動かさないと分からないので外す。
+    start_phase を渡すと、開始状態の局面と食い違う局面の前提（_phase_conflict）も外す（系列の途中で起きる状態）。
     """
     pre, first = [], {}
     for c in _conjuncts(parse(str(p["given"]), f"{p['id']}.given")):
@@ -495,7 +515,7 @@ def directed(p):
             if first.get(name, val) != val:
                 raise PropertyError(f"{p['id']}.given: input.{name} が真と偽の両方を求めています")
             first[name] = val
-        elif _pre_ok(c):
+        elif _pre_ok(c) and not _phase_conflict(c, start_phase):
             pre.append(c)
     return pre, first
 
@@ -571,14 +591,17 @@ def validate(decl, spec_text, gdd_text, interface):
         return [str(e)]
 
     start = decl["start"]
-    if not isinstance(start, dict) or set(start) != {"phase", "locked_max"}:
-        problems.append("start は {\"phase\", \"locked_max\"} です")
+    if not isinstance(start, dict) or not {"phase", "locked_max"} <= set(start) <= {"phase", "locked_max", "gap_rows"}:
+        problems.append("start は {\"phase\", \"locked_max\"}（と任意の \"gap_rows\"）です")
     else:
         if start["phase"] not in contract.enums["GamePhase"]:
             problems.append(f"start.phase は GamePhase の値です: {start['phase']!r}")
         if isinstance(start["locked_max"], bool) or not isinstance(start["locked_max"], int) \
                 or not 0 <= start["locked_max"] <= 100:
             problems.append("start.locked_max は 0 以上 100 以下の整数です")
+        g = start.get("gap_rows", 0)
+        if isinstance(g, bool) or not isinstance(g, int) or not 0 <= g <= 4:
+            problems.append("start.gap_rows は 0 以上 4 以下の整数です")
     steps = decl["steps"]
     if isinstance(steps, bool) or not isinstance(steps, int) or not 1 <= steps <= MAX_STEPS:
         problems.append(f"steps は 1 以上 {MAX_STEPS} 以下の整数です")
@@ -603,7 +626,7 @@ def validate(decl, spec_text, gdd_text, interface):
         if not TASK_RE.match(str(p["task"])):
             problems.append(f"{where}: task は T<n> です: {p['task']!r}")
         if not RULE_RE.match(str(p["rule"])) or p["rule"] not in spec_ids:
-            problems.append(f"{where}: rule は構造化仕様にある RL-xx です: {p['rule']!r}")
+            problems.append(f"{where}: rule は構造化仕様にある ID（RL-xx・ST-xx・LP-xx）です: {p['rule']!r}")
         live.setdefault(p["task"], False)
         for key in ("given", "then"):
             try:
@@ -618,7 +641,7 @@ def validate(decl, spec_text, gdd_text, interface):
         except PropertyError:
             pass
         try:
-            directed(p)
+            directed(p, (decl.get("start") or {}).get("phase") if isinstance(decl.get("start"), dict) else None)
             sampling(p, rows)
         except PropertyError as e:
             problems.append(str(e))
@@ -636,6 +659,24 @@ def _cs_coords(cs):
 
 # 前提の成立回数の行（v2r、docs/design/v2r_protocol.md §8）。report_hits のときだけ出す（V2 の生成物の sha256 を変えない）
 HITS_PREFIX = "PROPERTY_HITS "
+GAP_CODE = """                // 穴のある行（start.gap_rows）：ライン消去が起きうる開始状態にする。穴のマスは必ず空ける（埋まった行は実際には残らない）
+                int gaps = rnd.Next(0, GapRows + 1);
+                for (int gy = 0; gy < gaps; gy++)
+                {
+                    int hole = rnd.Next(PropertyModel.Width);
+                    for (int gx = 0; gx < PropertyModel.Width; gx++)
+                    {
+                        if (gx == hole)
+                        {
+                            if (occ[gx, gy]) { occ[gx, gy] = false; locked.RemoveAll(c => c.X == gx && c.Y == gy); }
+                            continue;
+                        }
+                        if (occ[gx, gy]) continue;
+                        occ[gx, gy] = true;
+                        locked.Add(new {ns}.Cell(gx, gy));
+                    }
+                }
+"""
 HITS_LINE = ('            global::System.Console.WriteLine("PROPERTY_HITS id=" + id + " rule=" + rule + " given=" + given\n'
              '                + " runs=" + runs.Count);\n')
 
@@ -658,6 +699,9 @@ def _model(ref, contract, start, report_hits=False):
                        for n, t in state.items())
     copies = "\n".join(f"            o.{n} = s.{n};" for n in state)
     hits_line = HITS_LINE if report_hits else ""
+    # start.gap_rows（v2r）：下から 0〜gap_rows 行を、1 マスの穴だけ残して埋める。書かなければ何も出さない（V2 の生成物は同じ）
+    gap_const = f"\n        const int GapRows = {start['gap_rows']};" if "gap_rows" in start else ""
+    gap_code = GAP_CODE.replace("{ns}", ns) if "gap_rows" in start else ""
     return f"""{HEADER}
 // 参照モデル（docs/design/v2_contract_foundry.md §4.1）。値は構造化仕様 §5 から名前で引いた。実装役には見せない。
 #nullable disable
@@ -766,7 +810,7 @@ namespace {NAMESPACE}
         public delegate int Check(Snapshot b, {ns}.TickInput i, Snapshot a, out string expected, out string actual);
 
         const {ns}.GamePhase StartPhase = {ns}.GamePhase.{start['phase']};
-        const int LockedMax = {start['locked_max']};
+        const int LockedMax = {start['locked_max']};{gap_const}
         // 前提の探索（Directed）：公開・非公開のシードと重ならない範囲から、最大 DirectedMax 個を順に試し、
         // 前提が成り立つ系列を DirectedCount 本まで足す
         const int DirectedBase = {DIRECTED_BASE};
@@ -812,7 +856,7 @@ namespace {NAMESPACE}
                     occ[x, y] = true;
                     locked.Add(new {ns}.Cell(x, y));
                 }}
-                // 半分は壁際から始める。壁や固定ブロックに当たる操作（移動の拒否・キック）を系列に含めるため
+{gap_code}                // 半分は壁際から始める。壁や固定ブロックに当たる操作（移動の拒否・キック）を系列に含めるため
                 int mx = rnd.Next(2) == 0
                     ? (rnd.Next(2) == 0 ? rnd.Next(-2, 1) : rnd.Next(PropertyModel.Width - 4, PropertyModel.Width))
                     : rnd.Next(-2, PropertyModel.Width);
@@ -980,7 +1024,7 @@ namespace {NAMESPACE}
 """
 
 
-def _check_method(p, contract, rows=None):
+def _check_method(p, contract, rows=None, start_phase=None):
     name = p["id"].replace("-", "_")
     given, _ = _Typer(contract, f"{p['id']}.given").emit(parse(p["given"], f"{p['id']}.given"))
     typer = _Typer(contract, f"{p['id']}.then")
@@ -1011,7 +1055,7 @@ def _check_method(p, contract, rows=None):
                   "            return 2;"]
     lines.append("        }")
     # 前提の探索（Directed）の材料：開始状態だけで評価する前提と、最初の手
-    pre, first = directed(p)
+    pre, first = directed(p, start_phase)
     # 抽出の宣言（sampling.start）があれば、開始状態の制約として前提に足す（v2.1f）
     pre = pre + sampling(p, rows or {})[0]
     pre_cs = " && ".join(_Typer(contract, f"{p['id']}.given").emit(c)[0] for c in pre) or "true"
@@ -1070,7 +1114,7 @@ def generate(decl, spec_text, gdd_text, interface, test_dir, tasks=None, report_
     checks = [HEADER, "#nullable disable", f"using ActiveMino = global::{testgen.CORE_NAMESPACE}.ActiveMino;", "",
               f"namespace {NAMESPACE}", "{", "    internal static class Checks", "    {"]
     for p in decl["properties"]:
-        checks += _check_method(p, contract, rows) + [""]
+        checks += _check_method(p, contract, rows, decl["start"]["phase"]) + [""]
     checks[-1:] = ["    }", "}", ""]
     files[f"{base}/Checks.cs"] = "\n".join(checks)
     wanted = tasks

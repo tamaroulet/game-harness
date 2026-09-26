@@ -86,9 +86,9 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def requirement(task):
+def requirement(task, req_dir=None):
     """要求文から見出しを除き、バッククォートを外す（単位定義の prompt はバッククォートの中身を検査する）。"""
-    text = (V1 / "requirements" / f"{task}.md").read_text(encoding="utf-8")
+    text = (Path(req_dir or V1 / "requirements") / f"{task}.md").read_text(encoding="utf-8")
     lines = text.strip().splitlines()
     title = re.sub(r"^#\s*T\d+：", "", lines[0]).strip()
     return title, "\n".join(lines[1:]).replace("`", "").strip()
@@ -102,8 +102,8 @@ def _prop_line(p):
     return f"- {p['id']}（{p['rule']}）：前提 {p['given']} のとき、{p['then']}"
 
 
-def unit_for(task, contract, props, impl_dir, template):
-    title, _ = requirement(task)
+def unit_for(task, contract, props, impl_dir, template, req_dir=None, id_prefix="v2"):
+    title, _ = requirement(task, req_dir)
     mine = [p for p in props["properties"] if p["task"] == task]
     # v2.3（N1）：自然言語の要求（要求・範囲・満足の基準）は渡さない。性質と同じことを二重に述べ、性質の無い仕様 ID を
     # 名指していた（56 のうち 13）。仕様は型（契約・interface）・性質・参照データに一元化し、自然言語は題名 1 行だけ
@@ -119,7 +119,7 @@ def unit_for(task, contract, props, impl_dir, template):
     unit = {k: template[k] for k in template if k not in ("id", "title", "prompt", "interface", "whitelist",
                                                           "impl_files", "acceptance", "task_kind")}
     wl = [f"{impl_dir}/{f}" for f in WHITELIST]
-    unit.update(id=f"v2_{task.lower()}", title=title, task_kind="property", prompt=prompt, interface=contract,
+    unit.update(id=f"{id_prefix}_{task.lower()}", title=title, task_kind="property", prompt=prompt, interface=contract,
                 whitelist=wl, impl_files=wl,
                 acceptance={"cases": [], "required_tests": [f"Properties{task}Cases.{p['id'].replace('-', '_')}_Public"
                                                              for p in mine]})
@@ -162,7 +162,15 @@ def generated(contract, props, spec_text, gdd_text, proj, tasks=None, report_hit
     return files
 
 
-def prepare():
+def prepare(out_dir=None, req_dir=None, task_ids=None, kind="v2"):
+    """マニフェストと単位定義・型紙を out_dir に書く。既定は V2（experiments/v2、b4_ab の要求文、T1〜T5）。
+
+    v2r（docs/design/v2r_protocol.md §11.3）：out_dir=experiments/v2r、req_dir=experiments/v2r/requirements、
+    task_ids=T1〜T10、kind="v2r"。v1 の単位定義の無いタスク（T6〜）は、v1 の最後のタスクの単位定義を型紙にする（性質・
+    interface・whitelist など v2 の項目は作り直すので、型紙から引き継ぐのは門の設定だけ）。v2r の生成物は、性質テストが
+    前提の成立回数を出す（report_hits）。
+    """
+    V2 = Path(out_dir or globals()["V2"])
     proj = project.load(PROJECT)
     imp = project.pipeline_config(proj)["implementer"]
     cfg = project.config("unit_schema")
@@ -176,10 +184,12 @@ def prepare():
     (V2 / "templates").mkdir(exist_ok=True)
     tasks = []
     ref_ids = set(reference(contract, props, spec_text, proj)[1])
-    for t in v1m["tasks"]:
-        template = json.loads((V1 / t["unit"]).read_text(encoding="utf-8"))
-        unit = unit_for(t["id"], contract, props, proj["impl_dir"], template)
-        kind, problems = unit_schema.check(json.dumps(unit, ensure_ascii=False).encode("utf-8"), read)
+    v1_units = {t["id"]: t["unit"] for t in v1m["tasks"]}
+    for tid in task_ids or [t["id"] for t in v1m["tasks"]]:
+        t = {"id": tid}
+        template = json.loads((V1 / v1_units.get(tid, v1m["tasks"][-1]["unit"])).read_text(encoding="utf-8"))
+        unit = unit_for(tid, contract, props, proj["impl_dir"], template, req_dir, kind)
+        _, problems = unit_schema.check(json.dumps(unit, ensure_ascii=False).encode("utf-8"), read)
         if problems:
             raise common.ABError(f"{t['id']} の単位定義がスキーマ門を通りません: {problems[:5]}")
         # 単位定義が参照する参照データは、すべて契約（GddReference）に定数としてあること（範囲の表記も展開して見る）
@@ -198,10 +208,12 @@ def prepare():
     for k, text in TEMPLATES.items():
         (V2 / "templates" / f"{k}.md").write_text(text, encoding="utf-8", newline="\n")
 
-    files = generated(contract, props, spec_text, gdd_text, proj)
+    files = generated(contract, props, spec_text, gdd_text, proj, report_hits=(kind == "v2r"))
     manifest = {
-        "schema": 1, "experiment": "v2", "kind": "v2",
-        "_comment": "v2 の A/B 実験の入力（docs/design/v2_contract_foundry.md §5.3）。harness/ab/v2prep.py が作る。手で編集しない",
+        "schema": 1, "experiment": kind, "kind": kind,
+        "_comment": ("v2 の A/B 実験の入力（docs/design/v2_contract_foundry.md §5.3）。harness/ab/v2prep.py が作る。手で編集しない"
+                     if kind == "v2" else
+                     "再実験 v2r の入力（docs/design/v2r_protocol.md）。python -m harness.ab.v2prep --kind v2r が作る。手で編集しない"),
         # 実装役のモデルは、走らせる設定（pipeline.json）から写す（v2.1c で思考の重さをモデル名で選ぶようにした）
         "base_commit": v1m["base_commit"], "gdd_sha256": v1m["gdd_sha256"],
         "implementer": {"cli": imp["cli"], "model": imp["model_name"]},
@@ -225,12 +237,23 @@ def prepare():
 
 
 def main(argv=None):
+    import argparse
+    ap = argparse.ArgumentParser(description="v2 / v2r の A/B 実験の入力（マニフェスト・単位定義・型紙）を作る")
+    ap.add_argument("--kind", choices=("v2", "v2r"), default="v2")
+    ap.add_argument("--out", help="既定は v2：experiments/v2、v2r：experiments/v2r")
+    ap.add_argument("--requirements", help="要求文の置き場（既定は v2：b4_ab、v2r：experiments/v2r/requirements）")
+    ap.add_argument("--tasks", nargs="+", help="タスクの ID（既定は v2：T1〜T5、v2r：T1〜T10）")
+    args = ap.parse_args(argv)
+    v2r_dir = common.ROOT / "experiments" / "v2r"
+    out = Path(args.out) if args.out else (V2 if args.kind == "v2" else v2r_dir)
+    req = args.requirements or (None if args.kind == "v2" else v2r_dir / "requirements")
+    tasks = args.tasks or (None if args.kind == "v2" else [f"T{i}" for i in range(1, 11)])
     try:
-        m = prepare()
+        m = prepare(out, req, tasks, args.kind)
     except common.ABError as e:
         print(f"ABORT: {e}")
         return exitcode.ABORT
-    print(f"書き出し: {V2 / 'tasks.json'}（タスク {len(m['tasks'])}、生成物 {len(m['generated_sha256'])}）")
+    print(f"書き出し: {out / 'tasks.json'}（タスク {len(m['tasks'])}、生成物 {len(m['generated_sha256'])}）")
     return 0
 
 
