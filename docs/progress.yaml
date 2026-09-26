@@ -396,7 +396,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_nlgen tests.test_v2r_tools tests.test_v2r_series
     expected_exit_code: 0
-  review_pr: https://github.com/tamaroulet/game-harness/pull/115
+  review_pr: https://github.com/tamaroulet/game-harness/pull/116
 - id: V2R-SMOKE
   title: 乾式の走行（天井の検査：A0 の欠陥が 1 件以上）と繰り返し R の決定（U5・U6）、Release への公開の通し（U7 の残り）
   group: B6
