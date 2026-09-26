@@ -29,7 +29,7 @@ class Series(unittest.TestCase):
     def test_the_manifest_is_a_v2r_manifest_of_ten_tasks(self):
         self.assertTrue(common.is_v2r(self.m))
         self.assertEqual([t["id"] for t in self.m["tasks"]], TASKS)
-        self.assertEqual(self.m["base_commit"], "87bdfdaf183cf220cf2b1e1f795f23bcca45d370")
+        self.assertEqual(self.m["base_commit"], "a037fd877422ceaf932349bb95fa863fd2407d4a")
 
     def test_every_task_has_a_requirement_and_two_or_more_properties(self):
         for t in TASKS:

@@ -162,7 +162,7 @@ def generated(contract, props, spec_text, gdd_text, proj, tasks=None, report_hit
     return files
 
 
-def prepare(out_dir=None, req_dir=None, task_ids=None, kind="v2"):
+def prepare(out_dir=None, req_dir=None, task_ids=None, kind="v2", base_commit=None):
     """マニフェストと単位定義・型紙を out_dir に書く。既定は V2（experiments/v2、b4_ab の要求文、T1〜T5）。
 
     v2r（docs/design/v2r_protocol.md §11.3）：out_dir=experiments/v2r、req_dir=experiments/v2r/requirements、
@@ -175,7 +175,8 @@ def prepare(out_dir=None, req_dir=None, task_ids=None, kind="v2"):
     imp = project.pipeline_config(proj)["implementer"]
     cfg = project.config("unit_schema")
     v1m = json.loads((V1 / "tasks.json").read_text(encoding="utf-8"))
-    read = unit_schema.git_reader(proj["repo_dir"], v1m["base_commit"], 120)
+    base = base_commit or v1m["base_commit"]
+    read = unit_schema.git_reader(proj["repo_dir"], base, 120)
     spec_text, gdd_text = read(cfg["spec_path"]), read(cfg["gdd_path"])
     contract = json.loads((V2 / "contract.json").read_text(encoding="utf-8"))
     props = json.loads((V2 / "properties.json").read_text(encoding="utf-8"))
@@ -215,7 +216,7 @@ def prepare(out_dir=None, req_dir=None, task_ids=None, kind="v2"):
                      if kind == "v2" else
                      "再実験 v2r の入力（docs/design/v2r_protocol.md）。python -m harness.ab.v2prep --kind v2r が作る。手で編集しない"),
         # 実装役のモデルは、走らせる設定（pipeline.json）から写す（v2.1c で思考の重さをモデル名で選ぶようにした）
-        "base_commit": v1m["base_commit"], "gdd_sha256": v1m["gdd_sha256"],
+        "base_commit": base, "gdd_sha256": v1m["gdd_sha256"],
         "implementer": {"cli": imp["cli"], "model": imp["model_name"]},
         "max_attempts": v1m["max_attempts"], "invariant_seeds": v1m["invariant_seeds"],
         "contract": "contract.json", "contract_sha256": sha(V2 / "contract.json"),
@@ -243,13 +244,14 @@ def main(argv=None):
     ap.add_argument("--out", help="既定は v2：experiments/v2、v2r：experiments/v2r")
     ap.add_argument("--requirements", help="要求文の置き場（既定は v2：b4_ab、v2r：experiments/v2r/requirements）")
     ap.add_argument("--tasks", nargs="+", help="タスクの ID（既定は v2：T1〜T5、v2r：T1〜T10）")
+    ap.add_argument("--base-commit", help="ゲームの base commit（既定は v1 の base_commit）")
     args = ap.parse_args(argv)
     v2r_dir = common.ROOT / "experiments" / "v2r"
     out = Path(args.out) if args.out else (V2 if args.kind == "v2" else v2r_dir)
     req = args.requirements or (None if args.kind == "v2" else v2r_dir / "requirements")
     tasks = args.tasks or (None if args.kind == "v2" else [f"T{i}" for i in range(1, 11)])
     try:
-        m = prepare(out, req, tasks, args.kind)
+        m = prepare(out, req, tasks, args.kind, base_commit=args.base_commit)
     except common.ABError as e:
         print(f"ABORT: {e}")
         return exitcode.ABORT

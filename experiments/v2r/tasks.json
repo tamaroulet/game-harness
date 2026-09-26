@@ -3,7 +3,7 @@
   "experiment": "v2r",
   "kind": "v2r",
   "_comment": "再実験 v2r の入力（docs/design/v2r_protocol.md）。python -m harness.ab.v2prep --kind v2r が作る。手で編集しない",
-  "base_commit": "87bdfdaf183cf220cf2b1e1f795f23bcca45d370",
+  "base_commit": "a037fd877422ceaf932349bb95fa863fd2407d4a",
   "gdd_sha256": "95876782072ebf6a973781f2921e6abe4d2cead5519a09f673fe380991feb7a7",
   "implementer": {
     "cli": "agy",

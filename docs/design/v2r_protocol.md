@@ -284,12 +284,12 @@
 | # | 項目 | 閉じ方 |
 |:--|:--|:--|
 | U1 | NUnit と関連パッケージの版 | **閉じた**（2026-09-26）：人間が `python -m harness.envcheck --test-packages` で取った値を `config/environment.json` の `test_packages` に固定した。取得の途中で見つけた欠陥（日本語の Windows で dotnet の出力を CP932 で読めず UnicodeDecodeError）も直した |
-| U2 | Stryker.NET が falling-blocks の構成（NUnit）で動くこと、その版 | **版と導入は閉じた**（2026-09-26）：5.0.0 は NuGet のパッケージの不備（`DotnetToolSettings.xml` が無い）で導入できなかったので、1 つ前の安定版 4.16.0 を人間が導入し、`config/environment.json` に固定した。`harness/envcheck.py` の照合も `dotnet tool list -g` の表を読むように直した（`dotnet stryker --version` は引数エラーで実測値が取れなかった）。**残り**：乾式で 1 タスク分を `experiments/v2r/tools/mutation.py run` で実行する（V2R-4）。動かなければ代わりの変異の方法を本書の改訂で決める |
+| U2 | Stryker.NET が falling-blocks の構成（NUnit）で動くこと、その版 | **閉じた**（2026-09-26）：5.0.0 は NuGet パッケージ不備のため安定版 4.16.0 を固定。falling-blocks に `src/Core/Core.csproj` を新設してテストと分離（PR #20、`a037fd8`）、`experiments/v2r/tools/mutation.py` に `--project Core.csproj` を渡すことで実機実行に成功。73 変異生成、57 変異中 41 変異を検出し死滅率 71.9%（41/57、所要約 40 秒）。`mutation.py summarize` での集計配管まで通しを確認した。死滅率 71.9% はタスク前の main による参考値であり、T1 の性質テストのオラクル有効性（閾値 80%）は V2R-SMOKE で T1 の終わりの実装で正式に測り直す |
 | U3 | レートリミットのときの agy のエラーの文字列 | agy の出力の実例、または agy の文書で確かめる。確かめられなければ「status が ERROR で手番の利用量が 0」を一時的な失敗とみなす規則に改訂する |
 | U4 | 描画器の対応表の査読 | 別の PR で人間が査読して凍結。査読用の全文と sha256（`959aedeb…f60047`）は `docs/design/v2r_nlgen_table.md`、`tests/test_nlgen.py` が sha256 を固定する。**その PR のマージで閉じる**（エージェントは承認しない） |
 | U5 | タスクの系列と天井の検査 | 系列（T1〜T10）と性質の宣言・契約・マニフェストは作った（§15）。天井の検査（乾式の走行で A0 の欠陥が 1 件以上）が残る |
 | U6 | 繰り返し R | 乾式の走行のばらつきから決め、人間が承認 |
-| U7 | Release への公開と、第三者の手順での再現 | 乾式の走行の出力で、pack → Release → verify → 集計を一度通す |
+| U7 | Release への公開と、第三者の手順での再現 | **ローカルの通しは済み**（2026-09-26）：V2-RUN の記録（v2-run-01〜04）で `pack.py` → `verify.py --extract` を通した。572 ファイル・4,255,570 バイト、verify は「合格」、展開は 572 ファイル。同じ入力から 2 回作ったアーカイブの sha256 が一致（決定論）。1 バイトを変えたアーカイブは verify が不合格にした。**残り**：乾式の走行の出力で、Release への公開 → 取得 → verify → 集計を一度通す（公開は人間の承認の後） |
 
 ## 14. 手順
 
