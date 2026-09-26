@@ -94,14 +94,14 @@ def own_state(conversation_id):
 
 
 def parse(text, workdir=None):
-    """stream-json の出力 → {"conversation_id", "response", "usage", "steps", "complete"}。
+    """stream-json の出力 → {"conversation_id", "model", "response", "usage", "steps", "complete", "outcome"}。
 
     workdir を渡すと、道具の手番に「作業場所の外を指したか」（outside）を付ける。
 
     usage は telemetry と同じキー（input_tokens・output_tokens・cache_read_tokens・total_tokens）に、
     thinking_tokens・model_steps（利用量を持つ手番の数）・partial（result が無く、手番の足し込みで下限）を足す。
     """
-    conv, result, steps, reply = None, None, {}, []
+    conv, result, steps, reply, model = None, None, {}, [], None
     for line in (text or "").splitlines():
         line = line.strip()
         if not line.startswith("{"):
@@ -113,6 +113,8 @@ def parse(text, workdir=None):
         ev = e.get("event")
         if ev == "init":
             conv = e.get("conversation_id") or (e.get("init") or {}).get("conversation_id") or conv
+            # agy が実際に使うモデル（harness/model_pin.py で設定のモデルと照合する。2026-09-26 の是正）
+            model = (e.get("init") or {}).get("model") or model
         elif ev == "step_update":
             su = e.get("step_update") or {}
             conv = su.get("conversation_id") or conv
@@ -162,7 +164,7 @@ def parse(text, workdir=None):
         usage["partial"] = True
     usage.update(format="agy-stream", cache_creation_tokens=None, cost_usd=None, model_steps=len(with_usage),
                  lost_steps=sum(1 for s in ordered if s.get("state") not in ("DONE", None) and not s.get("usage")))
-    return {"conversation_id": conv, "response": (result or {}).get("response") or "".join(reply),
+    return {"conversation_id": conv, "model": model, "response": (result or {}).get("response") or "".join(reply),
             "usage": usage, "steps": ordered, "complete": result is not None, "outcome": outcome(result, ordered)}
 
 

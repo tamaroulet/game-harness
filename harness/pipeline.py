@@ -36,6 +36,7 @@ import implementer_context
 import narrow_dir
 import fileops
 import invrun
+import model_pin
 import oracle
 import os
 import project
@@ -519,6 +520,14 @@ def call_implementer(c, feedback=""):
         written = narrow_dir.write_back(narrow, c.sandbox, placed)
         narrow_dir.discard(narrow)
     parsed = agy_stream.parse(out, workdir) if stream else None
+    reported = None
+    if stream and (parsed["conversation_id"] or parsed["steps"]):
+        # agy が動いた呼び出しは、使ったモデルを記録し、設定と照合する（harness/model_pin.py）
+        try:
+            reported = model_pin.check_reported(imp["model_name"], parsed["model"], "実装役")
+        except model_pin.ModelPinError as e:
+            write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err, cwd=workdir)
+            sys.exit(f"ABORT: {e}")
     c.last_implementer_out = parsed["response"] if stream else (out or "")
     c.last_implementer_err = err or ""
     write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err, cwd=workdir)
@@ -534,6 +543,7 @@ def call_implementer(c, feedback=""):
             # 手番ごとの種類・道具・秒・利用量（ファイルの中身や本文は残さない）
             c.cur["implementer"]["steps"] = parsed["steps"]
             c.cur["implementer"]["outcome"] = parsed["outcome"]
+            c.cur["implementer"]["model"] = reported
             c.cur["implementer"]["prompt_chars"] = len(prompt)
             c.cur["implementer"]["prompt_parts"] = parts
         if narrow:
@@ -2069,6 +2079,11 @@ def main():
                    implementer={"cli": imp["cli"], "model_name": imp["model_name"]})
         for key, cwd in (("harness_sha", project.ROOT), ("repo_head", c.repo)):
             telemetry.put(tel, key, git_head(cwd, c.ttl["git"]), f"git rev-parse が失敗: {cwd}")
+        # 起動の時点で、実装役のモデルの明示と、使ったモデルを記録できる出力形式を確かめる（harness/model_pin.py）
+        try:
+            model_pin.require_implementer(imp, f"projects/{args.project}/pipeline.json の implementer")
+        except model_pin.ModelPinError as e:
+            sys.exit(f"ABORT: {e}")
         require_unit_safe(c)
         apply_contract(c)
         require_unit_schema(c, unit_path.read_bytes())

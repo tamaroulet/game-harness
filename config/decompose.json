@@ -4,6 +4,11 @@
   "cli": "claude",
   "headless_flag": "-p",
 
+  "_model_note": "モデルを明示する（2026-09-26 の是正。CLI の既定のモデルには頼らない。harness/model_pin.py）。構造化役（config/spec.json）と同じモデル。呼び出しのたびに CLI の JSON の modelUsage で、このモデルが実際に使われ、ほかは auxiliary_models だけであることを確かめ、使われたモデルを記録する。報告が無い・違うときは止める。v2 の事前投資（experiments/v2/results/precost.json）はこの設定の前で、モデルは記録されていない",
+  "model_flag": "--model",
+  "model": "claude-opus-5",
+  "auxiliary_models": ["claude-haiku-"],
+
   "_flags_note": "読み取りだけを許す。書き込み系を渡さないので、分解役はファイルを直接作れない。JSON を返させ、書き出しは decompose.py が検査を通してから行う。plan モードは対話的な計画提示に寄るため使わない",
   "extra_flags": ["--allowedTools", "Read,Grep,Glob"],
 

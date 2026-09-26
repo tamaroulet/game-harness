@@ -284,19 +284,19 @@ M = [
     ('M92 LLM が書いたメタデータを残す', "spec.py",
      '    while lines and (META_LINE_RE.match(lines[0]) or not lines[0].strip()):',
      '    while lines and not lines[0].strip():'),
-    ('M93 使われたモデルを照合しない', "spec.py",
-     '    if used is None:\n        return',
-     '    if True:\n        return'),
-    ('M134 内部処理用の許可を全モデルに広げる', "spec.py",
+    ('M93 使われたモデルを照合しない', "model_pin.py",
+     '    if used is None:\n        raise ModelPinError(',
+     '    if False:\n        raise ModelPinError('),
+    ('M134 内部処理用の許可を全モデルに広げる', "model_pin.py",
      '    stray = [m for m in models if not m.startswith(cfg["model"]) and not m.startswith(aux)]',
      '    stray = []'),
-    ('M135 固定したモデルが使われていなくても通す', "spec.py",
+    ('M135 固定したモデルが使われていなくても通す', "model_pin.py",
      '    if not any(m.startswith(cfg["model"]) for m in models):',
      '    if False:'),
-    ('M137 許す接頭辞の既定値をコードに持つ', "spec.py",
+    ('M137 許す接頭辞の既定値をコードに持つ', "model_pin.py",
      '    aux = cfg.get("auxiliary_models")',
      '    aux = cfg.get("auxiliary_models") or ["claude-haiku-"]'),
-    ('M138 固定モデルを飲み込む接頭辞を許す', "spec.py",
+    ('M138 固定モデルを飲み込む接頭辞を許す', "model_pin.py",
      '    bad = [x for x in aux if cfg["model"].startswith(x)]',
      '    bad = []'),
     ('M136 生の応答を残さない', "spec.py",
@@ -447,8 +447,8 @@ M = [
 M_PIPELINE = [
     # ---- 実装役の観測（docs/design/spec_pipeline.md）
     ('M144 実装役のログを rc != 0 のときだけ書く', 'pipeline.py',
-     '    write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err, cwd=workdir)',
-     '    if rc != 0:\n        write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err, cwd=workdir)'),
+     '\n    write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err, cwd=workdir)',
+     '\n    if rc != 0:\n        write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, out, err, cwd=workdir)'),
     # ---- required_symbols の照合（docs/design/spec_pipeline.md）
     # 置換元は 1 行に収める。mutate.py は対象をバイト列で読むので、CRLF のファイルでは
     # 複数行の置換元が当たらない（表の検査は改行を正規化して読むため素通りしてしまう）

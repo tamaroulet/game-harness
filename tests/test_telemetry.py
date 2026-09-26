@@ -266,7 +266,8 @@ class DecomposeEnvelopeTests(unittest.TestCase):
             cfg = {"prompt_file": str(Path(d) / "p.md"), "cli": "claude", "headless_flag": "-p",
                    "prompt_arg_template": "{prompt_file}", "extra_flags": [],
                    "output_format_args": ["--output-format", "json"], "usage_format": "claude",
-                   "response_key": "result", "ttl_seconds": {"claude": 1}}
+                   "response_key": "result", "ttl_seconds": {"claude": 1},
+                   "model_flag": "--model", "model": "claude-opus-5", "auxiliary_models": ["claude-haiku-"]}
             with mock.patch.object(decompose, "CFG", cfg), \
                     mock.patch.object(decompose, "TEL", {}) as tel, \
                     mock.patch.object(decompose, "resolve_cli", return_value="claude"), \
@@ -277,10 +278,18 @@ class DecomposeEnvelopeTests(unittest.TestCase):
                     return e, tel, run.call_args[0][0]
 
     def test_result_is_unwrapped_and_usage_recorded(self):
-        text, tel, args = self.call(CLAUDE_JSON)
+        text, tel, args = self.call(CLAUDE_JSON[:-1] + ', "modelUsage": {"claude-opus-5": {"outputTokens": 4}}}')
         self.assertEqual(text, "OK")
         self.assertEqual(args[-2:], ["--output-format", "json"])
         self.assertEqual(tel["usage"]["total_tokens"], 29560)
+        self.assertEqual(args[3:5], ["--model", "claude-opus-5"], "モデルを明示して呼ぶ")
+        self.assertEqual(tel["calls"][-1]["models_used"], ["claude-opus-5"], "使われたモデルを記録する")
+
+    def test_an_unreported_model_is_an_environment_abort(self):
+        """modelUsage が無い（どのモデルが書いたか記録できない）なら止める。"""
+        err, tel, _ = self.call(CLAUDE_JSON)
+        self.assertIsInstance(err, SystemExit)
+        self.assertIn("記録できません", str(err.code))
 
     def test_unreadable_envelope_is_an_environment_abort(self):
         err, tel, _ = self.call('```json\n{"id": "x"}\n```')

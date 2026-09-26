@@ -35,8 +35,13 @@ def response(spec_doc=None, q_doc=None):
     return f"<<<SPEC_MD\n{s.rstrip()}\nSPEC_MD>>>\n<<<QUESTIONS_MD\n{q.rstrip()}\nQUESTIONS_MD>>>\n"
 
 
+PINNED = object()   # 既定：固定したモデル（config/spec.json の model）だけを報告する。None は modelUsage を報告しない版
+
+
 class FakeCli:
-    def __init__(self, texts, rc=0, envelope=None, models=None):
+    def __init__(self, texts, rc=0, envelope=None, models=PINNED):
+        if models is PINNED:
+            models = [project.config("spec")["model"]]
         self.texts = list(texts)
         self.rc, self.envelope, self.models = rc, envelope, models
         self.calls, self.prompts = [], []
@@ -185,13 +190,11 @@ class ModelTests(Base):
         self.assertIsNone(att.get("models_used_null_reason"))
         self.assertEqual(att["model_usage"]["claude-opus-5"], {"outputTokens": 20})
 
-    def test_a_cli_without_model_usage_is_recorded_as_unknown_not_empty(self):
-        """modelUsage を報告しない CLI の版。判定材料が無いことを 0 件と混ぜない。"""
+    def test_a_cli_without_model_usage_stops(self):
+        """modelUsage を報告しない CLI の版。どのモデルで書いたかを記録できないので止める（2026-09-26 の是正）。"""
         fake = FakeCli([response()], models=None)
-        self.assertEqual(self.main(fake), 0)
-        att = self.telemetry()["attempts"][0]
-        self.assertIsNone(att["models_used"])
-        self.assertIn("modelUsage", att["models_used_null_reason"])
+        self.assertEqual(self.main(fake), 2)
+        self.assertFalse(self.out.exists())
 
     def test_the_raw_cli_response_is_kept_for_every_attempt(self):
         """モデルの判定で止まっても、誰が何を書いたかを後から追えるようにする。"""

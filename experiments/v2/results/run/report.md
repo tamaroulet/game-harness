@@ -39,7 +39,7 @@
 | 実装役（A・B 共通） | CLI `agy`、モデル `gemini-3.8-flash-medium`（思考の重さはモデル名の medium で選ぶ。`--effort` は使わない）、`--output-format stream-json`、`--sandbox`、`--dangerously-skip-permissions` | `projects/falling-blocks/pipeline.json` の `implementer`、`experiments/v2/tasks.json` の `implementer` |
 | 実装役の TTL | 300 秒。agy の `--print-timeout` は TTL の 20 秒前（280 秒）を自動で付ける | `projects/falling-blocks/pipeline.json` の `ttl_seconds.implementer` と `_stream_note` |
 | 試行の上限 | `max_attempts` 3。呼び出しの上限は A・B とも 9（試行 3 × 内側ループ 3） | `tasks.json`、`harness/ab/driver.py` の `call_budget` |
-| 仕様分解役（事前投資の宣言） | CLI `claude` の既定のモデル、道具なし。**モデル名は記録なし**（`precost.json` の `model_note` は「config/decompose.json の cli の既定のモデル」） | `experiments/v2/results/precost.json`、`config/decompose.json` |
+| 仕様分解役（事前投資の宣言） | CLI `claude` の既定のモデル、道具なし。**モデル名は記録なし**（`precost.json` の `model_note` は「config/decompose.json の cli の既定のモデル」）。これを欠陥として、2026-09-26 以降は `config/decompose.json` に `--model claude-opus-5` を明示し、使われたモデルを precost.json・テレメトリに記録して照合する（`harness/model_pin.py`）。V2-4 の事前投資のモデルは遡って特定できない | `experiments/v2/results/precost.json`、`config/decompose.json` |
 | 測定 | 非公開シード 20 本（`measure_hidden_seeds`）、不変条件のシード [11, 22, 33] | `tasks.json` |
 | 監視（guard） | `python -u -m harness.ab.guard v2-run-01 v2-run-02 v2-run-03 v2-run-04 --limit-usd 5 --midpoint-usd 2.5`（人間の承認、2026-09-26）。実装役のログを 15 秒ごとに読み、止める条件に当たればドライバを止める。止める条件・警告とも 0 回。guard が数えた費用の合計 2.8445 USD | `harness/ab/guard.py`、guard のログ |
 

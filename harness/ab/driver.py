@@ -27,6 +27,7 @@ if str(_HARNESS) not in sys.path:
 import agy_stream  # noqa: E402
 import exitcode  # noqa: E402
 import implementer_context  # noqa: E402
+import model_pin  # noqa: E402
 import narrow_dir  # noqa: E402
 import pipeline  # noqa: E402
 import propgen  # noqa: E402
@@ -72,7 +73,7 @@ def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run):
         parsed = agy_stream.parse(out, cwd)
         return {"rc": rc, "seconds": round(time.monotonic() - t0, 1),
                 "conversation_id": parsed["conversation_id"] or conversation_id, "usage": parsed["usage"],
-                "steps": parsed["steps"], "outcome": parsed["outcome"], "out": out, "err": err}
+                "steps": parsed["steps"], "outcome": parsed["outcome"], "model": parsed["model"], "out": out, "err": err}
     args = resolve_cli(imp["cli"]) + [imp["headless_flag"], prompt, imp["auto_approve_flag"],
                                       imp["model_flag"], imp["model_name"]] + imp.get("output_format_args", [])
     if conversation_id:
@@ -201,13 +202,20 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast, jud
         parts["protocol"] = len(tool_policy.text())
         prompt += "\n\n" + tool_policy.text()
         r = call(ctx["imp"], prompt, workdir, state.get("conversation_id"), ctx["ttl"])
+        if agy_stream.is_stream(ctx["imp"]) and (r.get("conversation_id") or r.get("steps")):
+            # 使ったモデルを設定と照合する。報告が無い・違うなら止める（harness/model_pin.py）
+            try:
+                model_pin.check_reported(ctx["imp"]["model_name"], r.get("model"), "実装役（条件 A）")
+            except model_pin.ModelPinError as e:
+                raise common.ABError(str(e))
         written = None
         if narrow:
             written = narrow_dir.write_back(narrow, wt, placed)
             narrow_dir.discard(narrow)
         state["conversation_id"] = r["conversation_id"]
         calls.append({"attempt": attempt, "rc": r["rc"], "seconds": r["seconds"], "usage": r["usage"],
-                      "steps": r.get("steps"), "outcome": r.get("outcome"), "prompt_chars": len(prompt),
+                      "steps": r.get("steps"), "outcome": r.get("outcome"), "model": r.get("model"),
+                      "prompt_chars": len(prompt),
                       "prompt_parts": parts})
         if narrow:
             calls[-1]["narrow_written"] = written
@@ -261,7 +269,7 @@ def failing_names(results):
     return None if results is None else sorted(n for n, o in results.items() if o != "Passed")
 
 
-CALL_RECORD = ("attempt", "rc", "seconds", "prompt_chars", "prompt_parts", "outcome")
+CALL_RECORD = ("attempt", "rc", "seconds", "model", "prompt_chars", "prompt_parts", "outcome")
 
 
 def call_records(calls):
@@ -317,6 +325,11 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
     units = [common.unit_of(m, t) for t in m["tasks"]]
     proj = project.load(PROJECT)
     cfg = project.pipeline_config(proj)
+    # 起動の時点で、実装役のモデルの明示と、使ったモデルを記録できる出力形式を確かめる（harness/model_pin.py）
+    try:
+        model_pin.require_implementer(cfg["implementer"], f"projects/{PROJECT}/pipeline.json の implementer")
+    except model_pin.ModelPinError as e:
+        raise common.ABError(str(e))
     p = common.paths(run_id, condition, wt_root, out_root)
     if p["wt"].exists():
         raise common.ABError(f"worktree が既にあります。先に cleanup してください: {p['wt']}")
@@ -371,7 +384,10 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
                 # seconds は条件の仕事（実装役と B の門）だけ。測定器は両条件に同じなので別に数える
                 "seconds": seconds, "seconds_measure": round(time.monotonic() - t1, 1), "detail": {k: v for k, v in rec.items() if k != "calls"},
                 # 呼び出しごとの字数・要素の字数・終わり方（v2.3、N7。v2-smoke-05 まで A の分はどこにも残っていなかった）
-                "calls": call_records(rec["calls"])}
+                "calls": call_records(rec["calls"]),
+                # 要求したモデルと、呼び出しで報告されたモデル（2026-09-26 の是正。harness/model_pin.py）
+                "model": {"requested": ctx["imp"]["model_name"],
+                          "reported": sorted({c["model"] for c in rec["calls"] if c.get("model")})}}
         # 最初の提出（門を通す前）を、同じ測定器・同じ非公開シードで測る（V2-6。実装役には知らせない）
         first = measure_first(ctx, proj, run_id, condition, task, start, prev, env, decl, p["out"], wt_root)
         if first is not None:

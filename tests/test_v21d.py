@@ -111,7 +111,7 @@ class Relocate(unittest.TestCase):
 
         def call(imp, prompt, cwd, cid, ttl):
             prompts.append(prompt)
-            return {"rc": 0, "seconds": 1.0, "conversation_id": "c", "usage": {}, "out": "", "err": ""}
+            return {"rc": 0, "seconds": 1.0, "conversation_id": "c", "model": "m", "usage": {}, "out": "", "err": ""}
 
         # V2-6 からは、再試行の知らせは判定（pipeline.judge）の知らせ。そこに出るパスも置き換える
         def judge(n):
@@ -130,7 +130,7 @@ class OwnState(unittest.TestCase):
         own = agy_stream.AGY_BRAIN / "conv-1" / ".system_generated" / "logs" / "t.md"
         other = agy_stream.AGY_BRAIN / "conv-2" / ".system_generated" / "logs" / "t.md"
         out = "\n".join([
-            json.dumps({"event": "init", "conversation_id": "conv-1"}),
+            json.dumps({"event": "init", "conversation_id": "conv-1", "init": {"model": "m"}}),
             tool_step(1, AbsolutePath=str(own)), tool_step(2, AbsolutePath=str(other))])
         steps = {s["index"]: s for s in agy_stream.parse(out, wd)["steps"]}
         self.assertFalse(steps[1]["outside"])
