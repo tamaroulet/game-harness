@@ -44,6 +44,7 @@ import project
 import propgen
 import telemetry
 import testgen
+import transient
 import tool_policy
 import unit_schema
 from proc import resolve_cli, run
@@ -384,7 +385,7 @@ def implementer_log_dir(c):
     return c.tel_path.parent if c.tel_path is not None else c.out
 
 
-def write_implementer_log(c, n, prompt, rc, out, err, cwd=None):
+def write_implementer_log(c, n, prompt, rc, out, err, cwd=None, suffix=None):
     """実装役に渡した指示と返ってきた生出力を、試行ごとにそのまま残す。
 
     **rc == 0 でも捨てない。** 実装役が「なぜ書かなかったか」を書くのは応答本文だけで、
@@ -416,6 +417,9 @@ def write_implementer_log(c, n, prompt, rc, out, err, cwd=None):
     # v2-dry-04 の B は 3 回呼んで、最後の 1 回分しか残っていなかった）
     k = len((c.cur or {}).get("implementer_calls", [])) + 1 if isinstance(getattr(c, "cur", None), dict) else 1
     path = implementer_log_dir(c) / (f"implementer_attempt_{n}.log" if k == 1 else f"implementer_attempt_{n}_call{k}.log")
+    if suffix:
+        # 一時的な失敗の呼び出し（harness/transient.py）。guard はこれも費用に数える
+        path = path.with_name(f"{path.stem}_{suffix}.log")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(body, encoding="utf-8")
@@ -424,6 +428,17 @@ def write_implementer_log(c, n, prompt, rc, out, err, cwd=None):
         return None
     print(f"    実装役の応答: {path}")
     return path
+
+
+def record_transients(c, prompt, workdir, retries):
+    """一時的な失敗の呼び出しの記録（利用量・理由・待った秒）。生の出力はそれぞれ別のログに残す。"""
+    out = []
+    for j, r in enumerate(retries, start=1):
+        rc, raw, err, parsed = r["result"]
+        write_implementer_log(c, c.metrics.get("attempt", 0), prompt, rc, raw, err, cwd=workdir, suffix=f"transient{j}")
+        out.append({"rc": rc, "reason": r["reason"], "wait": r["wait"], "usage": parsed["usage"],
+                    "outcome": parsed["outcome"]})
+    return out
 
 
 def call_implementer(c, feedback=""):
@@ -518,9 +533,27 @@ def call_implementer(c, feedback=""):
         # 利用量を取るための出力形式。無ければ利用量は不明（null）として記録するだけで、判定は変えない。
         args += imp.get("output_format_args", [])
     t0 = time.monotonic()
+    transients = []
     if stream:
-        # プロンプトは標準入力で渡す（Windows のコマンドラインの長さの上限。agy_stream.args）
-        rc, out, err = run(args, workdir, c.ttl["implementer"], "実装AI", input=agy_stream.stdin_for(imp, prompt))
+        # プロンプトは標準入力で渡す（Windows のコマンドラインの長さの上限。agy_stream.args）。
+        # レートリミット・一時的な失敗は 60・120・240 秒で呼び直す。呼び直しは呼び出しの上限に数えない（harness/transient.py）
+        def once():
+            r = run(args, workdir, c.ttl["implementer"], "実装AI", input=agy_stream.stdin_for(imp, prompt))
+            return r + (agy_stream.parse(r[1], workdir),)
+        try:
+            (rc, out, err, _), retries = transient.with_backoff(once, lambda r: transient.classify(r[3]["outcome"]))
+        except transient.TransientFailure as e:
+            retries, (rc, out, err, _) = e.retries, e.retries[-1]["result"]
+            transients = record_transients(c, prompt, workdir, retries)
+            if c.cur is not None:
+                c.cur["implementer"] = {"rc": rc, "seconds": round(time.monotonic() - t0, 1), "usage": None,
+                                        "transient": transients, "transient_abort": True}
+            if isinstance(getattr(c, "tel", None), dict):
+                c.tel["transient_abort"] = str(e)
+            if narrow:
+                narrow_dir.discard(narrow)
+            sys.exit(f"ABORT: {e}（この繰り返しを止めます。docs/design/v2r_protocol.md §10）")
+        transients = record_transients(c, prompt, workdir, retries)
     else:
         rc, out, err = run(args, workdir, c.ttl["implementer"], "実装AI")
     written = None
@@ -554,6 +587,9 @@ def call_implementer(c, feedback=""):
             c.cur["implementer"]["model"] = reported
             c.cur["implementer"]["prompt_chars"] = len(prompt)
             c.cur["implementer"]["prompt_parts"] = parts
+            if transients:
+                # 一時的な失敗の呼び出し（費用に数える。呼び出しの上限には数えない。harness/transient.py）
+                c.cur["implementer"]["transient"] = transients
         if narrow:
             # 細い作業場所から書き戻したファイル（パスだけ。v2.1c）
             c.cur["implementer"]["narrow_written"] = written
