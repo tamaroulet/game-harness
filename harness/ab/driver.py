@@ -30,6 +30,7 @@ import exitcode  # noqa: E402
 import implementer_context  # noqa: E402
 import model_pin  # noqa: E402
 import narrow_dir  # noqa: E402
+import nlgen  # noqa: E402
 import pipeline  # noqa: E402
 import propgen  # noqa: E402
 import project  # noqa: E402
@@ -38,7 +39,7 @@ import testgen  # noqa: E402
 import tool_policy  # noqa: E402
 import transient  # noqa: E402
 from adapters import dotnet  # noqa: E402
-from ab import common, measure  # noqa: E402
+from ab import common, measure, v2r  # noqa: E402
 from proc import resolve_cli, run  # noqa: E402
 
 PROJECT = "falling-blocks"
@@ -75,7 +76,8 @@ def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run):
         parsed = agy_stream.parse(out, cwd)
         return {"rc": rc, "seconds": round(time.monotonic() - t0, 1),
                 "conversation_id": parsed["conversation_id"] or conversation_id, "usage": parsed["usage"],
-                "steps": parsed["steps"], "outcome": parsed["outcome"], "model": parsed["model"], "out": out, "err": err}
+                "steps": parsed["steps"], "outcome": parsed["outcome"], "model": parsed["model"],
+                "cache": parsed["cache"], "token_problems": parsed["token_problems"], "out": out, "err": err}
     args = resolve_cli(imp["cli"]) + [imp["headless_flag"], prompt, imp["auto_approve_flag"],
                                       imp["model_flag"], imp["model_name"]] + imp.get("output_format_args", [])
     if conversation_id:
@@ -203,23 +205,8 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast, jud
             parts["retry"] = len(prompt)
         parts["protocol"] = len(tool_policy.text())
         prompt += "\n\n" + tool_policy.text()
-        # レートリミット・一時的な失敗は 60・120・240 秒で呼び直す。呼び直しは呼び出しの上限に数えない（harness/transient.py）
-        try:
-            r, retries = transient.with_backoff(
-                lambda: call(ctx["imp"], prompt, workdir, state.get("conversation_id"), ctx["ttl"]),
-                lambda x: transient.classify(x.get("outcome")))
-        except transient.TransientFailure as e:
-            log_transients(out, task, attempt, prompt, e.retries)
-            if narrow:
-                narrow_dir.discard(narrow)
-            raise common.ReplicateStop(f"{task['id']} の試行 {attempt}: {e}")
-        transients = log_transients(out, task, attempt, prompt, retries)
-        if agy_stream.is_stream(ctx["imp"]) and (r.get("conversation_id") or r.get("steps")):
-            # 使ったモデルを設定と照合する。報告が無い・違うなら止める（harness/model_pin.py）
-            try:
-                model_pin.check_reported(ctx["imp"]["model_name"], r.get("model"), "実装役（条件 A）")
-            except model_pin.ModelPinError as e:
-                raise common.ABError(str(e))
+        r, transients = checked_call(ctx, call, prompt, workdir, state.get("conversation_id"), task, attempt, narrow,
+                                     "実装役（条件 A）")
         written = None
         if narrow:
             written = narrow_dir.write_back(narrow, wt, placed)
@@ -266,6 +253,78 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast, jud
     return {"attempts": len(calls), "accepted": accepted, "calls": calls}
 
 
+# ============================================================ v2r の 4 条件（docs/design/v2r_protocol.md §1）
+
+def run_task_v2r(ctx, task, unit, state, call=agy_call, judge=None):
+    """v2r の 1 タスク（A0・A1・B-G・B）。全条件ステートレス。{"attempts", "accepted", "calls", "factors"}。
+
+    ctx["v2r"] = {"form": "nl" | "formal", "gate": bool}（ab.v2r.factors）。門ありは、呼び出しの後に B と同じ検査の列
+    （pipeline.judge）を通し、落ちたら知らせを付けて呼び直す（最大 call_budget 回）。自然言語の条件は、知らせの性質の行に
+    自然言語の文を添える（nlgen.annotate_feedback）。門なしは 1 回だけ呼び、そのまま測定する。judge を渡すとそれを使う（テスト用）。
+    """
+    m, wt, out, f = ctx["m"], ctx["wt"], ctx["out"], ctx["v2r"]
+    spec = v2r.spec_text(m, task, unit, f["form"])
+    nl = v2r.sentences(m, task) if f["form"] == "nl" else None
+    budget = call_budget(m) if f["gate"] else 1
+    calls, accepted, feedback, judge_sandbox = [], False, "", None
+    if f["gate"] and judge is None:
+        judge, stopped, judge_sandbox = _pipeline_judge(ctx, task, state)
+        if stopped:
+            print(f"[v2r] {task['id']}: base で止まりました: {stopped[:300]}")
+            return {"attempts": 0, "accepted": False, "calls": [], "stopped": stopped[:500], "factors": f}
+    for attempt in range(1, budget + 1):
+        narrow, placed = narrow_dir.populate(wt, implementer_context.visible_files(wt, unit, ctx["impl_dir"]))
+        interface = testgen.render_interface(unit, only=implementer_context.interface_scope(wt, unit, ctx["impl_dir"]))
+        try:
+            embed = implementer_context.for_unit(wt, unit, ctx["impl_dir"])
+        except implementer_context.ContextError as e:
+            narrow_dir.discard(narrow)
+            raise common.ABError(f"実装役に渡す前提が大きすぎます: {e}")
+        fb = ""
+        if feedback:
+            fb = narrow_dir.relocate(feedback, judge_sandbox, narrow) if judge_sandbox is not None else feedback
+            fb = narrow_dir.relocate(fb, wt, narrow)
+            if nl is not None:
+                try:
+                    fb = nlgen.annotate_feedback(fb, nl)
+                except nlgen.NLGenError as e:
+                    narrow_dir.discard(narrow)
+                    raise common.ABError(f"知らせに自然言語の文を添えられません: {e}")
+        prompt, parts = v2r.assemble(narrow, spec, interface, embed, fb, tool_policy.text())
+        # ステートレス：呼び出しごとに新しい会話（conversation_id を渡さない）
+        r, transients = checked_call(ctx, call, prompt, narrow, None, task, attempt, narrow, f"実装役（v2r {ctx['condition']}）")
+        written = narrow_dir.write_back(narrow, wt, placed)
+        narrow_dir.discard(narrow)
+        calls.append({"attempt": attempt, "rc": r["rc"], "seconds": r["seconds"], "usage": r["usage"],
+                      "steps": r.get("steps"), "outcome": r.get("outcome"), "model": r.get("model"),
+                      "cache": r.get("cache"), "prompt_chars": len(prompt), "prompt_parts": parts,
+                      "narrow_written": written})
+        if transients:
+            calls[-1]["transient"] = transients
+        if attempt == 1:
+            # 最初の提出（門を通す前）。門なしの条件では、これが最終と同じになる
+            pipeline.save_changes(wt, first_dir(out, task), common.GIT_TTL)
+        (Path(out) / f"{task['id']}_a{attempt}.implementer.log").write_text(
+            f"# prompt\n{prompt}\n\n# stdout\n{r['out']}\n\n# stderr\n{r['err']}\n", encoding="utf-8")
+        measure.place_frozen_tests(m, wt, ctx["index"], m["test_dir"])
+        if not f["gate"]:
+            break
+        if r["rc"] != 0:
+            verdict = "IMPLEMENTER_FAILED"
+            feedback = pipeline.extract_raw_stacktrace(
+                f"実装AI が異常終了 (rc={r['rc']}): {(r['err'] or r['out'])[:400]}", max_lines=40)
+        else:
+            verdict, feedback = judge(attempt)
+        calls[-1]["verdict"] = verdict
+        if verdict == "SUCCESS":
+            accepted = True
+            break
+        if verdict == "ABORT":
+            print(f"[v2r] {task['id']}: 検査系の故障で止めました: {feedback[:300]}")
+            break
+    return {"attempts": len(calls), "accepted": accepted, "calls": calls, "factors": f}
+
+
 # ============================================================ 条件 B
 
 def pipeline_args(unit_path, wt, sandbox, out, tel, known_failures=None, first=None):
@@ -283,12 +342,36 @@ def failing_names(results):
     return None if results is None else sorted(n for n, o in results.items() if o != "Passed")
 
 
-CALL_RECORD = ("attempt", "rc", "seconds", "model", "prompt_chars", "prompt_parts", "outcome", "transient")
+CALL_RECORD = ("attempt", "rc", "seconds", "model", "prompt_chars", "prompt_parts", "outcome", "transient", "cache",
+               "verdict")
 
 
 def call_records(calls):
     """metrics に残す呼び出しの要約（本文・手番の中身は残さない）。"""
     return [{k: c.get(k) for k in CALL_RECORD} for c in calls]
+
+
+def checked_call(ctx, call, prompt, workdir, conversation_id, task, attempt, narrow, who):
+    """実装役を 1 回呼ぶ（一時的な失敗は呼び直す。harness/transient.py）。使ったモデルを設定と照合する（harness/model_pin.py）。
+
+    (結果, 一時的な失敗の記録)。一時的な失敗が続けば ReplicateStop、モデルが違えば ABError。
+    """
+    out = ctx["out"]
+    try:
+        r, retries = transient.with_backoff(lambda: call(ctx["imp"], prompt, workdir, conversation_id, ctx["ttl"]),
+                                            lambda x: transient.classify(x.get("outcome")))
+    except transient.TransientFailure as e:
+        log_transients(out, task, attempt, prompt, e.retries)
+        if narrow:
+            narrow_dir.discard(narrow)
+        raise common.ReplicateStop(f"{task['id']} の試行 {attempt}: {e}")
+    transients = log_transients(out, task, attempt, prompt, retries)
+    if agy_stream.is_stream(ctx["imp"]) and (r.get("conversation_id") or r.get("steps")):
+        try:
+            model_pin.check_reported(ctx["imp"]["model_name"], r.get("model"), who)
+        except model_pin.ModelPinError as e:
+            raise common.ABError(str(e))
+    return r, transients
 
 
 def log_transients(out, task, attempt, prompt, retries):
@@ -376,7 +459,16 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
            "classes": measure.class_to_task(m, units),
            "templates": {k: (Path(m["_base"]) / m["templates"][k]).read_text(encoding="utf-8")
                          for k in ("initial", "retry")}}
-    if condition == "A" and common.is_v2(m):
+    ctx["condition"] = condition
+    if common.is_v2r(m):
+        # v2r：4 条件をステートレスで同じ組み立てで回す。門ありは、条件ごとのサンドボックスで B と同じ検査の列
+        ctx["v2r"] = v2r.factors(condition)
+        if ctx["v2r"]["gate"]:
+            ctx.update(judge="pipeline", judge_sandbox=p["sandbox"])
+        task_runner = task_runner or run_task_v2r
+    elif condition not in common.CONDITIONS:
+        raise common.ABError(f"条件 {condition} は v2r のマニフェストでだけ使えます")
+    if condition == "A" and common.is_v2(m) and not common.is_v2r(m):
         # 試験制度の対称化（docs/design/v2_6_exam_symmetry.md）：A にも B と同じ検査の列を、A 専用のサンドボックスで
         ctx.update(judge="pipeline", judge_sandbox=p["sandbox"])
     task_runner = task_runner or (run_task_a if condition == "A" else run_task_b)
@@ -402,6 +494,7 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
             seeds = common.hidden_seeds(run_id, task["id"], m["measure_hidden_seeds"])
             env = dict(os.environ, **{propgen.HIDDEN_ENV: ",".join(str(x) for x in seeds)})
         results, _ = measure.run_fast(p["wt"], ctx["test_project"], p["out"], f"{task['id']}_final", env=env)
+        hits = dotnet.property_hits(p["out"] / f"{task['id']}_final.trx")
         passed, total = measure.acceptance(results, ctx["classes"], task["id"])
         pub_passed, pub_total = measure.acceptance(results, ctx["classes"], task["id"], public_only=True)
         broken = measure.p2p_broken(prev, results, task.get("superseded_tests", []))
@@ -419,6 +512,8 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
                 "seconds": seconds, "seconds_measure": round(time.monotonic() - t1, 1), "detail": {k: v for k, v in rec.items() if k != "calls"},
                 # 呼び出しごとの字数・要素の字数・終わり方（v2.3、N7。v2-smoke-05 まで A の分はどこにも残っていなかった）
                 "calls": call_records(rec["calls"]),
+                # 性質ごとの前提の成立回数（v2r §8。0 の性質は空虚に通った）。行が無い生成物（V2）では空の表
+                "property_hits": hits, "vacuous_properties": [k for k, v in hits.items() if v == 0],
                 # 要求したモデルと、呼び出しで報告されたモデル（2026-09-26 の是正。harness/model_pin.py）
                 "model": {"requested": ctx["imp"]["model_name"],
                           "reported": sorted({c["model"] for c in rec["calls"] if c.get("model")})}}
@@ -480,8 +575,12 @@ def cleanup(run_id, wt_root=common.WT_ROOT):
 def run_all(manifest, repeat, prefix):
     """A と B を交互に回す（時間帯の偏りを散らす）。1 回が失敗しても次へ進む。"""
     rc = 0
+    v2r_run = common.is_v2r(common.load_manifest(manifest)) if Path(manifest).exists() else False
     for k in range(1, repeat + 1):
-        order = common.CONDITIONS if k % 2 else tuple(reversed(common.CONDITIONS))
+        if v2r_run:
+            order = v2r.order_for(k)
+        else:
+            order = common.CONDITIONS if k % 2 else tuple(reversed(common.CONDITIONS))
         for cond in order:
             try:
                 run_condition(manifest, cond, f"{prefix}-{k:02d}")
@@ -499,7 +598,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="A/B 実験の自動ドライバ")
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
-    r.add_argument("--condition", required=True, choices=common.CONDITIONS)
+    r.add_argument("--condition", required=True, choices=sorted(set(common.CONDITIONS) | set(v2r.CONDITIONS)),
+                   help="A・B（V2）、A0・A1・B-G・B（v2r のマニフェスト）")
     r.add_argument("--run-id", required=True)
     r.add_argument("--manifest", default=str(common.EXP_DIR / "tasks.json"))
     r.add_argument("--through", help="このタスクまでで止める（例: T1）")

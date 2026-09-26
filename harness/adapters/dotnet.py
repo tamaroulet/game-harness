@@ -179,6 +179,28 @@ def failure_detail(c, tag):
     return property_lines(trx) or failure_digest(trx)
 
 
+HITS_RE = re.compile(r"^PROPERTY_HITS id=(\S+) rule=(\S+) given=(\d+)(?: runs=(\d+))?\s*$")
+
+
+def property_hits(trx_path):
+    """性質ごとの前提の成立回数（v2r、docs/design/v2r_protocol.md §8）。{性質の ID: 成立回数の最小}。
+
+    propgen の report_hits が出す PROPERTY_HITS の行を、TRX の各テストの標準出力から読む。同じ性質の公開・非公開の
+    テストがあれば、少ない方を採る（0 のテストが 1 つでもあれば、その性質は空虚に通った）。行が無ければ空の表。
+    """
+    if trx_path is None or not Path(trx_path).exists():
+        return {}
+    out = {}
+    for r in ET.parse(trx_path).getroot().iter(f"{TRX_NS}UnitTestResult"):
+        so = r.find(f"{TRX_NS}Output/{TRX_NS}StdOut")
+        for line in ((so.text or "") if so is not None else "").splitlines():
+            m = HITS_RE.match(line.strip())
+            if m:
+                pid, given = m.group(1), int(m.group(3))
+                out[pid] = min(given, out.get(pid, given))
+    return dict(sorted(out.items()))
+
+
 def _failed_messages(trx_path):
     """[(テスト名, 失敗の本文)]。落ちたものだけ。"""
     root = ET.parse(trx_path).getroot()

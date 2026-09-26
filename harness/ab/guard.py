@@ -75,9 +75,13 @@ def usd(usage):
             + (usage.get("cache_read_tokens") or 0) * PRICES[2])
 
 
-def split_log(text, condition):
-    """実装役のログ → (stream-json の本文, プロンプト, stderr の先頭)。まだ書き終わっていなければ None。"""
-    if condition == "A":
+def split_log(text, condition=None):
+    """実装役のログ → (stream-json の本文, プロンプト, stderr の先頭)。まだ書き終わっていなければ None。
+
+    形はログの中身で見分ける（ドライバの形は "# stdout"、pipeline の形は "=== stdout ==="）。condition は使わない
+    （v2r の 4 条件はすべてドライバの形）。
+    """
+    if text.startswith("# prompt"):
         if "\n# stderr" not in text:
             return None
         return (text[text.index("# stdout\n") + 9:text.index("\n\n# stderr")], text[:text.index("# stdout")],
@@ -88,6 +92,8 @@ def split_log(text, condition):
             text[text.index("=== stderr ==="):][:300])
 
 
+# 見る条件：V2 の A・B と、v2r の 4 条件（ディレクトリが無い条件は飛ばす）
+CONDITIONS = tuple(dict.fromkeys(common.CONDITIONS + ("A0", "A1", "B-G", "B")))
 # 費用の上限（docs/design/v2r_protocol.md §4.2）。「超えたら」は >、Hard Cap の「達したら」は >=
 LIMITS = {"per_call": 0.5, "per_replicate": 15.0, "warn": 25.0, "hard_cap": 50.0}
 
@@ -138,15 +144,14 @@ def watch(run_ids, limit_usd, interval=15, out=print, midpoint_usd=None, ledger=
     これを超えていたら、後半の最初の呼び出しで止める（V2-RUN の運用。v2r は ledger の中間の線で知らせる）。
     """
     ledger = ledger or Ledger(hard_cap=limit_usd)
-    seen, spent, per_run = set(), {"A": 0.0, "B": 0.0}, {}
+    seen, spent, per_run = set(), {}, {}
     first_half = set(run_ids[:len(run_ids) // 2])
     narrow_root = Path(tempfile.gettempdir()) / narrow_dir.ROOT_NAME
     while True:
-        for run_id, cond in [(r, c) for r in run_ids for c in common.CONDITIONS]:
+        for run_id, cond in [(r, c) for r in run_ids for c in CONDITIONS]:
             p = common.paths(run_id, cond)
             if not p["out"].exists():
                 continue
-            wd = narrow_dir.path_for(p["wt"] if cond == "A" else p["sandbox"])
             logs = sorted(set(p["out"].glob("T*_a*.implementer.log")) | set(p["out"].rglob("implementer_attempt_*.log")))
             for f in logs:
                 key = (str(f), f.stat().st_mtime_ns)
@@ -157,6 +162,8 @@ def watch(run_ids, limit_usd, interval=15, out=print, midpoint_usd=None, ledger=
                     continue
                 seen.add(key)
                 stream, prompt, err = parts
+                # 作業場所：ドライバの形のログは作業ツリー、pipeline の形はサンドボックスから作った細い作業場所
+                wd = narrow_dir.path_for(p["wt"] if prompt.startswith("# prompt") else p["sandbox"])
                 pr = agy_stream.parse(stream, wd)
                 u, oc = pr["usage"], pr["outcome"]
                 if midpoint_usd is not None and run_id not in first_half and first_half:
@@ -165,7 +172,7 @@ def watch(run_ids, limit_usd, interval=15, out=print, midpoint_usd=None, ledger=
                         out(f"STOP midpoint {early:.2f} USD > {midpoint_usd}（前半の走行）")
                         stop()
                         return 1
-                spent[cond] += usd(u)
+                spent[cond] = spent.get(cond, 0.0) + usd(u)
                 per_run[run_id] = per_run.get(run_id, 0.0) + usd(u)
                 secs = round(sum(s.get("seconds") or 0 for s in pr["steps"]), 1)
                 stops, notes = classify(stream, wd, agy_stream.own_state(pr["conversation_id"]))
@@ -173,12 +180,15 @@ def watch(run_ids, limit_usd, interval=15, out=print, midpoint_usd=None, ledger=
                     stops.append("PROPERTY_UNSATISFIABLE in feedback")
                 if "WinError" in err or "rc: 127" in prompt:
                     stops.append("launch failure")
+                if pr["token_problems"]:
+                    # 思考が出力を超える手番：費用の式の前提（思考は出力に含まれる）が崩れている（v2r §9.1）
+                    stops.append("thinking > output: " + "; ".join(pr["token_problems"][:3]))
                 warns = [w for w, on in (("WARN:partial", u.get("partial")), ("WARN:>200s", secs > 200),
                                          ("WARN:agy-ERROR", oc["status"] == "ERROR"),
                                          ("WARN:error_steps", oc["error_steps"]),
                                          ("WARN:thinking_only", oc["thinking_only_steps"])) if on]
                 out(f"[{run_id} {cond}] {f.relative_to(p['out']).as_posix()} steps={u.get('model_steps')} secs={secs} "
-                    f"usd={usd(u):.4f} total={spent['A'] + spent['B']:.4f} {' '.join(warns)}")
+                    f"usd={usd(u):.4f} total={sum(spent.values()):.4f} {' '.join(warns)}")
                 for n in notes:
                     out(f"  NOTE {n}")
                 if stops:

@@ -94,7 +94,8 @@ def own_state(conversation_id):
 
 
 def parse(text, workdir=None):
-    """stream-json の出力 → {"conversation_id", "model", "response", "usage", "steps", "complete", "outcome"}。
+    """stream-json の出力 → {"conversation_id", "model", "response", "usage", "steps", "complete", "outcome",
+    "token_problems", "cache"}。
 
     workdir を渡すと、道具の手番に「作業場所の外を指したか」（outside）を付ける。
 
@@ -165,7 +166,40 @@ def parse(text, workdir=None):
     usage.update(format="agy-stream", cache_creation_tokens=None, cost_usd=None, model_steps=len(with_usage),
                  lost_steps=sum(1 for s in ordered if s.get("state") not in ("DONE", None) and not s.get("usage")))
     return {"conversation_id": conv, "model": model, "response": (result or {}).get("response") or "".join(reply),
-            "usage": usage, "steps": ordered, "complete": result is not None, "outcome": outcome(result, ordered)}
+            "usage": usage, "steps": ordered, "complete": result is not None, "outcome": outcome(result, ordered),
+            "token_problems": token_problems(ordered), "cache": cache_stats(ordered)}
+
+
+def token_problems(steps):
+    """思考が出力を超える手番（v2r、docs/design/v2r_protocol.md §9.1）。["step <n>: thinking=<t> > output=<o>"]。
+
+    費用は出力の単価で思考を数えている（思考は出力に含まれる。V2-RUN の 112 手番すべてで思考 ≤ 出力を実測）。
+    この関係が破れた手番があれば、費用の式の前提が崩れているので、guard が止める。
+    """
+    out = []
+    for s in steps:
+        u = s.get("usage") or {}
+        o, th = u.get("output_tokens"), u.get("thinking_tokens")
+        if isinstance(o, int) and isinstance(th, int) and th > o:
+            out.append(f"step {s.get('index')}: thinking={th} > output={o}")
+    return out
+
+
+def cache_stats(steps):
+    """プロンプトキャッシュの記録（§9.2）。本文は見ない。
+
+    first_step_input・first_step_cache_read：最初の手番（会話をまたいだキャッシュは agy では効かないので、ステートレスなら
+    キャッシュ読み 0 が期待値）。later_misses：2 手番目以降でキャッシュ読みが 0 の手番の数。hit_ratio：キャッシュ読み
+    ÷（入力＋キャッシュ読み）。キャッシュの有効期限は agy から観測できない（記録しない）。
+    """
+    used = [s["usage"] for s in steps if s.get("usage")]
+    if not used:
+        return None
+    ins = sum(u.get("input_tokens") or 0 for u in used)
+    cr = sum(u.get("cache_read_tokens") or 0 for u in used)
+    return {"first_step_input": used[0].get("input_tokens"), "first_step_cache_read": used[0].get("cache_read_tokens"),
+            "later_misses": sum(1 for u in used[1:] if not u.get("cache_read_tokens")),
+            "hit_ratio": round(cr / (ins + cr), 4) if ins + cr else None}
 
 
 def outcome(result, steps):

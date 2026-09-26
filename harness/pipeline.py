@@ -585,6 +585,8 @@ def call_implementer(c, feedback=""):
             c.cur["implementer"]["steps"] = parsed["steps"]
             c.cur["implementer"]["outcome"] = parsed["outcome"]
             c.cur["implementer"]["model"] = reported
+            c.cur["implementer"]["cache"] = parsed["cache"]
+            c.cur["implementer"]["token_problems"] = parsed["token_problems"]
             c.cur["implementer"]["prompt_chars"] = len(prompt)
             c.cur["implementer"]["prompt_parts"] = parts
             if transients:
