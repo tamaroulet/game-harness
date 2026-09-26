@@ -394,6 +394,7 @@ tasks:
   target_repo: game-harness
   status: in_progress
   verification: null
+  review_pr: https://github.com/tamaroulet/game-harness/pull/115
 - id: V2R-SMOKE
   title: 乾式の走行（天井の検査：A0 の欠陥が 1 件以上）と繰り返し R の決定（U5・U6）
   group: B6
