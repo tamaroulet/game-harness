@@ -404,6 +404,7 @@ tasks:
   verification:
     command: python -m harness.ab.v2r_ceiling --run-id v2r-dry-01
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/117
 - id: V2R-RUN
   title: 本走（T1〜T10 × A0・A1・B-G・B × R 回、Hard Cap 50 USD）
   group: B6
