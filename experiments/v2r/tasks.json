@@ -18,7 +18,7 @@
   "contract": "contract.json",
   "contract_sha256": "07fd11f5a1ac76502da0bf3129c8f2a7ce314934cf52e59db6d8ae7f2b7a9d2b",
   "properties": "properties.json",
-  "properties_sha256": "6192b9b2ef508067b45528f17abc400271730bba4c04277981146b1031688be8",
+  "properties_sha256": "8cf73541c949d50b9afc3bc3f418b0fe681b6bcb147dabc354fff2a38cad2808",
   "existing_types": [
     "GamePhase",
     "MinoType",
@@ -104,18 +104,18 @@
     "Game/Assets/Core/IGameState.cs": "8e15790843bca74ff2404f48cee9d7d22d87365adc7bdaf7b13de20c8a8cf9b4",
     "Game/Assets/Core/TickInput.cs": "1eab3cd28312d0e39991e790d7bc9b676e27689ef309abb7ef404d9fed23f13d",
     "tests/Core.Tests/Contracts/ContractProbe.cs": "48e7242099ff80bc1a41b0cc4ac1870f68fdfc0a8c9c9d2dbd6fcc24aa37fafd",
-    "tests/Core.Tests/Properties/Checks.cs": "43f374fdcea0f785ca17a36d0a3c56845f215d505c195aea6e2b3718d6a45755",
-    "tests/Core.Tests/Properties/PropertiesT10Cases.cs": "47776baba0a0cc597e3d8916e0703cd2ef19b2a023d2a479c2ea22389a551ebe",
+    "tests/Core.Tests/Properties/Checks.cs": "f02b09d0031aebab08e738f9a1eb4680e2602325cd6216719f481c6db514c2e8",
+    "tests/Core.Tests/Properties/PropertiesT10Cases.cs": "9e272e892548a0d956ef0726f1281fc1e4ee2997675159b1347921a14db19dfd",
     "tests/Core.Tests/Properties/PropertiesT1Cases.cs": "5ae13d008d81691ac0a0b23bba1902dcdb7e42ed48f825cbdf4fd90d380068be",
     "tests/Core.Tests/Properties/PropertiesT2Cases.cs": "4cf1e9d6d6cbfe8081d0875ec811afc1a9a96bd478ba2eab5aa950d1a336d3ae",
-    "tests/Core.Tests/Properties/PropertiesT3Cases.cs": "298f0ef71fb51fe8b5dbc198faf84283a0504c6d501ad2aca431e6aa23ae4120",
+    "tests/Core.Tests/Properties/PropertiesT3Cases.cs": "d52e9781f72afddace7a6c800637a658c7630f51429c3b2543bdf81972f44bf4",
     "tests/Core.Tests/Properties/PropertiesT4Cases.cs": "95ed8dcce1580a1b97929b74d0ed5e811613ccb5d8049100b3ce6efb51314f36",
     "tests/Core.Tests/Properties/PropertiesT5Cases.cs": "1a2daa9824f5584109f1eb4928a3c14c5ca304ba71f287a2898c79a136e02bba",
-    "tests/Core.Tests/Properties/PropertiesT6Cases.cs": "cf223f5106dd20edb22dd9891dd883482cd982d219c55649b0fbeb0f1133feee",
-    "tests/Core.Tests/Properties/PropertiesT7Cases.cs": "f8cda7800a8a78eff9a57442615d858d5008a94778fd2a8f7a1c6ef8e24e71cf",
-    "tests/Core.Tests/Properties/PropertiesT8Cases.cs": "3702c389110b9c503a02f0fb5447573d4b57024c95c094c5edf676b81d102e51",
+    "tests/Core.Tests/Properties/PropertiesT6Cases.cs": "a884ee268ff487d67f10fd03e9eb30509fdb8d227818896761d3b8f647c7c916",
+    "tests/Core.Tests/Properties/PropertiesT7Cases.cs": "a6c90bd65e56f5016b198ec3ea2fbd422cabf7ab96caefd4e86cf0341b889c84",
+    "tests/Core.Tests/Properties/PropertiesT8Cases.cs": "f3ec2b8386b603111d872d723889b1421abb958ed6153c6b942bb9f5e4b0a2c0",
     "tests/Core.Tests/Properties/PropertiesT9Cases.cs": "f62da28fbf73a45c11a7edf3315d1bbd5e7f0a76a6c7af30db7b15f67aba07e5",
-    "tests/Core.Tests/Properties/PropertyModel.cs": "108ac0fbe7710bcf2e5690f87c62e6c321c89efd60f9040d922880f7f3b709ad"
+    "tests/Core.Tests/Properties/PropertyModel.cs": "222f962c205e29e909f6798e37aaccc74c836401a9dfeba6c5b09f2a47edce77"
   },
   "templates": {
     "initial": "templates/initial.md",
@@ -130,70 +130,70 @@
       "id": "T1",
       "title": "左右移動（壁・盤面外の判定）",
       "unit": "units/T1.json",
-      "unit_sha256": "13b0ffbd4da97e7ae348762c258b8629b7e41618bd3cb0fdf75854f270678c23",
+      "unit_sha256": "25ad6eb54ef08530139f597d11ff6df4623b913afa3f1708f47e530fbb58e5f7",
       "superseded_tests": []
     },
     {
       "id": "T2",
       "title": "自然落下と接地判定（ロック猶予・固定・次のミノの出現）",
       "unit": "units/T2.json",
-      "unit_sha256": "5e2a3c3386b9faa4fe6a03369ae5c08bf9190e1defbee3f61be265b3e5ab2462",
+      "unit_sha256": "011215558a934f24f00d175d894a8511e4c1904d8ff82e9f2fb4b56aedd4bc4b",
       "superseded_tests": []
     },
     {
       "id": "T3",
       "title": "ハードドロップ（即時固定）",
       "unit": "units/T3.json",
-      "unit_sha256": "1fbcc2f0054bbc0caecf84b9183ba123f672ec723fd6b69c51a2e99a131b4b26",
+      "unit_sha256": "690279222987c7a515e85de460db509cd6e7ec7868647ff31b36d6c259145c9a",
       "superseded_tests": []
     },
     {
       "id": "T4",
       "title": "回転（壁キックなし）",
       "unit": "units/T4.json",
-      "unit_sha256": "b9428059485a88952587148c5ca668eeb7280b8d8b1b778004ddca0358e26acb",
+      "unit_sha256": "58f22013a6c0fb375f50ed8d75589466ba0bb211be495469e207a4b9439d66a5",
       "superseded_tests": []
     },
     {
       "id": "T5",
       "title": "壁キック回転（SRS）",
       "unit": "units/T5.json",
-      "unit_sha256": "9cee881358c36af5ee3b9e9c85a1313312552caa951af9618171d5e4d9cb64c5",
+      "unit_sha256": "6b5b122c005853623b7f5cfcf137b4e71d321789e019d599a936c11291650f17",
       "superseded_tests": []
     },
     {
       "id": "T6",
       "title": "ライン消去と行のシフト",
       "unit": "units/T6.json",
-      "unit_sha256": "188869e3176d0871d4ed2ca96fccca7c5cd04465a405855747772e51d7290b7a",
+      "unit_sha256": "20123ec2d6fdd063e9d1366a54843df40837f1e5c384fca0cce19cd5df6da6bb",
       "superseded_tests": []
     },
     {
       "id": "T7",
       "title": "ライン消去の得点と、得点の合算",
       "unit": "units/T7.json",
-      "unit_sha256": "c10298ba418efc36d9803be0038cd4e5263be1884c7efa04d59c3edc079d62fc",
+      "unit_sha256": "be4bf192e8965ea896c3027b32397ecfea7226729b3bc60c5ef5af056ac38709",
       "superseded_tests": []
     },
     {
       "id": "T8",
       "title": "ソフトドロップ",
       "unit": "units/T8.json",
-      "unit_sha256": "9f3e569757cd1adc7d1fd37c92dddcb5ef8a3def55e448420312ac08f47a67ba",
+      "unit_sha256": "e0d48d6aaf1b73d38cd2011b644eb2fb6ef36c5bfa48b2588d5ee908d0905ceb",
       "superseded_tests": []
     },
     {
       "id": "T9",
       "title": "同じティックの回転と移動の順序",
       "unit": "units/T9.json",
-      "unit_sha256": "76699680f3b58ab4ff61388eeb7f946bf2dec2c42e275f038ae1c83073e6fcc9",
+      "unit_sha256": "0979cf9d06813f3e63d6d35428e8f4c74296b159950b42191d1b9a850621872b",
       "superseded_tests": []
     },
     {
       "id": "T10",
       "title": "ゲームオーバー",
       "unit": "units/T10.json",
-      "unit_sha256": "3184784c64fd95a2e997425d009ddb3cea67c86dd5dc6068199e41115454e076",
+      "unit_sha256": "68381232c8ea60e025ec483339db1c36b97c00015061319bba5ecebc656b40da",
       "superseded_tests": []
     }
   ]

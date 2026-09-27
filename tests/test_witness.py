@@ -24,7 +24,7 @@ from ab import driver  # noqa: E402
 # 一番下の行の右端（x = 9）だけが空き。縦の I（向き Right、x = 7 で列 9）を落とすとその穴に入る
 GAP = "#########."
 CLEAR_GIVEN = ("before.Phase == Playing && input.HardDrop && before.ActiveMino != null && !occupied_before(9, 0)"
-               " && drop(before.ActiveMino) == moved(before.ActiveMino, 0, -2)")
+               " && drop(before.ActiveMino) == moved(before.ActiveMino, 0, -2) && full_rows(drop(before.ActiveMino)) == 1")
 WITNESS = {"board": [GAP], "mino": {"type": "I", "x": 7, "y": 2, "rotation": "Right"}, "input": ["HardDrop"]}
 
 
@@ -103,6 +103,14 @@ class Evaluator(unittest.TestCase):
         self.assertEqual(e.drop(("I", 7, 5, 1)), ("I", 7, 1, 1), "列 9 の y = 0 が埋まっているので y = 1 で止まる")
         self.assertFalse(e.fits(("I", 8, 0, 1)), "列 10 は盤面の外")
 
+    def test_full_rows_counts_the_rows_completed_by_the_mino(self):
+        gap = [(x, 0) for x in range(9)] + [(x, 1) for x in range(9)]
+        self.assertEqual(self.ev(occ=gap).full_rows(("I", 7, 0, 1)), 2, "列 9 の y = 0..3 を足すと 2 行が埋まる")
+        self.assertEqual(self.ev(occ=gap).full_rows(("I", 7, 1, 1)), 1)
+        self.assertEqual(self.ev(occ=gap).full_rows(("I", 7, 5, 1)), 0)
+        self.assertEqual(self.ev(occ=[(x, 0) for x in range(8)]).full_rows(("I", 7, -1, 1)), 0,
+                         "盤面の外のマスは数えない（列 9 の y = -1 は足さない）")
+
     def test_kick_tries_the_candidates_in_the_table_order(self):
         """I の 0 → R の候補は (0,0) (-2,0) (1,0)…。最初の候補が塞がれていれば 2 番目。"""
         e = self.ev(occ=[(5, 3)])
@@ -125,6 +133,14 @@ class Generation(unittest.TestCase):
         self.assertIn(".Cell(8, 0) }", checks)
         self.assertIn("witnesses: global::", cases)
         self.assertEqual(cases.count("Witnesses_P_T5_02"), 2, "公開と非公開の両方")
+
+    def test_a_witnessed_property_does_not_search_for_its_given(self):
+        """前提の探索（Directed）に希な前提を渡すと、無作為な開始状態では見つからず PROPERTY_UNSATISFIABLE で落ちる
+        （witness_selftest の実測、2026-09-27）。証拠のある性質は pre を渡さない。証拠の無い性質は今までどおり渡す。"""
+        cases = g.generate(decl_with(), tp.SPEC, tp.GDD, tp.INTERFACE, "tests")["tests/Properties/PropertiesT5Cases.cs"]
+        self.assertNotIn("Checks.Pre_P_T5_02", cases)
+        self.assertEqual(cases.count("null, default, witnesses: global::Game.Core.Tests.Properties.Checks.Witnesses_P_T5_02);"), 2)
+        self.assertIn("Checks.Pre_P_T5_01, global::Game.Core.Tests.Properties.Checks.First_P_T5_01);", cases)
 
     def test_declarations_without_witnesses_generate_the_same_bytes_as_before(self):
         files = g.generate(tp.DECL, tp.SPEC, tp.GDD, tp.INTERFACE, "tests")

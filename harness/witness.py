@@ -136,6 +136,11 @@ class Evaluator:
                 return c
         return None
 
+    def full_rows(self, m):
+        occ = set(self.occ) | {(x, y) for x, y in self.cells(m)
+                               if 0 <= x < self.ref["width"] and 0 <= y < self.ref["height"]}
+        return sum(1 for y in range(self.ref["height"]) if all((x, y) in occ for x in range(self.ref["width"])))
+
     def drop(self, m):
         while self.fits(self.moved(m, 0, -1)):
             m = self.moved(m, 0, -1)
@@ -199,12 +204,13 @@ class Evaluator:
             self.err("occupied_after は証拠の状態では決まりません（原則 P1）")
         if fn == "occupied_before":
             return self.occupied(*args)
-        minos = {"fits", "in_board", "moved", "rotated", "kick", "drop"}
+        minos = {"fits", "in_board", "moved", "rotated", "kick", "drop", "full_rows"}
         if fn in minos and args[0] is None:
             raise _Null()
         return {"fits": lambda: self.fits(args[0]), "in_board": lambda: self.in_board(args[0]),
                 "moved": lambda: self.moved(*args), "rotated": lambda: self.rotated(*args),
-                "kick": lambda: self.kick(*args), "drop": lambda: self.drop(args[0])}[fn]()
+                "kick": lambda: self.kick(*args), "drop": lambda: self.drop(args[0]),
+                "full_rows": lambda: self.full_rows(args[0])}[fn]()
 
     def holds(self, e):
         """前提が成り立つか。null のミノのメンバーを読んだら成り立たない（C# と同じ）。"""

@@ -22,21 +22,21 @@
       "id": "P-T1-01",
       "task": "T1",
       "rule": "RL-16",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !input.HardDrop && fits(moved(before.ActiveMino, -1, 0)) && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !input.HardDrop && fits(moved(before.ActiveMino, -1, 0)) && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.ActiveMino.X == before.ActiveMino.X - 1"
     },
     {
       "id": "P-T1-02",
       "task": "T1",
       "rule": "RL-40",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.Right && !input.Left && !input.RotateCw && !input.RotateCcw && !input.HardDrop && !fits(moved(before.ActiveMino, 1, 0)) && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.Right && !input.Left && !input.RotateCw && !input.RotateCcw && !input.HardDrop && !fits(moved(before.ActiveMino, 1, 0)) && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.ActiveMino.X == before.ActiveMino.X"
     },
     {
       "id": "P-T1-03",
       "task": "T1",
       "rule": "RL-20",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.Left && input.Right && !input.RotateCw && !input.RotateCcw && !input.HardDrop && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.Left && input.Right && !input.RotateCw && !input.RotateCcw && !input.HardDrop && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.ActiveMino.X == before.ActiveMino.X"
     },
     {
@@ -50,8 +50,8 @@
       "id": "P-T2-02",
       "task": "T2",
       "rule": "RL-36",
-      "given": "before.Phase == Playing && after.LockedMinoCount == before.LockedMinoCount",
-      "then": "after.BlockCount == before.BlockCount"
+      "given": "before.Phase == Playing && before.ActiveMino != null && !input.HardDrop && fits(moved(before.ActiveMino, 0, -1))",
+      "then": "after.BlockCount == before.BlockCount && after.LockedMinoCount == before.LockedMinoCount"
     },
     {
       "id": "P-T2-03",
@@ -78,154 +78,303 @@
       "id": "P-T3-02",
       "task": "T3",
       "rule": "RL-48",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && fits(moved(before.ActiveMino, 0, -1)) && !fits(moved(before.ActiveMino, 0, -2)) && after.LinesCleared == before.LinesCleared",
-      "then": "after.Score == before.Score + 2"
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && fits(moved(before.ActiveMino, 0, -1)) && !fits(moved(before.ActiveMino, 0, -2)) && full_rows(drop(before.ActiveMino)) == 0",
+      "then": "after.Score == before.Score + 2",
+      "witness": [
+        {
+          "board": [],
+          "mino": {
+            "type": "I",
+            "x": 7,
+            "y": 1,
+            "rotation": "Right"
+          },
+          "input": [
+            "HardDrop"
+          ]
+        }
+      ]
     },
     {
       "id": "P-T3-03",
       "task": "T3",
       "rule": "RL-36",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && after.Phase == Playing && after.LinesCleared == before.LinesCleared",
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && full_rows(drop(before.ActiveMino)) == 0",
       "then": "after.BlockCount == before.BlockCount + 4"
     },
     {
       "id": "P-T4-01",
       "task": "T4",
       "rule": "RL-39",
-      "given": "before.Phase == Playing && before.ActiveMino != null && before.ActiveMino.Rotation == Spawn && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && fits(rotated(before.ActiveMino, 1)) && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && before.ActiveMino.Rotation == Spawn && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && fits(rotated(before.ActiveMino, 1)) && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.ActiveMino.Rotation == Right"
     },
     {
       "id": "P-T4-02",
       "task": "T4",
       "rule": "RL-14",
-      "given": "before.Phase == Playing && before.ActiveMino != null && before.ActiveMino.Rotation == Spawn && input.RotateCcw && !input.RotateCw && !input.Left && !input.Right && !input.HardDrop && fits(rotated(before.ActiveMino, -1)) && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && before.ActiveMino.Rotation == Spawn && input.RotateCcw && !input.RotateCw && !input.Left && !input.Right && !input.HardDrop && fits(rotated(before.ActiveMino, -1)) && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.ActiveMino.Rotation == Left && after.ActiveMino.X == before.ActiveMino.X"
     },
     {
       "id": "P-T4-03",
       "task": "T4",
       "rule": "RL-20",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.RotateCw && input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.RotateCw && input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.ActiveMino.Rotation == before.ActiveMino.Rotation && after.ActiveMino.X == before.ActiveMino.X"
     },
     {
       "id": "P-T5-01",
       "task": "T5",
       "rule": "RL-39",
-      "given": "before.Phase == Playing && before.ActiveMino != null && before.ActiveMino.Rotation == Spawn && before.ActiveMino.Type != I && before.ActiveMino.Type != O && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && !fits(rotated(before.ActiveMino, 1)) && fits(moved(rotated(before.ActiveMino, 1), -1, 0)) && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && before.ActiveMino.Rotation == Spawn && before.ActiveMino.Type != I && before.ActiveMino.Type != O && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && !fits(rotated(before.ActiveMino, 1)) && fits(moved(rotated(before.ActiveMino, 1), -1, 0)) && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.ActiveMino.X == before.ActiveMino.X - 1"
     },
     {
       "id": "P-T5-02",
       "task": "T5",
       "rule": "RL-40",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && kick(before.ActiveMino, 1) == null && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && kick(before.ActiveMino, 1) == null && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.ActiveMino.Rotation == before.ActiveMino.Rotation && after.ActiveMino.X == before.ActiveMino.X"
     },
     {
       "id": "P-T5-03",
       "task": "T5",
       "rule": "RL-47",
-      "given": "before.Phase == Playing && before.ActiveMino != null && before.ActiveMino.Type == O && before.ActiveMino.Rotation == Spawn && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && before.ActiveMino.Type == O && before.ActiveMino.Rotation == Spawn && input.RotateCw && !input.RotateCcw && !input.Left && !input.Right && !input.HardDrop && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.ActiveMino.X == before.ActiveMino.X && after.ActiveMino.Rotation == Right"
     },
     {
       "id": "P-T6-01",
       "task": "T6",
       "rule": "RL-30",
-      "given": "before.Phase == Playing && after.LinesCleared == before.LinesCleared + 1",
-      "then": "after.BlockCount == before.BlockCount + 4 - 10"
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && full_rows(drop(before.ActiveMino)) == 2",
+      "then": "after.LinesCleared == before.LinesCleared + 2 && after.BlockCount == before.BlockCount + 4 - 20",
+      "witness": [
+        {
+          "board": [
+            "#########.",
+            "#########."
+          ],
+          "mino": {
+            "type": "I",
+            "x": 7,
+            "y": 4,
+            "rotation": "Right"
+          },
+          "input": [
+            "HardDrop"
+          ]
+        }
+      ]
     },
     {
       "id": "P-T6-02",
       "task": "T6",
       "rule": "RL-30",
-      "given": "before.Phase == Playing && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && !input.HardDrop && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.LinesCleared == before.LinesCleared"
     },
     {
       "id": "P-T6-03",
       "task": "T6",
       "rule": "RL-36",
-      "given": "before.Phase == Playing && input.HardDrop && after.LinesCleared == before.LinesCleared + 1",
-      "then": "after.BlockCount == before.BlockCount + 4 - 10 && after.LockedMinoCount == before.LockedMinoCount + 1"
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && full_rows(drop(before.ActiveMino)) == 1",
+      "then": "after.BlockCount == before.BlockCount + 4 - 10 && after.LockedMinoCount == before.LockedMinoCount + 1",
+      "witness": [
+        {
+          "board": [
+            "#########."
+          ],
+          "mino": {
+            "type": "I",
+            "x": 7,
+            "y": 3,
+            "rotation": "Right"
+          },
+          "input": [
+            "HardDrop"
+          ]
+        }
+      ]
     },
     {
       "id": "P-T6-04",
       "task": "T6",
       "rule": "RL-31",
-      "given": "before.Phase == Playing && after.LinesCleared == before.LinesCleared + 1",
-      "then": "!occupied_after(0, 21) && !occupied_after(5, 21) && !occupied_after(9, 21)"
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && full_rows(drop(before.ActiveMino)) == 1",
+      "then": "!occupied_after(0, 21) && !occupied_after(5, 21) && !occupied_after(9, 21)",
+      "witness": [
+        {
+          "board": [
+            "#########.",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "#.........",
+            "#........."
+          ],
+          "mino": {
+            "type": "I",
+            "x": 7,
+            "y": 3,
+            "rotation": "Right"
+          },
+          "input": [
+            "HardDrop"
+          ]
+        }
+      ]
     },
     {
       "id": "P-T7-01",
       "task": "T7",
       "rule": "RL-48",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !fits(moved(before.ActiveMino, 0, -1)) && after.LinesCleared == before.LinesCleared",
-      "then": "after.Score == before.Score"
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !fits(moved(before.ActiveMino, 0, -1)) && full_rows(before.ActiveMino) == 0",
+      "then": "after.Score == before.Score",
+      "witness": [
+        {
+          "board": [
+            ".........."
+          ],
+          "mino": {
+            "type": "I",
+            "x": 7,
+            "y": 0,
+            "rotation": "Right"
+          },
+          "input": [
+            "HardDrop"
+          ]
+        }
+      ]
     },
     {
       "id": "P-T7-02",
       "task": "T7",
       "rule": "RL-34",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !fits(moved(before.ActiveMino, 0, -1)) && after.LinesCleared == before.LinesCleared + 1",
-      "then": "after.Score == before.Score + 100"
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !fits(moved(before.ActiveMino, 0, -1)) && full_rows(before.ActiveMino) == 1",
+      "then": "after.Score == before.Score + 100",
+      "witness": [
+        {
+          "board": [
+            "#########."
+          ],
+          "mino": {
+            "type": "I",
+            "x": 7,
+            "y": 0,
+            "rotation": "Right"
+          },
+          "input": [
+            "HardDrop"
+          ]
+        }
+      ]
     },
     {
       "id": "P-T7-03",
       "task": "T7",
       "rule": "RL-34",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && fits(moved(before.ActiveMino, 0, -1)) && after.LinesCleared == before.LinesCleared + 1",
-      "then": "after.Score > before.Score + 100"
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && fits(moved(before.ActiveMino, 0, -1)) && fits(moved(before.ActiveMino, 0, -2)) && !fits(moved(before.ActiveMino, 0, -3)) && full_rows(drop(before.ActiveMino)) == 1",
+      "then": "after.Score == before.Score + 100 + 4",
+      "witness": [
+        {
+          "board": [
+            "#########."
+          ],
+          "mino": {
+            "type": "I",
+            "x": 7,
+            "y": 2,
+            "rotation": "Right"
+          },
+          "input": [
+            "HardDrop"
+          ]
+        }
+      ]
     },
     {
       "id": "P-T8-01",
       "task": "T8",
       "rule": "RL-45",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && input.SoftDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !fits(moved(before.ActiveMino, 0, -1)) && after.LinesCleared == before.LinesCleared",
-      "then": "after.Score == before.Score"
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && input.SoftDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !fits(moved(before.ActiveMino, 0, -1)) && full_rows(before.ActiveMino) == 0",
+      "then": "after.Score == before.Score",
+      "witness": [
+        {
+          "board": [
+            ".........."
+          ],
+          "mino": {
+            "type": "I",
+            "x": 7,
+            "y": 0,
+            "rotation": "Right"
+          },
+          "input": [
+            "HardDrop",
+            "SoftDrop"
+          ]
+        }
+      ]
     },
     {
       "id": "P-T8-02",
       "task": "T8",
       "rule": "RL-25",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.SoftDrop && !input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !fits(moved(before.ActiveMino, 0, -1)) && after.LockedMinoCount == before.LockedMinoCount",
-      "then": "after.ActiveMino.Y == before.ActiveMino.Y && after.Score == before.Score"
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.SoftDrop && !input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !fits(moved(before.ActiveMino, 0, -1)) && full_rows(before.ActiveMino) == 0",
+      "then": "after.Score == before.Score && (after.LockedMinoCount == before.LockedMinoCount + 1 || after.ActiveMino.Y == before.ActiveMino.Y)"
     },
     {
       "id": "P-T8-03",
       "task": "T8",
       "rule": "RL-35",
-      "given": "before.Phase == Playing && !input.SoftDrop && !input.HardDrop && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && !input.SoftDrop && !input.HardDrop && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.Score == before.Score"
     },
     {
       "id": "P-T8-04",
       "task": "T8",
       "rule": "RL-23",
-      "given": "before.Phase == Playing && before.ActiveMino != null && before.TickCount < 59 && input.SoftDrop && !input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && after.LockedMinoCount == before.LockedMinoCount && after.ActiveMino.Y == before.ActiveMino.Y - 1",
-      "then": "after.Score == before.Score + 1"
+      "given": "before.Phase == Playing && before.ActiveMino != null && before.TickCount < 59 && input.SoftDrop && !input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && fits(moved(before.ActiveMino, 0, -1))",
+      "then": "after.Score - before.Score == before.ActiveMino.Y - after.ActiveMino.Y"
     },
     {
       "id": "P-T9-01",
       "task": "T9",
       "rule": "RL-21",
-      "given": "before.Phase == Playing && before.ActiveMino != null && before.ActiveMino.Rotation == Spawn && input.RotateCw && !input.RotateCcw && input.Left && !input.Right && !input.HardDrop && fits(rotated(before.ActiveMino, 1)) && fits(moved(rotated(before.ActiveMino, 1), -1, 0)) && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && before.ActiveMino.Rotation == Spawn && input.RotateCw && !input.RotateCcw && input.Left && !input.Right && !input.HardDrop && fits(rotated(before.ActiveMino, 1)) && fits(moved(rotated(before.ActiveMino, 1), -1, 0)) && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.ActiveMino.X == before.ActiveMino.X - 1 && after.ActiveMino.Rotation == Right"
     },
     {
       "id": "P-T9-02",
       "task": "T9",
       "rule": "RL-21",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.RotateCw && !input.RotateCcw && input.Left && !input.Right && !input.HardDrop && kick(before.ActiveMino, 1) == null && fits(moved(before.ActiveMino, -1, 0)) && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.RotateCw && !input.RotateCcw && input.Left && !input.Right && !input.HardDrop && kick(before.ActiveMino, 1) == null && fits(moved(before.ActiveMino, -1, 0)) && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.ActiveMino.X == before.ActiveMino.X - 1 && after.ActiveMino.Rotation == before.ActiveMino.Rotation"
     },
     {
       "id": "P-T9-03",
       "task": "T9",
       "rule": "RL-20",
-      "given": "before.Phase == Playing && before.ActiveMino != null && input.RotateCw && !input.RotateCcw && input.Left && input.Right && !input.HardDrop && fits(rotated(before.ActiveMino, 1)) && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.RotateCw && !input.RotateCcw && input.Left && input.Right && !input.HardDrop && fits(rotated(before.ActiveMino, 1)) && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.ActiveMino.X == before.ActiveMino.X"
     },
     {
@@ -233,27 +382,132 @@
       "task": "T10",
       "rule": "RL-37",
       "given": "before.Phase == GameOver",
-      "then": "after.BlockCount == before.BlockCount"
+      "then": "after.BlockCount == before.BlockCount",
+      "witness": [
+        {
+          "board": [
+            "#########.",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "...####...",
+            ".........."
+          ],
+          "mino": null,
+          "phase": "GameOver",
+          "input": [
+            "HardDrop",
+            "Left"
+          ]
+        }
+      ]
     },
     {
       "id": "P-T10-02",
       "task": "T10",
       "rule": "RL-37",
       "given": "before.Phase == GameOver",
-      "then": "after.Phase == GameOver && after.ActiveMino == null && after.Score == before.Score && after.LinesCleared == before.LinesCleared && after.LockedMinoCount == before.LockedMinoCount"
+      "then": "after.Phase == GameOver && after.ActiveMino == null && after.Score == before.Score && after.LinesCleared == before.LinesCleared && after.LockedMinoCount == before.LockedMinoCount",
+      "witness": [
+        {
+          "board": [
+            "#########.",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "...####...",
+            ".........."
+          ],
+          "mino": null,
+          "phase": "GameOver",
+          "input": [
+            "SoftDrop",
+            "RotateCw"
+          ]
+        }
+      ]
     },
     {
       "id": "P-T10-03",
       "task": "T10",
       "rule": "RL-33",
-      "given": "before.Phase == Playing && after.Phase == GameOver",
-      "then": "after.ActiveMino == null"
+      "given": "before.Phase == Playing && before.ActiveMino != null && input.HardDrop && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && before.ActiveMino.Type == I && before.ActiveMino.Rotation == Spawn && before.ActiveMino.Y == 19 && !fits(moved(before.ActiveMino, 0, -1)) && full_rows(drop(before.ActiveMino)) == 0",
+      "then": "after.Phase == GameOver && after.ActiveMino == null",
+      "witness": [
+        {
+          "board": [
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "...####...",
+            ".........."
+          ],
+          "mino": {
+            "type": "I",
+            "x": 3,
+            "y": 19,
+            "rotation": "Spawn"
+          },
+          "input": [
+            "HardDrop"
+          ]
+        }
+      ]
     },
     {
       "id": "P-T10-04",
       "task": "T10",
       "rule": "RL-33",
-      "given": "before.Phase == Playing && after.LockedMinoCount == before.LockedMinoCount",
+      "given": "before.Phase == Playing && before.ActiveMino != null && !input.HardDrop && fits(moved(before.ActiveMino, 0, -1))",
       "then": "after.Phase == Playing"
     }
   ]
