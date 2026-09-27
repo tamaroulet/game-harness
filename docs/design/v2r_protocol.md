@@ -401,3 +401,20 @@ T1〜T5 は V2 と同じ要求文（`experiments/b4_ab/requirements` の写し�
 - 再開：`python -m harness.ab.driver run --condition <条件> --run-id <run-id> --manifest <マニフェスト> --resume`（v2r だけ）。metrics.jsonl に行のある最後のタスクの終わりのコミットに作業ツリーを戻し、途中だったタスクの出力を `aborted/<時刻>/` に移して（消さない。guard は費用を数え続ける）、次のタスクから続ける。前のタスクの終わりの測定（通っていたテスト・落ちていたテスト）は行に残した値から戻すので、測り直さない
 - 再開した走行は、乾式の走行・本走の報告で「再開あり（どのタスクから）」と書く
 
+### 15.11 乾式の再走 v2r-dry-03 の手順（2026-09-27、V2R-SMOKE）
+
+測定器の見直し（B6.2：原則 P1〜P5）が終わったので、§11.3 に従って A0 の乾式の走行からやり直す。v2r-dry-01・02 は測定器の欠陥で無効（§15.7）。
+
+- 範囲：A0 だけを T1〜T10 で 1 回（run-id `v2r-dry-03`）。呼び出し 10 回。v2r-dry-01 の実測は 0.6329 USD。最悪の見積もりは 10 × 0.5 ＝ 5 USD
+- 準備（済み、2026-09-27）：`python -m harness.envcheck` が合格。`python -m harness.ab.v2r_preflight` が 7 項目とも合格（マニフェストの sha256 `4c27213b…`。記録は `C:/src/.local/out/ab/preflight/`）。記録が無いと、ドライバは起動しない
+- 起動（操縦士の端末で 2 つ）：
+  1. `python -m harness.ab.guard v2r-dry-03`
+  2. `python -m harness.ab.driver run --condition A0 --run-id v2r-dry-03 --manifest experiments/v2r/tasks.json`
+- 止まったとき：`C:/src/.local/out/ab/v2r-dry-03/A0/fault.json`（ドライバの例外）と `C:/src/.local/out/ab/v2r-dry-03/guard_stops.jsonl`（guard）を見る。原因を直してから、`… run … --resume` で続ける。報告には「再開あり（どのタスクから）」と書く
+- 判定（U5、V2R-SMOKE の検証コマンド）：`python -m harness.ab.v2r_ceiling --run-id v2r-dry-03`。次の 3 つをすべて満たせば合格
+  - T1〜T10 がちょうど 1 行ずつある
+  - **空虚な性質が 1 つも無い**（空虚は測定器の故障の疑いなので、欠陥として数えない。v2r-dry-01 はこれを欠陥に数えていた。今の判定器で v2r-dry-01 を判定し直すと、空虚な性質 7 件で不合格になる）
+  - 欠陥が 1 件以上ある
+- 欠陥が 0 件なら、系列が易しすぎるので本走に入らない（§11.3）。系列の見直しを人間が決める
+- 任意の片付け：v2r-dry-01・02 の作業ツリーが残っている（`C:/src/.local/wt/ab/`）。`python -m harness.ab.driver cleanup --run-id v2r-dry-01`（02 も同じ）で消せる。記録（`C:/src/.local/out/ab/`）は残る
+
