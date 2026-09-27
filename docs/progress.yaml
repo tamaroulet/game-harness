@@ -461,6 +461,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_v2r_resume tests.test_guard
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/127
 - id: V2R-SMOKE
   title: 乾式の再走（A0、T1〜T10。天井の検査 U5）
   group: B6.3
