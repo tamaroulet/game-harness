@@ -150,12 +150,33 @@ def stop_driver(run_id=None):
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, timeout=120)
 
 
-def watch(run_ids, limit_usd, interval=15, out=print, midpoint_usd=None, ledger=None, stop=stop_driver):
+def record_stop(run_ids, line, out_root=common.OUT_ROOT):
+    """STOP の行を、見ていた走行ごとに <out_root>/<run_id>/guard_stops.jsonl へ足す（原則 P5。v2r-dry-02 は guard の
+    画面の出力にしか残らなかった）。書けなくても止めることは続ける。"""
+    for rid in run_ids:
+        try:
+            d = Path(out_root) / rid
+            d.mkdir(parents=True, exist_ok=True)
+            with (d / "guard_stops.jsonl").open("a", encoding="utf-8") as f:
+                f.write(json.dumps({"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "line": line}, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+
+
+def watch(run_ids, limit_usd, interval=15, out=print, midpoint_usd=None, ledger=None, stop=stop_driver,
+          out_root=common.OUT_ROOT):
     """実装役のログを interval 秒ごとに読み、止める条件と費用の上限（Ledger）を見る。
 
     limit_usd：全体の Hard Cap（ledger を渡さないときに使う）。midpoint_usd：前半の走行（run_ids の前半）の費用が
     これを超えていたら、後半の最初の呼び出しで止める（V2-RUN の運用。v2r は ledger の中間の線で知らせる）。
     """
+    shown = out
+
+    def out(line):
+        shown(line)
+        if str(line).startswith("STOP"):
+            record_stop(run_ids, line, out_root)
+
     ledger = ledger or Ledger(hard_cap=limit_usd)
     seen, spent, per_run = set(), {}, {}
     first_half = set(run_ids[:len(run_ids) // 2])
@@ -165,7 +186,8 @@ def watch(run_ids, limit_usd, interval=15, out=print, midpoint_usd=None, ledger=
             p = common.paths(run_id, cond)
             if not p["out"].exists():
                 continue
-            logs = sorted(set(p["out"].glob("T*_a*.implementer.log")) | set(p["out"].rglob("implementer_attempt_*.log")))
+            # rglob：再開で aborted/ に移した途中のタスクの呼び出しも費用に数える（driver.set_aside）
+            logs = sorted(set(p["out"].rglob("T*_a*.implementer.log")) | set(p["out"].rglob("implementer_attempt_*.log")))
             for f in logs:
                 key = (str(f), f.stat().st_mtime_ns)
                 if key in seen:

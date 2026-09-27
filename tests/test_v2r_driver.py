@@ -249,9 +249,13 @@ class TokensAndCache(unittest.TestCase):
             lines, stopped = [], []
             with mock.patch.object(guard, "CONDITIONS", ("A0",)), \
                     mock.patch.object(guard.common, "paths", return_value={"out": out, "wt": Path(d), "sandbox": Path(d)}):
-                rc = guard.watch(["r1"], 50, interval=0, out=lines.append, stop=lambda rid=None: stopped.append(rid))
+                rc = guard.watch(["r1"], 50, interval=0, out=lines.append, stop=lambda rid=None: stopped.append(rid),
+                                 out_root=d)
+            # STOP の行は、見ていた走行の記録にも残る（原則 P5。v2r-dry-02 は guard の画面にしか残らなかった）
+            recorded = (Path(d) / "r1" / "guard_stops.jsonl").read_text(encoding="utf-8")
         self.assertEqual(rc, 1)
         self.assertTrue(any("thinking > output" in l for l in lines), lines)
+        self.assertIn("thinking > output", recorded)
 
 
 if __name__ == "__main__":

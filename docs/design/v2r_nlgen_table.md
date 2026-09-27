@@ -1,7 +1,7 @@
 # v2r 描画器の対応表（U4 の査読用）
 
 - 改訂（2026-09-27、V2R-7）：関数 `full_rows`（句と意味の説明）と、知らせの行の注記の対象（`PROPERTY_WITNESS_RESTORE`・`PROPERTY_WITNESS_INVALID`。表の外の正規表現）を足した。操縦士が再査読して合格とした（2026-09-27、game-harness#124）
-- 改訂（2026-09-27、V2R-7 の第 2 段）：複数ティックの性質の文の型紙 `SENTENCE_TICKS` を足した。**再査読が要る**
+- 改訂（2026-09-27、V2R-7 の第 2 段）：複数ティックの性質の文の型紙 `SENTENCE_TICKS` を足した。操縦士が再査読して合格とした（2026-09-27）
 
 `harness/nlgen.py` の語句の対応表（`table()`）の全文と、その sha256。docs/design/v2r_protocol.md §3・§13 の U4 のとおり、人間が一度だけ査読し、本 PR のマージで凍結する。
 
