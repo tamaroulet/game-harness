@@ -75,7 +75,7 @@ class Ledger(unittest.TestCase):
             with mock.patch.object(guard.common, "CONDITIONS", ("B",)), \
                     mock.patch.object(guard.common, "paths", return_value=paths):
                 rc = guard.watch(["r1"], 50, interval=0, out=lines.append, ledger=guard.Ledger(),
-                                 stop=lambda rid=None: stopped.append(rid))
+                                 stop=lambda rid=None: stopped.append(rid), out_root=d)
         self.assertEqual(rc, 1)
         self.assertEqual(stopped, ["r1"], "1 呼び出し 0.75 USD > 0.5 で、その走行を止める")
         self.assertTrue(any(l.startswith("STOP stop_run") for l in lines))

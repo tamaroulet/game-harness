@@ -286,7 +286,7 @@
 | U1 | NUnit と関連パッケージの版 | **閉じた**（2026-09-26）：人間が `python -m harness.envcheck --test-packages` で取った値を `config/environment.json` の `test_packages` に固定した。取得の途中で見つけた欠陥（日本語の Windows で dotnet の出力を CP932 で読めず UnicodeDecodeError）も直した |
 | U2 | Stryker.NET が falling-blocks の構成（NUnit）で動くこと、その版 | **閉じた**（2026-09-26）：5.0.0 は NuGet パッケージ不備のため安定版 4.16.0 を固定。falling-blocks に `src/Core/Core.csproj` を新設してテストと分離（PR #20、`a037fd8`）、`experiments/v2r/tools/mutation.py` に `--project Core.csproj` を渡すことで実機実行に成功。73 変異生成、57 変異中 41 変異を検出し死滅率 71.9%（41/57、所要約 40 秒）。`mutation.py summarize` での集計配管まで通しを確認した。死滅率 71.9% はタスク前の main による参考値であり、T1 の性質テストのオラクル有効性（閾値 80%）は V2R-SMOKE で T1 の終わりの実装で正式に測り直す |
 | U3 | レートリミットのときの agy のエラーの文字列 | agy の出力の実例、または agy の文書で確かめる。確かめられなければ「status が ERROR で手番の利用量が 0」を一時的な失敗とみなす規則に改訂する |
-| U4 | 描画器の対応表の査読 | 2026-09-26 に凍結（game-harness#114）。2026-09-27 に `full_rows` を足して再査読で合格（game-harness#124）。同日、複数ティックの性質の文の型紙 `SENTENCE_TICKS` を足したので、**再査読が要る**（`docs/design/v2r_nlgen_table.md`） |
+| U4 | 描画器の対応表の査読 | **閉じた**（2026-09-27）：2026-09-26 に凍結（game-harness#114）。`full_rows`（game-harness#124）と複数ティックの文の型紙 `SENTENCE_TICKS`（game-harness#125）を足し、どちらも操縦士が再査読して合格とした（`docs/design/v2r_nlgen_table.md`） |
 | U5 | タスクの系列と天井の検査 | 系列（T1〜T10）と性質の宣言・契約・マニフェストは作った（§15）。天井の検査（乾式の走行で A0 の欠陥が 1 件以上）が残る |
 | U6 | 繰り返し R | 乾式の走行のばらつきから決め、人間が承認 |
 | U7 | Release への公開と、第三者の手順での再現 | **ローカルの通しは済み**（2026-09-26）：V2-RUN の記録（v2-run-01〜04）で `pack.py` → `verify.py --extract` を通した。572 ファイル・4,255,570 バイト、verify は「合格」、展開は 572 ファイル。同じ入力から 2 回作ったアーカイブの sha256 が一致（決定論）。1 バイトを変えたアーカイブは verify が不合格にした。**残り**：乾式の走行の出力で、Release への公開 → 取得 → verify → 集計を一度通す（公開は人間の承認の後） |
@@ -393,4 +393,11 @@ T1〜T5 は V2 と同じ要求文（`experiments/b4_ab/requirements` の写し�
 
 - 乾式の走行・本走の前に `python -m harness.ab.v2r_preflight` を通す。ドライバは、同じマニフェストで合格した記録が無ければ起動しない（`docs/design/v2r_instrument_redesign.md` §10）
 - §15.5 の起動の手順の前に、この 1 行が加わる
+
+### 15.10 落ちた走行の記録と再開（2026-09-27、V2R-10）
+
+- ドライバが想定外の例外で止まると、`<out>/<run-id>/<条件>/fault.json` に、タスク・番号・段（baseline・implement・measure・measure_first）・例外・トレースバックと、再開のコマンドを残す
+- guard が止めると、STOP の行を `<out>/<run-id>/guard_stops.jsonl` に足す（v2r-dry-02 の「STOP narrow dirs=2」は画面にしか残らなかった）
+- 再開：`python -m harness.ab.driver run --condition <条件> --run-id <run-id> --manifest <マニフェスト> --resume`（v2r だけ）。metrics.jsonl に行のある最後のタスクの終わりのコミットに作業ツリーを戻し、途中だったタスクの出力を `aborted/<時刻>/` に移して（消さない。guard は費用を数え続ける）、次のタスクから続ける。前のタスクの終わりの測定（通っていたテスト・落ちていたテスト）は行に残した値から戻すので、測り直さない
+- 再開した走行は、乾式の走行・本走の報告で「再開あり（どのタスクから）」と書く
 

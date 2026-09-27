@@ -19,6 +19,7 @@ import re
 import os
 import sys
 import time
+import traceback
 from pathlib import Path
 
 _HARNESS = Path(__file__).resolve().parent.parent
@@ -27,6 +28,7 @@ if str(_HARNESS) not in sys.path:
 
 import agy_stream  # noqa: E402
 import envcheck  # noqa: E402
+import fileops  # noqa: E402
 import exitcode  # noqa: E402
 import implementer_context  # noqa: E402
 import model_pin  # noqa: E402
@@ -474,8 +476,13 @@ def _tokens(calls):
 
 
 def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=common.OUT_ROOT,
-                  task_runner=None, through=None):
-    """through を与えると、T1 からそのタスクまでで止める（乾式の走行用）。途中から始めることはしない。"""
+                  task_runner=None, through=None, resume=False):
+    """through を与えると、T1 からそのタスクまでで止める（乾式の走行用）。
+
+    resume（原則 P5。v2r だけ）：落ちた走行を、metrics.jsonl に行のある最後のタスクの終わりから続ける（`resume_point`）。
+    作業ツリーをそのタスクの終わりのコミットに戻し、途中だったタスクの出力は aborted/ に移す。想定外の例外で止まるときは、
+    どこで何が起きたかを fault.json に残す（`record_fault`）。
+    """
     m = common.load_manifest(manifest)
     m["tasks"] = common.tasks_through(m, through)
     units = [common.unit_of(m, t) for t in m["tasks"]]
@@ -487,11 +494,28 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
     except model_pin.ModelPinError as e:
         raise common.ABError(str(e))
     p = common.paths(run_id, condition, wt_root, out_root)
-    if p["wt"].exists():
-        raise common.ABError(f"worktree が既にあります。先に cleanup してください: {p['wt']}")
-    p["out"].mkdir(parents=True, exist_ok=True)
-    common.git(["worktree", "add", "-q", "-b", p["branch"], str(p["wt"]), m["base_commit"]],
-               proj["repo_dir"], "git worktree add")
+    metrics = p["out"] / "metrics.jsonl"
+    done, carry = 0, None
+    if resume:
+        if not common.is_v2r(m):
+            raise common.ABError("再開（--resume）は v2r のマニフェストだけです（呼び出しごとに新しい会話なので、途中から続けられる）")
+        if not p["wt"].exists():
+            raise common.ABError(f"再開する worktree がありません: {p['wt']}")
+        done, carry = resume_point(metrics, m["tasks"])
+        if done == len(m["tasks"]):
+            print(f"[{condition}] {run_id}: すべてのタスクに行があります。再開することはありません")
+            return 0
+        common.git(["reset", "-q", "--hard", carry["end_commit"] if carry else m["base_commit"]], p["wt"],
+                   "git reset（再開）")
+        common.git(["clean", "-q", "-fd"], p["wt"], "git clean（再開）")
+        moved = set_aside(p["out"], m["tasks"][done]["id"])
+        print(f"[{condition}] {run_id}: {m['tasks'][done]['id']} から再開します（途中の出力 {len(moved)} 件を aborted/ に移した）")
+    else:
+        if p["wt"].exists():
+            raise common.ABError(f"worktree が既にあります。先に cleanup するか、続けるなら --resume を付けてください: {p['wt']}")
+        p["out"].mkdir(parents=True, exist_ok=True)
+        common.git(["worktree", "add", "-q", "-b", p["branch"], str(p["wt"]), m["base_commit"]],
+                   proj["repo_dir"], "git worktree add")
     ctx = {"m": m, "wt": p["wt"], "sandbox": p["sandbox"], "out": p["out"], "imp": cfg["implementer"],
            "ttl": cfg["ttl_seconds"]["implementer"], "test_project": proj["fast_test_project"],
            "impl_dir": proj["impl_dir"],
@@ -512,12 +536,69 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
         ctx.update(judge="pipeline", judge_sandbox=p["sandbox"])
     task_runner = task_runner or (run_task_a if condition == "A" else run_task_b)
     decl = common.ROOT / "projects" / PROJECT / "invariants.json"
-    metrics = p["out"] / "metrics.jsonl"
+    where = {"task": None, "index": None, "phase": "baseline"}
+    try:
+        _run_tasks(ctx, m, units, proj, p, run_id, condition, task_runner, decl, metrics, wt_root, done, carry, where)
+    except BaseException as e:
+        record_fault(p["out"], run_id, condition, manifest, where, e)
+        raise
+    return 0
 
-    results, _ = measure.run_fast(p["wt"], ctx["test_project"], p["out"], "baseline")
-    prev = measure.passing(results)
-    state = {"conversation_id": None, "known_failures": failing_names(results) or []}
+
+def resume_point(metrics, tasks):
+    """(行のあるタスクの数, 最後の行の再開の情報 | None)。行は T1 から順に途切れずにあること。"""
+    rows = []
+    if Path(metrics).exists():
+        rows = [json.loads(line) for line in Path(metrics).read_text(encoding="utf-8").splitlines() if line.strip()]
+    for k, r in enumerate(rows):
+        if k >= len(tasks) or r.get("task") != tasks[k]["id"]:
+            raise common.ABError(f"metrics.jsonl の行がタスクの順と合いません（{k + 1} 行目：{r.get('task')}）。再開できません")
+        if not isinstance(r.get("resume"), dict):
+            raise common.ABError(f"metrics.jsonl の {r.get('task')} の行に再開の情報がありません（古い走行）。再開できません")
+    return len(rows), (rows[-1]["resume"] if rows else None)
+
+
+def set_aside(out, task_id):
+    """途中だったタスクの出力を aborted/<時刻>/ に移す（消さない。guard は費用を数え続ける）。移したものの名前の列。"""
+    out = Path(out)
+    dest = out / "aborted" / time.strftime("%Y%m%d-%H%M%S")
+    items = [x for x in out.iterdir() if x.name.startswith((f"{task_id}_", f"{task_id}.")) or x.name == task_id]
+    judge = out / "judge" / task_id
+    items += [judge] if judge.exists() else []
+    names = sorted(x.relative_to(out).as_posix() for x in items)
+    for x in items:
+        target = dest / x.relative_to(out)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        fileops.replace(x, target)
+    return names
+
+
+def record_fault(out, run_id, condition, manifest, where, e):
+    """想定外の停止を fault.json に残す（原則 P5。v2r-dry-02 は止まった理由が記録に無かった）。"""
+    try:
+        Path(out).mkdir(parents=True, exist_ok=True)
+        rec = {"run_id": run_id, "condition": condition, **where, "type": type(e).__name__, "message": str(e)[:2000],
+               "traceback": traceback.format_exc()[-4000:], "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+               "resume": (f"python -m harness.ab.driver run --condition {condition} --run-id {run_id} "
+                          f"--manifest {manifest} --resume")}
+        (Path(out) / "fault.json").write_text(json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    except OSError:
+        pass   # 記録に失敗しても、元の例外を隠さない
+
+
+def _run_tasks(ctx, m, units, proj, p, run_id, condition, task_runner, decl, metrics, wt_root, done, carry, where):
+    if carry is None:
+        results, _ = measure.run_fast(p["wt"], ctx["test_project"], p["out"], "baseline")
+        prev = measure.passing(results)
+        state = {"conversation_id": None, "known_failures": failing_names(results) or []}
+    else:
+        # 再開：最後に行を書いたタスクの終わりの測定を、行に残した値から戻す（測り直さない）
+        prev = set(carry["passing"])
+        state = {"conversation_id": None, "known_failures": list(carry["known_failures"])}
     for i, (task, unit) in enumerate(zip(m["tasks"], units), start=1):
+        if i <= done:
+            continue
+        where.update(task=task["id"], index=i, phase="implement")
         ctx["index"] = i
         t0 = time.monotonic()
         measure.place_frozen_tests(m, p["wt"], i, m["test_dir"])
@@ -532,6 +613,7 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
         if common.is_v2(m):
             seeds = common.hidden_seeds(run_id, task["id"], m["measure_hidden_seeds"])
             env = dict(os.environ, **{propgen.HIDDEN_ENV: ",".join(str(x) for x in seeds)})
+        where["phase"] = "measure"
         results, _ = measure.run_fast(p["wt"], ctx["test_project"], p["out"], f"{task['id']}_final", env=env)
         hits = dotnet.property_hits(p["out"] / f"{task['id']}_final.trx")
         passed, total = measure.acceptance(results, ctx["classes"], task["id"])
@@ -557,19 +639,21 @@ def run_condition(manifest, condition, run_id, wt_root=common.WT_ROOT, out_root=
                 "model": {"requested": ctx["imp"]["model_name"],
                           "reported": sorted({c["model"] for c in rec["calls"] if c.get("model")})}}
         # 最初の提出（門を通す前）を、同じ測定器・同じ非公開シードで測る（V2-6。実装役には知らせない）
+        where["phase"] = "measure_first"
         first = measure_first(ctx, proj, run_id, condition, task, start, prev, env, decl, p["out"], wt_root)
         if first is not None:
             line["first_submission"] = first
-        with metrics.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(line, ensure_ascii=False) + "\n")
-        print(f"[{condition}] {task['id']}: 受入 {passed}/{total}、P2P の破壊 {len(broken)}、"
-              f"不変条件の違反 {inv['failures']}、試行 {rec['attempts']}")
         prev = measure.passing(results)
         # ビルドが通らなかったときは名前が取れないので、前の一覧のまま
         known = failing_names(results)
         if known is not None:
             state["known_failures"] = known
-    return 0
+        # 再開の情報（原則 P5）：このタスクの終わりのコミットと、次のタスクの P2P の比べる元
+        line["resume"] = {"end_commit": end, "passing": sorted(prev), "known_failures": list(state["known_failures"])}
+        with metrics.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(line, ensure_ascii=False) + "\n")
+        print(f"[{condition}] {task['id']}: 受入 {passed}/{total}、P2P の破壊 {len(broken)}、"
+              f"不変条件の違反 {inv['failures']}、試行 {rec['attempts']}")
 
 
 def measure_first(ctx, proj, run_id, condition, task, start, prev, env, decl, out, wt_root=common.WT_ROOT):
@@ -642,6 +726,8 @@ def main(argv=None):
     r.add_argument("--run-id", required=True)
     r.add_argument("--manifest", default=str(common.EXP_DIR / "tasks.json"))
     r.add_argument("--through", help="このタスクまでで止める（例: T1）")
+    r.add_argument("--resume", action="store_true",
+                   help="落ちた走行を、metrics.jsonl に行のある最後のタスクの次から続ける（v2r だけ。原則 P5）")
     a = sub.add_parser("run-all")
     a.add_argument("--repeat", type=int, default=3)
     a.add_argument("--prefix", default="ab")
@@ -665,7 +751,8 @@ def main(argv=None):
             return exitcode.ABORT
     try:
         if args.cmd == "run":
-            return run_condition(args.manifest, args.condition, args.run_id, through=args.through)
+            return run_condition(args.manifest, args.condition, args.run_id, through=args.through,
+                                 resume=args.resume)
         if args.cmd == "run-all":
             return run_all(args.manifest, args.repeat, args.prefix)
         cleanup(args.run_id)
