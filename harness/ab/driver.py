@@ -41,7 +41,7 @@ import testgen  # noqa: E402
 import tool_policy  # noqa: E402
 import transient  # noqa: E402
 from adapters import dotnet  # noqa: E402
-from ab import common, measure, v2r  # noqa: E402
+from ab import common, measure, v2r, v2r_preflight  # noqa: E402
 from proc import resolve_cli, run  # noqa: E402
 
 PROJECT = "falling-blocks"
@@ -655,6 +655,12 @@ def main(argv=None):
         try:
             envcheck.require(common.OUT_ROOT / f"{name}.env.json")
         except envcheck.EnvError as e:
+            print(f"ABORT: {e}")
+            return exitcode.ABORT
+        # v2r：同じマニフェストで走行の前の検定（原則 P3）に合格していなければ起動しない
+        try:
+            v2r_preflight.require(args.manifest)
+        except common.ABError as e:
             print(f"ABORT: {e}")
             return exitcode.ABORT
     try:
