@@ -43,8 +43,33 @@
       "id": "P-T2-01",
       "task": "T2",
       "rule": "RL-43",
-      "given": "before.Phase == Playing && after.LockedMinoCount == before.LockedMinoCount + 1 && after.LinesCleared == before.LinesCleared",
-      "then": "after.BlockCount == before.BlockCount + 4"
+      "given": "before.Phase == Playing && before.ActiveMino != null && !fits(moved(before.ActiveMino, 0, -1)) && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !input.SoftDrop && !input.HardDrop && full_rows(before.ActiveMino) == 0",
+      "then": "after.LockedMinoCount == before.LockedMinoCount + 1 && after.BlockCount == before.BlockCount + 4",
+      "ticks": 30,
+      "witness": [
+        {
+          "board": [],
+          "mino": {
+            "type": "O",
+            "x": 3,
+            "y": -1,
+            "rotation": "Spawn"
+          },
+          "input": []
+        },
+        {
+          "board": [
+            "##........"
+          ],
+          "mino": {
+            "type": "I",
+            "x": 5,
+            "y": -2,
+            "rotation": "Spawn"
+          },
+          "input": []
+        }
+      ]
     },
     {
       "id": "P-T2-02",
@@ -64,8 +89,33 @@
       "id": "P-T2-04",
       "task": "T2",
       "rule": "RL-32",
-      "given": "before.Phase == Playing && after.Phase == Playing && after.LockedMinoCount == before.LockedMinoCount + 1",
-      "then": "after.ActiveMino.X == 3 && after.ActiveMino.Y == 19 && after.ActiveMino.Rotation == Spawn"
+      "given": "before.Phase == Playing && before.ActiveMino != null && !fits(moved(before.ActiveMino, 0, -1)) && !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw && !input.SoftDrop && !input.HardDrop && full_rows(before.ActiveMino) == 0",
+      "then": "after.Phase == Playing && after.ActiveMino.X == 3 && after.ActiveMino.Y == 19 && after.ActiveMino.Rotation == Spawn",
+      "ticks": 30,
+      "witness": [
+        {
+          "board": [],
+          "mino": {
+            "type": "O",
+            "x": 3,
+            "y": -1,
+            "rotation": "Spawn"
+          },
+          "input": []
+        },
+        {
+          "board": [
+            "##........"
+          ],
+          "mino": {
+            "type": "I",
+            "x": 5,
+            "y": -2,
+            "rotation": "Spawn"
+          },
+          "input": []
+        }
+      ]
     },
     {
       "id": "P-T3-01",

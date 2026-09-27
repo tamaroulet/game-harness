@@ -1,10 +1,11 @@
 # v2r 描画器の対応表（U4 の査読用）
 
 - 改訂（2026-09-27、V2R-7）：関数 `full_rows`（句と意味の説明）と、知らせの行の注記の対象（`PROPERTY_WITNESS_RESTORE`・`PROPERTY_WITNESS_INVALID`。表の外の正規表現）を足した。操縦士が再査読して合格とした（2026-09-27、game-harness#124）
+- 改訂（2026-09-27、V2R-7 の第 2 段）：複数ティックの性質の文の型紙 `SENTENCE_TICKS` を足した。**再査読が要る**
 
 `harness/nlgen.py` の語句の対応表（`table()`）の全文と、その sha256。docs/design/v2r_protocol.md §3・§13 の U4 のとおり、人間が一度だけ査読し、本 PR のマージで凍結する。
 
-- 対応表 sha256：`cd88197c9fc9295f42c6dfb4bca5910aebbba9c33b3fae9c2947a99668b0cf7f`
+- 対応表 sha256：`950dcf544faf27b7ecd1936bf983660af4abcefecf90ba9b38564cd6a672948f`
 - 計算：`json.dumps(table(), ensure_ascii=False, sort_keys=True)` の UTF-8 の sha256（`nlgen.table_sha256()`）
 - 確かめ方：`python -m harness.nlgen experiments/v2r/properties.json` の末尾の「対応表 sha256」と、語彙と描画の検査（「合格」）
 - 凍結の仕組み：`tests/test_nlgen.py` が sha256 をこの値に固定する。対応表を変えるとテストが落ちるので、変えるときは本書と固定値を同じ PR で改め、改めて人間が査読する
@@ -131,6 +132,7 @@
     "before": "前の"
   },
   "SENTENCE": "- {id}（{rule}）：{given}とき、{then}",
+  "SENTENCE_TICKS": "- {id}（{rule}）：{given}とき、その Tick を含めて {n} Tick 進めた後（2 Tick 目からは入力が無い。「後の」はその後の状態）、{then}",
   "STATE": {
     "ActiveMino": "操作中のミノ",
     "BlockCount": "ブロック数",

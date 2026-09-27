@@ -49,6 +49,7 @@ COMMON = """## 全タスク共通（v2）
 
 - GameState は IGameState を実装する。既存の公開メンバー（GamePhase・MinoType・Rotation・ActiveMino を含む）の名前・型・引数を変えない。消さない
 - 参照データ（PR-xx）は値を書き写さず、GddReference の定数（PR-03 なら GddReference.PR_03）と、表 GddReference.Shape・GddReference.Kicks を使う
+- 復元用コンストラクタ GameState(phase, activeMino, locked) は、見えない数を出現の直後と同じ値にする：ロック猶予タイマーは GddReference.PR_03、ロック猶予のリセット回数・自然落下のカウンタ・ソフトドロップのカウンタは 0
 - 差分は追加 250 行以下かつ削除 100 行以下"""
 # v2.3（docs/design/v2_2_architecture_self_critique.md §4.1 の案 1）：「契約は書き換えない」（埋め込みの見出しと門が示す）、
 # 受入の説明（作業場所の決まりが示す）、保存則（RL-36）の行を外した。RL-36 は T1 では性質が無く、宙に浮いた ID だった
@@ -99,6 +100,11 @@ def _task_no(task):
 
 
 def _prop_line(p):
+    t = p.get("ticks", 1)
+    if t > 1:
+        # 複数ティックの性質（harness/witness.py）：before は最初の Tick の前、after は最後の Tick の後
+        return (f"- {p['id']}（{p['rule']}）：前提 {p['given']} のとき、その Tick を含めて {t} Tick 進めた後"
+                f"（2 Tick 目からは入力なし。after はその後の状態）、{p['then']}")
     return f"- {p['id']}（{p['rule']}）：前提 {p['given']} のとき、{p['then']}"
 
 

@@ -622,8 +622,8 @@ def validate(decl, spec_text, gdd_text, interface):
     ids, live = set(), {}
     for k, p in enumerate(props):
         where = f"properties[{k}]"
-        if not isinstance(p, dict) or set(p) - {"_comment", "sampling", "witness"} != {"id", "task", "rule", "given", "then"}:
-            problems.append(f"{where}: キーは id・task・rule・given・then（と任意の sampling・witness）です")
+        if not isinstance(p, dict) or set(p) - {"_comment", "sampling", "witness", "ticks"} != {"id", "task", "rule", "given", "then"}:
+            problems.append(f"{where}: キーは id・task・rule・given・then（と任意の sampling・witness・ticks）です")
             continue
         if not PROP_ID_RE.match(str(p["id"])) or p["id"] in ids:
             problems.append(f"{where}: id は P-T<n>-<2 桁以上> で重複しないこと: {p['id']!r}")
@@ -651,6 +651,7 @@ def validate(decl, spec_text, gdd_text, interface):
             sampling(p, rows)
             # 証拠の状態（原則 P1）：前提が成り立つことを参照モデルで確かめる。成り立たなければ生成しない
             witness.check(p, contract, ref_data, start_phase, parse)
+            ticks_of(p)
         except (PropertyError, witness.WitnessError) as e:
             problems.append(str(e))
     for task, ok in sorted(live.items()):
@@ -1097,8 +1098,20 @@ def _check_method(p, contract, rows=None, start_phase=None, witnesses=None):
               f"            new global::{testgen.CORE_NAMESPACE}.TickInput({args});"]
     if witnesses:
         lines += [f"        public static PropertyRunner.Witness[] Witnesses_{name} =>",
-                  "            " + witness.cs_array(witnesses, contract, f"global::{testgen.CORE_NAMESPACE}") + ";"]
+                  "            " + witness.cs_array(witnesses, contract, f"global::{testgen.CORE_NAMESPACE}", ticks_of(p)) + ";"]
     return lines
+
+
+def ticks_of(p):
+    """性質の ticks（既定 1）。2 以上は証拠の状態が要る（無作為な系列は流さない。harness/witness.py）。"""
+    t = p.get("ticks", 1)
+    if isinstance(t, bool) or not isinstance(t, int) or not 1 <= t <= witness.MAX_TICKS:
+        raise PropertyError(f"{p['id']}.ticks: 1 以上 {witness.MAX_TICKS} 以下の整数です")
+    if t > 1 and not p.get("witness"):
+        raise PropertyError(f"{p['id']}.ticks: 複数ティックの性質には証拠の状態（witness）が要ります")
+    if t > 1 and p.get("sampling") is not None:
+        raise PropertyError(f"{p['id']}.ticks: 複数ティックの性質は無作為な系列を流さないので、sampling は書けません")
+    return t
 
 
 def _sampling_args(p, rows):
@@ -1118,7 +1131,10 @@ def _tests(task, props, decl, rows=None, witnessed=frozenset()):
            f"        static readonly int[] PublicSeeds = PropertyRunner.Public({decl['seeds']['public']});", ""]
     for p in props:
         name = p["id"].replace("-", "_")
-        for suffix, seeds in (("Public", "PublicSeeds"), ("Hidden", "PropertyRunner.Hidden()")):
+        # 複数ティックの性質は証拠だけで確かめる（無作為な系列は 1 Tick の前後なので、then の意味が合わない）
+        pairs = ((("Public", "PublicSeeds"), ("Hidden", "PropertyRunner.Hidden()")) if ticks_of(p) == 1 else
+                 (("Public", "new int[0]"), ("Hidden", "new int[0]")))
+        for suffix, seeds in pairs:
             out += ["        [global::NUnit.Framework.Test]",
                     f"        [global::NUnit.Framework.Description(\"{p['rule']}\")]",
                     f"        public void {name}_{suffix}() =>",

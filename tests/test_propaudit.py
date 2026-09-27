@@ -55,10 +55,10 @@ class Classify(unittest.TestCase):
 
     def test_the_v2r_declaration_after_the_first_rewrite(self):
         """記録：v2r-dry-02 の時点では 34 件中 30 件が outcome の項を持っていた。V2R-7 の最初の書き直しで 2 件（T2-01・T2-04。
-        隠れたロック猶予タイマーで決まる固定。複数ティックの証拠で書き直す）になった（2026-09-27）。"""
+        隠れたロック猶予タイマーで決まる固定）になり、第 2 段で複数ティックの証拠（ticks）に書き直して 0 件になった（2026-09-27）。"""
         props = json.loads((ROOT / "experiments" / "v2r" / "properties.json").read_text(encoding="utf-8"))["properties"]
         rows = propaudit.audit(props)
-        self.assertEqual((len(rows), [r["id"] for r in rows if r["outcome"]]), (34, ["P-T2-01", "P-T2-04"]))
+        self.assertEqual((len(rows), [r["id"] for r in rows if r["outcome"]]), (34, []))
 
 
 class RmTree(unittest.TestCase):

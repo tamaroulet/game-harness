@@ -149,6 +149,7 @@ namespace Game.Core.Tests.Contracts
 - データ型 `Cell`（`Cell(int x, int y)`、property `X`・`Y`）。単位定義のスキーマの型の書式（`TYPE_RE`）はタプルを書けないので、座標は `Cell` で表す。データ型なので contractgen が実装まで作る
 - `IGameState.IsOccupied(int x, int y)`：固定ブロックがあるか。盤面外は GDD（RL-40）に合わせて true
 - 復元用コンストラクタ `GameState(GamePhase phase, ActiveMino? activeMino, IReadOnlyList<Cell> locked)`：固定ブロックのある盤面から始める。性質テストの生成器が使う
+  - **復元の意味**（2026-09-27 に追記、v2r の V2R-7）：見えない数を出現の直後（RL-32）と同じ値にする。ロック猶予タイマーは PR-03（30 ティック）、ロック猶予のリセット回数・自然落下のカウンタ・ソフトドロップのカウンタは 0。証拠の状態（`harness/witness.py`）から複数ティックを進める性質（ロック猶予の満了による固定など）は、この意味を前提にする。実装役には全タスク共通の節（`harness/ab/v2prep.py` の `COMMON`）で渡す
 
 ## 4. 性質の宣言（properties.json）
 
