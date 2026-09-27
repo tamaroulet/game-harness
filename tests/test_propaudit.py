@@ -53,11 +53,12 @@ class Classify(unittest.TestCase):
                 path.write_text(json.dumps({"properties": props[1:]}), encoding="utf-8")
                 self.assertEqual(propaudit.main([str(path), "--strict"]), 0)
 
-    def test_the_v2r_declaration_as_of_dry_02(self):
-        """記録：v2r の宣言 34 件のうち 30 件が outcome の項を持つ（2026-09-27）。宣言を P1 に沿って書き直したら改める。"""
+    def test_the_v2r_declaration_after_the_first_rewrite(self):
+        """記録：v2r-dry-02 の時点では 34 件中 30 件が outcome の項を持っていた。V2R-7 の最初の書き直しで 2 件（T2-01・T2-04。
+        隠れたロック猶予タイマーで決まる固定。複数ティックの証拠で書き直す）になった（2026-09-27）。"""
         props = json.loads((ROOT / "experiments" / "v2r" / "properties.json").read_text(encoding="utf-8"))["properties"]
         rows = propaudit.audit(props)
-        self.assertEqual((len(rows), sum(1 for r in rows if r["outcome"])), (34, 30))
+        self.assertEqual((len(rows), [r["id"] for r in rows if r["outcome"]]), (34, ["P-T2-01", "P-T2-04"]))
 
 
 class RmTree(unittest.TestCase):

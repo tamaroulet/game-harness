@@ -197,6 +197,7 @@ FUNCS = {  # 名前: (引数の型, 戻りの型, C# の組み立て)
     "kick": (("mino", "int"), "mino?", lambda a: f"PropertyModel.Kick(b, {a[0]}, {a[1]})"),
     "drop": (("mino",), "mino", lambda a: f"PropertyModel.Drop(b, {a[0]})"),
     "occupied_before": (("int", "int"), "bool", lambda a: f"b.Occupied({a[0]}, {a[1]})"),
+    "full_rows": (("mino",), "int", lambda a: f"PropertyModel.FullRows(b, {a[0]})"),
     "occupied_after": (("int", "int"), "bool", lambda a: f"a.Occupied({a[0]}, {a[1]})"),
 }
 
@@ -216,6 +217,7 @@ FUNC_DOCS = {
             "表の順に足し、前の盤面で最初に fits となるミノ。どれも fits でなければ null",
     "drop": "drop(m)：前の盤面で、m を fits である限り下へ 1 マスずつ動かしきったミノ",
     "occupied_before": "occupied_before(x, y)：前の盤面で (x, y) が固定ブロックか。盤面の外は true",
+    "full_rows": "full_rows(m)：前の盤面に m の 4 マス（盤面の内側のもの）を足したとき、横 PR-06 マスがすべて埋まる行の数",
     "occupied_after": "occupied_after(x, y)：後の盤面で (x, y) が固定ブロックか。盤面の外は true",
 }
 _CALL_RE = re.compile(r"\b([a-z_]+)\(")
@@ -461,7 +463,7 @@ def _split_eq(text):
 
 DIRECTED_BASE, DIRECTED_MAX, DIRECTED_COUNT = 1_000_000_000, 20000, 3
 PRE_STATE = ("Phase", "ActiveMino")   # 開始状態で実装を使わずに分かるもの（AtStart）
-PRE_FUNCS = {"fits", "in_board", "moved", "rotated", "kick", "drop", "occupied_before"}
+PRE_FUNCS = {"fits", "in_board", "moved", "rotated", "kick", "drop", "occupied_before", "full_rows"}
 
 
 def _conjuncts(e):
@@ -811,6 +813,25 @@ namespace {NAMESPACE}
             var c = m;
             while (Fits(b, Moved(c, 0, -1))) c = Moved(c, 0, -1);
             return c;
+        }}
+
+        // 前の盤面に m の 4 マス（盤面の内側のもの）を足したとき、横がすべて埋まる行の数（ライン消去の前提を前の状態で決める）
+        public static int FullRows(Snapshot b, ActiveMino m)
+        {{
+            var occ = (bool[,])b.Occ.Clone();
+            foreach (var c in Shapes[(int)m.Type][(int)m.Rotation])
+            {{
+                int x = m.X + c[0], y = m.Y + c[1];
+                if (x >= 0 && y >= 0 && x < Width && y < Height) occ[x, y] = true;
+            }}
+            int n = 0;
+            for (int y = 0; y < Height; y++)
+            {{
+                bool full = true;
+                for (int x = 0; x < Width && full; x++) full = occ[x, y];
+                if (full) n++;
+            }}
+            return n;
         }}
 
         public static int TypeCount => Shapes.Length;

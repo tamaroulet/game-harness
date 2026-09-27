@@ -64,6 +64,7 @@ VALUE_FUNCS = {
     "rotated": "{0}を {1} 段回したもの",
     "kick": "{0}を {1} 段回して補正候補を試した結果",
     "drop": "{0}を下へ落としきったもの",
+    "full_rows": "{0}を前の盤面に足したときに埋まりきる行の数",
 }
 PRED_FUNCS = {
     "fits": ("{0}が置ける", "{0}が置けない"),
@@ -82,12 +83,14 @@ FUNC_DOCS = {
             "回した後の向き) の候補 (dx, dy) を表の順に足し、前の盤面で最初に置けるもの。どれも置けなければ無し",
     "drop": "「m を下へ落としきったもの」：前の盤面で、置ける限り m を下へ 1 マスずつ動かしきったミノ",
     "occupied_before": "「前の盤面の (x, y) が埋まっている」：前の盤面で (x, y) が固定ブロックであること。盤面の外は埋まっているとみなす",
+    "full_rows": "「m を前の盤面に足したときに埋まりきる行の数」：前の盤面に m の 4 マス（盤面の内側のもの）を足したとき、"
+                 "横 PR-06 マスがすべて埋まる行の数",
     "occupied_after": "「後の盤面の (x, y) が埋まっている」：後の盤面で (x, y) が固定ブロックであること。盤面の外は埋まっているとみなす",
 }
 READING = ("- 「前の」「後の」は、その Tick の前と後の状態。「入力」は、その Tick の入力\n"
            "- ミノの 4 マス：GddReference.Shape(形, 向き) の各 (x, y) について (X 座標 + x, Y 座標 + y)。Y 座標が 1 減る向きが下")
 SENTENCE = "- {id}（{rule}）：{given}とき、{then}"
-FEEDBACK_RE = re.compile(r"^(PROPERTY_(?:FAIL|VACUOUS|UNSATISFIABLE)) id=(\S+)")
+FEEDBACK_RE = re.compile(r"^(PROPERTY_(?:FAIL|VACUOUS|UNSATISFIABLE|WITNESS_RESTORE|WITNESS_INVALID)) id=(\S+)")
 FEEDBACK_NOTE = "  （この性質：{s}）"
 
 

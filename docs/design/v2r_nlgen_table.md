@@ -1,8 +1,10 @@
 # v2r 描画器の対応表（U4 の査読用）
 
+- 改訂（2026-09-27、V2R-7）：関数 `full_rows`（句と意味の説明）と、知らせの行の注記の対象（`PROPERTY_WITNESS_RESTORE`・`PROPERTY_WITNESS_INVALID`。表の外の正規表現）を足した。**改めて人間の査読が要る**（V2R-8）
+
 `harness/nlgen.py` の語句の対応表（`table()`）の全文と、その sha256。docs/design/v2r_protocol.md §3・§13 の U4 のとおり、人間が一度だけ査読し、本 PR のマージで凍結する。
 
-- 対応表 sha256：`959aedeb8eec960a0ec56b813c77d1af0d55709ceef30c512a27088836f60047`
+- 対応表 sha256：`cd88197c9fc9295f42c6dfb4bca5910aebbba9c33b3fae9c2947a99668b0cf7f`
 - 計算：`json.dumps(table(), ensure_ascii=False, sort_keys=True)` の UTF-8 の sha256（`nlgen.table_sha256()`）
 - 確かめ方：`python -m harness.nlgen experiments/v2r/properties.json` の末尾の「対応表 sha256」と、語彙と描画の検査（「合格」）
 - 凍結の仕組み：`tests/test_nlgen.py` が sha256 をこの値に固定する。対応表を変えるとテストが落ちるので、変えるときは本書と固定値を同じ PR で改め、改めて人間が査読する
@@ -63,6 +65,7 @@
   "FUNC_DOCS": {
     "drop": "「m を下へ落としきったもの」：前の盤面で、置ける限り m を下へ 1 マスずつ動かしきったミノ",
     "fits": "「m が置ける」：前の盤面で、m の 4 マスがすべて盤面の内側（幅 PR-06、高さ PR-08）にあり、固定ブロックに重ならないこと",
+    "full_rows": "「m を前の盤面に足したときに埋まりきる行の数」：前の盤面に m の 4 マス（盤面の内側のもの）を足したとき、横 PR-06 マスがすべて埋まる行の数",
     "in_board": "「m が盤面の内側にある」：m の 4 マスがすべて盤面の内側にあること",
     "kick": "「m を dir 段回して補正候補を試した結果」：m を dir 段回したものに、GddReference.Kicks(m の形, m の向き, 回した後の向き) の候補 (dx, dy) を表の順に足し、前の盤面で最初に置けるもの。どれも置けなければ無し",
     "moved": "「m を x に dx、y に dy 動かしたもの」：m の X 座標に dx、Y 座標に dy を足したミノ（形と向きは同じ）",
@@ -139,6 +142,7 @@
   },
   "VALUE_FUNCS": {
     "drop": "{0}を下へ落としきったもの",
+    "full_rows": "{0}を前の盤面に足したときに埋まりきる行の数",
     "kick": "{0}を {1} 段回して補正候補を試した結果",
     "moved": "{0}を x に {1}、y に {2} 動かしたもの",
     "rotated": "{0}を {1} 段回したもの"
