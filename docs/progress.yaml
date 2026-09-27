@@ -437,6 +437,7 @@ tasks:
   verification:
     command: python -m harness.propaudit experiments/v2r/properties.json --strict
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/124
 - id: V2R-8
   title: 描画器の対応表の査読のやり直し（語句が増えた分。U4）とマニフェストの作り直し
   group: B6.2
