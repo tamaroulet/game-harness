@@ -106,10 +106,33 @@ class ViewTests(unittest.TestCase):
 
     def test_report_refuses_to_exceed_20_lines(self):
         s = sample()
-        s["tasks"] += [{"id": f"X{i}", "title": "x", "group": "G1", "target_repo": "r", "status": "pending",
+        s["nodes"] += [{"id": f"H{i}", "title": "h", "parent": "A"} for i in range(20)]
+        s["tasks"] += [{"id": f"X{i}", "title": "x", "group": f"H{i}", "target_repo": "r", "status": "pending",
                         "verification": None} for i in range(20)]
         with self.assertRaises(progress.ProgressError):
             progress.report(s)
+
+    def test_the_open_branch_shows_at_most_four_tasks(self):
+        s = sample()
+        s["tasks"][2:2] = [{"id": f"X{i}", "title": "x", "group": "G1", "target_repo": "r", "status": "pending",
+                            "verification": None} for i in range(5)]
+        t = progress.tree(s)
+        self.assertIn("T1 first ← 現在地", t)
+        self.assertIn("X1 x", t)
+        self.assertNotIn("X2 x", t)
+        self.assertIn("…ほか 3 件（tree --all で内訳）", t)
+        self.assertIn("X4 x", progress.tree(s, expand_all=True))
+
+    def test_completed_siblings_fold_into_one_line(self):
+        s = sample()
+        s["nodes"] += [{"id": "D1", "title": "done 1", "parent": "A"}, {"id": "D2", "title": "done 2", "parent": "A"}]
+        s["nodes"] = [s["nodes"][0], s["nodes"][3], s["nodes"][4], s["nodes"][1], s["nodes"][2]]
+        s["tasks"] += [{"id": f"Y{i}", "title": "y", "group": f"D{i}", "target_repo": "r", "status": "completed",
+                        "verification": None} for i in (1, 2)]
+        t = progress.tree(s)
+        self.assertIn("- [x] D1・D2（完了。tree --all で内訳）", t)
+        self.assertNotIn("done 1", t)
+        self.assertIn("D1 done 1", progress.tree(s, expand_all=True))
 
     def test_validate_rejects_two_active_tasks(self):
         s = sample()
