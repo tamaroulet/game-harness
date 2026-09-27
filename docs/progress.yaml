@@ -469,6 +469,7 @@ tasks:
   verification:
     command: python -m harness.ab.v2r_ceiling --run-id v2r-dry-03
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/128
 - id: V2R-R
   title: 4 条件の 1 繰り返しと繰り返し R の決定（U6。人間の承認）
   group: B6.3
