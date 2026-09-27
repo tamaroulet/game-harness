@@ -162,31 +162,59 @@ def _contains_active(state, node_id):
     return any(t["id"] == state.get("active_task_id") for t in _tasks_under(state, node_id))
 
 
+OPEN_TASKS_MAX = 4   # 既定の表示で、展開した枝に並べる未完了のタスクの上限（残りは件数だけ。report の 20 行に収める）
+
+
 def tree(state, expand_all=False):
-    """人間と PR 用。既定では現在のタスクを含む枝だけを展開し、他の枝は件数に畳む。"""
+    """人間と PR 用。既定では現在のタスクを含む枝だけを展開し、他の枝は件数に畳む。
+
+    既定の表示では、続けて並ぶ完了した兄弟の段を 1 行にまとめ、展開した枝の未完了のタスクは先頭から OPEN_TASKS_MAX 件
+    だけ出す（段 B6 を中ゴールに分けたら report が 24 行になった。2026-09-27）。--all ではすべて出す。
+    """
     lines = []
 
-    def walk(node, depth):
+    def line(node, depth):
         ts = _tasks_under(state, node["id"])
         mark = "[x]" if _done(state, node) else "[ ]"
         count = f"（{sum(t['status'] == 'completed' for t in ts)}/{len(ts)}）" if ts else ""
         lines.append(f"{'  ' * depth}- {mark} {node['id']} {node['title']}{count}")
+
+    def siblings(nodes, depth):
+        done = []
+
+        def flush():
+            if len(done) >= 2:
+                lines.append(f"{'  ' * depth}- [x] {'・'.join(n['id'] for n in done)}（完了。tree --all で内訳）")
+            elif done:
+                line(done[0], depth)
+            done.clear()
+        for n in nodes:
+            if not expand_all and _done(state, n) and not _contains_active(state, n["id"]):
+                done.append(n)
+                continue
+            flush()
+            walk(n, depth)
+        flush()
+
+    def walk(node, depth):
+        line(node, depth)
         if not (expand_all or _contains_active(state, node["id"])):
             return
-        for c in _children(state, node["id"]):
-            walk(c, depth + 1)
-        for t in state["tasks"]:
-            # 完了したタスクは親の件数に畳む（--all のときだけ出す）
-            if t["group"] == node["id"] and (expand_all or t["status"] != "completed"):
-                here = " ← 現在地" if t["id"] == state.get("active_task_id") else ""
-                tmark = "[x]" if t["status"] == "completed" else "[ ]"
-                lines.append(f"{'  ' * (depth + 1)}- {tmark} {t['id']} {t['title']}{here}")
+        siblings(_children(state, node["id"]), depth + 1)
+        # 完了したタスクは親の件数に畳む（--all のときだけ出す）
+        shown = [t for t in state["tasks"] if t["group"] == node["id"] and (expand_all or t["status"] != "completed")]
+        rest = 0 if expand_all else max(0, len(shown) - OPEN_TASKS_MAX)
+        for t in shown[:len(shown) - rest]:
+            here = " ← 現在地" if t["id"] == state.get("active_task_id") else ""
+            tmark = "[x]" if t["status"] == "completed" else "[ ]"
+            lines.append(f"{'  ' * (depth + 1)}- {tmark} {t['id']} {t['title']}{here}")
+        if rest:
+            lines.append(f"{'  ' * (depth + 1)}- …ほか {rest} 件（tree --all で内訳）")
 
     for root in _children(state, None):
         # 根は常に 1 段目まで開く（全体の位置づけを示すため）
         lines.append(f"- {root['id']} {root['title']}")
-        for c in _children(state, root["id"]):
-            walk(c, 1)
+        siblings(_children(state, root["id"]), 1)
     return "\n".join(lines) + "\n"
 
 
