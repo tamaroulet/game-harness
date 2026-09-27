@@ -134,6 +134,14 @@ class Generation(unittest.TestCase):
         self.assertIn("witnesses: global::", cases)
         self.assertEqual(cases.count("Witnesses_P_T5_02"), 2, "公開と非公開の両方")
 
+    def test_a_witnessed_property_does_not_search_for_its_given(self):
+        """前提の探索（Directed）に希な前提を渡すと、無作為な開始状態では見つからず PROPERTY_UNSATISFIABLE で落ちる
+        （witness_selftest の実測、2026-09-27）。証拠のある性質は pre を渡さない。証拠の無い性質は今までどおり渡す。"""
+        cases = g.generate(decl_with(), tp.SPEC, tp.GDD, tp.INTERFACE, "tests")["tests/Properties/PropertiesT5Cases.cs"]
+        self.assertNotIn("Checks.Pre_P_T5_02", cases)
+        self.assertEqual(cases.count("null, default, witnesses: global::Game.Core.Tests.Properties.Checks.Witnesses_P_T5_02);"), 2)
+        self.assertIn("Checks.Pre_P_T5_01, global::Game.Core.Tests.Properties.Checks.First_P_T5_01);", cases)
+
     def test_declarations_without_witnesses_generate_the_same_bytes_as_before(self):
         files = g.generate(tp.DECL, tp.SPEC, tp.GDD, tp.INTERFACE, "tests")
         self.assertTrue(all("Witness" not in text for text in files.values()))
