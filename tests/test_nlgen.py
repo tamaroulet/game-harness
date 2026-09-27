@@ -38,7 +38,7 @@ class Vocabulary(unittest.TestCase):
 
     def test_the_table_is_frozen(self):
         """U4：人間が査読した対応表の sha256（docs/design/v2r_nlgen_table.md）。変えるときは本書と同じ PR で改めて査読する。"""
-        self.assertEqual(nlgen.table_sha256(), "cd88197c9fc9295f42c6dfb4bca5910aebbba9c33b3fae9c2947a99668b0cf7f")
+        self.assertEqual(nlgen.table_sha256(), "950dcf544faf27b7ecd1936bf983660af4abcefecf90ba9b38564cd6a672948f")
         doc = (Path(__file__).resolve().parent.parent / "docs" / "design" / "v2r_nlgen_table.md").read_text(
             encoding="utf-8")
         self.assertIn(nlgen.table_sha256(), doc)

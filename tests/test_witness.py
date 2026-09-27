@@ -147,6 +147,50 @@ class Generation(unittest.TestCase):
         self.assertTrue(all("Witness" not in text for text in files.values()))
 
 
+class Ticks(unittest.TestCase):
+    """複数ティックの性質（ticks）：隠れた状態（ロック猶予タイマー）で決まる事象を、証拠の状態から起こす。"""
+
+    def decl(self, ticks=3, ws=None):
+        d = decl_with()
+        d["properties"][-1]["ticks"] = ticks
+        if ws is not None:
+            d["properties"][-1]["witness"] = ws
+        return d
+
+    def test_ticks_needs_a_witness_and_a_bounded_count(self):
+        self.assertEqual(problems(self.decl()), [])
+        d = self.decl()
+        del d["properties"][-1]["witness"]
+        self.assertTrue(any("証拠の状態（witness）が要ります" in x for x in problems(d)))
+        for bad in (0, 201, True, "3"):
+            with self.subTest(bad=bad):
+                self.assertTrue(any("ticks: 1 以上 200 以下" in x for x in problems(self.decl(ticks=bad))))
+
+    def test_a_multi_tick_property_runs_only_its_witnesses(self):
+        files = g.generate(self.decl(), tp.SPEC, tp.GDD, tp.INTERFACE, "tests")
+        cases, checks = files["tests/Properties/PropertiesT5Cases.cs"], files["tests/Properties/Checks.cs"]
+        self.assertEqual(cases.count('Run("P-T5-02", "RL-50", new int[0], Steps,'), 2, "公開・非公開とも無作為な系列を流さない")
+        self.assertIn("MinoType.I, 7, 2, global::", checks)
+        self.assertIn("Witnesses_P_T5_02 =>", checks)
+        self.assertIn(", 3) };", checks[checks.index("Witnesses_P_T5_02 =>"):], "証拠に ticks を渡す")
+        model = files["tests/Properties/PropertyModel.cs"]
+        self.assertIn("for (int t = 1; t < w.Ticks; t++) sut.Tick(default);", model)
+
+    def test_the_formal_and_natural_language_lines_say_how_many_ticks(self):
+        import nlgen
+        from ab import v2prep
+        p = self.decl()["properties"][-1]
+        self.assertIn("その Tick を含めて 3 Tick 進めた後（2 Tick 目からは入力なし。after はその後の状態）", v2prep._prop_line(p))
+        self.assertIn("その Tick を含めて 3 Tick 進めた後（2 Tick 目からは入力が無い。「後の」はその後の状態）",
+                      nlgen.render_property(p)[0])
+        one = dict(p, ticks=1)
+        self.assertNotIn("Tick 進めた後", v2prep._prop_line(one))
+
+    def test_the_restore_semantics_are_in_the_common_section(self):
+        from ab import v2prep
+        self.assertIn("見えない数を出現の直後と同じ値にする：ロック猶予タイマーは GddReference.PR_03", v2prep.COMMON)
+
+
 class Faults(unittest.TestCase):
     def test_witness_invalid_is_an_instrument_fault_and_restore_is_not(self):
         props = decl_with()["properties"]

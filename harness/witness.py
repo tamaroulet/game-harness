@@ -20,11 +20,17 @@ docs/design/v2r_instrument_redesign.md §4・§6 の 1。性質の宣言の任�
 同じ定義）で証拠の状態と入力について評価し、成り立たなければ生成を止める（`PropertyError`）。前提は before と input だけで
 書く（after を使う前提は、証拠の状態では決まらない。P1）。before の数（得点など）も、復元で決まらないので使えない。
 
+**複数ティック**（性質のキー `ticks`、2〜MAX_TICKS）：証拠の状態から、最初の Tick に `input`、2 Tick 目からは入力なしで
+`ticks` 回 Tick を進め、then を「最初の Tick の前」と「最後の Tick の後」の状態で確かめる。隠れた状態（ロック猶予タイマーなど）で
+決まる事象は 1 Tick では起こせないので、この形で書く。復元用コンストラクタが隠れた数を出現の直後と同じ値にすること（要項
+§15.8、全タスク共通の節）が前提。`ticks` のある性質は証拠が要り、無作為な系列は流さない（1 Tick の前後で then を確かめる意味が無い）
+
 **テストの時点**：復元した状態が証拠の状態と違えば `PROPERTY_WITNESS_RESTORE`（復元用コンストラクタの欠陥。実装の失敗）。
 前提が成り立たなければ `PROPERTY_WITNESS_INVALID`（生成の時点の評価と C# の評価の食い違い。測定器の故障）。
 then が破れれば、ほかの反例と同じ `PROPERTY_FAIL`（ops は `witness<k>:<入力>`）。
 """
 MAX_WITNESSES = 10
+MAX_TICKS = 200
 # TickInput のコンストラクタの引数の順（propgen.INPUT_ORDER と同じ。tests/test_witness.py で一致を確かめる）
 INPUT_ORDER = ("Left", "Right", "RotateCw", "RotateCcw", "SoftDrop", "HardDrop")
 KEYS = {"board", "mino", "input", "phase", "counters"}
@@ -240,7 +246,7 @@ def check(p, contract, ref, start_phase, parse_expr):
     return out
 
 
-def cs_array(ws, contract, ns):
+def cs_array(ws, contract, ns, ticks=1):
     """C# の PropertyRunner.Witness[] の式。"""
     items = []
     for w in ws:
@@ -249,7 +255,7 @@ def cs_array(ws, contract, ns):
             f"{ns}.Rotation.{contract.enums['Rotation'][w['mino'][3]]})")
         cells = "new " + ns + ".Cell[] { " + ", ".join(f"new {ns}.Cell({x}, {y})" for x, y in w["cells"]) + " }"
         inp = f"new {ns}.TickInput(" + ", ".join("true" if w["input"][n] else "false" for n in INPUT_ORDER) + ")"
-        items.append(f"new PropertyRunner.Witness({ns}.GamePhase.{w['phase']}, {mino}, {cells}, {inp})")
+        items.append(f"new PropertyRunner.Witness({ns}.GamePhase.{w['phase']}, {mino}, {cells}, {inp}, {ticks})")
     return "new PropertyRunner.Witness[] { " + ", ".join(items) + " }"
 
 
@@ -261,10 +267,11 @@ RUNNER_CODE = """
             public readonly ActiveMino? Mino;
             public readonly {ns}.Cell[] Cells;
             public readonly {ns}.TickInput Input;
+            public readonly int Ticks;
 
-            public Witness({ns}.GamePhase phase, ActiveMino? mino, {ns}.Cell[] cells, {ns}.TickInput input)
+            public Witness({ns}.GamePhase phase, ActiveMino? mino, {ns}.Cell[] cells, {ns}.TickInput input, int ticks)
             {{
-                Phase = phase; Mino = mino; Cells = cells; Input = input;
+                Phase = phase; Mino = mino; Cells = cells; Input = input; Ticks = ticks;
             }}
         }}
 
@@ -287,8 +294,9 @@ RUNNER_CODE = """
                     global::NUnit.Framework.Assert.Fail("PROPERTY_WITNESS_RESTORE id=" + id + " rule=" + rule
                         + " witness=" + k + " expected=Phase:" + w.Phase + ",ActiveMino:" + Fmt(w.Mino)
                         + " actual=Phase:" + b.Phase + ",ActiveMino:" + Fmt(b.ActiveMino));
-                string op = "witness" + k + ":" + Op(w.Input), expected, actual;
-                try {{ sut.Tick(w.Input); }}
+                string op = "witness" + k + ":" + Op(w.Input) + (w.Ticks > 1 ? "+None*" + (w.Ticks - 1) : ""), expected, actual;
+                // 性質の ticks（複数ティック）：最初の Tick に入力、2 Tick 目からは入力なし。then は最後の Tick の後の状態で確かめる
+                try {{ sut.Tick(w.Input); for (int t = 1; t < w.Ticks; t++) sut.Tick(default); }}
                 catch (global::System.Exception e)
                 {{
                     global::NUnit.Framework.Assert.Fail("PROPERTY_FAIL id=" + id + " rule=" + rule + " ops=[" + op

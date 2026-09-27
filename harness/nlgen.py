@@ -90,6 +90,8 @@ FUNC_DOCS = {
 READING = ("- 「前の」「後の」は、その Tick の前と後の状態。「入力」は、その Tick の入力\n"
            "- ミノの 4 マス：GddReference.Shape(形, 向き) の各 (x, y) について (X 座標 + x, Y 座標 + y)。Y 座標が 1 減る向きが下")
 SENTENCE = "- {id}（{rule}）：{given}とき、{then}"
+# 複数ティックの性質（harness/witness.py）：「前の」は最初の Tick の前、「後の」は最後の Tick の後
+SENTENCE_TICKS = "- {id}（{rule}）：{given}とき、その Tick を含めて {n} Tick 進めた後（2 Tick 目からは入力が無い。「後の」はその後の状態）、{then}"
 FEEDBACK_RE = re.compile(r"^(PROPERTY_(?:FAIL|VACUOUS|UNSATISFIABLE|WITNESS_RESTORE|WITNESS_INVALID)) id=(\S+)")
 FEEDBACK_NOTE = "  （この性質：{s}）"
 
@@ -101,7 +103,7 @@ def table():
             "GROUP": GROUP, "NOT": NOT, "INPUT_CLAUSE": {str(k): v for k, v in INPUT_CLAUSE.items()},
             "BOOL_CLAUSE": {str(k): v for k, v in BOOL_CLAUSE.items()}, "CONST_CLAUSE": CONST_CLAUSE,
             "VALUE_FUNCS": VALUE_FUNCS, "PRED_FUNCS": PRED_FUNCS, "FUNC_DOCS": FUNC_DOCS, "READING": READING,
-            "SENTENCE": SENTENCE, "FEEDBACK_NOTE": FEEDBACK_NOTE}
+            "SENTENCE": SENTENCE, "SENTENCE_TICKS": SENTENCE_TICKS, "FEEDBACK_NOTE": FEEDBACK_NOTE}
 
 
 def table_sha256():
@@ -232,7 +234,10 @@ def render_property(p):
     then, f2, n2 = render_expr(p["then"], f"{p['id']}.then")
     funcs = f1 + [f for f in f2 if f not in f1]
     names = n1 + [n for n in n2 if n not in n1]
-    return SENTENCE.format(id=p["id"], rule=p["rule"], given=given, then=then), funcs, names
+    t = p.get("ticks", 1)
+    s = (SENTENCE_TICKS.format(id=p["id"], rule=p["rule"], given=given, then=then, n=t) if t > 1
+         else SENTENCE.format(id=p["id"], rule=p["rule"], given=given, then=then))
+    return s, funcs, names
 
 
 def render_properties(props):

@@ -1,7 +1,7 @@
 """証拠の状態（witness）の生成物を、仮のゲーム（スタブ）でコンパイルして走らせる自己検査の置き場を作る。
 
     python -m harness.witness_selftest <出力先>
-    dotnet test <出力先>/W.csproj --filter "FullyQualifiedName~P_T5_02"
+    dotnet test <出力先>/W.csproj --filter "FullyQualifiedName~P_T5_0&FullyQualifiedName!~P_T5_01"
 
 **なぜ要るか**: 総監督は dotnet のビルドとテストを走らせない（防壁①）。propgen の証拠の状態の C#（RunWitnesses・
 Witnesses_…）が、コンパイルでき、復元 → 1 Tick → then の検査の順に動くことを、操縦士が一度だけ確かめる。
@@ -11,7 +11,8 @@ Witnesses_…）が、コンパイルでき、復元 → 1 Tick → then の検�
 ハードドロップする）から作った生成物と、ハードドロップと固定だけを持つスタブの GameState。
 
 期待する結果：`P_T5_02_Public` が合格（証拠の状態で前提が 1 回成り立ち、固定の数が 1 増える）。`P_T5_02_Hidden` は
-非公開シードが無いので Ignore（HIDDEN_SEEDS_ABSENT）。
+非公開シードが無いので Ignore（HIDDEN_SEEDS_ABSENT）。`P_T5_03_Public`・`P_T5_03_Hidden` は複数ティック（3 Tick）で、どちらも合格
+（無作為な系列を流さないので非公開シードに依らない）。`P_T5_01` は I と O だけのスタブでは確かめないので、フィルタで外す。
 """
 import sys
 from pathlib import Path
@@ -127,8 +128,11 @@ def files():
     import propgen
     import test_propgen as tp
     import test_witness as tw
+    decl = tw.decl_with()
+    # 複数ティックの性質（ticks）：最初の Tick にハードドロップ、あと 2 Tick は入力なし。固定は最初の Tick の 1 回だけ
+    decl["properties"].append(dict(decl["properties"][-1], id="P-T5-03", ticks=3))
     out = {f"gen/{k.split('/', 1)[1]}": v
-           for k, v in propgen.generate(tw.decl_with(), tp.SPEC, tp.GDD, tp.INTERFACE, "x", report_hits=True).items()}
+           for k, v in propgen.generate(decl, tp.SPEC, tp.GDD, tp.INTERFACE, "x", report_hits=True).items()}
     out["Stub.cs"] = STUB
     out["W.csproj"] = CSPROJ
     return out
@@ -148,7 +152,7 @@ def main(argv=None):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(text, encoding="utf-8", newline="\n")
     print(f"書き出し: {dest}")
-    print(f'次に: dotnet test "{dest / "W.csproj"}" --filter "FullyQualifiedName~P_T5_02"')
+    print(f'次に: dotnet test "{dest / "W.csproj"}" --filter "FullyQualifiedName~P_T5_0&FullyQualifiedName!~P_T5_01"')
     return 0
 
 
