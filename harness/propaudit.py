@@ -25,26 +25,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
 import propgen  # noqa: E402
-
-OUTCOME_FUNCS = {"occupied_after"}
-
-
-def _uses_outcome(e):
-    kind = e[0]
-    if kind == "int":
-        return False
-    if kind == "name":
-        return e[1].split(".")[0] == "after"
-    if kind == "call":
-        return e[1] in OUTCOME_FUNCS or any(_uses_outcome(a) for a in e[2])
-    if kind == "un":
-        return _uses_outcome(e[2])
-    return _uses_outcome(e[2]) or _uses_outcome(e[3])
-
+import witness  # noqa: E402
 
 def classify(c):
     """前提の論理積の 1 項 → "start" | "constructible" | "outcome"。"""
-    if _uses_outcome(c):
+    if witness.uses_after(c):
         return "outcome"
     if propgen._pre_ok(c):
         return "start"

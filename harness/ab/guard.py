@@ -127,6 +127,19 @@ class Ledger:
         return events
 
 
+def describe_dirs(root):
+    """作業場所の親の下のディレクトリごとに「名前 files=数 mtime=時刻」。中身は読まない（ファイルの数と時刻だけ）。"""
+    out = []
+    for d in sorted(Path(root).iterdir()):
+        try:
+            n = sum(1 for f in d.rglob("*") if f.is_file()) if d.is_dir() else 0
+            when = time.strftime("%H:%M:%S", time.localtime(d.stat().st_mtime))
+        except OSError as e:
+            n, when = "?", type(e).__name__
+        out.append(f"{d.name} files={n} mtime={when}")
+    return out
+
+
 def stop_driver(run_id=None):
     """ドライバを止める。run_id を渡すと、その走行のドライバ（と、全走行を 1 つのプロセスで回す run-all）だけ。"""
     target = "'*harness.ab.driver*'"
@@ -206,7 +219,8 @@ def watch(run_ids, limit_usd, interval=15, out=print, midpoint_usd=None, ledger=
                 if halted:
                     return 1
         if narrow_root.exists() and len(list(narrow_root.iterdir())) > 1:
-            out(f"STOP narrow dirs={len(list(narrow_root.iterdir()))}")
+            # 何が残っていたかを出す（v2r-dry-02 は数だけで、原因を後から調べられなかった）
+            out(f"STOP narrow dirs={len(list(narrow_root.iterdir()))}: " + "; ".join(describe_dirs(narrow_root)))
             stop()
             return 1
         time.sleep(interval)

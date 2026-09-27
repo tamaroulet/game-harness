@@ -15,6 +15,8 @@ docs/design/v2_contract_foundry.md §4。Claude が書くのは宣言（JSON）�
   置いた盤面と、そこに置けるミノから始める
 - `steps`・`seeds`：1 本の操作列の長さと、`{"public": 公開シードの本数, "hidden": 非公開シードの本数}`
 - `properties`：`{"id": "P-T1-01", "task": "T1", "rule": "RL-16", "given": 式, "then": 式}`
+  任意の `witness`：証拠の状態（前の状態と入力）の列。前提が成り立つことを生成の時点に参照モデルで確かめ、テストは
+  復元用コンストラクタでその状態を作って 1 Tick 進める（原則 P1。書き方は harness/witness.py）
 
 **式**：`before`・`after`（Tick の前後の状態）と `input`（その Tick の TickInput）のメンバー、整数、`true`・`false`・
 `null`、列挙の値、`! && || == != < <= > >= + -`、括弧、参照モデルの関数だけを書ける。
@@ -43,6 +45,7 @@ import gdd_check
 import project
 import testgen
 import unit_schema
+import witness
 
 SCHEMA = 1
 TOP_KEYS = {"schema", "gdd_sha256", "reference", "start", "steps", "seeds", "properties"}
@@ -586,7 +589,7 @@ def validate(decl, spec_text, gdd_text, interface):
         if not isinstance(ref, dict) or set(ref) != REF_KEYS:
             raise PropertyError(f"reference のキーは {sorted(REF_KEYS)} です")
         rows = param_rows(spec_text)
-        reference(ref, rows, contract)
+        ref_data = reference(ref, rows, contract)
     except PropertyError as e:
         return [str(e)]
 
@@ -617,8 +620,8 @@ def validate(decl, spec_text, gdd_text, interface):
     ids, live = set(), {}
     for k, p in enumerate(props):
         where = f"properties[{k}]"
-        if not isinstance(p, dict) or set(p) - {"_comment", "sampling"} != {"id", "task", "rule", "given", "then"}:
-            problems.append(f"{where}: キーは id・task・rule・given・then（と任意の sampling）です")
+        if not isinstance(p, dict) or set(p) - {"_comment", "sampling", "witness"} != {"id", "task", "rule", "given", "then"}:
+            problems.append(f"{where}: キーは id・task・rule・given・then（と任意の sampling・witness）です")
             continue
         if not PROP_ID_RE.match(str(p["id"])) or p["id"] in ids:
             problems.append(f"{where}: id は P-T<n>-<2 桁以上> で重複しないこと: {p['id']!r}")
@@ -640,10 +643,13 @@ def validate(decl, spec_text, gdd_text, interface):
                 live[p["task"]] = True
         except PropertyError:
             pass
+        start_phase = (decl.get("start") or {}).get("phase") if isinstance(decl.get("start"), dict) else None
         try:
-            directed(p, (decl.get("start") or {}).get("phase") if isinstance(decl.get("start"), dict) else None)
+            directed(p, start_phase)
             sampling(p, rows)
-        except PropertyError as e:
+            # 証拠の状態（原則 P1）：前提が成り立つことを参照モデルで確かめる。成り立たなければ生成しない
+            witness.check(p, contract, ref_data, start_phase, parse)
+        except (PropertyError, witness.WitnessError) as e:
             problems.append(str(e))
     for task, ok in sorted(live.items()):
         if not ok:
@@ -681,7 +687,7 @@ HITS_LINE = ('            global::System.Console.WriteLine("PROPERTY_HITS id=" +
              '                + " runs=" + runs.Count);\n')
 
 
-def _model(ref, contract, start, report_hits=False):
+def _model(ref, contract, start, report_hits=False, witnesses=False):
     types = contract.enums["MinoType"]
     shapes = ",\n            ".join("new[] { " + ", ".join(_cs_coords(ref["shapes"][t][r]) for r in range(4)) + " }"
                                     for t in types)
@@ -702,6 +708,11 @@ def _model(ref, contract, start, report_hits=False):
     # start.gap_rows（v2r）：下から 0〜gap_rows 行を、1 マスの穴だけ残して埋める。書かなければ何も出さない（V2 の生成物は同じ）
     gap_const = f"\n        const int GapRows = {start['gap_rows']};" if "gap_rows" in start else ""
     gap_code = GAP_CODE.replace("{ns}", ns) if "gap_rows" in start else ""
+    # 証拠の状態（原則 P1）：書いた性質があるときだけ出す。無ければ生成物は今までと同じバイト列
+    witness_param = ", Witness[] witnesses = null" if witnesses else ""
+    witness_run = ("            if (witnesses != null) RunWitnesses(id, rule, witnesses, check, ref given);\n"
+                   if witnesses else "")
+    witness_code = witness.RUNNER_CODE.format(ns=ns).lstrip("\n") + "\n" if witnesses else ""
     return f"""{HEADER}
 // 参照モデル（docs/design/v2_contract_foundry.md §4.1）。値は構造化仕様 §5 から名前で引いた。実装役には見せない。
 #nullable disable
@@ -963,10 +974,10 @@ namespace {NAMESPACE}
 
         public static void Run(string id, string rule, int[] seeds, int steps, Check check,
             Pre pre = null, {ns}.TickInput first = default, int quiet = 0, int ratePerMille = 0,
-            int count = DirectedCount)
+            int count = DirectedCount{witness_param})
         {{
             long given = 0;
-            var runs = new global::System.Collections.Generic.List<(int, global::System.Collections.Generic.List<{ns}.TickInput>)>();
+{witness_run}            var runs = new global::System.Collections.Generic.List<(int, global::System.Collections.Generic.List<{ns}.TickInput>)>();
             if (pre != null)
             {{
                 // 実装を動かす前に、前提が成り立つ系列があることを確かめる（実装に依らない検査）
@@ -993,7 +1004,7 @@ namespace {NAMESPACE}
                 global::NUnit.Framework.Assert.Fail("PROPERTY_VACUOUS id=" + id + " rule=" + rule + " given=0");
         }}
 
-        // 反例を縮める：手を 1 つ抜いても（同じ開始状態から）性質が破れるなら抜く。抜けなくなるまで繰り返す
+{witness_code}        // 反例を縮める：手を 1 つ抜いても（同じ開始状態から）性質が破れるなら抜く。抜けなくなるまで繰り返す
         static void Shrink(string id, string rule, int seed, global::System.Collections.Generic.List<{ns}.TickInput> ops,
             Check check, string expected, string actual)
         {{
@@ -1024,7 +1035,7 @@ namespace {NAMESPACE}
 """
 
 
-def _check_method(p, contract, rows=None, start_phase=None):
+def _check_method(p, contract, rows=None, start_phase=None, witnesses=None):
     name = p["id"].replace("-", "_")
     given, _ = _Typer(contract, f"{p['id']}.given").emit(parse(p["given"], f"{p['id']}.given"))
     typer = _Typer(contract, f"{p['id']}.then")
@@ -1063,6 +1074,9 @@ def _check_method(p, contract, rows=None, start_phase=None):
     lines += ["", f"        public static bool Pre_{name}(Snapshot b) => {pre_cs};",
               f"        public static global::{testgen.CORE_NAMESPACE}.TickInput First_{name} =>",
               f"            new global::{testgen.CORE_NAMESPACE}.TickInput({args});"]
+    if witnesses:
+        lines += [f"        public static PropertyRunner.Witness[] Witnesses_{name} =>",
+                  "            " + witness.cs_array(witnesses, contract, f"global::{testgen.CORE_NAMESPACE}") + ";"]
     return lines
 
 
@@ -1074,7 +1088,7 @@ def _sampling_args(p, rows):
     return f", quiet: {quiet}, ratePerMille: {rate}, count: {count}"
 
 
-def _tests(task, props, decl, rows=None):
+def _tests(task, props, decl, rows=None, witnessed=frozenset()):
     ns = f"global::{NAMESPACE}"
     out = [HEADER, "#nullable disable", f"namespace {NAMESPACE}", "{",
            "    [global::NUnit.Framework.TestFixture]",
@@ -1088,7 +1102,8 @@ def _tests(task, props, decl, rows=None):
                     f"        [global::NUnit.Framework.Description(\"{p['rule']}\")]",
                     f"        public void {name}_{suffix}() =>",
                     f"            PropertyRunner.Run(\"{p['id']}\", \"{p['rule']}\", {seeds}, Steps, {ns}.Checks.{name},",
-                    f"                {ns}.Checks.Pre_{name}, {ns}.Checks.First_{name}{_sampling_args(p, rows)});",
+                    f"                {ns}.Checks.Pre_{name}, {ns}.Checks.First_{name}{_sampling_args(p, rows)}"
+                    + (f", witnesses: {ns}.Checks.Witnesses_{name}" if p["id"] in witnessed else "") + ");",
                     ""]
     out[-1:] = ["    }", "}", ""]
     return "\n".join(out)
@@ -1109,12 +1124,14 @@ def generate(decl, spec_text, gdd_text, interface, test_dir, tasks=None, report_
     contract = Contract(interface)
     rows = param_rows(spec_text)
     ref = reference(decl["reference"], rows, contract)
+    ws = {p["id"]: witness.check(p, contract, ref, decl["start"]["phase"], parse) for p in decl["properties"]}
+    witnessed = frozenset(pid for pid, w in ws.items() if w)
     base = f"{test_dir}/{OUT_DIR}"
-    files = {f"{base}/PropertyModel.cs": _model(ref, contract, decl["start"], report_hits)}
+    files = {f"{base}/PropertyModel.cs": _model(ref, contract, decl["start"], report_hits, bool(witnessed))}
     checks = [HEADER, "#nullable disable", f"using ActiveMino = global::{testgen.CORE_NAMESPACE}.ActiveMino;", "",
               f"namespace {NAMESPACE}", "{", "    internal static class Checks", "    {"]
     for p in decl["properties"]:
-        checks += _check_method(p, contract, rows, decl["start"]["phase"]) + [""]
+        checks += _check_method(p, contract, rows, decl["start"]["phase"], ws[p["id"]]) + [""]
     checks[-1:] = ["    }", "}", ""]
     files[f"{base}/Checks.cs"] = "\n".join(checks)
     wanted = tasks
@@ -1123,7 +1140,7 @@ def generate(decl, spec_text, gdd_text, interface, test_dir, tasks=None, report_
         if wanted is not None and task not in wanted:
             continue
         files[f"{base}/Properties{task}Cases.cs"] = _tests(task, [p for p in decl["properties"] if p["task"] == task],
-                                                            decl, rows)
+                                                            decl, rows, witnessed)
     return files
 
 

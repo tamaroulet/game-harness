@@ -47,7 +47,7 @@ def populate(origin, rels, dst=None):
         src = Path(origin) / rel
         if src.is_file():
             (dst / rel).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(src, dst / rel)
+            fileops.retry_os(lambda s_=src, d_=dst / rel: shutil.copyfile(s_, d_), f"写し {src}")
     return dst, _files(dst)
 
 
@@ -61,7 +61,9 @@ def discard(dst):
     if dst.exists():
         if ROOT_NAME not in dst.parts:
             raise ValueError(f"作業場所ではないディレクトリは消しません: {dst}")
-        shutil.rmtree(dst, ignore_errors=True)
+        # 消せなかったものを黙って残さない（原則 P5）。残ると、guard が作業場所の数（2 つ以上）で走行を止める
+        # （v2r-dry-02 は T6 で「STOP narrow dirs=2」で止まった）。再試行しても消せなければ FileLockError で知らせる
+        fileops.rmtree(dst)
 
 
 def write_back(dst, origin, placed):
@@ -71,13 +73,13 @@ def write_back(dst, origin, placed):
         if placed.get(rel) != body:
             target = Path(origin) / rel
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(body)
+            # ロック系のエラー（エディタやウイルス対策が掴んでいる）は再試行する（原則 P5）
+            fileops.retry_os(lambda t=target, b=body: t.write_bytes(b), f"書き戻し {target}")
             changed.append(rel)
     for rel in placed:
         if rel not in now:
             target = Path(origin) / rel
-            if target.exists():
-                target.unlink()
+            fileops.unlink(target)
             changed.append(rel)
     return sorted(changed)
 
