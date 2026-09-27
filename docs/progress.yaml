@@ -445,6 +445,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_nlgen tests.test_v2r_series
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/126
 - id: V2R-9
   title: 走行の前の検定（preflight。原則 P3）
   group: B6.2
