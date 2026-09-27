@@ -51,11 +51,13 @@ class Ceiling(unittest.TestCase):
         self.assertFalse(res["ok"])
         self.assertTrue(any("重なった" in p for p in res["problems"]))
 
-    def test_vacuous_properties_are_shown_but_do_not_decide(self):
+    def test_a_vacuous_property_blocks_the_verdict(self):
+        """空虚は測定器の故障の疑いなので、欠陥として数えて合格にしない（v2r-dry-01 の誤り。原則 P2）。"""
         rows = [row(t, accepted=(t != "T1"), vacuous=("P-T6-01",) if t == "T6" else ()) for t in TASKS]
         res = v2r_ceiling.check(rows, TASKS)
-        self.assertTrue(res["ok"])
-        self.assertIn("P-T6-01", v2r_ceiling.render(res, "v2r-dry-01"))
+        self.assertFalse(res["ok"])
+        self.assertIn("空虚な性質があるので天井を判定しない", res["problems"][0])
+        self.assertIn("P-T6-01", v2r_ceiling.render(res, "v2r-dry-03"))
 
     def test_the_cli_reads_the_a0_metrics(self):
         with tempfile.TemporaryDirectory() as d:

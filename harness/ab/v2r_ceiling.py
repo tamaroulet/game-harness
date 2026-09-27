@@ -6,7 +6,9 @@
 破壊・不変条件の違反のどれか。v2r_report.defect と同じ）が 1 件以上あれば合格（終了コード 0）。欠陥が 0 件なら、系列が
 易しすぎるので本走に入らない（終了コード 1）。行が欠けた・重なった走行も 1（途中で止まった走行で天井を判定しない）。
 
-**空虚な性質**（前提の成立回数 0。§15.4）はタスクごとに並べて出す。判定には入れない（空虚さの扱いは人間が決める）。
+**空虚な性質**（前提の成立回数 0。§15.4）が 1 つでもあれば、天井を判定しない（終了コード 1）。前提は before と input
+だけで書き、希な事象には証拠の状態を付けた（docs/design/v2r_instrument_redesign.md の原則 P1）ので、空虚は測定器の故障の
+疑いで、実装の欠陥として数えない（v2r-dry-01 は、空虚な性質の失敗を欠陥に数えて天井の検査を合格にしていた）。
 """
 import argparse
 import json
@@ -63,6 +65,9 @@ def check(rows, tasks):
                       "invariant_failures": (r.get("invariants") or {}).get("failures") or 0,
                       "defect": v2r_report.defect(r), "vacuous": list(r.get("vacuous_properties") or [])})
     defects = sum(x["defect"] for x in table)
+    vacuous = sorted({v for x in table for v in x["vacuous"]})
+    if vacuous:
+        problems.append(f"空虚な性質があるので天井を判定しない（測定器の故障の疑い。原則 P2）：{', '.join(vacuous)}")
     if not problems and defects == 0:
         problems.append("A0 の欠陥が 0 件（系列が易しすぎる。本走に入らない）")
     return {"ok": not problems, "defects": defects, "problems": problems, "table": table}
