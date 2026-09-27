@@ -339,13 +339,15 @@ def run_task_v2r(ctx, task, unit, state, call=agy_call, judge=None):
     return {"attempts": len(calls), "accepted": accepted, "calls": calls, "factors": f}
 
 
-FAULT_LINE_RE = re.compile(r"PROPERTY_(VACUOUS|UNSATISFIABLE) id=(\S+)")
+FAULT_LINE_RE = re.compile(r"PROPERTY_(VACUOUS|UNSATISFIABLE|WITNESS_INVALID) id=(\S+)")
 
 
 def instrument_faults(feedback, props):
     """知らせのうち、測定器の故障と決まるもの（原則 P2。docs/design/v2r_instrument_redesign.md）。
 
     - PROPERTY_UNSATISFIABLE：開始状態の前提を満たす系列が無い。実装を動かす前の検査なので、いつも測定器の故障
+    - PROPERTY_WITNESS_INVALID：生成の時点に参照モデルで確かめた前提が、テストの時点に成り立たない（評価の食い違い）。
+      いつも測定器の故障。復元の欠陥（PROPERTY_WITNESS_RESTORE）は実装の失敗なので、ここには入れない
     - PROPERTY_VACUOUS：前提が 1 回も成り立たない。前提が実装の結果（after）を使わない性質なら、成り立つかどうかは
       実装に依らないので測定器の故障。after を使う性質（P1 に反する宣言）では、実装が出来事を起こさないせいかもしれず
       見分けられないので、ここでは故障にしない（知らせとして渡す）
@@ -354,7 +356,8 @@ def instrument_faults(feedback, props):
     out = []
     for kind, pid in FAULT_LINE_RE.findall(feedback or ""):
         p = by.get(pid)
-        if kind == "UNSATISFIABLE" or (p is not None and not any(r["outcome"] for r in propaudit.audit([p]))):
+        if kind in ("UNSATISFIABLE", "WITNESS_INVALID") or (
+                p is not None and not any(r["outcome"] for r in propaudit.audit([p]))):
             item = f"{kind} {pid}"
             if item not in out:
                 out.append(item)

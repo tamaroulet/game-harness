@@ -26,8 +26,9 @@ def is_lock_error(e):
     return isinstance(e, PermissionError) or getattr(e, "winerror", None) in LOCK_WINERRORS
 
 
-def retry_os(fn, what, delays=DELAYS, sleep=time.sleep):
-    """fn() を実行し、ロック系のエラーなら delays の間隔で再試行する。"""
+def retry_os(fn, what, delays=DELAYS, sleep=None):
+    """fn() を実行し、ロック系のエラーなら delays の間隔で再試行する。sleep は呼ぶ時点の time.sleep（テストで差し替えられる）。"""
+    sleep = sleep or time.sleep
     for i in range(len(delays) + 1):
         try:
             return fn()
@@ -40,16 +41,16 @@ def retry_os(fn, what, delays=DELAYS, sleep=time.sleep):
             sleep(delays[i])
 
 
-def unlink(path, sleep=time.sleep):
+def unlink(path, sleep=None):
     """無ければ何もしない。"""
     return retry_os(lambda: path.unlink(missing_ok=True), f"削除 {path}", sleep=sleep)
 
 
-def replace(src, dst, sleep=time.sleep):
+def replace(src, dst, sleep=None):
     return retry_os(lambda: os.replace(src, dst), f"置き換え {dst}", sleep=sleep)
 
 
-def rmtree(path, sleep=time.sleep):
+def rmtree(path, sleep=None):
     """ディレクトリを消す。無ければ何もしない。ロック系のエラーなら再試行する（原則 P5）。
 
     shutil.rmtree を直に呼ぶと、ビルドやウイルス対策が掴んでいる 1 ファイルで走行ごと落ちる。消せなかったときは
