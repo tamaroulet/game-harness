@@ -457,5 +457,11 @@ v2r の価値は、テトリスで門の効果を示すことではなく、Phas
     3. `python -m harness.ab.driver run --condition A1 --run-id v2r-r1-01 --manifest experiments/v2r/tasks.json`、終わったら B も同じ
   - 走り直した 2 条件の来歴と環境は `v2r-r1-01.provenance.json`・`v2r-r1-01.env.json`（ハーネスのコミットが修正の後になる。A0・B-G は `v2r-r1.provenance.json`）
   - `v2r_runcheck` は、門が実装役を呼ぶ前に止めた行（`detail.stopped`）を不合格にする
+- **v2r-r1-01 は使わない（2026-09-30）**：走行の途中で agy が自動更新され、38 回の呼び出しのうち 37 回が 1.2.14 で走った（`v2r_reproducibility.md` §1.2）。上の A1・B の走り直しは行わない。agy を 1.2.12 に入れ直し、ドライバが呼び出しごとに自動更新を止めて版を照合するようにしたうえで、**4 条件を新しい run-id `v2r-r2-01` で走り直す**
+  1. `python -m harness.ab.guard v2r-r2-01`
+  2. `python -m harness.ab.driver run-all --repeat 1 --prefix v2r-r2 --manifest experiments/v2r/tasks.json`
+  3. 判定（V2R-R の検証コマンド）：`python -m harness.ab.v2r_runcheck --prefix v2r-r2`
+  - 走行の前に `agy --version` が 1.2.12 であることを確かめる。ハーネスの外で agy を使うと 1.2.14 に上がるので、走行が終わるまで手で agy を使わない（使うなら `AGY_CLI_DISABLE_AUTO_UPDATE=true` を付ける）
+  - v2r-r1-01 の記録は消さない（版が混ざった走行の実例として、公開のアーカイブに入れるかは V2R-U7 で決める）
 - 公開（V2R-U7）：`experiments/v2r/tools/pack.py --name v2r-r1 --run-ids v2r-r1-01 --env <v2r-r1.env.json> --provenance <v2r-r1.provenance.json> --agy-global`。GEMINI.md は来歴の sha256 と一致するときだけ入る（走行の後に書き換えると止まる）。**走行が終わるまで GEMINI.md を書き換えない**
 

@@ -24,6 +24,14 @@ v2r（テトリス、falling-blocks）の目標を、門の効果の有無では
 - 変異の診断は agy を使わないので、照合を OS・Python・dotnet・dotnet-stryker・テストのパッケージに絞った（`v2r_mutation.env_require`）
 - agy の版をどうするかは §3 の 3
 
+### 1.2 起動時の照合では版を固定できなかった：v2r-r1-01（2026-09-30）
+
+- 事実：v2r-r1-01 の環境の照合（21:07:21）は agy 1.2.12 で合格した。agy は起動のたびに、前の確認から 15 分を過ぎていれば裏で更新のプロセスを立ち上げ、実行ファイルを置き換える。`agy.exe` は 21:07:54（A0 の T1 の呼び出しの最中）に 1.2.14 に置き換わった。agy の起動ごとのログ（`~/.gemini/antigravity-cli/log/cli-*.log` の `Language server version`）では、38 回の呼び出しのうち 1.2.12 は最初の 1 回だけで、37 回は 1.2.14 だった。`v2r-r1.env.json` の agy=1.2.12 は、走行の実際と違う。**v2r-r1-01 は版の揃わない走行として使わない**
+- 1.2.12 の入手：配布サーバーの manifest は最新版しか指さない。公式の GitHub リリース（google-antigravity/antigravity-cli の 1.2.12、`agy_cli_windows_x64.zip`、sha256 `4e9d3d78…e386` を照合）から入れ直した。置き換えた 1.2.14 は `agy.exe.1.2.14.bak` として残した
+- 自動更新の停止：環境変数 `AGY_CLI_DISABLE_AUTO_UPDATE` を `true` にすると止まる（cli.log に `Auto-update disabled via environment variable AGY_CLI_DISABLE_AUTO_UPDATE`）。`1` では止まらず、1.2.12 が再び 1.2.14 に置き換わった（実測。存在しないモデル名で起動すると、実装役を呼ばずに更新の確認だけを試せる）
+- 対処（塞いだ）：ドライバは実装役を呼ぶたびに `AGY_CLI_DISABLE_AUTO_UPDATE=true` を付け、直前に `agy --version` を固定値と照合し（違えば呼ばずに止める）、版を metrics の呼び出しごとの記録（`cli_version`）に残す。`v2r_runcheck` は、版が違う・記録の無い呼び出しを不合格にする
+- 残る穴：ハーネスの外で agy を使うと（操縦士の手作業など）、変数が無いので更新される。版が変われば、次の呼び出しの直前の照合で止まる
+
 ## 2. 塞げないもの（開示する）
 
 1. **サンプリング**：temperature・top_p・seed は agy 1.2.11 では指定も記録もできない。同じ設定で追試しても、実装役の出力は一致しない。非決定性は「出力の全文の保存」で扱う（R=1 なので、ばらつきは推定しない。§15.13）
