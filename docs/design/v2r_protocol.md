@@ -463,5 +463,8 @@ v2r の価値は、テトリスで門の効果を示すことではなく、Phas
   3. 判定（V2R-R の検証コマンド）：`python -m harness.ab.v2r_runcheck --prefix v2r-r2`
   - 走行の前に `agy --version` が 1.2.14 であることを確かめる。ハーネスの外で agy を使うと 1.2.14 に上がるので、走行が終わるまで手で agy を使わない（使うなら `AGY_CLI_DISABLE_AUTO_UPDATE=true` を付ける）
   - v2r-r1-01 の記録は消さない（版が混ざった走行の実例として、公開のアーカイブに入れるかは V2R-U7 で決める）
+- **v2r-smoke-02 で見つかった記録の抜け（2026-10-01）**：A1 の T1 を 1.2.14 で走らせた。agy の cli.log では、自動更新は止まり（`Auto-update disabled via environment variable`）、版の照合も通っていた。しかし metrics の呼び出しの記録の `cli_version` が null だった。原因：`agy_call` は測った版を返していたが、条件 A と v2r の呼び出しの記録を、それぞれ手で項目を並べて写していて、`cli_version` を写していなかった。このままでは `v2r_runcheck` が全タスクを「版の記録が無い」で落とす。直したこと：
+  - 写す項目を 1 か所（`driver.CALL_FROM_RESULT`、`call_entry`）にまとめ、条件 A と v2r で同じ関数で写す。4 条件で metrics の要約まで版が残ることをテストで縛る
+  - `v2r_runcheck` の点検で見つけた抜け：照合する固定値が分からないと版の照合を黙って飛ばしていた（→ 不合格に）。走行の時の固定値が今の固定値と違っても通していた（→ 不合格に）。再開した条件の `<run-id>.env.json` を見ていなかった（→ 照合する）。呼んだ後に門が検査系の故障（ABORT）で止めた行を、実装の欠陥として数えていた（→ 不合格に）
 - 公開（V2R-U7）：`experiments/v2r/tools/pack.py --name v2r-r1 --run-ids v2r-r1-01 --env <v2r-r1.env.json> --provenance <v2r-r1.provenance.json> --agy-global`。GEMINI.md は来歴の sha256 と一致するときだけ入る（走行の後に書き換えると止まる）。**走行が終わるまで GEMINI.md を書き換えない**
 

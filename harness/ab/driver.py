@@ -115,6 +115,17 @@ def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run, guard=cli_versi
             "usage": telemetry.cli_usage(out, imp["usage_format"]), "out": out, "err": err}
 
 
+# 実装役の 1 回の呼び出しの結果（agy_call の戻り値）から、呼び出しの記録に写すもの。条件 A と v2r で同じ（v2r-smoke-02 は、
+# 条件ごとに手で並べた写しに cli_version が無く、agy_call が測った版が metrics で null になった）
+CALL_FROM_RESULT = ("rc", "seconds", "usage", "steps", "outcome", "model", "cache", "cli_version")
+
+
+def call_entry(attempt, r, prompt, parts, **extra):
+    """呼び出しの記録（本文は残さない。metrics には call_records でさらに絞って残す）。"""
+    return {"attempt": attempt, **{k: r.get(k) for k in CALL_FROM_RESULT}, "prompt_chars": len(prompt),
+            "prompt_parts": parts, **extra}
+
+
 def call_budget(m):
     """条件 A の呼び出しの上限。B の最大（試行 × 内側ループのターン）にそろえる（監査 F1、裁定 1）。"""
     return m["max_attempts"] * pipeline.MAX_INNER_LOOP_TURNS
@@ -237,10 +248,7 @@ def run_task_a(ctx, task, unit, state, call=agy_call, fast=measure.run_fast, jud
             written = narrow_dir.write_back(narrow, wt, placed)
             narrow_dir.discard(narrow)
         state["conversation_id"] = r["conversation_id"]
-        calls.append({"attempt": attempt, "rc": r["rc"], "seconds": r["seconds"], "usage": r["usage"],
-                      "steps": r.get("steps"), "outcome": r.get("outcome"), "model": r.get("model"),
-                      "prompt_chars": len(prompt),
-                      "prompt_parts": parts})
+        calls.append(call_entry(attempt, r, prompt, parts))
         if transients:
             calls[-1]["transient"] = transients
         if narrow:
@@ -320,10 +328,7 @@ def run_task_v2r(ctx, task, unit, state, call=agy_call, judge=None):
         r, transients = checked_call(ctx, call, prompt, narrow, None, task, attempt, narrow, f"実装役（v2r {ctx['condition']}）")
         written = narrow_dir.write_back(narrow, wt, placed)
         narrow_dir.discard(narrow)
-        calls.append({"attempt": attempt, "rc": r["rc"], "seconds": r["seconds"], "usage": r["usage"],
-                      "steps": r.get("steps"), "outcome": r.get("outcome"), "model": r.get("model"),
-                      "cache": r.get("cache"), "prompt_chars": len(prompt), "prompt_parts": parts,
-                      "narrow_written": written})
+        calls.append(call_entry(attempt, r, prompt, parts, narrow_written=written))
         if transients:
             calls[-1]["transient"] = transients
         if attempt == 1:
