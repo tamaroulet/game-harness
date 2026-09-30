@@ -38,6 +38,7 @@ import pipeline  # noqa: E402
 import propaudit  # noqa: E402
 import propgen  # noqa: E402
 import project  # noqa: E402
+import provenance  # noqa: E402
 import telemetry  # noqa: E402
 import testgen  # noqa: E402
 import tool_policy  # noqa: E402
@@ -741,6 +742,14 @@ def main(argv=None):
         try:
             envcheck.require(common.OUT_ROOT / f"{name}.env.json")
         except envcheck.EnvError as e:
+            print(f"ABORT: {e}")
+            return exitcode.ABORT
+        # 来歴（ハーネスのコミット・実装役の全体設定の sha256・環境変数）を provenance.json に残す。ハーネスに
+        # コミットしていない変更があれば起動しない（docs/design/v2r_reproducibility.md）
+        try:
+            provenance.require(common.OUT_ROOT / f"{name}.provenance.json", manifest=args.manifest,
+                               implementer=project.pipeline_config(project.load(PROJECT))["implementer"])
+        except provenance.ProvenanceError as e:
             print(f"ABORT: {e}")
             return exitcode.ABORT
         # v2r：同じマニフェストで走行の前の検定（原則 P3）に合格していなければ起動しない
