@@ -90,6 +90,25 @@ class RunAll(unittest.TestCase):
         self.assertEqual(missing, [], "測らなかったタスクは報告の無いタスクに数えない")
         self.assertFalse(v2r_mutation.mutation_dir(self.out).exists(), "範囲 all の出力と混ぜない")
 
+    def test_the_environment_check_skips_the_implementer_clis_only(self):
+        seen = {}
+
+        def measure(clis, tools, csproj):
+            seen["clis"] = clis
+            return {"os": "o", "python": "p", "python_packages": {"pyyaml": "6.0.3"}, "cli": {"dotnet": "8.0.413"},
+                    "tools": {"dotnet-stryker": "4.16.0"}, "test_packages": {"NUnit": "3.14.0"}}
+        pinned = {"os": "o", "python": "p", "python_packages": {"pyyaml": "6.0.3"},
+                  "cli": {"agy": "1.2.11", "claude": "2.1.258", "dotnet": "8.0.413"},
+                  "tools": {"dotnet-stryker": "4.16.0"}, "test_packages": {"NUnit": "3.14.0"}}
+        with mock.patch.object(v2r_mutation.envcheck, "load_pinned", side_effect=lambda: json.loads(json.dumps(pinned))), \
+                mock.patch.object(v2r_mutation.envcheck, "game_csproj", return_value="x.csproj"):
+            rec = v2r_mutation.env_require(self.tmp / "env.json", measure=measure)
+            self.assertEqual(seen["clis"], ("dotnet",))
+            self.assertEqual(rec["problems"], [], "agy の版は照合しない")
+            with self.assertRaises(v2r_mutation.envcheck.EnvError):
+                v2r_mutation.env_require(self.tmp / "env.json",
+                                         measure=lambda **k: {**measure(**k), "tools": {"dotnet-stryker": "5.0.0"}})
+
     def test_an_unknown_task_is_rejected(self):
         with self.assertRaises(common.ABError):
             self.run_all(tasks=["T9"])

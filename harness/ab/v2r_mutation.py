@@ -70,6 +70,18 @@ def impl_files(repo, commit, impl_dir, git=common.git, since=None):
     return [p for p in out.splitlines() if p.endswith(".cs")]
 
 
+def env_require(out_path, measure=envcheck.measure):
+    """実行環境の照合を、変異の診断が使うもの（OS・Python・dotnet・dotnet-stryker・テストの NuGet パッケージ）に絞る。
+
+    実装役の CLI（agy・claude）は使わないので照合しない（agy の自動更新で診断まで止めない。版のずれは走行の照合で止まる）。
+    """
+    pinned = envcheck.load_pinned()
+    pinned["cli"] = {k: v for k, v in (pinned.get("cli") or {}).items() if k == "dotnet"}
+    measured = measure(clis=("dotnet",), tools=tuple(pinned.get("tools") or ()),
+                       csproj=envcheck.game_csproj(PROJECT) if "test_packages" in pinned else None)
+    return envcheck.require(out_path, measured=measured, pinned=pinned)
+
+
 def mutation_dir(out, scope="all"):
     return Path(out) / ("mutation" if scope == "all" else f"mutation-{scope}")
 
@@ -185,7 +197,7 @@ def main(argv=None):
             # 走行と同じく、実行環境（dotnet-stryker の版を含む）と来歴を照合して残す。違えば・汚れていれば回さない
             base = mutation_dir(common.paths(args.run_id, args.condition, out_root=args.out_root)["out"], args.scope)
             try:
-                envcheck.require(base / "env.json")
+                env_require(base / "env.json")
                 provenance.require(base / "provenance.json", manifest=args.manifest)
             except (envcheck.EnvError, provenance.ProvenanceError) as e:
                 raise common.ABError(str(e))
