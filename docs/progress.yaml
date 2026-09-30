@@ -466,7 +466,7 @@ tasks:
   verification:
     command: python -m harness.ab.v2r_ceiling --run-id v2r-dry-03 --accept-ceiling
     expected_exit_code: 0
-  review_pr: https://github.com/tamaroulet/game-harness/pull/129
+  review_pr: https://github.com/tamaroulet/game-harness/pull/130
 - id: V2R-REPRO
   title: 追試可能性の自己監査と走行の来歴の記録（docs/design/v2r_reproducibility.md）・変異の死滅率の診断の道具
   group: B6.3
