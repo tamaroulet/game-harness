@@ -5,9 +5,9 @@
   "python_packages": {
     "pyyaml": "6.0.3"
   },
-  "_cli_note": "agy は 2026-09-27〜30 の間に人の操作なしに 1.2.11 から 1.2.12 に上がった（docs/design/v2r_reproducibility.md §1.1）。操縦士の決定（2026-09-30）で 1.2.12 を固定する。v2r-dry-03 は 1.2.11、V2R-R の 4 条件は 1.2.12。1.2.12 の --help に自動更新を止める引数は無い（照合で止まる）",
+  "_cli_note": "agy は最新版 1.2.14 を固定する（docs/design/v2r_protocol.md §5.1、操縦士の決定 2026-09-30）。自動更新は AGY_CLI_DISABLE_AUTO_UPDATE=true で停止し、呼び出しごとに照合する。",
   "cli": {
-    "agy": "1.2.12",
+    "agy": "1.2.14",
     "claude": "2.1.258",
     "dotnet": "8.0.413"
   },

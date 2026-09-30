@@ -124,7 +124,7 @@
 | 項目 | 値 | 確かめ方 |
 |:--|:--|:--|
 | OS | Microsoft Windows NT 10.0.26200.0（Windows 11 Home） | `[Environment]::OSVersion` |
-| agy | 1.2.12（2026-09-30 に 1.2.11 から改めた。§15.14） | `agy --version` |
+| agy | 1.2.14（2026-09-30 に改めた。最新版固定） | `agy --version` |
 | claude（Claude Code） | 2.1.258 | `claude --version` |
 | Python | 3.12.10 | `python --version` |
 | Python の依存 | pyyaml 6.0.3（ハーネスの外部の依存はこれだけ。ほかは標準ライブラリ） | `harness/` の import を数えた。CI も `pyyaml==6.0.3` |
@@ -145,7 +145,7 @@
 
 | 役 | CLI | モデル | 思考の重さ |
 |:--|:--|:--|:--|
-| 実装役 | agy 1.2.12（v2r-dry-03 までは 1.2.11） | `gemini-3.8-flash-medium` | モデル名の medium（`--effort` は使わない） |
+| 実装役 | agy 1.2.14（v2r-dry-03 までは 1.2.11） | `gemini-3.8-flash-medium` | モデル名の medium（`--effort` は使わない） |
 | 分解役（系列の性質の宣言） | claude 2.1.258 | `claude-opus-5`（内部処理用に `claude-haiku-` を許す） | CLI の既定（`--effort` を付けない） |
 | 検査役（判定） | なし（決定論のハーネス。LLM を使わない） | — | — |
 | 自然言語の描画 | なし（決定論、§2） | — | — |
@@ -439,9 +439,9 @@ v2r の価値は、テトリスで門の効果を示すことではなく、Phas
 
 ### 15.14 R＝1 の 4 走行の手順（2026-09-30、V2R-R）
 
-操縦士の決定（game-harness#130 のマージの後）：agy は **1.2.12** を固定する（`config/environment.json`。v2r-dry-03 は 1.2.11 で走った）。`~/.gemini/GEMINI.md` は Release のアーカイブに**入れる**。
+操縦士の決定（game-harness#130 のマージの後）：agy は **1.2.14** を固定する（`config/environment.json`。v2r-dry-03 は 1.2.11 で走った）。`~/.gemini/GEMINI.md` は Release のアーカイブに**入れる**。
 
-- 準備（済み、2026-09-30）：`python -m harness.envcheck` が 1.2.12 で合格。走行の前の検定の記録（マニフェストの sha256 `4c27213b…`）がある。agy 1.2.12 の `--help` に、実装役の引数（`-p`・`--model`・`--output-format stream-json`・`--sandbox`・`--dangerously-skip-permissions`・`--print-timeout`）がすべてある
+- 準備（済み、2026-09-30）：`python -m harness.envcheck` が 1.2.14 で合格。走行の前の検定の記録（マニフェストの sha256 `4c27213b…`）がある。agy 1.2.14 の `--help` に、実装役の引数（`-p`・`--model`・`--output-format stream-json`・`--sandbox`・`--dangerously-skip-permissions`・`--print-timeout`）がすべてある
 - 起動（操縦士の端末で 2 つ。ハーネスの作業ツリーを main のきれいな状態にしてから。汚れていればドライバは起動しない）：
   1. `python -m harness.ab.guard v2r-r1-01`
   2. `python -m harness.ab.driver run-all --repeat 1 --prefix v2r-r1 --manifest experiments/v2r/tasks.json`
@@ -457,11 +457,11 @@ v2r の価値は、テトリスで門の効果を示すことではなく、Phas
     3. `python -m harness.ab.driver run --condition A1 --run-id v2r-r1-01 --manifest experiments/v2r/tasks.json`、終わったら B も同じ
   - 走り直した 2 条件の来歴と環境は `v2r-r1-01.provenance.json`・`v2r-r1-01.env.json`（ハーネスのコミットが修正の後になる。A0・B-G は `v2r-r1.provenance.json`）
   - `v2r_runcheck` は、門が実装役を呼ぶ前に止めた行（`detail.stopped`）を不合格にする
-- **v2r-r1-01 は使わない（2026-09-30）**：走行の途中で agy が自動更新され、38 回の呼び出しのうち 37 回が 1.2.14 で走った（`v2r_reproducibility.md` §1.2）。上の A1・B の走り直しは行わない。agy を 1.2.12 に入れ直し、ドライバが呼び出しごとに自動更新を止めて版を照合するようにしたうえで、**4 条件を新しい run-id `v2r-r2-01` で走り直す**
+- **v2r-r1-01 は使わない（2026-09-30）**：走行の途中で agy が自動更新され、38 回の呼び出しのうち 37 回が 1.2.14 で走った（`v2r_reproducibility.md` §1.2）。上の A1・B の走り直しは行わない。agy を最新版 1.2.14 に固定し、ドライバが呼び出しごとに自動更新を止めて版を照合するようにしたうえで、**4 条件を新しい run-id `v2r-r2-01` で走り直す**
   1. `python -m harness.ab.guard v2r-r2-01`
   2. `python -m harness.ab.driver run-all --repeat 1 --prefix v2r-r2 --manifest experiments/v2r/tasks.json`
   3. 判定（V2R-R の検証コマンド）：`python -m harness.ab.v2r_runcheck --prefix v2r-r2`
-  - 走行の前に `agy --version` が 1.2.12 であることを確かめる。ハーネスの外で agy を使うと 1.2.14 に上がるので、走行が終わるまで手で agy を使わない（使うなら `AGY_CLI_DISABLE_AUTO_UPDATE=true` を付ける）
+  - 走行の前に `agy --version` が 1.2.14 であることを確かめる。ハーネスの外で agy を使うと 1.2.14 に上がるので、走行が終わるまで手で agy を使わない（使うなら `AGY_CLI_DISABLE_AUTO_UPDATE=true` を付ける）
   - v2r-r1-01 の記録は消さない（版が混ざった走行の実例として、公開のアーカイブに入れるかは V2R-U7 で決める）
 - 公開（V2R-U7）：`experiments/v2r/tools/pack.py --name v2r-r1 --run-ids v2r-r1-01 --env <v2r-r1.env.json> --provenance <v2r-r1.provenance.json> --agy-global`。GEMINI.md は来歴の sha256 と一致するときだけ入る（走行の後に書き換えると止まる）。**走行が終わるまで GEMINI.md を書き換えない**
 

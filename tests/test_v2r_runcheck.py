@@ -22,7 +22,7 @@ TASKS = [f"T{i}" for i in range(1, 11)]
 MODEL = {"requested": "gemini-3.8-flash-medium", "reported": ["gemini-3.8-flash-medium"]}
 
 
-def row(task, accepted=True, vacuous=(), model=MODEL, cli="1.2.12"):
+def row(task, accepted=True, vacuous=(), model=MODEL, cli="1.2.14"):
     return {"task": task, "accepted": accepted, "p2p_broken": 0, "invariants": {"failures": 0}, "attempts": 1,
             "vacuous_properties": list(vacuous), "model": model, "calls": [{"attempt": 1, "cli_version": cli}]}
 
@@ -32,7 +32,7 @@ class RunCheck(unittest.TestCase):
         self.root = Path(tempfile.mkdtemp())
         for cond in ("A0", "A1", "B-G", "B"):
             self.write(cond, [row(t) for t in TASKS])
-        (self.root / "p.env.json").write_text(json.dumps({"problems": [], "pinned": {"cli": {"agy": "1.2.12"}}}),
+        (self.root / "p.env.json").write_text(json.dumps({"problems": [], "pinned": {"cli": {"agy": "1.2.14"}}}),
                                               encoding="utf-8")
         self.prov({"harness": {"commit": "abc", "dirty": []}, "agy_global": {"GEMINI.md": "f" * 64}})
 
@@ -82,10 +82,10 @@ class RunCheck(unittest.TestCase):
 
     def test_a_call_on_another_or_unrecorded_cli_version_fails(self):
         """v2r-r1-01：起動時は 1.2.12 だったが、38 回のうち 37 回が 1.2.14 で走った。"""
-        for cli in ("1.2.14", None):
+        for cli in ("1.2.12", None):
             with self.subTest(cli=cli):
                 self.setUp()
-                self.write("B-G", [row(t, cli=cli if t == "T4" else "1.2.12") for t in TASKS])
+                self.write("B-G", [row(t, cli=cli if t == "T4" else "1.2.14") for t in TASKS])
                 res = self.check()
                 self.assertFalse(res["ok"])
                 self.assertTrue(any("B-G" in p and "T4" in p and "版" in p for p in res["problems"]), res["problems"])
