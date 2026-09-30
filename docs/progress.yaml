@@ -42,10 +42,7 @@ nodes:
   title: 測定器の見直し（Given は構成する。docs/design/v2r_instrument_redesign.md）
   parent: B6
 - id: B6.3
-  title: 乾式の再走（v2r-dry-01・02 は測定器の欠陥で無効）と本走の準備（U5・U6・U7）
-  parent: B6
-- id: B6.4
-  title: 本走（Hard Cap 50 USD）
+  title: 乾式の再走と完結（天井をベースラインとして記録・追試可能性の監査・R＝1 の 4 走行・公開の通し。v2r_protocol.md §15.13）
   parent: B6
 - id: Phase 4
   title: 3D 物理・推論・知覚
@@ -462,16 +459,24 @@ tasks:
     command: python -m unittest tests.test_v2r_resume tests.test_guard
     expected_exit_code: 0
 - id: V2R-SMOKE
-  title: 乾式の再走（A0、T1〜T10。天井の検査 U5）
+  title: 乾式の再走 v2r-dry-03（A0、T1〜T10。天井を難易度のベースラインとして記録し U5 を閉じる。§15.13）
   group: B6.3
   target_repo: game-harness
   status: in_progress
   verification:
-    command: python -m harness.ab.v2r_ceiling --run-id v2r-dry-03
+    command: python -m harness.ab.v2r_ceiling --run-id v2r-dry-03 --accept-ceiling
     expected_exit_code: 0
   review_pr: https://github.com/tamaroulet/game-harness/pull/129
+- id: V2R-REPRO
+  title: 追試可能性の自己監査と走行の来歴の記録（docs/design/v2r_reproducibility.md）・変異の死滅率の診断の道具
+  group: B6.3
+  target_repo: game-harness
+  status: pending
+  verification:
+    command: python -m unittest tests.test_provenance tests.test_v2r_mutation tests.test_v2r_ceiling tests.test_v2r_preflight
+    expected_exit_code: 0
 - id: V2R-R
-  title: 4 条件の 1 繰り返しと繰り返し R の決定（U6。人間の承認）
+  title: 4 条件（A0・A1・B-G・B）を各 1 回（R＝1。U6 は §15.13 で確定）。健全性・費用・配管の挙動の実測
   group: B6.3
   target_repo: game-harness
   status: pending
@@ -479,12 +484,6 @@ tasks:
 - id: V2R-U7
   title: Release への公開の通し（pack → Release → 取得 → verify → 集計。U7 の残り。公開は人間の承認の後）
   group: B6.3
-  target_repo: game-harness
-  status: pending
-  verification: null
-- id: V2R-RUN
-  title: 本走（T1〜T10 × A0・A1・B-G・B × R 回、Hard Cap 50 USD）
-  group: B6.4
   target_repo: game-harness
   status: pending
   verification: null
