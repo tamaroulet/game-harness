@@ -1,21 +1,21 @@
 {
-  "_comment": "v2r の実行環境の固定値（docs/design/v2r_protocol.md §5.1、2026-09-26 に実測）。harness/envcheck.py が起動時に実測と照合し、1 つでも違えば起動しない。変えるときは main への PR で行う",
+  "_comment": "v2r の実行環墁E�E固定値�E�Eocs/design/v2r_protocol.md §5.1、E026-09-26 に実測�E�。harness/envcheck.py が起動時に実測と照合し、E つでも違え�E起動しなぁE��変えるとき�E main への PR で行う",
   "os": "Microsoft Windows NT 10.0.26200.0",
   "python": "3.12.10",
   "python_packages": {
     "pyyaml": "6.0.3"
   },
-  "_cli_note": "agy は 2026-09-27〜30 の間に人の操作なしに 1.2.11 から 1.2.12 に上がった（docs/design/v2r_reproducibility.md §1.1）。操縦士の決定（2026-09-30）で 1.2.12 を固定する。v2r-dry-03 は 1.2.11、V2R-R の 4 条件は 1.2.12。1.2.12 の --help に自動更新を止める引数は無い（照合で止まる）",
+  "_cli_note": "agy は 2026-09-27、E0 の間に人の操作なしに 1.2.11 から 1.2.12 に上がった！Eocs/design/v2r_reproducibility.md §1.1�E�。操縦士の決定！E026-09-30�E�で 1.2.12 を固定する。v2r-dry-03 は 1.2.11、V2R-R の 4 条件は 1.2.12、E.2.12 の --help に自動更新を止める引数は無ぁE���E合で止まる！E,
   "cli": {
-    "agy": "1.2.12",
+    "agy": "1.2.14",
     "claude": "2.1.258",
     "dotnet": "8.0.413"
   },
-  "_tools_note": "§8 の変異の死滅率（U2）。5.0.0 は NuGet のパッケージの不備（DotnetToolSettings.xml が無い）で導入できなかったので、1 つ前の安定版 4.16.0 を人間が導入した（2026-09-26、dotnet tool list -g で確認）。照合は dotnet tool list -g の表で行う",
+  "_tools_note": "§8 の変異の死滁E���E�E2�E�、E.0.0 は NuGet のパッケージの不備�E�EotnetToolSettings.xml が無ぁE��で導�Eできなかった�Eで、E つ前�E安定版 4.16.0 を人間が導�Eした�E�E026-09-26、dotnet tool list -g で確認）。�E合�E dotnet tool list -g の表で行う",
   "tools": {
     "dotnet-stryker": "4.16.0"
   },
-  "_test_packages_note": "ゲームのテストのプロジェクトの NuGet パッケージ（NUnit など。U1）。総監督は防壁①の deny ルールでテストの プロジェクトに触れられないので、人間が python -m harness.envcheck --test-packages で取った値（2026-09-26、game-harness#112 のレビュー）",
+  "_test_packages_note": "ゲームのチE��ト�Eプロジェクト�E NuGet パッケージ�E�EUnit など。U1�E�。総監督は防壁①の deny ルールでチE��ト�E プロジェクトに触れられなぁE�Eで、人間が python -m harness.envcheck --test-packages で取った値�E�E026-09-26、game-harness#112 のレビュー�E�E,
   "test_packages": {
     "Microsoft.NET.Test.Sdk": "17.8.0",
     "NUnit": "3.14.0",
