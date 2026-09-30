@@ -64,6 +64,26 @@ class SetAside(unittest.TestCase):
             self.assertEqual(len(list((out / "aborted").rglob("T3_a*.implementer.log"))), 2, "guard は rglob で数え続ける")
 
 
+class Restart(unittest.TestCase):
+    """v2r-r1-01 の A1・B：T2 を 0 回の試行で飛ばした行があるので、--resume ではやり直せない。同じ run-id で最初から。"""
+
+    def test_the_output_is_kept_and_the_worktrees_and_branch_are_removed(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            p = common.paths("r1", "A1", root / "wt", root / "out")
+            for x in (p["out"], p["wt"], p["sandbox"]):
+                x.mkdir(parents=True)
+            (p["out"] / "metrics.jsonl").write_text('{"task": "T1"}\n', encoding="utf-8")
+            seen = []
+            with mock.patch.object(driver.project, "load", return_value={"repo_dir": "repo"}):
+                moved = driver.restart("r1", "A1", root / "wt", root / "out", git=lambda a, *r, **k: seen.append(a))
+            self.assertFalse(p["out"].exists())
+            self.assertTrue(moved.name.startswith("A1.superseded-"))
+            self.assertEqual((moved / "metrics.jsonl").read_text(encoding="utf-8"), '{"task": "T1"}\n', "消さない")
+            self.assertIn(["branch", "-D", "ab/r1/A1"], seen)
+            self.assertEqual([a[-1] for a in seen if a[:2] == ["worktree", "remove"]], [str(p["sandbox"]), str(p["wt"])])
+
+
 class RunCondition(unittest.TestCase):
     """run_condition を偽の部品で回し、再開・記録の流れを確かめる（実装役・dotnet・git は呼ばない）。"""
 
