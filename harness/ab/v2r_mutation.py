@@ -115,6 +115,9 @@ def run_all(run_id, condition, manifest=MANIFEST, tasks=None, force=False, wt_ro
             print(f"[{task}] 報告があるので飛ばします（測り直すなら --force）")
             done[task] = sorted(dest.rglob("mutation-report.json"))[-1]
             continue
+        # 測り直すときは古い報告を消す（Stryker が落ちたときに、古い報告を新しい結果として読まない）
+        for old in dest.rglob("mutation-report.json"):
+            old.unlink()
         if wt.exists():
             git(["worktree", "remove", "--force", str(wt)], repo, "git worktree remove（変異）", check=False)
         git(["worktree", "add", "-q", "--detach", str(wt), commit], repo, "git worktree add（変異）")

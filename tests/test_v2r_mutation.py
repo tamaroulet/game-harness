@@ -54,8 +54,9 @@ class RunAll(unittest.TestCase):
         return path
 
     def run_all(self, **kw):
+        kw.setdefault("stryker", self.stryker)
         return v2r_mutation.run_all("r1", "A0", "m.json", wt_root=self.tmp / "wt", out_root=self.tmp / "out",
-                                    stryker=self.stryker, git=self.git, **kw)
+                                    git=self.git, **kw)
 
     def test_each_task_is_mutated_at_its_end_commit_with_the_measurement_seeds(self):
         done = self.run_all()
@@ -76,6 +77,9 @@ class RunAll(unittest.TestCase):
         self.assertEqual(len(self.stryker_calls), 2, "T1 は飛ばし、T2 だけ測る")
         self.run_all(tasks=["T1"], force=True)
         self.assertEqual(len(self.stryker_calls), 3, "--force なら測り直す")
+        done = self.run_all(tasks=["T1"], force=True, stryker=lambda *a, **k: None)   # Stryker が報告を出さずに落ちた
+        self.assertIsNone(done["T1"], "古い報告を新しい結果として読まない")
+        self.assertEqual(list((v2r_mutation.mutation_dir(self.out) / "T1").rglob("mutation-report.json")), [])
 
     def test_the_task_scope_mutates_only_the_files_the_task_changed(self):
         self.run_all(scope="task", tasks=["T2"])
