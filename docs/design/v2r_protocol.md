@@ -124,7 +124,7 @@
 | 項目 | 値 | 確かめ方 |
 |:--|:--|:--|
 | OS | Microsoft Windows NT 10.0.26200.0（Windows 11 Home） | `[Environment]::OSVersion` |
-| agy | 1.2.11 | `agy --version` |
+| agy | 1.2.12（2026-09-30 に 1.2.11 から改めた。§15.14） | `agy --version` |
 | claude（Claude Code） | 2.1.258 | `claude --version` |
 | Python | 3.12.10 | `python --version` |
 | Python の依存 | pyyaml 6.0.3（ハーネスの外部の依存はこれだけ。ほかは標準ライブラリ） | `harness/` の import を数えた。CI も `pyyaml==6.0.3` |
@@ -145,7 +145,7 @@
 
 | 役 | CLI | モデル | 思考の重さ |
 |:--|:--|:--|:--|
-| 実装役 | agy 1.2.11 | `gemini-3.8-flash-medium` | モデル名の medium（`--effort` は使わない） |
+| 実装役 | agy 1.2.12（v2r-dry-03 までは 1.2.11） | `gemini-3.8-flash-medium` | モデル名の medium（`--effort` は使わない） |
 | 分解役（系列の性質の宣言） | claude 2.1.258 | `claude-opus-5`（内部処理用に `claude-haiku-` を許す） | CLI の既定（`--effort` を付けない） |
 | 検査役（判定） | なし（決定論のハーネス。LLM を使わない） | — | — |
 | 自然言語の描画 | なし（決定論、§2） | — | — |
@@ -154,7 +154,7 @@
 
 ### 6.2 サンプリングのパラメータ（実測と方針）
 
-- **実測**：agy 1.2.11 と claude 2.1.258 の `--help` に、temperature・top_p・seed を指定する引数は無い（あるのは `--model`・`--effort` など）。**CLI を使う限り、これらは指定も記録もできない**（提供側の既定値で動く）
+- **実測**：agy 1.2.11・1.2.12（2026-09-30 に確かめた）と claude 2.1.258 の `--help` に、temperature・top_p・seed を指定する引数は無い（あるのは `--model`・`--effort` など）。**CLI を使う限り、これらは指定も記録もできない**（提供側の既定値で動く）
 - **方針（確定）**：
   1. `env.json` に「temperature・top_p・seed：CLI で指定できない（提供側の既定）」と明記する。値を推測で書かない
   2. 非決定性は繰り返し（R）で扱い、すべての出力（§7）を残す。報告は中央値と範囲・四分位で行う
@@ -436,4 +436,18 @@ v2r の価値は、テトリスで門の効果を示すことではなく、Phas
 4. **変異の死滅率は記録だけ**（§8.1 の「タスクごとに 80% 以上」は本走に入る条件から外す）。オラクルの強さの特性値として、v2r-dry-03 のタスクごとの値を記録する（`harness/ab/v2r_mutation.py`、`v2r_dry03_ceiling.md` §6）
 5. **追試可能性の自己監査**：`docs/design/v2r_reproducibility.md`。走行の来歴（ハーネスのコミット・実装役の全体設定の sha256・環境変数・ロケール）を `<run-id>.provenance.json` に残し、コミットしていないハーネスでは起動しない（`harness/provenance.py`）
 6. **B6.4（本走、R 回）は行わない**。R＝1 の 4 走行と、その記録の公開の通し（V2R-U7）でテトリスを完結し、Phase 4 に進む
+
+### 15.14 R＝1 の 4 走行の手順（2026-09-30、V2R-R）
+
+操縦士の決定（game-harness#130 のマージの後）：agy は **1.2.12** を固定する（`config/environment.json`。v2r-dry-03 は 1.2.11 で走った）。`~/.gemini/GEMINI.md` は Release のアーカイブに**入れる**。
+
+- 準備（済み、2026-09-30）：`python -m harness.envcheck` が 1.2.12 で合格。走行の前の検定の記録（マニフェストの sha256 `4c27213b…`）がある。agy 1.2.12 の `--help` に、実装役の引数（`-p`・`--model`・`--output-format stream-json`・`--sandbox`・`--dangerously-skip-permissions`・`--print-timeout`）がすべてある
+- 起動（操縦士の端末で 2 つ。ハーネスの作業ツリーを main のきれいな状態にしてから。汚れていればドライバは起動しない）：
+  1. `python -m harness.ab.guard v2r-r1-01`
+  2. `python -m harness.ab.driver run-all --repeat 1 --prefix v2r-r1 --manifest experiments/v2r/tasks.json`
+- 順：A0 → A1 → B-G → B（`v2r.order_for(1)`）。run-id は `v2r-r1-01`。来歴と環境は `C:/src/.local/out/ab/v2r-r1.provenance.json`・`v2r-r1.env.json`
+- 費用の見込み：v2r-dry-03 の A0 は 10 呼び出しで 0.6330 USD。門の無い 2 条件は各 0.6 USD 前後、門のある 2 条件は 1 回で通れば同じくらい、最悪（各タスク 9 呼び出し）で各 5.7 USD 前後。4 条件の合計は 2.5 USD 前後の見込み、最悪 13 USD 前後。guard の上限（1 呼び出し 0.5 USD、1 繰り返し 15 USD、Hard Cap 50 USD）はそのまま
+- 止まったとき：`C:/src/.local/out/ab/v2r-r1-01/<条件>/fault.json` と `v2r-r1-01/guard_stops.jsonl` を見る。原因を直し、その条件を `python -m harness.ab.driver run --condition <条件> --run-id v2r-r1-01 --manifest experiments/v2r/tasks.json --resume` で続け、残りの条件を同じく `run`（`--resume` なし）で回す。`run` の来歴と環境は `v2r-r1-01.provenance.json` に書かれる（run-all の `v2r-r1.provenance.json` と別）
+- 判定（V2R-R の検証コマンド）：`python -m harness.ab.v2r_runcheck --prefix v2r-r1`。欠陥の有無は合否に入れない。4 条件で T1〜T10 がちょうど 1 行ずつ、空虚な性質 0、要求と報告のモデルの一致、env.json の問題 0、provenance.json（汚れていないハーネスのコミット、GEMINI.md の sha256）がそろえば合格
+- 公開（V2R-U7）：`experiments/v2r/tools/pack.py --name v2r-r1 --run-ids v2r-r1-01 --env <v2r-r1.env.json> --provenance <v2r-r1.provenance.json> --agy-global`。GEMINI.md は来歴の sha256 と一致するときだけ入る（走行の後に書き換えると止まる）。**走行が終わるまで GEMINI.md を書き換えない**
 
