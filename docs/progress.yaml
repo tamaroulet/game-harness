@@ -480,7 +480,7 @@ tasks:
   target_repo: game-harness
   status: in_progress
   verification:
-    command: python -m harness.ab.v2r_runcheck --prefix v2r-r1
+    command: python -m harness.ab.v2r_runcheck --prefix v2r-r2
     expected_exit_code: 0
   review_pr: https://github.com/tamaroulet/game-harness/pull/132
 - id: V2R-U7
