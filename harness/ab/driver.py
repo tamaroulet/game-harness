@@ -69,17 +69,37 @@ def _json_in(text):
     return {}
 
 
-def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run):
+# agy は起動のたびに、前の確認から 15 分を過ぎていれば裏で自分を最新に置き換える。v2r-r1-01 は起動時の照合（1.2.12）の
+# 33 秒後に 1.2.14 に置き換わり、38 回の呼び出しのうち 37 回が 1.2.14 で走った（2026-09-30、agy の cli.log で確かめた）。
+# 呼び出しごとに自動更新を止め、直前に版を測って固定値と照合する。値は "true"（"1" では止まらなかった。2026-09-30 に
+# agy 1.2.12 で実測：cli.log に「Auto-update disabled via environment variable AGY_CLI_DISABLE_AUTO_UPDATE」が出る）
+AGY_ENV = {"AGY_CLI_DISABLE_AUTO_UPDATE": "true"}
+
+
+def cli_version_guard(imp, measure=envcheck.cli_version, pinned=None):
+    """呼び出しの直前に実装役の CLI の版を測り、固定値（config/environment.json）と照合する。版を返す。違えば ABError。"""
+    want = ((pinned if pinned is not None else envcheck.load_pinned()).get("cli") or {}).get(imp["cli"])
+    got = measure(imp["cli"])
+    if want is None or got != want:
+        raise common.ABError(f"実装役の CLI の版が固定値と違います：{imp['cli']} 実測 {got!r}、固定 {want!r}"
+                             "（呼び出しの直前の照合。走行の途中で版が変わった）")
+    return got
+
+
+def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run, guard=cli_version_guard):
     """実装役を 1 回呼ぶ。会話を続けるときは --conversation を付ける（resume）。
 
     stream-json のときは、B（pipeline）と同じ引数と読み取り（agy_stream）を使い、手番ごとの記録を返す。
+    呼ぶ前に版を照合し（guard）、自動更新を止める環境変数を付ける（AGY_ENV）。結果の cli_version に版を残す。
     """
+    version = guard(imp) if guard else None
+    env = dict(os.environ, **AGY_ENV)
     if agy_stream.is_stream(imp):
         t0 = time.monotonic()
         rc, out, err = runner(agy_stream.args(imp, resolve_cli(imp["cli"]), prompt, ttl, conversation_id),
-                              cwd, ttl, "実装AI（条件 A）", input=agy_stream.stdin_for(imp, prompt))
+                              cwd, ttl, "実装AI（条件 A）", env=env, input=agy_stream.stdin_for(imp, prompt))
         parsed = agy_stream.parse(out, cwd)
-        return {"rc": rc, "seconds": round(time.monotonic() - t0, 1),
+        return {"rc": rc, "seconds": round(time.monotonic() - t0, 1), "cli_version": version,
                 "conversation_id": parsed["conversation_id"] or conversation_id, "usage": parsed["usage"],
                 "steps": parsed["steps"], "outcome": parsed["outcome"], "model": parsed["model"],
                 "cache": parsed["cache"], "token_problems": parsed["token_problems"], "out": out, "err": err}
@@ -88,9 +108,9 @@ def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run):
     if conversation_id:
         args += ["--conversation", conversation_id]
     t0 = time.monotonic()
-    rc, out, err = runner(args, cwd, ttl, "実装AI（条件 A）")
+    rc, out, err = runner(args, cwd, ttl, "実装AI（条件 A）", env=env)
     doc = _json_in(out)
-    return {"rc": rc, "seconds": round(time.monotonic() - t0, 1),
+    return {"rc": rc, "seconds": round(time.monotonic() - t0, 1), "cli_version": version,
             "conversation_id": doc.get("conversation_id") or conversation_id,
             "usage": telemetry.cli_usage(out, imp["usage_format"]), "out": out, "err": err}
 
@@ -384,8 +404,8 @@ def failing_names(results):
     return None if results is None else sorted(n for n, o in results.items() if o != "Passed")
 
 
-CALL_RECORD = ("attempt", "rc", "seconds", "model", "prompt_chars", "prompt_parts", "outcome", "transient", "cache",
-               "verdict")
+CALL_RECORD = ("attempt", "rc", "seconds", "model", "cli_version", "prompt_chars", "prompt_parts", "outcome",
+               "transient", "cache", "verdict")
 
 
 def call_records(calls):

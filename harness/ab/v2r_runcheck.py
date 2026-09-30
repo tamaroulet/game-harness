@@ -7,7 +7,8 @@
 
 1. 4 条件（A0・A1・B-G・B）のそれぞれに metrics.jsonl があり、マニフェストのタスクがちょうど 1 行ずつある
 2. 空虚な性質（前提の成立回数 0）が無い（測定器の健全性。原則 P2）
-3. どの行も、要求したモデルと CLI が報告したモデルが一致する（harness/model_pin.py）
+3. どの行も、要求したモデルと CLI が報告したモデルが一致する（harness/model_pin.py）。どの呼び出しも、直前に測った
+   実装役の版（calls の cli_version）が起動時の固定値と一致する（v2r-r1-01 は走行の途中で agy が自動更新された）
 4. `<prefix>.env.json` の照合の問題が 0 件
 5. `<prefix>.provenance.json` があり、ハーネスが汚れておらず、実装役の全体設定 GEMINI.md の sha256 がある（公開の前提）
 
@@ -22,6 +23,7 @@ _HARNESS = Path(__file__).resolve().parent.parent
 if str(_HARNESS) not in sys.path:
     sys.path.insert(0, str(_HARNESS))
 
+import envcheck  # noqa: E402
 import exitcode  # noqa: E402
 from ab import common, v2r, v2r_report  # noqa: E402
 
@@ -32,8 +34,8 @@ def _rows(path):
     return [json.loads(l) for l in Path(path).read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
-def check_condition(out, tasks):
-    """(問題の一覧, 表の行)。out は <out-root>/<run-id>/<条件>。"""
+def check_condition(out, tasks, agy_version=None):
+    """(問題の一覧, 表の行)。out は <out-root>/<run-id>/<条件>。agy_version を渡すと、呼び出しごとの版を照合する。"""
     problems, cond = [], out.name
     metrics = out / "metrics.jsonl"
     if not metrics.exists():
@@ -54,6 +56,11 @@ def check_condition(out, tasks):
                  or (r.get("model") or {}).get("reported") != [(r.get("model") or {}).get("requested")]]
     if bad_model:
         problems.append(f"{cond}：要求と報告のモデルが一致しない行 {', '.join(map(str, bad_model))}")
+    if agy_version is not None:
+        # 呼び出しごとの実装役の版（driver.agy_call が直前に測る）。無い・違う呼び出しがあれば不合格（v2r-r1-01 の教訓）
+        off = sorted({str(r.get("task")) for r in rows for c in (r.get("calls") or []) if c.get("cli_version") != agy_version})
+        if off:
+            problems.append(f"{cond}：実装役の版が {agy_version} でない（または記録の無い）呼び出しのあるタスク {', '.join(off)}")
     stopped = [r.get("task") for r in rows if (r.get("detail") or {}).get("stopped")]
     if stopped:
         problems.append(f"{cond}：実装役を呼ぶ前に門が止めたタスク {', '.join(map(str, stopped))}（門の側の不備。走り直す）")
@@ -66,14 +73,17 @@ def check(out_root, prefix, tasks):
     out_root = Path(out_root)
     run_id = f"{prefix}-01"
     problems, table = [], []
+    env = out_root / f"{prefix}.env.json"
+    env_rec = json.loads(env.read_text(encoding="utf-8")) if env.exists() else {}
+    # 呼び出しごとの版は、走行の起動時の固定値と照合する（無ければ今の config/environment.json）
+    agy_version = ((env_rec.get("pinned") or envcheck.load_pinned()).get("cli") or {}).get("agy")
     for cond in v2r.ORDER:
-        p, t = check_condition(out_root / run_id / cond, tasks)
+        p, t = check_condition(out_root / run_id / cond, tasks, agy_version)
         problems += p
         table.append(t)
-    env = out_root / f"{prefix}.env.json"
     if not env.exists():
         problems.append(f"{env.name} がありません")
-    elif json.loads(env.read_text(encoding="utf-8")).get("problems"):
+    elif env_rec.get("problems"):
         problems.append(f"{env.name}：実行環境が固定値と違う")
     prov = out_root / f"{prefix}.provenance.json"
     if not prov.exists():
