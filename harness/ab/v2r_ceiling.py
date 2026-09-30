@@ -1,6 +1,7 @@
 """再実験 v2r の天井の検査（docs/design/v2r_protocol.md §11.3、§13 の U5、§15.4）。A0 の metrics.jsonl → 判定。
 
     python -m harness.ab.v2r_ceiling --run-id v2r-dry-01 [--out-root <走行の親>] [--manifest experiments/v2r/tasks.json]
+        [--accept-ceiling]
 
 **判定**：A0 の走行が、マニフェストのすべてのタスクをちょうど 1 行ずつ持ち、タスクの終わりの欠陥（受入の不合格・P2P の
 破壊・不変条件の違反のどれか。v2r_report.defect と同じ）が 1 件以上あれば合格（終了コード 0）。欠陥が 0 件なら、系列が
@@ -37,8 +38,12 @@ def rows_of(out_root, run_id):
     return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
-def check(rows, tasks):
-    """{"ok", "defects", "problems", "table"}。problems が空で defects が 1 以上なら ok。"""
+def check(rows, tasks, accept_ceiling=False):
+    """{"ok", "defects", "problems", "table", "ceiling"}。problems が空で defects が 1 以上なら ok。
+
+    accept_ceiling：欠陥 0 件（天井）を不合格にせず、難易度のベースラインとして記録する（§15.13、2026-09-30 の操縦士の
+    決定）。行の欠け・重なり・空虚な性質（測定器の健全性）は、これを付けても不合格のまま。
+    """
     problems = []
     if rows is None:
         return {"ok": False, "defects": 0, "problems": [f"{CONDITION} の metrics.jsonl がありません"], "table": []}
@@ -68,9 +73,11 @@ def check(rows, tasks):
     vacuous = sorted({v for x in table for v in x["vacuous"]})
     if vacuous:
         problems.append(f"空虚な性質があるので天井を判定しない（測定器の故障の疑い。原則 P2）：{', '.join(vacuous)}")
-    if not problems and defects == 0:
+    ceiling = not problems and defects == 0
+    if ceiling and not accept_ceiling:
         problems.append("A0 の欠陥が 0 件（系列が易しすぎる。本走に入らない）")
-    return {"ok": not problems, "defects": defects, "problems": problems, "table": table}
+    return {"ok": not problems, "defects": defects, "problems": problems, "table": table,
+            "ceiling": ceiling and accept_ceiling}
 
 
 def render(res, run_id):
@@ -81,6 +88,8 @@ def render(res, run_id):
                      f"{x['defect']} | {', '.join(x['vacuous']) or '—'} |")
     lines += ["", f"- 欠陥：{res['defects']} 件（{len(res['table'])} タスク中）"]
     lines += [f"- NG: {p}" for p in res["problems"]]
+    if res.get("ceiling"):
+        lines.append("- 天井（A0 の欠陥 0 件）：難易度のベースラインとして記録する（§15.13、操縦士の決定 2026-09-30）")
     lines.append("合格" if res["ok"] else "不合格")
     return "\n".join(lines)
 
@@ -90,8 +99,11 @@ def main(argv=None):
     ap.add_argument("--run-id", required=True)
     ap.add_argument("--out-root", default=str(common.OUT_ROOT))
     ap.add_argument("--manifest", default=str(MANIFEST))
+    ap.add_argument("--accept-ceiling", action="store_true",
+                    help="欠陥 0 件を不合格にせず、難易度のベースラインとして記録する（§15.13。付けるかは進捗の検証コマンドで決め、"
+                         "main への PR を人間が承認する）")
     args = ap.parse_args(argv)
-    res = check(rows_of(args.out_root, args.run_id), task_ids(args.manifest))
+    res = check(rows_of(args.out_root, args.run_id), task_ids(args.manifest), accept_ceiling=args.accept_ceiling)
     print(render(res, args.run_id))
     return 0 if res["ok"] else 1
 

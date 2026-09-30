@@ -107,7 +107,7 @@ class Gate(unittest.TestCase):
             m = Path(d) / "tasks.json"
             m.write_text(json.dumps({"kind": "v2r"}), encoding="utf-8")
             out, real = io.StringIO(), v2r_preflight.require
-            with mock.patch.object(driver.envcheck, "require"), \
+            with mock.patch.object(driver.envcheck, "require"), mock.patch.object(driver.provenance, "require"), \
                     mock.patch.object(driver.v2r_preflight, "require", side_effect=lambda man: real(man, d)), \
                     mock.patch.object(driver, "run_condition") as run, contextlib.redirect_stdout(out):
                 rc = driver.main(["run", "--condition", "A0", "--run-id", "x", "--manifest", str(m)])
