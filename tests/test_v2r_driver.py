@@ -103,7 +103,7 @@ class Dispatch(unittest.TestCase):
                 (Path(cwd) / "Core" / "GameState.cs").write_text(f"class GameState {{}} // {len(prompts)}",
                                                                  encoding="utf-8")
             return {"rc": 0, "seconds": 1.0, "conversation_id": "c", "model": "m", "usage": {"input_tokens": 1},
-                    "out": "", "err": "", "outcome": {"status": "SUCCESS"}, "steps": []}
+                    "out": "", "err": "", "outcome": {"status": "SUCCESS"}, "steps": [], "cli_version": "1.2.14"}
 
         def judge(n):
             judged.append(n)
@@ -153,6 +153,17 @@ class Dispatch(unittest.TestCase):
         with self.assertRaises(common.ABError) as ctx:
             self.run_condition("B", verdicts=[("PROPERTY_FAIL", vac)])
         self.assertIn("測定器の故障", str(ctx.exception))
+
+    def test_every_call_record_keeps_what_the_call_measured(self):
+        """v2r-smoke-02：agy_call が測った版（cli_version）が、呼び出しの記録の手書きの写しから落ちて metrics で null になった。
+        4 条件のすべてで、agy_call の結果から写すもの（CALL_FROM_RESULT）が metrics の要約まで残ること。"""
+        for c in v2r.ORDER:
+            with self.subTest(condition=c):
+                rec, *_ = self.run_condition(c)
+                for summary in driver.call_records(rec["calls"]):
+                    self.assertEqual(summary["cli_version"], "1.2.14")
+                    self.assertEqual(summary["model"], "m")
+                    self.assertIsNotNone(summary["outcome"])
 
     def test_everything_but_the_spec_and_the_feedback_is_shared_and_stateless(self):
         # 作業ツリーを共有するので、書かない呼び出しで比べる（書くと後の条件の埋め込みの字数が変わる）
