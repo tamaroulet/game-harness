@@ -9,6 +9,8 @@
 2. 空虚な性質（前提の成立回数 0）が無い（測定器の健全性。原則 P2）
 3. どの行も、要求したモデルと CLI が報告したモデルが一致する（harness/model_pin.py）。どの呼び出しも、直前に測った
    実装役の版（calls の cli_version）が起動時の固定値と一致する（v2r-r1-01 は走行の途中で agy が自動更新された）
+   門が実装役を呼ぶ前に止めた行（detail.stopped）と、呼んだ後に検査系の故障（verdict ABORT）で止めた行も不合格
+   （門の側の不備を、実装の欠陥として数えない）
 4. `<prefix>.env.json` の照合の問題が 0 件
 5. `<prefix>.provenance.json` があり、ハーネスが汚れておらず、実装役の全体設定 GEMINI.md の sha256 がある（公開の前提）
 
@@ -56,14 +58,22 @@ def check_condition(out, tasks, agy_version=None):
                  or (r.get("model") or {}).get("reported") != [(r.get("model") or {}).get("requested")]]
     if bad_model:
         problems.append(f"{cond}：要求と報告のモデルが一致しない行 {', '.join(map(str, bad_model))}")
-    if agy_version is not None:
-        # 呼び出しごとの実装役の版（driver.agy_call が直前に測る）。無い・違う呼び出しがあれば不合格（v2r-r1-01 の教訓）
-        off = sorted({str(r.get("task")) for r in rows for c in (r.get("calls") or []) if c.get("cli_version") != agy_version})
+    # 呼び出しごとの実装役の版（driver.agy_call が直前に測る）。無い・違う呼び出しがあれば不合格（v2r-r1-01 の教訓）。
+    # 照合する固定値が分からなければ、照合を飛ばさずに不合格にする
+    if not agy_version:
+        problems.append(f"{cond}：照合する実装役の版の固定値が分かりません（env.json の pinned.cli.agy）")
+    else:
+        off = [r.get("task") for r in rows if any(c.get("cli_version") != agy_version for c in (r.get("calls") or []))]
         if off:
-            problems.append(f"{cond}：実装役の版が {agy_version} でない（または記録の無い）呼び出しのあるタスク {', '.join(off)}")
+            problems.append(f"{cond}：実装役の版が {agy_version} でない（または記録の無い）呼び出しのあるタスク "
+                            f"{', '.join(map(str, off))}")
     stopped = [r.get("task") for r in rows if (r.get("detail") or {}).get("stopped")]
     if stopped:
         problems.append(f"{cond}：実装役を呼ぶ前に門が止めたタスク {', '.join(map(str, stopped))}（門の側の不備。走り直す）")
+    # 呼んだ後に門が検査系の故障（ABORT）で止めた行は、実装の欠陥ではないのに欠陥として数えられてしまう
+    aborted = [r.get("task") for r in rows if any(c.get("verdict") == "ABORT" for c in (r.get("calls") or []))]
+    if aborted:
+        problems.append(f"{cond}：門が検査系の故障（ABORT）で止めたタスク {', '.join(map(str, aborted))}（門の側の不備）")
     table = {"condition": cond, "rows": len(rows), "defects": sum(v2r_report.defect(r) for r in rows),
              "calls": sum(r.get("attempts") or 0 for r in rows), "resumed": (out / "fault.json").exists()}
     return problems, table
@@ -85,6 +95,15 @@ def check(out_root, prefix, tasks):
         problems.append(f"{env.name} がありません")
     elif env_rec.get("problems"):
         problems.append(f"{env.name}：実行環境が固定値と違う")
+    current = (envcheck.load_pinned().get("cli") or {}).get("agy")
+    if env.exists() and agy_version != current:
+        problems.append(f"{env.name}：走行の時の実装役の版の固定値 {agy_version} が、今の固定値 {current} と違う")
+    # 再開（driver run --resume）した条件は <run-id>.env.json を書く。あれば同じく照合する
+    resumed_env = out_root / f"{run_id}.env.json"
+    if resumed_env.exists():
+        rec = json.loads(resumed_env.read_text(encoding="utf-8"))
+        if rec.get("problems") or ((rec.get("pinned") or {}).get("cli") or {}).get("agy") != agy_version:
+            problems.append(f"{resumed_env.name}：再開の時の実行環境が、走行の固定値と違う")
     prov = out_root / f"{prefix}.provenance.json"
     if not prov.exists():
         problems.append(f"{prov.name} がありません（来歴の無い走行）")

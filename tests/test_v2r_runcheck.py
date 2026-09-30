@@ -11,6 +11,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,6 +36,10 @@ class RunCheck(unittest.TestCase):
         (self.root / "p.env.json").write_text(json.dumps({"problems": [], "pinned": {"cli": {"agy": "1.2.14"}}}),
                                               encoding="utf-8")
         self.prov({"harness": {"commit": "abc", "dirty": []}, "agy_global": {"GEMINI.md": "f" * 64}})
+        # 今の固定値（config/environment.json）は、テストでは固定する
+        patcher = mock.patch.object(v2r_runcheck.envcheck, "load_pinned", return_value={"cli": {"agy": "1.2.14"}})
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def write(self, cond, rows):
         d = self.root / "p-01" / cond
@@ -89,6 +94,34 @@ class RunCheck(unittest.TestCase):
                 res = self.check()
                 self.assertFalse(res["ok"])
                 self.assertTrue(any("B-G" in p and "T4" in p and "版" in p for p in res["problems"]), res["problems"])
+
+    def test_a_gate_abort_after_calling_fails(self):
+        rows = [row(t) for t in TASKS]
+        rows[4] = dict(rows[4], accepted=False, calls=[{"attempt": 1, "cli_version": "1.2.14", "verdict": "ABORT"}])
+        self.write("B", rows)
+        res = self.check()
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("ABORT" in p and "T5" in p for p in res["problems"]), res["problems"])
+
+    def test_the_run_time_pin_must_be_the_current_pin_and_must_be_known(self):
+        (self.root / "p.env.json").write_text(json.dumps({"problems": [], "pinned": {"cli": {"agy": "1.2.12"}}}),
+                                              encoding="utf-8")
+        self.write("A0", [row(t, cli="1.2.12") for t in TASKS])
+        res = self.check()
+        self.assertFalse(res["ok"], "1.2.12 の固定で走った走行は、今の固定値 1.2.14 の走行として通さない")
+        self.assertTrue(any("今の固定値" in p for p in res["problems"]), res["problems"])
+        with mock.patch.object(v2r_runcheck.envcheck, "load_pinned", return_value={"cli": {}}):
+            (self.root / "p.env.json").unlink()
+            res = self.check()
+        self.assertTrue(any("固定値が分かりません" in p for p in res["problems"]), "照合を黙って飛ばさない")
+
+    def test_a_resumed_condition_is_checked_against_the_run_pin(self):
+        (self.root / "p-01.env.json").write_text(json.dumps({"problems": [], "pinned": {"cli": {"agy": "1.2.15"}}}),
+                                                 encoding="utf-8")
+        self.assertFalse(self.check()["ok"])
+        (self.root / "p-01.env.json").write_text(json.dumps({"problems": [], "pinned": {"cli": {"agy": "1.2.14"}}}),
+                                                 encoding="utf-8")
+        self.assertTrue(self.check()["ok"])
 
     def test_an_empty_model_report_fails(self):
         self.write("A0", [row(t, model={"requested": "m", "reported": []}) for t in TASKS])
