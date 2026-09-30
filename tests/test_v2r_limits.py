@@ -185,7 +185,7 @@ class DriverReplicate(unittest.TestCase):
 
 class Environment(unittest.TestCase):
     PINNED = {"os": "Microsoft Windows NT 10.0.26200.0", "python": "3.12.10", "python_packages": {"pyyaml": "6.0.3"},
-              "cli": {"agy": "1.2.11", "claude": "2.1.258", "dotnet": "8.0.413"}}
+              "cli": {"agy": "1.2.12", "claude": "2.1.258", "dotnet": "8.0.413"}}
 
     def measured(self, **over):
         m = json.loads(json.dumps({k: v for k, v in self.PINNED.items()}))
@@ -263,12 +263,12 @@ class Environment(unittest.TestCase):
             rec = envcheck.require(Path(d) / "env.json", measured=self.measured(), pinned=self.PINNED)
             saved = json.loads((Path(d) / "env.json").read_text(encoding="utf-8"))
         self.assertEqual(rec["problems"], [])
-        self.assertEqual(saved["measured"]["cli"]["agy"], "1.2.11")
+        self.assertEqual(saved["measured"]["cli"]["agy"], "1.2.12")
         self.assertIn("CLI で指定できない", saved["sampling"], "サンプリングの値は推測で書かない")
 
     def test_any_mismatch_refuses_to_start_and_is_still_recorded(self):
         for over in ({"os": "Microsoft Windows NT 10.0.26100.0"}, {"python": "3.12.11"},
-                     {"cli__agy": "1.2.12"}, {"cli__claude": None}, {"cli__dotnet": "9.0.100"},
+                     {"cli__agy": "1.2.13"}, {"cli__agy": "1.2.11"}, {"cli__claude": None}, {"cli__dotnet": "9.0.100"},
                      {"python_packages__pyyaml": "6.0.2"}):
             with self.subTest(over=over), tempfile.TemporaryDirectory() as d:
                 with self.assertRaises(envcheck.EnvError):
