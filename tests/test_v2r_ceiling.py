@@ -59,6 +59,19 @@ class Ceiling(unittest.TestCase):
         self.assertIn("空虚な性質があるので天井を判定しない", res["problems"][0])
         self.assertIn("P-T6-01", v2r_ceiling.render(res, "v2r-dry-03"))
 
+    def test_an_accepted_ceiling_passes_only_a_healthy_run(self):
+        """§15.13（2026-09-30 の操縦士の決定）：天井は難易度のベースラインとして記録する。測定器の健全性は緩めない。"""
+        res = v2r_ceiling.check([row(t) for t in TASKS], TASKS, accept_ceiling=True)
+        self.assertTrue(res["ok"])
+        self.assertTrue(res["ceiling"])
+        self.assertIn("ベースライン", v2r_ceiling.render(res, "v2r-dry-03"))
+        rows = [row(t, vacuous=("P-T6-01",) if t == "T6" else ()) for t in TASKS]
+        self.assertFalse(v2r_ceiling.check(rows, TASKS, accept_ceiling=True)["ok"], "空虚な性質は不合格のまま")
+        self.assertFalse(v2r_ceiling.check([row(t) for t in TASKS[:9]], TASKS, accept_ceiling=True)["ok"],
+                         "行の欠けは不合格のまま")
+        res = v2r_ceiling.check([row(t, accepted=(t != "T2")) for t in TASKS], TASKS, accept_ceiling=True)
+        self.assertTrue(res["ok"] and not res["ceiling"], "欠陥があれば天井ではない")
+
     def test_the_cli_reads_the_a0_metrics(self):
         with tempfile.TemporaryDirectory() as d:
             out = io.StringIO()
