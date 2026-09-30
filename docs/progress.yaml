@@ -482,7 +482,7 @@ tasks:
   verification:
     command: python -m harness.ab.v2r_runcheck --prefix v2r-r1
     expected_exit_code: 0
-  review_pr: https://github.com/tamaroulet/game-harness/pull/131
+  review_pr: https://github.com/tamaroulet/game-harness/pull/132
 - id: V2R-U7
   title: Release への公開の通し（pack → Release → 取得 → verify → 集計。U7 の残り。公開は人間の承認の後）
   group: B6.3

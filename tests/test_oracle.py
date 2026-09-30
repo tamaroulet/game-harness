@@ -370,6 +370,29 @@ class EstablishBaseTests(unittest.TestCase):
         self.assertEqual(verdict, "ABORT")
         self.assertIn("E.Old.Broken", msg)
 
+    def test_hidden_variants_of_this_tasks_properties_may_fail_at_base(self):
+        """v2r-r1-01 の A1・B：T2 の受入は _Public だけを列挙し、同じクラスの _Hidden が base で落ちて止まった。
+
+        このタスクのテストのクラスは、実装前に落ちてよい。ほかのタスクのクラス（T1）の失敗は、これまでどおり止める。
+        """
+        req = ("PropertiesT2Cases.P_T2_01_Public",)
+        with_tests = fast_ctrl(**{"S.PropertiesT2Cases.P_T2_01_Public": F, "S.PropertiesT2Cases.P_T2_01_Hidden": F,
+                                  "S.PropertiesT1Cases.P_T1_01_Hidden": P})
+        c = self.ctx(with_tests, fast_ctrl(), engine_ctrl(), required=req)
+        verdict, msg = pipeline.establish_base(c)
+        self.assertIsNone(verdict, msg)
+        broken = dict(with_tests, **{"S.PropertiesT1Cases.P_T1_01_Hidden": F})
+        c = self.ctx(broken, fast_ctrl(), engine_ctrl(), required=req)
+        verdict, msg = pipeline.establish_base(c)
+        self.assertEqual(verdict, "ABORT")
+        self.assertIn("P_T1_01_Hidden", msg)
+
+    def test_task_test_classes_only_widen_property_tests(self):
+        self.assertEqual(pipeline.task_test_classes(["PropertiesT2Cases.P_T2_01_Public", "PropertiesT2Cases.P_T2_04_Public"]),
+                         ["PropertiesT2Cases."])
+        self.assertEqual(pipeline.task_test_classes(["Game.Core.Tests.BossChargeStateTests"]), [],
+                         "クラス名だけの受入を切ると名前空間になり、全部を除いてしまう")
+
     def test_quarantined_failure_at_base_is_tolerated(self):
         c = self.ctx(None, fast_ctrl(), engine_ctrl(**{"E.Old.Flaky": F}), quarantine=("E.Old.Flaky",))
         verdict, msg = pipeline.establish_base(c)

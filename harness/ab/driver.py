@@ -696,6 +696,27 @@ def cleanup(run_id, wt_root=common.WT_ROOT):
     common.git(["worktree", "prune"], repo, "git worktree prune", check=False)
 
 
+def restart(run_id, condition, wt_root=common.WT_ROOT, out_root=common.OUT_ROOT, git=common.git):
+    """1 つの条件を同じ run-id で最初から走り直せるようにする。出力は消さずに `<条件>.superseded-<時刻>/` に移し
+    （公開のアーカイブにも入る）、その条件の作業ツリー・サンドボックス・ブランチを外す。移した先を返す（無ければ None）。
+
+    v2r-r1-01 の A1・B は、門の側の不備で T2 を 0 回の試行で飛ばして T10 まで進んだ。T2 の行があるので --resume では
+    やり直せない。非公開シードは run-id とタスクで決まるので、同じ run-id で走り直せば A0・B-G と同じシードになる。
+    """
+    repo = project.load(PROJECT)["repo_dir"]
+    p = common.paths(run_id, condition, wt_root, out_root)
+    moved = None
+    if p["out"].exists():
+        moved = p["out"].parent / f"{condition}.superseded-{time.strftime('%Y%m%d-%H%M%S')}"
+        fileops.replace(p["out"], moved)
+    for wt in (p["sandbox"], p["wt"]):
+        if wt.exists():
+            git(["worktree", "remove", "--force", str(wt)], repo, "git worktree remove（走り直し）", check=False)
+    git(["worktree", "prune"], repo, "git worktree prune", check=False)
+    git(["branch", "-D", p["branch"]], repo, "git branch -D（走り直し）", check=False)
+    return moved
+
+
 def run_all(manifest, repeat, prefix):
     """A と B を交互に回す（時間帯の偏りを散らす）。1 回が失敗しても次へ進む。"""
     rc = 0
@@ -735,6 +756,9 @@ def main(argv=None):
     a.add_argument("--manifest", default=str(common.EXP_DIR / "tasks.json"))
     c = sub.add_parser("cleanup")
     c.add_argument("--run-id", required=True)
+    rs = sub.add_parser("restart", help="1 つの条件を同じ run-id で最初から走り直せるようにする（出力は superseded に移す）")
+    rs.add_argument("--condition", required=True, choices=sorted(set(common.CONDITIONS) | set(v2r.CONDITIONS)))
+    rs.add_argument("--run-id", required=True)
     args = ap.parse_args(argv)
     if args.cmd in ("run", "run-all"):
         # 実行環境を実測し、固定値（config/environment.json）と違えば起動しない。実測値は env.json に残す（v2r §5）
@@ -764,6 +788,10 @@ def main(argv=None):
                                  resume=args.resume)
         if args.cmd == "run-all":
             return run_all(args.manifest, args.repeat, args.prefix)
+        if args.cmd == "restart":
+            moved = restart(args.run_id, args.condition)
+            print(f"[{args.condition}] {args.run_id}: 走り直せます" + (f"（前の出力は {moved}）" if moved else ""))
+            return 0
         cleanup(args.run_id)
         return 0
     except common.ABError as e:

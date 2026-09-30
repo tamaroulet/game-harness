@@ -944,6 +944,15 @@ def new_test_files(c):
     return sorted(set(found))
 
 
+def task_test_classes(required):
+    """性質テストの受入（`Properties<タスク>Cases.<性質>_Public`）のクラスの部分一致の鍵（`Properties<タスク>Cases.`）。
+
+    同じクラスの `_Hidden`（非公開シードの版）は受入に列挙していないが、実装前に落ちるのは当然。性質テスト以外の受入
+    （クラス名だけの v1 の単位など）には何も足さない。そのまま切ると名前空間になり、全部を除いてしまう。
+    """
+    return sorted({t.rsplit(".", 1)[0] + "." for t in required if t.endswith("_Public") and "." in t})
+
+
 def establish_base(c):
     """実装前（base）を 1 回だけ測る。戻り値 (None | "REJECT" | "ABORT", 理由)。
 
@@ -994,8 +1003,11 @@ def establish_base(c):
         q = o["quarantine"]
         aborts = (oracle.controls(fast_p2p, F, o["must_pass"], o["must_fail"], False)
                   + oracle.controls(engine, E, o["must_pass"], o["must_fail"], False))
-        broken = (oracle.unexpected_failures(fast_p2p, F, o["must_fail"], q, required)
-                  + oracle.unexpected_failures(engine, E, o["must_fail"], q, required))
+        # 実装前に落ちてよいのは、このタスクのテスト。名前の列挙ではなく、受入テストのクラスの単位で除く
+        # （v2r-r1-01 の A1・B は、受入に列挙していない同じクラスの _Hidden が base で落ちて、T2 で止まった）
+        expected = list(required) + task_test_classes(required)
+        broken = (oracle.unexpected_failures(fast_p2p, F, o["must_fail"], q, expected)
+                  + oracle.unexpected_failures(engine, E, o["must_fail"], q, expected))
         if broken:
             aborts.append(f"base（実装前）で既に失敗しているテスト {len(broken)} 件: "
                           + ", ".join(broken[:3]))

@@ -54,6 +54,9 @@ def check_condition(out, tasks):
                  or (r.get("model") or {}).get("reported") != [(r.get("model") or {}).get("requested")]]
     if bad_model:
         problems.append(f"{cond}：要求と報告のモデルが一致しない行 {', '.join(map(str, bad_model))}")
+    stopped = [r.get("task") for r in rows if (r.get("detail") or {}).get("stopped")]
+    if stopped:
+        problems.append(f"{cond}：実装役を呼ぶ前に門が止めたタスク {', '.join(map(str, stopped))}（門の側の不備。走り直す）")
     table = {"condition": cond, "rows": len(rows), "defects": sum(v2r_report.defect(r) for r in rows),
              "calls": sum(r.get("attempts") or 0 for r in rows), "resumed": (out / "fault.json").exists()}
     return problems, table
