@@ -7,6 +7,7 @@
 """
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -30,7 +31,8 @@ class VersionGuard(unittest.TestCase):
         with self.assertRaises(common.ABError):
             driver.cli_version_guard(IMP, measure=lambda name: "1.2.12", pinned={"cli": {}})
 
-    def test_each_call_checks_first_disables_auto_update_and_records_the_version(self):
+    @mock.patch.object(driver, "resolve_cli", return_value=["agy.exe"])
+    def test_each_call_checks_first_disables_auto_update_and_records_the_version(self, _resolve):
         seen = {}
 
         def runner(args, cwd, ttl, label, env=None, input=None):
