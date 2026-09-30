@@ -449,6 +449,13 @@ v2r の価値は、テトリスで門の効果を示すことではなく、Phas
 - 費用の見込み：v2r-dry-03 の A0 は 10 呼び出しで 0.6330 USD。門の無い 2 条件は各 0.6 USD 前後、門のある 2 条件は 1 回で通れば同じくらい、最悪（各タスク 9 呼び出し）で各 5.7 USD 前後。4 条件の合計は 2.5 USD 前後の見込み、最悪 13 USD 前後。guard の上限（1 呼び出し 0.5 USD、1 繰り返し 15 USD、Hard Cap 50 USD）はそのまま
 - 止まったとき：`C:/src/.local/out/ab/v2r-r1-01/<条件>/fault.json` と `v2r-r1-01/guard_stops.jsonl` を見る。原因を直し、その条件を `python -m harness.ab.driver run --condition <条件> --run-id v2r-r1-01 --manifest experiments/v2r/tasks.json --resume` で続け、残りの条件を同じく `run`（`--resume` なし）で回す。`run` の来歴と環境は `v2r-r1-01.provenance.json` に書かれる（run-all の `v2r-r1.provenance.json` と別）
 - 判定（V2R-R の検証コマンド）：`python -m harness.ab.v2r_runcheck --prefix v2r-r1`。欠陥の有無は合否に入れない。4 条件で T1〜T10 がちょうど 1 行ずつ、空虚な性質 0、要求と報告のモデルの一致、env.json の問題 0、provenance.json（汚れていないハーネスのコミット、GEMINI.md の sha256）がそろえば合格
-- **v2r-r1-01 の停止と続け方（2026-09-30）**：A0・B-G は T1〜T10 を完走。A1・B は T2 の base の検査で、実装役を呼ぶ前に止まった（`base（前）で既に失敗しているテスト 2 件: …P_T2_01_Hidden, …P_T2_04_Hidden`）。受入に列挙しているのは `_Public` だけで、同じクラスの `_Hidden` を「想定外の既存テストの失敗」と数えていた。門の側の不備で、実装役の欠陥ではない。修正：base の検査で、このタスクの性質テストのクラス（`Properties<タスク>Cases.`）の失敗を、名前の列挙ではなくクラスの単位で除く（`pipeline.task_test_classes`）。修正を main に入れた後、`python -m harness.ab.driver run --condition A1 --run-id v2r-r1-01 --manifest experiments/v2r/tasks.json --resume`（B も同じ）で T2 から続ける。A0・B-G は走り直さない。続けた 2 条件の来歴は `v2r-r1-01.provenance.json`（ハーネスのコミットが修正の後になる）
+- **v2r-r1-01 の A1・B の T2（2026-09-30）**：A0・B-G は T1〜T10 を完走。A1・B は T2 の base の検査で、実装役を呼ぶ前に ABORT した（`base（実装前）で既に失敗しているテスト 2 件: …P_T2_01_Hidden, …P_T2_04_Hidden`）。受入に列挙しているのは `_Public` だけで、同じクラスの `_Hidden` を「想定外の既存テストの失敗」と数えていた。門の側の不備で、実装役の欠陥ではない。ドライバはこの T2 を試行 0 回の行として書き、T3〜T10 を続けた（T2 の受入は 4/8 のまま。T3〜T10 はどちらも 1 回で受入に通った）
+  - 修正：base の検査で、このタスクの性質テストのクラス（`Properties<タスク>Cases.`）の失敗を、名前の列挙ではなくクラスの単位で除く（`pipeline.task_test_classes`）
+  - T2 の行があるので `--resume` ではやり直せない。修正を main に入れた後、A1・B を同じ run-id で最初から走り直す（非公開シードは run-id とタスクで決まるので、A0・B-G と同じシードになる）。A0・B-G は走り直さない
+    1. `python -m harness.ab.driver restart --condition A1 --run-id v2r-r1-01`（B も同じ）：前の出力を `A1.superseded-<時刻>/` に移し（消さない。公開のアーカイブにも入る）、作業ツリー・サンドボックス・ブランチを外す
+    2. `python -m harness.ab.guard v2r-r1-01`
+    3. `python -m harness.ab.driver run --condition A1 --run-id v2r-r1-01 --manifest experiments/v2r/tasks.json`、終わったら B も同じ
+  - 走り直した 2 条件の来歴と環境は `v2r-r1-01.provenance.json`・`v2r-r1-01.env.json`（ハーネスのコミットが修正の後になる。A0・B-G は `v2r-r1.provenance.json`）
+  - `v2r_runcheck` は、門が実装役を呼ぶ前に止めた行（`detail.stopped`）を不合格にする
 - 公開（V2R-U7）：`experiments/v2r/tools/pack.py --name v2r-r1 --run-ids v2r-r1-01 --env <v2r-r1.env.json> --provenance <v2r-r1.provenance.json> --agy-global`。GEMINI.md は来歴の sha256 と一致するときだけ入る（走行の後に書き換えると止まる）。**走行が終わるまで GEMINI.md を書き換えない**
 
