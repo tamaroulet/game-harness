@@ -53,6 +53,25 @@ class PackVerify(unittest.TestCase):
         self.assertEqual((self.tmp / "x" / "v2r-run-01" / "A0" / "T1_a1.implementer.log").read_text(encoding="utf-8"),
                          "# prompt\n全文\n\n# stdout\n{}\n\n# stderr\n")
 
+    def test_the_agy_global_file_is_packed_only_when_it_matches_the_provenance(self):
+        home = self.tmp / "home"
+        home.mkdir()
+        (home / "GEMINI.md").write_text("全体の規則", encoding="utf-8")
+        prov = self.out / "v2r-run.provenance.json"
+        prov.write_text(json.dumps({"agy_global": {"GEMINI.md": pack.sha256_bytes((home / "GEMINI.md").read_bytes()),
+                                                   "settings.json": "x"}}), encoding="utf-8")
+        archive, manifest, n = pack.pack("v2r-run", self.out, ["v2r-run-01"], self.tmp / "rel",
+                                         [self.out / "v2r-run.env.json"], [prov], home)
+        self.assertEqual(n, 9, "7 と、来歴と GEMINI.md。settings.json は入れない")
+        found, _ = verify.verify(archive, manifest, extract=self.tmp / "x")
+        self.assertEqual(found, [])
+        self.assertEqual((self.tmp / "x" / "env" / "agy_global" / "GEMINI.md").read_text(encoding="utf-8"), "全体の規則")
+        (home / "GEMINI.md").write_text("走行の後に書き換えた", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            pack.pack("v2r-run", self.out, ["v2r-run-01"], self.tmp / "rel2", [], [prov], home)
+        with self.assertRaises(ValueError):
+            pack.pack("v2r-run", self.out, ["v2r-run-01"], self.tmp / "rel3", [], [], home)
+
     def test_the_archive_is_deterministic(self):
         a1, m1, _ = self.pack(self.tmp / "r1")
         a2, m2, _ = self.pack(self.tmp / "r2")
