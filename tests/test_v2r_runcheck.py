@@ -70,6 +70,15 @@ class RunCheck(unittest.TestCase):
                 self.assertFalse(res["ok"])
                 self.assertTrue(any(word in p for p in res["problems"]), res["problems"])
 
+    def test_a_task_stopped_by_the_gate_before_calling_fails(self):
+        """v2r-r1-01 の A1・B：T2 を 0 回の試行で飛ばした行（detail.stopped）を、健全な走行として数えない。"""
+        rows = [row(t) for t in TASKS]
+        rows[1] = dict(rows[1], attempts=0, detail={"stopped": "ABORT: 検査系故障（base）"})
+        self.write("A1", rows)
+        res = self.check()
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("門が止めた" in p and "T2" in p for p in res["problems"]), res["problems"])
+
     def test_an_empty_model_report_fails(self):
         self.write("A0", [row(t, model={"requested": "m", "reported": []}) for t in TASKS])
         self.assertFalse(self.check()["ok"])
