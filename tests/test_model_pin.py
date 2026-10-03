@@ -67,7 +67,7 @@ class Configs(unittest.TestCase):
         """unity-2d の実装役は json の出力で、使ったモデルを記録できない（移行するまで起動時に止まる）。
         それ以外の不備が増えたら、ここで落ちる。"""
         places = [where for where, _, _ in model_pin.agent_configs()]
-        for expected in ("config/decompose.json", "config/spec.json",
+        for expected in ("config/decompose.json", "config/spec.json", "config/hline.json の implementer",
                          "projects/falling-blocks/pipeline.json の implementer"):
             self.assertIn(expected, places)
         found = model_pin.problems()
