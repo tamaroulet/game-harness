@@ -1,0 +1,36 @@
+{
+  "_comment": "H ライン（ハーネス自身の改修の自律ループ、段 0）の設定。docs/design/foundation_v3_review.md（改訂 5）§3。harness/hline.py が読む。",
+
+  "inbox": "C:\\src\\.local\\inbox",
+  "_inbox_note": "Git の外の受信箱。総監督が What を 1 件 1 ファイル（*.md）で置く。名前の順に 1 回 1 件だけ取る。report.md・TODO.md・CLAUDE.md は H ラインが書くので取らない",
+  "worktrees": "C:\\src\\.local\\wt",
+  "out": "C:\\src\\.local\\out\\hline",
+  "_out_note": "生ログ・取り込んだ What の控え。総監督の部屋からは読めない（setup の deny）",
+  "base": "origin/main",
+
+  "max_attempts": 3,
+  "reruns": 1,
+  "_retry_note": "1 つの作業ツリーで実装役を最大 max_attempts 回。収束しなければ新しい作業ツリーで reruns 回だけやり直す（段 3 の再分解の代わり、§5）。それでも駄目なら TODO.md に記録する",
+
+  "gate_command": ["python", "-m", "unittest", "discover", "-s", "tests"],
+  "_gate_note": "H ラインの Gate 1（段 0）。終了コードだけで判定する。LLM は使わない",
+  "protected_paths": ["docs/progress.yaml", ".claude/"],
+  "_protected_note": "実装役が変えてはならないパス。docs/progress.yaml は harness.progress だけが変える。.claude/ は権限の設定",
+
+  "ttl_seconds": { "implementer": 1800, "gate": 1800, "git": 300, "gh": 120, "lock_stale": 14400 },
+  "gate_tail_chars": 4000,
+
+  "implementer": {
+    "cli": "claude",
+    "headless_flag": "-p",
+    "model_flag": "--model",
+    "model": "claude-sonnet-5-5",
+    "auxiliary_models": ["claude-haiku-"],
+    "_flags_note": "作業ツリー（cwd）の中の編集と unittest の実行だけを許す。プロンプトは標準入力で渡す（cmd.exe が引数の改行で切るため）",
+    "extra_flags": ["--permission-mode", "acceptEdits",
+                    "--allowedTools", "Read,Grep,Glob,Edit,Write,Bash(python -m unittest:*)"],
+    "output_format_args": ["--output-format", "json"]
+  },
+
+  "commit_trailer": "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+}
