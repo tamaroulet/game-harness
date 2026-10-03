@@ -1,5 +1,5 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: S0-1
+active_task_id: S1-2
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -512,16 +512,15 @@ tasks:
   title: H ラインと総監督の部屋、カナリア（改行の正規化）の自走で PR まで
   group: B7.0
   target_repo: game-harness
-  status: in_progress
+  status: completed
   verification:
     command: python -m unittest tests.test_hline tests.test_textnorm
     expected_exit_code: 0
-  review_pr: https://github.com/tamaroulet/game-harness/pull/143
 - id: S1-1
   title: タスクキューと TaskSpec JSON（Gate A：スキーマ適合）。未着手を依存順に引き抜き、作業ツリーを作って連続消化する。受信箱は投入口として残す
   group: B7.1
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_hline_queue
     expected_exit_code: 0
@@ -529,7 +528,7 @@ tasks:
   title: 使い捨て作業ツリーの非同期の掃除（起動時に消せるものだけ消す。削除の失敗が結果に影響しない）
   group: B7.1
   target_repo: game-harness
-  status: pending
+  status: in_progress
   verification:
     command: python -m unittest tests.test_hline_gc
     expected_exit_code: 0
@@ -646,6 +645,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: V2R-U7
+  task: S1-1
   exit_code: 0
-  at: '2026-10-03T21:03:35'
+  at: '2026-10-04T02:39:27'
