@@ -516,6 +516,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_hline tests.test_textnorm
     expected_exit_code: 0
+  review_pr: https://github.com/tamaroulet/game-harness/pull/141
 - id: S1-1
   title: タスクキューと TaskSpec JSON（Gate A：スキーマ適合）。未着手を依存順に引き抜き、作業ツリーを作って連続消化する。受信箱は投入口として残す
   group: B7.1
