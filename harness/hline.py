@@ -1,168 +1,93 @@
-"""H ライン：ハーネス自身の改修の自律ループ（段 0、docs/design/foundation_v3_review.md 改訂 5 §3）。
+"""H ライン：ハーネス自身の改修の自律ループ（段 0・段 1、docs/design/foundation_v3_review.md 改訂 5 §3〜§5）。
 
-    python -m harness.hline poll     受信箱の What を 1 件取り、PR にする（タスク スケジューラが 15 分ごとに呼ぶ）
+    python -m harness.hline poll     受信箱の What をキューに入れ、依存の順に統合ブランチへ積む（タスク スケジューラが 15 分ごとに呼ぶ）
     python -m harness.hline setup    受信箱と総監督の部屋（.claude/settings.json・CLAUDE.md）を書く
 
 **なぜ要るか**: 総監督の道具を剥ぐと、ハーネスを改修する者がいなくなる。以後の改修はすべてこのループに流す。
 
-終了コード: 0 = PR を作った／取る What が無い／前回が走行中、1 = 収束せず TODO.md に記録、2 = 環境の異常。
+**流れ**: 受信箱の What（マイルストーンの宣言が要る）→ キュー（hline_queue）→ 分解役が TaskSpec JSON にする → Gate A（スキーマ）
+→ 実装役（TaskSpec だけを渡す）→ Gate 1（テスト・編集境界・進捗の検証）→ 統合ブランチに積む。積むものが尽きたら、統合ブランチから
+main への PR を 1 本だけ出して止まる。同じマイルストーンで未収束が 2 件に達したら BLOCKED で止まる。
+
+終了コード: 0 = 正常（積んだ／取る What が無い／前回が走行中／統合 PR の待ち）、1 = この走行で未収束を TODO.md に記録した、
+2 = 環境の異常（What は失わない）。
 """
 import argparse
 import datetime
 import json
 import os
-import re
-import shutil
 import sys
-import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
-import model_pin  # noqa: E402
-import proc  # noqa: E402
-import progress  # noqa: E402
-
-ROOT = Path(__file__).resolve().parent.parent
-CONFIG = ROOT / "config" / "hline.json"
-RESERVED = {"report.md", "TODO.md", "CLAUDE.md"}
-TEMPLATE = ROOT / "harness" / "templates" / "director_room" / "CLAUDE.md"
-
-
-class Infra(Exception):
-    """環境の異常（git・gh・CLI の起動の失敗、モデルの照合の失敗）。終了コード 2。"""
+import proc  # noqa: E402,F401  テストが hline.proc を差し替える
+from hline_base import (CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args,  # noqa: E402,F401
+                        load_config, must, run_agent, slug, title_of)
+from hline_git import (ahead, changed_paths, create_pr, drop_merged_branch, fetch, implementer_room,  # noqa: E402,F401
+                       integrate, integrated, new_worktree, open_pr, pr_state)
+from hline_queue import (blocked, by_status, intake, load_state, next_runnable, pick, recover, refresh,  # noqa: E402,F401
+                         save_state, what_path)
+from hline_report import pr_body, pr_title, today, write_report  # noqa: E402
+from hline_room import director_settings, setup  # noqa: E402,F401
+from hline_spec import boundary_problems, decompose, diff_lines, task_verification  # noqa: E402
 
 
-def load_config(path=CONFIG):
-    cfg = json.loads(Path(path).read_text(encoding="utf-8"))
-    model_pin.require(cfg["implementer"], "config/hline.json の implementer")
-    return cfg
+# ============================================================ 実装役
 
-
-# ============================================================ 受信箱
-
-def pick(inbox):
-    """名前の順で最初の What。H ラインが書くファイルは取らない。"""
-    found = sorted(p for p in Path(inbox).glob("*.md") if p.is_file() and p.name not in RESERVED)
-    return found[0] if found else None
-
-
-def slug(name):
-    s = re.sub(r"[^a-z0-9]+", "-", Path(name).stem.lower()).strip("-")
-    return s[:40] or "task"
-
-
-def title_of(text):
-    for line in text.splitlines():
-        if line.startswith("# "):
-            return line[2:].strip()
-    return "H ラインのタスク"
-
-
-def acquire_lock(inbox, stale_seconds, now=None):
-    """前回が走行中なら False。stale_seconds より古いロックは落ちた走行の残骸として取り直す。"""
-    lock = Path(inbox) / ".hline.lock"
-    now = now if now is not None else datetime.datetime.now().timestamp()
-    if lock.exists() and now - lock.stat().st_mtime < stale_seconds:
-        return None
-    lock.write_text(str(os.getpid()), encoding="utf-8")
-    return lock
-
-
-# ============================================================ 子プロセス
-
-def must(args, cwd, ttl, label):
-    code, out, err = proc.run(args, cwd, ttl, label)
-    if code != 0:
-        raise Infra(f"{label} が失敗しました（終了コード {code}）: {(err or out)[-800:]}")
-    return out
-
-
-def implementer_args(imp, cli):
-    return (cli + [imp["headless_flag"], imp["model_flag"], imp["model"]]
-            + imp["extra_flags"] + imp["output_format_args"])
-
-
-def build_prompt(what, feedback=None):
+def build_prompt(spec, feedback=None):
+    """実装役に渡す入力。TaskSpec（JSON）だけで、What の本文（自然言語の背景）は渡さない。"""
     p = ["あなたはハーネス（Python のリポジトリ game-harness）の実装役です。作業ディレクトリはその作業ツリーです。",
-         "次の What を満たす変更を、作業ディレクトリの中だけで行ってください。",
-         "- 合格条件ごとに unittest のテストを tests/ に書く（既存の書き方に合わせる）",
+         "次の TaskSpec（JSON）を満たす変更を、作業ディレクトリの中だけで行ってください。",
+         "- edit_boundary の allowed_files の外と forbidden_files は変えない。差分は max_diff_lines 行以内",
+         "- contracts と test_oracle を満たすことを、unittest のテストを tests/ に書いて示す（既存の書き方に合わせる）",
          "- docs/progress.yaml と .claude/ は変えない。git の操作はしない（コミットはハーネスが行う）",
          "- CLAUDE.md の進捗（anchor・report）と報告の規約は総監督向けで、あなたには適用しない",
          "- 判定は `python -m unittest discover -s tests` の終了コード 0。既存のテストを壊さない",
-         "", "---", what.strip()]
+         "", "---", json.dumps(spec, ensure_ascii=False, indent=2)]
     if feedback:
         p += ["", "---", "前回の変更は判定に通りませんでした。次の出力を読んで直してください。", feedback]
     return "\n".join(p) + "\n"
 
 
-def implement(cfg, wt, what, feedback, log):
+def implement(cfg, wt, spec, feedback, log):
     """実装役を 1 回呼ぶ。使ったモデルを照合し、記録する（作業規約：model_pin）。"""
-    imp = cfg["implementer"]
-    args = implementer_args(imp, proc.resolve_cli(imp["cli"]))
-    code, out, err = proc.run(args, wt, cfg["ttl_seconds"]["implementer"], "実装役",
-                              input=build_prompt(what, feedback))
-    log.write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
-    used, why = model_pin.claude_models(out)
-    try:
-        models = model_pin.check_claude(imp, used, why, "H ラインの実装役")
-    except model_pin.ModelPinError as e:   # 認証切れなどもここに来る。CLI の結果の文を添える
-        detail = json.loads(out).get("result", "") if why is None else why
-        raise Infra(f"{e}（CLI: {str(detail)[:200]}）")
+    code, models, _ = run_agent(cfg["implementer"], wt, cfg["ttl_seconds"]["implementer"], "実装役",
+                                build_prompt(spec, feedback), log)
     return code, models
 
 
-def changed_paths(wt, cfg):
-    out = must(["git", "status", "--porcelain", "-uall"], wt, cfg["ttl_seconds"]["git"], "git status")
-    return [line[3:].strip().strip('"') for line in out.splitlines() if line.strip()]
-
-
-def gate(cfg, wt, paths):
-    """H ラインの Gate 1（段 0）。(通ったか, 実装役に返す出力)。"""
+def gate(cfg, wt, paths, spec=None, task=None):
+    """H ラインの Gate 1。(通ったか, 実装役に返す出力)。TaskSpec があれば編集境界も、タスクがあれば進捗の検証コマンドも見る。"""
     if not paths:
-        return False, "作業ツリーに変更がありません。What を満たす変更を加えてください。"
+        return False, "作業ツリーに変更がありません。TaskSpec を満たす変更を加えてください。"
     bad = [p for p in paths if any(p == q or p.startswith(q) for q in cfg["protected_paths"])]
     if bad:
         return False, f"変えてはならないパスを変えています: {', '.join(bad)}。元に戻してください。"
+    if spec:
+        problems = boundary_problems(spec, paths, diff_lines(cfg, wt))
+        if problems:
+            return False, "\n".join(problems)
     env = dict(os.environ, PYTHONUTF8="1")
     code, out, err = proc.run(cfg["gate_command"], wt, cfg["ttl_seconds"]["gate"], "Gate 1", env=env)
+    if code == 0 and task:
+        return task_verification(cfg, wt, task)
     return code == 0, (err + out)[-cfg["gate_tail_chars"]:]
 
 
 # ============================================================ 1 件の処理
 
-def new_worktree(cfg, tid):
-    t = cfg["ttl_seconds"]["git"]
-    must(["git", "fetch", "-q", "origin"], ROOT, t, "git fetch")
-    branch = f"hline/{tid}-{uuid.uuid4().hex[:8]}"
-    wt = Path(cfg["worktrees"]) / branch.replace("/", "-")
-    must(["git", "worktree", "add", "-q", "-b", branch, str(wt), cfg["base"]], ROOT, t, "git worktree add")
-    implementer_room(wt, t)
-    return wt, branch
-
-
-def implementer_room(wt, ttl):
-    """作業ツリーの .claude/settings.json から、作業ツリーを読ませない総監督の壁を外す（実測：実装役が自分の作業ツリーを
-    読めず 6 回空振りした）。git には変更として見せない（skip-worktree。Gate 1 にも当たらず、コミットにも入らない）。"""
-    p = Path(wt) / ".claude" / "settings.json"
-    s = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
-    perms = s.setdefault("permissions", {})
-    perms["deny"] = [r for r in perms.get("deny", []) if ".local/wt" not in r] + ["Read(//c/src/.local/out/**)"]
-    p.parent.mkdir(exist_ok=True)
-    p.write_text(json.dumps(s, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    must(["git", "update-index", "--skip-worktree", ".claude/settings.json"], wt, ttl, "git update-index")
-
-
-def run_task(cfg, tid, what, outdir):
-    """作業ツリーを作り直しながら試す。通った (作業ツリー, ブランチ, 試行の記録) か None。作業ツリーは消さない（Detach）。"""
+def run_task(cfg, tid, spec, outdir, first=None, task=None):
+    """作業ツリーを作り直しながら試す。通った (作業ツリー, ブランチ, 試行の記録) か None。作業ツリーは消さない（Detach）。
+    first は分解役が使った作業ツリー（最初の 1 回はそれを使う）。"""
     tries = []
     for run in range(1 + cfg["reruns"]):
-        wt, branch = new_worktree(cfg, tid)
+        wt, branch = first if (run == 0 and first) else new_worktree(cfg, tid)
         feedback = None
         for attempt in range(1, cfg["max_attempts"] + 1):
             log = outdir / f"implementer-{run}-{attempt}.log"
-            code, models = implement(cfg, wt, what, feedback, log)
-            ok, feedback = gate(cfg, wt, changed_paths(wt, cfg))
+            code, models = implement(cfg, wt, spec, feedback, log)
+            ok, feedback = gate(cfg, wt, changed_paths(wt, cfg), spec, task)
             tries.append({"run": run, "attempt": attempt, "cli_exit": code, "models": models, "gate": ok})
             (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
             if ok:
@@ -170,119 +95,114 @@ def run_task(cfg, tid, what, outdir):
     return None, None, tries
 
 
-def pr_body(what, tries):
-    rows = "\n".join(f"| {t['run']} | {t['attempt']} | {t['cli_exit']} | {', '.join(t['models'])} | "
-                     f"{'通過' if t['gate'] else '不合格'} |" for t in tries)
-    return (f"## What（受信箱から取り込んだ全文）\n\n{what.strip()}\n\n"
-            "## H ラインの記録\n\n| 作業ツリー | 試行 | CLI の終了コード | 使われたモデル | Gate 1 |\n"
-            f"|:--|:--|:--|:--|:--|\n{rows}\n\n"
-            "- Gate 1：`python -m unittest discover -s tests` の終了コード 0（段 0）\n"
-            "- この PR は H ライン（`harness/hline.py`）が作った。マージの承認は人間が非同期に行う\n\n"
-            "🤖 Generated with [Claude Code](https://claude.com/claude-code)\n")
+def process(cfg, st, name):
+    """待ちの What 1 件を、分解 → Gate A → 実装 → Gate 1 → 統合ブランチへ。積めたら True、未収束なら False。
+    環境の異常（Infra）では What を失わない：状態は processing のまま残り、次の起動が統合ブランチを見て済みか待ちに戻す。"""
+    item = st["items"][name]
+    what = what_path(cfg, name).read_text(encoding="utf-8")
+    tid = f"{datetime.datetime.now():%Y%m%d-%H%M}-{slug(name)}"
+    outdir = Path(cfg["out"]) / tid
+    outdir.mkdir(parents=True, exist_ok=True)
+    (outdir / "what.md").write_text(what, encoding="utf-8")
+    item.update(status="processing", tid=tid)
+    save_state(cfg, st)
+    print(f"[{tid}] {item['title']}")
+    wt, branch = new_worktree(cfg, tid)
+    spec, item["decompose"] = decompose(cfg, wt, what, item, outdir)   # Gate A。適合しなければ実装役を呼ばない
+    tries = []
+    if spec is not None:
+        wt, branch, tries = run_task(cfg, tid, spec, outdir, (wt, branch), item["task"])
+    item["tries"] = tries
+    if spec is not None and wt is not None:
+        integrate(cfg, wt, name, item["title"], item["task"])
+        item["status"] = "done"
+    else:
+        item.update(status="unconverged", at=today(), reason=item["decompose"]["reason"]
+                    or f"{len(tries)} 回の試行で Gate 1 に通らず、パッチを捨てた")
+        print(f"[{tid}] 収束しませんでした: {item['reason']}")
+    save_state(cfg, st)
+    return item["status"] == "done"
 
 
-def deliver(cfg, wt, branch, title, what, tries):
-    """コミット → push → PR → 進捗の記録（PR のブランチに積む）。PR の URL を返す。"""
-    t, msg = cfg["ttl_seconds"], f"feat(hline): {title}\n\n{cfg['commit_trailer']}\n"
-    must(["git", "add", "-A"], wt, t["git"], "git add")
-    must(["git", "commit", "-q", "-m", msg], wt, t["git"], "git commit")
-    must(["git", "push", "-q", "-u", "origin", branch], wt, t["git"], "git push")
-    gh = proc.resolve_cli("gh")
-    url = must(gh + ["pr", "create", "--base", "main", "--head", branch, "--title", f"feat(hline): {title}",
-                     "--body", pr_body(what, tries)], wt, t["gh"], "gh pr create").strip().splitlines()[-1]
-    state = progress.load(Path(wt) / progress.REL_PATH).get("active_task_id")
-    if state:
-        must([sys.executable, "-m", "harness.progress", "review", state, url], wt, t["git"], "harness.progress review")
-        must(["git", "commit", "-q", "-am", f"chore(progress): {state} のレビュー待ちを記録する（harness.progress の出力）\n\n"
-              f"{cfg['commit_trailer']}\n"], wt, t["git"], "git commit")
-        must(["git", "push", "-q"], wt, t["git"], "git push")
-    return url
+# ============================================================ 走行
+
+def settle_pr(cfg, st):
+    """統合 PR が閉じられていたら（マージを含む）停止を解く。まだ開いていれば False。"""
+    url = st["awaiting_pr"]
+    state = pr_state(cfg, url)
+    if state == "OPEN":
+        return False
+    if state == "MERGED":
+        drop_merged_branch(cfg)
+        for i in st["items"].values():
+            if i["status"] == "done" and i.get("pr") == url:
+                i["merged"] = True
+    st["awaiting_pr"] = None
+    save_state(cfg, st)
+    return True
 
 
-def write_report(cfg, wt):
-    out = must([sys.executable, "-m", "harness.progress", "report"], wt or ROOT, cfg["ttl_seconds"]["git"], "report")
-    (Path(cfg["inbox"]) / "report.md").write_text(out, encoding="utf-8")
+def open_integration_pr(cfg, st):
+    """積むものが尽きたとき、統合ブランチに main に無いコミットがあれば、統合 PR をちょうど 1 本にして止まる。"""
+    fresh = [i for i in st["items"].values() if i["status"] == "done" and not i.get("pr") and not i.get("merged")]
+    if not fresh or ahead(cfg) == 0:
+        return
+    url = open_pr(cfg) or create_pr(cfg, pr_title(cfg, st), pr_body(cfg, st))
+    for i in st["items"].values():
+        if i["status"] == "done" and not i.get("merged"):
+            i["pr"] = url
+    st["awaiting_pr"] = url
+    save_state(cfg, st)
+    print(f"統合 PR: {url}")
 
 
-def record_todo(cfg, tid, title, tries):
-    with open(Path(cfg["inbox"]) / "TODO.md", "a", encoding="utf-8") as f:
-        f.write(f"- {datetime.date.today().isoformat()} {tid}「{title}」：{len(tries)} 回の試行で Gate 1 に通らず、"
-                "パッチを捨てた（下流の依存は段 3 で扱う）\n")
+def run_line(cfg):
+    st = load_state(cfg)
+    fetch(cfg)
+    recover(cfg, st, lambda n: integrated(cfg, n))
+    if st["awaiting_pr"] and not settle_pr(cfg, st):
+        write_report(cfg, st)
+        print(f"統合 PR のレビュー待ちです。受信箱は取りません: {st['awaiting_pr']}")
+        return 0
+    refresh(st)
+    was_blocked = bool(blocked(cfg, st))
+    intake(cfg, st, replacements_only=was_blocked)   # BLOCKED の間は、未収束の What を直したものだけを取る
+    refresh(st)
+    if was_blocked and not blocked(cfg, st):
+        intake(cfg, st)
+        refresh(st)
+    save_state(cfg, st)
+    unconverged = False
+    while not blocked(cfg, st) and (name := next_runnable(st)):
+        unconverged |= not process(cfg, st, name)
+        refresh(st)
+        save_state(cfg, st)
+    if not blocked(cfg, st) and not by_status(st, "waiting") and not by_status(st, "processing"):
+        open_integration_pr(cfg, st)
+    elif blocked(cfg, st):
+        print("BLOCKED：同じマイルストーンで未収束が上限に達しました。統合 PR は作りません")
+    write_report(cfg, st)
+    return 1 if unconverged else 0
 
 
 def poll(cfg):
     inbox = Path(cfg["inbox"])
     if not inbox.is_dir():
         raise Infra(f"受信箱がありません: {inbox}（python -m harness.hline setup）")
-    lock = acquire_lock(inbox, cfg["ttl_seconds"]["lock_stale"])
+    stale = cfg["ttl_seconds"]["lock_stale"]
+    lock = acquire_lock(inbox, stale)
     if lock is None:
         print("前回の走行が続いています。何もしません")
         return 0
     try:
-        src = pick(inbox)
-        if src is None:
-            write_report(cfg, None)
-            print("受信箱に What がありません")
-            return 0
-        tid = f"{datetime.datetime.now():%Y%m%d-%H%M}-{slug(src.name)}"
-        outdir = Path(cfg["out"]) / tid
-        outdir.mkdir(parents=True, exist_ok=True)
-        what = src.read_text(encoding="utf-8")
-        shutil.move(str(src), str(outdir / "what.md"))   # 取った What は受信箱から消える（二度取らない）
-        title = title_of(what)
-        print(f"[{tid}] {title}")
-        try:
-            wt, branch, tries = run_task(cfg, tid, what, outdir)
-        except Infra:
-            shutil.copyfile(outdir / "what.md", src)   # 環境の異常では What を失わない（次の起動で取り直す）
-            raise
-        (outdir / "tries.json").write_text(json.dumps(tries, ensure_ascii=False, indent=1), encoding="utf-8")
-        if wt is None:
-            record_todo(cfg, tid, title, tries)
-            write_report(cfg, None)
-            print(f"[{tid}] 収束しませんでした。TODO.md に記録しました")
-            return 1
-        url = deliver(cfg, wt, branch, title, what, tries)
-        write_report(cfg, wt)
-        print(f"[{tid}] PR: {url}")
-        return 0
+        with heartbeat(lock, stale / 10):
+            return run_line(cfg)
     finally:
         lock.unlink(missing_ok=True)
 
 
-# ============================================================ 総監督の部屋
-
-def director_settings(inbox, src_root=Path("C:/src"), home_dirs=(".claude", ".gemini")):
-    """総監督の設定：シェルを無効にし、受信箱の外と自分の設定・H ラインの書くファイルへの書き込みを拒否する。deny は
-    allow より強く「受信箱だけ許す」と書けないので、受信箱の外を作った時点の一覧で全部拒否する。"""
-    inbox = Path(inbox)
-    rule = lambda p: "//" + p.as_posix().replace(":", "", 1).lower() + "/**"  # noqa: E731
-
-    outside = [p for p in sorted(Path(src_root).iterdir()) if p != inbox.parent]
-    outside += [p for p in sorted(inbox.parent.iterdir()) if p != inbox]
-    edit = [rule(p) if p.is_dir() else rule(p)[:-3] for p in outside] + [f"~/{d}/**" for d in home_dirs]
-    edit += [rule(inbox / ".claude")] + [rule(inbox).replace("/**", "/" + n) for n in sorted(RESERVED)]
-    read = [rule(Path(src_root) / ".local" / d) for d in ("wt", "out")] + ["**/*.cs"]
-    deny = (["Bash", "PowerShell", "NotebookEdit", "mcp__terminal"]
-            + [f"Edit({r})" for r in edit] + [f"Read({r})" for r in read])
-    return {"permissions": {"deny": deny, "disableBypassPermissionsMode": "disable"}}
-
-
-def setup(cfg):
-    inbox = Path(cfg["inbox"])
-    (inbox / ".claude").mkdir(parents=True, exist_ok=True)
-    Path(cfg["out"]).mkdir(parents=True, exist_ok=True)
-    (inbox / ".claude" / "settings.json").write_text(
-        json.dumps(director_settings(inbox), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    shutil.copyfile(TEMPLATE, inbox / "CLAUDE.md")
-    (inbox / "TODO.md").touch()
-    write_report(cfg, None)
-    print(f"受信箱と総監督の部屋を書きました: {inbox}")
-    return 0
-
-
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="H ライン（段 0）")
+    ap = argparse.ArgumentParser(description="H ライン（段 1）")
     ap.add_argument("cmd", choices=["poll", "setup"])
     args = ap.parse_args(argv)
     cfg = load_config()

@@ -117,9 +117,12 @@ def agent_configs(root=ROOT):
         p = Path(root) / "config" / f"{name}.json"
         if p.exists():
             out.append((f"config/{name}.json", json.loads(p.read_text(encoding="utf-8")), "model"))
-    p = Path(root) / "config" / "hline.json"   # H ラインの実装役（harness/hline.py）
+    p = Path(root) / "config" / "hline.json"   # H ラインの実装役・分解役（harness/hline.py）
     if p.exists():
-        out.append(("config/hline.json の implementer", json.loads(p.read_text(encoding="utf-8"))["implementer"], "model"))
+        hline = json.loads(p.read_text(encoding="utf-8"))
+        for role in ("implementer", "decomposer"):
+            if role in hline:
+                out.append((f"config/hline.json の {role}", hline[role], "model"))
     for p in sorted((Path(root) / "projects").glob("*/pipeline.json")):
         cfg = json.loads(p.read_text(encoding="utf-8"))
         if isinstance(cfg.get("implementer"), dict):

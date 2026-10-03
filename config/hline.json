@@ -7,6 +7,15 @@
   "out": "C:\\src\\.local\\out\\hline",
   "_out_note": "生ログ・取り込んだ What の控え。総監督の部屋からは読めない（setup の deny）",
   "base": "origin/main",
+  "integration_branch": "hline/integration",
+  "_integration_note": "Gate 1 を通った変更はこのブランチの先端に積む（作業ツリーもここから作る。無ければ base から）。タスクごとの PR は作らず、積むものが尽きたら main への統合 PR を 1 本だけ出して止まる",
+  "milestones": ["B7.1", "B7.2", "B7.3", "B7.4"],
+  "_milestones_note": "このラインが取ってよいマイルストーン（進捗のグループの ID）。外のもの・宣言の無いものは受信箱に残す",
+  "max_unconverged_per_milestone": 2,
+  "_blocked_note": "同じマイルストーンで未収束がこの件数に達したら、ラインを BLOCKED で止める（統合 PR は作らない）",
+  "taskspec_schema": "config/taskspec.schema.json",
+  "spec_retries": 2,
+  "_spec_retries_note": "Gate A：TaskSpec がスキーマに適合しないとき、違反の内容を分解役に返してやり直す回数の上限。それでも適合しなければ未収束",
 
   "max_attempts": 3,
   "reruns": 1,
@@ -17,8 +26,19 @@
   "protected_paths": ["docs/progress.yaml", ".claude/"],
   "_protected_note": "実装役が変えてはならないパス。docs/progress.yaml は harness.progress だけが変える。.claude/ は権限の設定",
 
-  "ttl_seconds": { "implementer": 1800, "gate": 1800, "git": 300, "gh": 120, "lock_stale": 14400 },
+  "ttl_seconds": { "implementer": 1800, "decomposer": 900, "gate": 1800, "git": 300, "gh": 120, "lock_stale": 14400 },
   "gate_tail_chars": 4000,
+
+  "decomposer": {
+    "cli": "claude",
+    "headless_flag": "-p",
+    "model_flag": "--model",
+    "model": "claude-opus-5-5",
+    "auxiliary_models": ["claude-haiku-"],
+    "_flags_note": "What を TaskSpec JSON に変える分解役。読み取りだけを許し（作業ツリーを読んで対象シンボルを確かめる）、JSON を返させる。プロンプトは標準入力で渡す",
+    "extra_flags": ["--allowedTools", "Read,Grep,Glob"],
+    "output_format_args": ["--output-format", "json"]
+  },
 
   "implementer": {
     "cli": "claude",
