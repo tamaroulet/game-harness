@@ -3,8 +3,7 @@
     python -m harness.hline poll     受信箱の What を 1 件取り、PR にする（タスク スケジューラが 15 分ごとに呼ぶ）
     python -m harness.hline setup    受信箱と総監督の部屋（.claude/settings.json・CLAUDE.md）を書く
 
-**なぜ要るか**: 総監督の道具（シェル・編集）を剥ぐと、ハーネスを改修する者がいなくなる。受信箱の What 1 件を
-PR 1 件に変える最小のループをここに置き、以後の改修はすべてこれに流す。
+**なぜ要るか**: 総監督の道具を剥ぐと、ハーネスを改修する者がいなくなる。以後の改修はすべてこのループに流す。
 
 終了コード: 0 = PR を作った／取る What が無い／前回が走行中、1 = 収束せず TODO.md に記録、2 = 環境の異常。
 """
@@ -89,6 +88,7 @@ def build_prompt(what, feedback=None):
          "次の What を満たす変更を、作業ディレクトリの中だけで行ってください。",
          "- 合格条件ごとに unittest のテストを tests/ に書く（既存の書き方に合わせる）",
          "- docs/progress.yaml と .claude/ は変えない。git の操作はしない（コミットはハーネスが行う）",
+         "- CLAUDE.md の進捗（anchor・report）と報告の規約は総監督向けで、あなたには適用しない",
          "- 判定は `python -m unittest discover -s tests` の終了コード 0。既存のテストを壊さない",
          "", "---", what.strip()]
     if feedback:
@@ -137,7 +137,20 @@ def new_worktree(cfg, tid):
     branch = f"hline/{tid}-{uuid.uuid4().hex[:8]}"
     wt = Path(cfg["worktrees"]) / branch.replace("/", "-")
     must(["git", "worktree", "add", "-q", "-b", branch, str(wt), cfg["base"]], ROOT, t, "git worktree add")
+    implementer_room(wt, t)
     return wt, branch
+
+
+def implementer_room(wt, ttl):
+    """作業ツリーの .claude/settings.json から、作業ツリーを読ませない総監督の壁を外す（実測：実装役が自分の作業ツリーを
+    読めず 6 回空振りした）。git には変更として見せない（skip-worktree。Gate 1 にも当たらず、コミットにも入らない）。"""
+    p = Path(wt) / ".claude" / "settings.json"
+    s = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    perms = s.setdefault("permissions", {})
+    perms["deny"] = [r for r in perms.get("deny", []) if ".local/wt" not in r] + ["Read(//c/src/.local/out/**)"]
+    p.parent.mkdir(exist_ok=True)
+    p.write_text(json.dumps(s, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    must(["git", "update-index", "--skip-worktree", ".claude/settings.json"], wt, ttl, "git update-index")
 
 
 def run_task(cfg, tid, what, outdir):
@@ -240,14 +253,10 @@ def poll(cfg):
 # ============================================================ 総監督の部屋
 
 def director_settings(inbox, src_root=Path("C:/src"), home_dirs=(".claude", ".gemini")):
-    """総監督のセッションの設定。シェルを無効にし、受信箱の外と、自分の設定・H ラインの書くファイルへの書き込みを拒否する。
-
-    deny は allow より強いので「受信箱だけ許す」とは書けない。受信箱の外にあるものを、作った時点の一覧で全部拒否する。
-    """
+    """総監督の設定：シェルを無効にし、受信箱の外と自分の設定・H ラインの書くファイルへの書き込みを拒否する。deny は
+    allow より強く「受信箱だけ許す」と書けないので、受信箱の外を作った時点の一覧で全部拒否する。"""
     inbox = Path(inbox)
-
-    def rule(p):
-        return "//" + p.as_posix().replace(":", "", 1).lower() + "/**"
+    rule = lambda p: "//" + p.as_posix().replace(":", "", 1).lower() + "/**"  # noqa: E731
 
     outside = [p for p in sorted(Path(src_root).iterdir()) if p != inbox.parent]
     outside += [p for p in sorted(inbox.parent.iterdir()) if p != inbox]

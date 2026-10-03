@@ -6,6 +6,7 @@
 総監督の部屋の拒否の規則が崩れると、無菌室が破れるか、ラインが止まる。外部の CLI は呼ばずに検査する。
 """
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -89,6 +90,26 @@ class Implementer(unittest.TestCase):
         prompt = run.call_args.kwargs["input"]
         self.assertIn("# 題", prompt)
         self.assertIn("前回の出力", prompt)
+
+
+class ImplementerRoom(unittest.TestCase):
+    def test_the_worktree_is_readable_by_the_implementer_and_the_rewrite_is_invisible_to_git(self):
+        """実測：リポジトリの設定の Read(//c/src/.local/wt/**) が実装役にも効き、自分の作業ツリーを読めなかった。"""
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            (repo / ".claude").mkdir()
+            deny = ["Read(//c/src/.local/wt/**)", "Read(**/*.cs)", "Bash(*dotnet test*)"]
+            (repo / ".claude" / "settings.json").write_text(json.dumps({"permissions": {"deny": deny}}), encoding="utf-8")
+            for args in (["init", "-q"], ["add", "-A"],
+                         ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init"]):
+                subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+            hline.implementer_room(repo, 60)
+            got = json.loads((repo / ".claude" / "settings.json").read_text(encoding="utf-8"))["permissions"]["deny"]
+            status = subprocess.run(["git", "status", "--porcelain"], cwd=repo, capture_output=True, text=True).stdout
+        self.assertNotIn("Read(//c/src/.local/wt/**)", got)
+        self.assertIn("Read(**/*.cs)", got)
+        self.assertIn("Read(//c/src/.local/out/**)", got)
+        self.assertEqual(status, "")
 
 
 class Retries(unittest.TestCase):
