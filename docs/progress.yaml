@@ -487,7 +487,9 @@ tasks:
   group: B6.3
   target_repo: game-harness
   status: in_progress
-  verification: null
+  verification:
+    command: python -m unittest tests.test_v2r_tools
+    expected_exit_code: 0
 - id: Phase 4-1
   title: 3D 物理・メタモルフィックテスト
   group: Phase 4
