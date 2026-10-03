@@ -496,7 +496,7 @@ tasks:
   target_repo: game-harness
   status: in_progress
   verification: null
-  review_pr: https://github.com/tamaroulet/game-harness/pull/139
+  review_pr: https://github.com/tamaroulet/game-harness/pull/140
 - id: Phase 4-2
   title: 推論モデル・信号時相論理（STL）
   group: Phase 4
