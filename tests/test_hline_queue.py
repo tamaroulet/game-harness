@@ -127,7 +127,8 @@ class Boundary(unittest.TestCase):
     def test_changes_inside_the_boundary_run_the_tests(self):
         ok, msg, run = self.gate(["harness/textnorm.py", "tests/test_textnorm.py"])
         self.assertTrue(ok)
-        run.assert_called_once()
+        self.assertEqual([c.args[0] for c in run.call_args_list],
+                         [["python", "-m", "unittest", "tests.test_textnorm"], CFG["gate_command"]])   # 個別 → 全件
 
     def test_a_file_outside_the_allowed_files_fails_without_running_the_tests(self):
         ok, msg, run = self.gate(["harness/textnorm.py", "README.md"])
@@ -193,7 +194,7 @@ class TaskVerification(unittest.TestCase):
             ok, msg, run = self.gate(self.worktree(d), 1)
         self.assertFalse(ok)
         self.assertIn(VERIFY, msg)
-        self.assertEqual(run.call_args.args[0], ["python", "-m", "unittest", "tests.test_x"])
+        self.assertEqual([c.args[0] for c in run.call_args_list], [["python", "-m", "unittest", "tests.test_x"]])
 
     def test_a_change_passing_the_verification_is_accepted(self):
         with tempfile.TemporaryDirectory() as d:

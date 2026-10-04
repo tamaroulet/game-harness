@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
 import base_whitelist  # noqa: E402
+import gate_order  # noqa: E402
 import infra_retry  # noqa: E402
 import model_pin  # noqa: E402
 import proc  # noqa: E402,F401  テストが hline.proc を差し替える
@@ -35,7 +36,7 @@ from hline_queue import (blocked, by_status, intake, load_state, next_runnable, 
                          save_state, what_path)
 from hline_report import pr_body, pr_title, today, write_report  # noqa: E402
 from hline_room import director_settings, setup  # noqa: E402,F401
-from hline_spec import boundary_problems, decompose, diff_lines, task_verification  # noqa: E402
+from hline_spec import boundary_problems, decompose, diff_lines  # noqa: E402
 
 
 # ============================================================ 実装役
@@ -48,7 +49,8 @@ def build_prompt(spec, feedback=None):
          "- contracts と test_oracle を満たすことを、unittest のテストを tests/ に書いて示す（既存の書き方に合わせる）",
          "- docs/progress.yaml と .claude/ は変えない。git の操作はしない（コミットはハーネスが行う）",
          "- CLAUDE.md の進捗（anchor・report）と報告の規約は総監督向けで、あなたには適用しない",
-         "- 判定は `python -m unittest discover -s tests` の終了コード 0。既存のテストを壊さない",
+         "- タスク個別の検証（test_oracle の verification_command。無ければ自分が書いた tests/ のテスト）を手元で走らせて通す。"
+         "全件テストはハーネスが走らせるので、自分では走らせない。既存のテストを壊さない",
          "", "---", json.dumps(spec, ensure_ascii=False, indent=2)]
     if feedback:
         p += ["", "---", "前回の変更は判定に通りませんでした。次の出力を読んで直してください。", feedback]
@@ -81,11 +83,12 @@ def gate(cfg, wt, paths, spec=None, task=None):
         problems = boundary_problems(spec, paths, diff_lines(cfg, wt))
         if problems:
             return False, "\n".join(problems)
+    first = gate_order.focused(cfg, wt, paths, task)   # 個別の検証が先。落ちたら全件テストは走らせない
+    if first and not first[0]:
+        return first
     env = dict(os.environ, PYTHONUTF8="1")
     code, out, err = proc.run(cfg["gate_command"], wt, cfg["ttl_seconds"]["gate"], "Gate 1", env=env)
-    if code == 0 and task:
-        return task_verification(cfg, wt, task)
-    return code == 0, (err + out)[-cfg["gate_tail_chars"]:]
+    return code == 0, gate_order.report(" ".join(cfg["gate_command"]), code, out, err, cfg["gate_tail_chars"])
 
 
 def base_check(cfg, wt):

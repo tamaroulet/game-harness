@@ -7,12 +7,10 @@ TaskSpec だけを渡し、適合しなければ実装役を呼ばない（Gate 
 """
 import fnmatch
 import json
-import shlex
 from pathlib import Path
 
 from hline_base import ROOT, must, run_agent, write_json  # isort: skip（harness/ を import の道に足す）
 
-import proc  # noqa: E402
 import progress  # noqa: E402
 
 TYPES = {"object": dict, "array": list, "string": str, "boolean": bool}
@@ -165,12 +163,3 @@ def boundary_problems(spec, paths, lines):
         out.append(f"差分が {lines} 行で、上限 {b['max_diff_lines']} 行を超えています。小さくしてください。")
     return out
 
-
-def task_verification(cfg, wt, task_id):
-    """進捗のタスクの検証コマンドを作業ツリーで実行する。(通ったか, 出力)。コマンドは進捗の記録のものだけを実行する。"""
-    v = verification_of(wt, task_id)
-    if not v:
-        return False, f"進捗のタスク {task_id} の検証コマンドが見つかりません"
-    code, out, err = proc.run(shlex.split(v["command"]), wt, cfg["ttl_seconds"]["gate"], f"検証 {task_id}")
-    tail = f"検証コマンド `{v['command']}` が終了コード {code}（期待 {v['expected_exit_code']}）\n" + (err + out)
-    return code == v["expected_exit_code"], tail[-cfg["gate_tail_chars"]:]
