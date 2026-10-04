@@ -7,6 +7,8 @@ import shutil
 import subprocess
 import sys
 
+import job_object
+
 # Windows でサブプロセスがコンソールウィンドウを開かないようにする。
 # 非 Windows では属性が無いので 0 になり、無害に無視される。
 # 効くのはコンソールアプリ（git / gh / 実装役の CLI / テストランナー）。
@@ -26,13 +28,19 @@ if sys.platform == "win32":
 
 def run(args, cwd, ttl, label, env=None, input=None):
     """shell=False。stdin は塞ぐ（input を渡したときだけ、それを標準入力に流す）。ウィンドウも出さない。TTL は必須。"""
+    child = job_object.Child(args, cwd=str(cwd), stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                             errors="replace", env=env, creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
     try:
-        stdin = {"input": input} if input is not None else {"stdin": subprocess.DEVNULL}
-        r = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True,
-                           timeout=ttl, encoding="utf-8", errors="replace", env=env, **stdin,
-                           creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
-        return r.returncode, r.stdout or "", r.stderr or ""
+        with child as p:
+            out, err = p.communicate(input=input, timeout=ttl)
+        return p.returncode, out or "", err or ""
     except subprocess.TimeoutExpired as e:
+        child.kill_tree()  # 孫以下まで止める。パイプを握られたままだと次の communicate が返らない
+        try:
+            e.stdout = p.communicate(timeout=10)[0]
+        except subprocess.TimeoutExpired:
+            pass
         # 打ち切った時点までの標準出力は返す。実装役の stream-json は、終わった手番の利用量をそこに
         # 出しているので、捨てると打ち切った呼び出しの費用が丸ごと消える（v2.1 §1.2）
         out = e.stdout.decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")

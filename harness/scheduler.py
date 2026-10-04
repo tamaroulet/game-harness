@@ -90,6 +90,7 @@ ms4:failed を付け、ログ末尾をコメントし、次の Issue へ進む�
 その時点で作業ツリーが汚れていたら、それはもう不合格ではなく ABORT に格上げする。
 """
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -106,6 +107,7 @@ import adapters
 import contract
 import exitcode
 import fileops
+import job_object
 import gdd_check
 import project
 import telemetry
@@ -177,8 +179,12 @@ def kill_pid_tree(pid):
         return False
 
 
-def kill_tree(proc):
+def kill_tree(proc, job=None):
     """子だけ殺すと孫（エンジンのエディタ・agy）が孤児になって走り続ける。木ごと止める。"""
+    if job is not None:  # Job を閉じて止まらなかった分だけ、下の taskkill → kill に落ちる
+        job_object.close(job)
+        if job_object.exited(proc, 3):
+            return
     if sys.platform == "win32":
         if not kill_pid_tree(proc.pid):
             proc.kill()  # taskkill 自体が固まったら、せめて直下の子は止める
@@ -230,13 +236,13 @@ def run_logged(args, cwd, ttl, log_path, env, on_wait=None, tick=30):
     待ちが長くても、外から「生きて待っている」ことが分かるようにするため。
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("wb") as f:
+    with log_path.open("wb") as f, contextlib.ExitStack() as stack:  # 抜けるとき Job を閉じる
         f.write(("$ " + " ".join(args) + "\n\n").encode("utf-8"))
         f.flush()
+        child = job_object.Child(args, cwd=str(cwd), stdout=f, stderr=subprocess.STDOUT,
+                                 stdin=subprocess.DEVNULL, env=env, creationflags=_NO_WINDOW)
         try:
-            proc = subprocess.Popen(args, cwd=str(cwd), stdout=f, stderr=subprocess.STDOUT,
-                                    stdin=subprocess.DEVNULL, env=env,
-                                    creationflags=_NO_WINDOW)
+            proc = stack.enter_context(child)
         except FileNotFoundError as e:
             f.write(f"コマンドが見つかりません: {e}\n".encode("utf-8"))
             return 127
@@ -246,7 +252,7 @@ def run_logged(args, cwd, ttl, log_path, env, on_wait=None, tick=30):
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                kill_tree(proc)
+                child.kill_tree()
                 f.write(f"\n\nTTL超過 ({ttl}s)。プロセス木ごと停止しました\n".encode("utf-8"))
                 return 124
             try:

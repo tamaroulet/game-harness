@@ -20,10 +20,13 @@ KeyboardInterrupt は捕まえない（人間が止めたものを ABORT と記�
 import sys
 import traceback
 
+import job_object
+
 ABORT = 2
 
 
 def normalized(fn):
+    job_object.ensure_self_job()
     try:
         code = fn()
     except SystemExit as e:
