@@ -14,6 +14,8 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 from ab import common, v2r_mutation  # noqa: E402
 
@@ -24,7 +26,7 @@ def report(statuses):
     return {"files": {"A.cs": {"source": "コード", "mutants": [{"mutatorName": "E", "status": s} for s in statuses]}}}
 
 
-class RunAll(unittest.TestCase):
+class RunAll(quiet.Quiet, unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.out = self.tmp / "out" / "r1" / "A0"

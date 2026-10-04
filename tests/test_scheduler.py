@@ -30,7 +30,8 @@ from unittest import mock
 
 HERE = Path(__file__).resolve().parent.parent / "harness"
 sys.path.insert(0, str(HERE))
-
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 import exitcode  # noqa: E402
 import project  # noqa: E402
 import scheduler as ms4  # noqa: E402
@@ -407,7 +408,7 @@ class FakeGH:
 
 # ============================================================ 足場
 
-class Base(unittest.TestCase):
+class Base(quiet.Quiet, unittest.TestCase):
     def setUp(self):
         SELFTEST_BASE.mkdir(parents=True, exist_ok=True)
         self.tmp = Path(tempfile.mkdtemp(prefix="t-", dir=SELFTEST_BASE))

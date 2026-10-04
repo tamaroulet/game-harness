@@ -20,6 +20,8 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 import agy_stream  # noqa: E402
 import implementer_context  # noqa: E402
@@ -201,7 +203,7 @@ class WiderContext(unittest.TestCase):
         self.assertNotIn("仕様の抜き出し", text)
 
 
-class ImplementerLogPerCall(unittest.TestCase):
+class ImplementerLogPerCall(quiet.Quiet, unittest.TestCase):
     def test_second_call_in_the_same_attempt_gets_its_own_file(self):
         with tempfile.TemporaryDirectory() as d:
             c = SimpleNamespace(tel_path=Path(d) / "t.json", out=Path(d), sandbox=Path(d),

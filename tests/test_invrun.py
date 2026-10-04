@@ -15,7 +15,7 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 sys.path.insert(0, str(ROOT / "tests"))
-
+import quiet  # noqa: E402
 import invgen  # noqa: E402
 import invrun  # noqa: E402
 from test_invgen import DECL  # noqa: E402
@@ -67,7 +67,9 @@ class Pure(unittest.TestCase):
 
     def test_no_declaration_means_no_stage(self):
         c = SimpleNamespace(cfg={"project": {"id": "no-such-project"}}, tel={})
-        self.assertIsNone(invrun.check(c))
+        result, out = quiet.captured(invrun.check, c)
+        self.assertIsNone(result)
+        self.assertIn("宣言なし", out)
         self.assertEqual(c.tel["invariants"], {"declared": False})
 
 

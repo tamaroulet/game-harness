@@ -13,6 +13,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 import exitcode  # noqa: E402
 
@@ -46,7 +48,9 @@ class Normalized(unittest.TestCase):
     def test_uncaught_exception_is_abort(self):
         def boom():
             raise RuntimeError("配管の故障")
-        self.assertEqual(exitcode.normalized(boom), exitcode.ABORT)
+        rc, out = quiet.captured(exitcode.normalized, boom)
+        self.assertEqual(rc, exitcode.ABORT)
+        self.assertIn("RuntimeError", out)
 
     def test_reject_stays_one(self):
         self.assertEqual(exitcode.normalized(lambda: 1), 1)

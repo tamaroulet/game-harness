@@ -19,6 +19,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 sys.path.insert(0, str(ROOT / "tests"))
+import quiet  # noqa: E402
 
 import decompose  # noqa: E402
 from test_testgen import UNIT  # noqa: E402
@@ -33,7 +34,7 @@ BAD = copy.deepcopy(GOOD)
 BAD["acceptance"]["cases"][0]["expect"]["GameState.TickCount"] = 42   # 手計算のリテラル
 
 
-class DecomposeV2Tests(unittest.TestCase):
+class DecomposeV2Tests(quiet.Quiet, unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)

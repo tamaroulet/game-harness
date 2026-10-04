@@ -22,6 +22,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 HARNESS = ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 import pipeline  # noqa: E402
 import telemetry  # noqa: E402
@@ -171,7 +173,7 @@ class IssueMetricsTests(unittest.TestCase):
                 self.assertTrue(why)
 
 
-class PipelineTelemetryTests(unittest.TestCase):
+class PipelineTelemetryTests(quiet.Quiet, unittest.TestCase):
     """実物の Ctx を使う（Ctx の既存の属性をテレメトリが上書きしていないことも確かめる）。"""
 
     def setUp(self):
@@ -259,7 +261,7 @@ class PipelineTelemetryTests(unittest.TestCase):
         self.assertIn("total_seconds", data)
 
 
-class DecomposeEnvelopeTests(unittest.TestCase):
+class DecomposeEnvelopeTests(quiet.Quiet, unittest.TestCase):
     def call(self, stdout, rc=0):
         import decompose
         with tempfile.TemporaryDirectory() as d:

@@ -14,6 +14,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 import audit  # noqa: E402
 import scheduler as ms4  # noqa: E402
@@ -23,7 +25,7 @@ def fenced(body):
     return "指摘の本文。\n\n```json\n" + body + "\n```\n"
 
 
-class ParseVerdictTests(unittest.TestCase):
+class ParseVerdictTests(quiet.Quiet, unittest.TestCase):
     def test_a_well_formed_block_is_read(self):
         got, why = audit.parse_verdict(fenced('{"verdict": "concern", "findings": ["境界値"]}'))
         self.assertIsNone(why)

@@ -19,6 +19,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 HARNESS = ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 import oracle  # noqa: E402
 import pipeline  # noqa: E402
@@ -272,7 +274,7 @@ def engine_ctrl(**more):
     return d
 
 
-class EstablishBaseTests(unittest.TestCase):
+class EstablishBaseTests(quiet.Quiet, unittest.TestCase):
     """base の測定。高速検査のアダプタは「受入テストのファイルがあるとビルドできない」を真似る。"""
 
     TEST_REL = Path("tests") / "Core.Tests" / "BossChargeStateTests.cs"

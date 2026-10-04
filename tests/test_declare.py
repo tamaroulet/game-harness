@@ -18,6 +18,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 sys.path.insert(0, str(ROOT / "tests"))
+import quiet  # noqa: E402
 
 import declare  # noqa: E402
 from test_propgen import DECL, GDD, INTERFACE, SPEC  # noqa: E402
@@ -90,7 +91,7 @@ CFG = {"cli": "claude", "headless_flag": "-p", "usage_format": "claude", "respon
 MODELS = {"claude-opus-5": {"outputTokens": 1}, "claude-haiku-4-5-20251001": {"outputTokens": 1}}
 
 
-class Flow(unittest.TestCase):
+class Flow(quiet.Quiet, unittest.TestCase):
     def run_declare(self, replies):
         calls = []
 

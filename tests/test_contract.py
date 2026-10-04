@@ -18,6 +18,8 @@ from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 import contract  # noqa: E402
 import pipeline  # noqa: E402
@@ -184,7 +186,7 @@ class GateTests(unittest.TestCase):
         self.assertEqual(eff[0][1], "XorShift32 以外の乱数")
 
 
-class PipelineWiringTests(unittest.TestCase):
+class PipelineWiringTests(quiet.Quiet, unittest.TestCase):
     def test_contract_is_loaded_before_the_repo_is_touched(self):
         """main で、単位の安全確認の直後・リポジトリの検査と実行の前に契約を読む。"""
         src = (ROOT / "harness" / "pipeline.py").read_text(encoding="utf-8")

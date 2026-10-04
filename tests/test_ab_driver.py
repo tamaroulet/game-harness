@@ -18,6 +18,8 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 from ab import check, common, driver, measure, report  # noqa: E402
 import pipeline  # noqa: E402
@@ -154,7 +156,7 @@ class CostModel(unittest.TestCase):
         self.assertIn("| T1 | B | 1/1 | 1 | 2 | 0 | 0 | 1 / 0 | 0 | 1000000 | 400000 | 1400000 | 1.1000 | 10.0 |", text)
 
 
-class ConditionA(unittest.TestCase):
+class ConditionA(quiet.Quiet, unittest.TestCase):
     """同じ会話に積む（2 回目以降は --conversation）。受入を通ったら止め、最大 3 回まで。"""
 
     def setUp(self):
@@ -290,7 +292,7 @@ class Tokens(unittest.TestCase):
         self.assertIsNone(driver._tokens(calls)["cache_read"], "1 つでも不明なら推測で埋めない")
 
 
-class ConditionB(unittest.TestCase):
+class ConditionB(quiet.Quiet, unittest.TestCase):
     def test_pipeline_is_called_local_only_in_its_own_places(self):
         args = driver.pipeline_args(Path("u.json"), Path("wt"), Path("sb"), Path("out"), Path("t.json"))
         for flag in ("--local-only", "--sandbox", "--out-dir", "--repo-dir", "--telemetry", "--skip-selftest"):

@@ -17,6 +17,8 @@ from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 import canary  # noqa: E402
 
@@ -106,7 +108,7 @@ class CanaryTests(RepoFixture):
             canary.prepare(self.proj, self.unit, self.wt, runner=self.fake_decompose())
 
 
-class MigrateTests(RepoFixture):
+class MigrateTests(quiet.Quiet, RepoFixture):
     """main への正式な移行（ADR-003 §3.1、B3.1-1）。prepare と違い impl_files を消さない。"""
 
     def fake_v2_decompose(self, drop=None):

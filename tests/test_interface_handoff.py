@@ -20,6 +20,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 sys.path.insert(0, str(ROOT / "tests"))
+import quiet  # noqa: E402
 
 import decompose  # noqa: E402
 import pipeline  # noqa: E402
@@ -66,7 +67,7 @@ class ImplementerPrompt(unittest.TestCase):
         self.assertNotIn("## 作る型とメンバー", prompt)
 
 
-class FromUnit(unittest.TestCase):
+class FromUnit(quiet.Quiet, unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)

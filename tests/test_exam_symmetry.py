@@ -22,6 +22,8 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 import narrow_dir  # noqa: E402
 import pipeline  # noqa: E402
@@ -100,7 +102,7 @@ class CopyChanges(unittest.TestCase):
         self.assertFalse((sb / "Core" / "Gone.cs").exists())
 
 
-class ConditionA(unittest.TestCase):
+class ConditionA(quiet.Quiet, unittest.TestCase):
     """A の再試行ループは判定を通り、知らせは判定の知らせそのもの。上限は B と同じ 9 回。"""
 
     def setUp(self):

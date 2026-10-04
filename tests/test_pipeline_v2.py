@@ -19,6 +19,8 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 import pipeline  # noqa: E402
 import propgen  # noqa: E402
@@ -110,7 +112,7 @@ class CounterexampleFeedback(unittest.TestCase):
         self.assertIn("- G.Other.Case_a", text)
 
 
-class HiddenSeeds(unittest.TestCase):
+class HiddenSeeds(quiet.Quiet, unittest.TestCase):
     """§5.1 の 5：非公開シード。反例は返さない。"""
 
     def ctx(self, diff="d1"):
