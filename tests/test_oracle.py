@@ -297,7 +297,7 @@ class EstablishBaseTests(quiet.Quiet, unittest.TestCase):
             self.addCleanup(patcher.stop)
 
     def ctx(self, with_tests, without_tests, engine, required=(REQ,), test_driven=True,
-            quarantine=()):
+            quarantine=(), passed_tasks=()):
         def run_tests(c, tag):
             self.calls.append(tag)
             results = with_tests if self.test_file.exists() else without_tests
@@ -309,7 +309,7 @@ class EstablishBaseTests(quiet.Quiet, unittest.TestCase):
         return SimpleNamespace(
             test_driven=test_driven, unit={"acceptance": {"required_tests": list(required)}},
             sandbox=self.tmp, fast=fast, engine=fake_engine(engine),
-            oracle=oracle.load(CG, table), metrics={}, base=None)
+            oracle=oracle.load(CG, table), metrics={}, base=None, passed_tasks=tuple(passed_tasks))
 
     def test_unbuilt_base_measures_p_base_without_the_new_tests(self):
         """2 つの受入テストが同じファイルにある。ファイルは 1 回だけ消す（2 回目で落ちない）。"""
@@ -367,33 +367,23 @@ class EstablishBaseTests(quiet.Quiet, unittest.TestCase):
         self.assertEqual(self.calls, ["base_fast"])
 
     def test_unexpected_failure_at_base_aborts(self):
-        c = self.ctx(None, fast_ctrl(), engine_ctrl(**{"E.Old.Broken": F}))
+        c = self.ctx(None, fast_ctrl(), engine_ctrl(**{"E.Old.Broken": F}), passed_tasks=("Old",))
         verdict, msg = pipeline.establish_base(c)
         self.assertEqual(verdict, "ABORT")
         self.assertIn("E.Old.Broken", msg)
 
-    def test_hidden_variants_of_this_tasks_properties_may_fail_at_base(self):
-        """v2r-r1-01 の A1・B：T2 の受入は _Public だけを列挙し、同じクラスの _Hidden が base で落ちて止まった。
-
-        このタスクのテストのクラスは、実装前に落ちてよい。ほかのタスクのクラス（T1）の失敗は、これまでどおり止める。
-        """
+    def test_only_passed_tasks_failures_stop_the_base(self):
         req = ("PropertiesT2Cases.P_T2_01_Public",)
         with_tests = fast_ctrl(**{"S.PropertiesT2Cases.P_T2_01_Public": F, "S.PropertiesT2Cases.P_T2_01_Hidden": F,
                                   "S.PropertiesT1Cases.P_T1_01_Hidden": P})
-        c = self.ctx(with_tests, fast_ctrl(), engine_ctrl(), required=req)
+        c = self.ctx(with_tests, fast_ctrl(), engine_ctrl(), required=req, passed_tasks=("T1",))
         verdict, msg = pipeline.establish_base(c)
         self.assertIsNone(verdict, msg)
         broken = dict(with_tests, **{"S.PropertiesT1Cases.P_T1_01_Hidden": F})
-        c = self.ctx(broken, fast_ctrl(), engine_ctrl(), required=req)
+        c = self.ctx(broken, fast_ctrl(), engine_ctrl(), required=req, passed_tasks=("T1",))
         verdict, msg = pipeline.establish_base(c)
         self.assertEqual(verdict, "ABORT")
         self.assertIn("P_T1_01_Hidden", msg)
-
-    def test_task_test_classes_only_widen_property_tests(self):
-        self.assertEqual(pipeline.task_test_classes(["PropertiesT2Cases.P_T2_01_Public", "PropertiesT2Cases.P_T2_04_Public"]),
-                         ["PropertiesT2Cases."])
-        self.assertEqual(pipeline.task_test_classes(["Game.Core.Tests.BossChargeStateTests"]), [],
-                         "クラス名だけの受入を切ると名前空間になり、全部を除いてしまう")
 
     def test_quarantined_failure_at_base_is_tolerated(self):
         c = self.ctx(None, fast_ctrl(), engine_ctrl(**{"E.Old.Flaky": F}), quarantine=("E.Old.Flaky",))
@@ -401,20 +391,9 @@ class EstablishBaseTests(quiet.Quiet, unittest.TestCase):
         self.assertIsNone(verdict, msg)
         self.assertEqual(c.metrics["quarantined"], 1)
 
-    def test_known_failures_are_tolerated_at_base(self):
-        """前のタスクの終わりに落ちていたテストは、base の検査から外す（S2 を標準にした。v2 §5.2）。"""
-        with tempfile.TemporaryDirectory() as d:
-            path = Path(d) / "known.json"
-            path.write_text('["E.Old.Broken"]', encoding="utf-8")
-            q = pipeline.with_known_failures(("E.Old.Flaky",), path)
-            path.write_text('{"not": "a list"}', encoding="utf-8")
-            with self.assertRaises(SystemExit):
-                pipeline.with_known_failures((), path)
-        self.assertEqual(q, ("E.Old.Flaky", "E.Old.Broken"))
-        c = self.ctx(None, fast_ctrl(), engine_ctrl(**{"E.Old.Broken": F}))
-        c.oracle["quarantine"] = q
-        verdict, msg = pipeline.establish_base(c)
-        self.assertIsNone(verdict, msg)
+    def test_failures_of_tasks_not_passed_are_tolerated_at_base(self):
+        c = self.ctx(None, fast_ctrl(), engine_ctrl(**{"E.Old.Broken": F}), passed_tasks=("Other",))
+        self.assertIsNone(pipeline.establish_base(c)[0])
 
     def test_controls_are_checked_at_base(self):
         cases = (

@@ -315,21 +315,20 @@ class ConditionB(quiet.Quiet, unittest.TestCase):
         self.assertEqual((rec["attempts"], rec["implementer_calls"]), (1, 2))
         self.assertEqual(driver._tokens(rec["calls"])["input"], 30)
 
-    def test_known_failures_of_the_previous_task_are_passed_to_the_pipeline(self):
-        """前のタスクの終わりに落ちていたテストを pipeline に渡す（S2）。"""
-        seen = {}
+    def test_passed_tasks_are_passed_to_the_pipeline(self):
+        seen = []
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)
 
             def runner(args, cwd, ttl, label):
-                seen["names"] = json.loads(Path(args[args.index("--known-failures") + 1]).read_text(encoding="utf-8"))
+                seen.append(args)
                 return 1, "", ""
             ctx = {"out": out, "m": {"_base": d}, "wt": out / "wt", "sandbox": out / "sb"}
-            driver.run_task_b(ctx, {"id": "T3", "unit": "u.json"}, {}, {"known_failures": ["G.B4abT2Cases.Case_a"]},
-                              runner=runner)
-        self.assertEqual(seen["names"], ["G.B4abT2Cases.Case_a"])
-        self.assertEqual(driver.failing_names({"a": "Passed", "b": "Failed"}), ["b"])
-        self.assertIsNone(driver.failing_names(None))
+            for passed in (["T1", "T2"], []):
+                driver.run_task_b(ctx, {"id": "T3", "unit": "u.json"}, {}, {"passed_tasks": passed}, runner=runner)
+            self.assertEqual(list(out.glob("*.known_failures.json")), [])
+        self.assertEqual(seen[0][seen[0].index("--passed-tasks") + 1], "T1,T2")
+        self.assertNotIn("--passed-tasks", seen[1])
 
     def test_local_only_commits_without_push_or_ci(self):
         with tempfile.TemporaryDirectory() as d:

@@ -21,9 +21,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
+import base_whitelist  # noqa: E402
 import infra_retry  # noqa: E402
 import model_pin  # noqa: E402
 import proc  # noqa: E402,F401  テストが hline.proc を差し替える
+import progress  # noqa: E402
 from hline_base import (CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args,  # noqa: E402,F401
                         load_config, must, run_agent, slug, title_of)
 from hline_gc import sweep  # noqa: E402
@@ -86,6 +88,17 @@ def gate(cfg, wt, paths, spec=None, task=None):
     return code == 0, (err + out)[-cfg["gate_tail_chars"]:]
 
 
+def base_check(cfg, wt):
+    """実装役を呼ぶ前の検査。合格済みのタスクのテストだけを走らせる。(通ったか, 出力の末尾)。走らせるものが無ければ通ったとする。"""
+    path = Path(wt) / "docs" / "progress.yaml"
+    modules = base_whitelist.completed_modules(progress.load(path), "game-harness") if path.is_file() else ()
+    cmd = base_whitelist.unittest_command(cfg["gate_command"], modules)
+    if cmd is None:
+        return True, ""
+    code, out, err = proc.run(cmd, wt, cfg["ttl_seconds"]["gate"], "Base 検査", env=dict(os.environ, PYTHONUTF8="1"))
+    return code == 0, (err + out)[-cfg["gate_tail_chars"]:]
+
+
 # ============================================================ 1 件の処理
 
 def run_task(cfg, tid, spec, outdir, first=None, task=None):
@@ -94,6 +107,9 @@ def run_task(cfg, tid, spec, outdir, first=None, task=None):
     tries = []
     for run in range(1 + cfg["reruns"]):
         wt, branch = first if (run == 0 and first) else new_worktree(cfg, tid)
+        ok, out = base_check(cfg, wt)
+        if not ok:   # 実装の前から合格済みのテストが落ちている。作業ツリーを替えて呼び直す（試行に数えない）
+            raise Infra(f"base（実装前）で合格済みのタスクのテストが落ちています: {out[-500:]}")
         feedback = None
         for attempt in range(1, cfg["max_attempts"] + 1):
             log = outdir / f"implementer-{run}-{attempt}.log"
