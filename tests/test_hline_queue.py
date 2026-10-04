@@ -11,6 +11,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -425,7 +426,7 @@ class World(unittest.TestCase):
         return SPEC, {"attempts": [{"attempt": 1, "cli_exit": 0, "models": ["claude-opus-5"], "valid": True}],
                       "reason": None}
 
-    def fake_run_task(self, cfg, tid, spec, outdir, first=None, task=None):
+    def fake_run_task(self, cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
         self.implemented.append(self.current)
         ok = self.current not in self.failing
         tries = [{"run": 0, "attempt": 1, "cli_exit": 0, "models": ["claude-sonnet-5-5"], "gate": ok}]
@@ -683,7 +684,7 @@ class Crash(World):
         self.put("030-c")
         original = self.fake_run_task
 
-        def die_on_b(cfg, tid, spec, outdir, first=None, task=None):
+        def die_on_b(cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
             if self.current == "T-020-b":
                 raise KeyboardInterrupt   # 強制終了の代わり（finally が走らない kill でも、状態の記録は同じ）
             return original(cfg, tid, spec, outdir, first, task)
@@ -739,6 +740,186 @@ class Crash(World):
         with mock.patch.object(hline, "load_config", return_value=self.cfg), \
                 mock.patch.object(hline, "poll", side_effect=hline.Infra("x")):
             self.assertEqual(quiet(hline.main, ["poll"]), 2)
+
+
+STAMP = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
+
+
+class ReportEachStep(World):
+    """走行の途中でも report.md が今の状態を映す。途中の中身は、差し替えた分解役・run_task の中で控える。"""
+
+    def run_with_snapshots(self):
+        snaps = []
+
+        def snoop_decompose(cfg, wt, what, item, outdir):
+            snaps.append((f"分解 {item['title']}", self.report()))
+            return self.fake_decompose(cfg, wt, what, item, outdir)
+
+        def staged_run_task(cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
+            for stage in ("実装 1-1", "Gate 1 1-1"):
+                on_stage(stage)
+                snaps.append((stage, self.report()))
+            return self.fake_run_task(cfg, tid, spec, outdir, first, task)
+
+        with mock.patch.object(hline, "decompose", side_effect=snoop_decompose), \
+                mock.patch.object(hline, "run_task", side_effect=staged_run_task):
+            self.assertEqual(self.poll(), 0)
+        return dict(snaps)
+
+    def test_the_report_during_the_run_shows_the_done_ones_and_the_one_in_progress(self):
+        self.put("010-a")
+        self.put("020-b")
+        snaps = self.run_with_snapshots()
+        first, second = snaps["分解 T-010-a"], snaps["分解 T-020-b"]
+        self.assertIn("- 済み（0 件）: なし", first)
+        self.assertIn("- 待ち（1 件）: 020-b", first)
+        self.assertRegex(first, rf"- 処理中（1 件）: 010-a（段階: 分解／開始: {STAMP}）")
+        self.assertIn("- 済み（1 件）: 010-a", second)
+        self.assertRegex(second, rf"- 処理中（1 件）: 020-b（段階: 分解／開始: {STAMP}）")
+
+    def test_the_stage_follows_the_implementation_and_gate_1_and_keeps_the_start_time(self):
+        self.put("010-a")
+        snaps = self.run_with_snapshots()
+        pattern = r"- 処理中（1 件）: 010-a（段階: {}／開始: ({})）"
+        started = {stage: re.search(pattern.format(stage, STAMP), snaps[stage])
+                   for stage in ("実装 1-1", "Gate 1 1-1")}
+        self.assertTrue(all(started.values()), started)
+        self.assertEqual(started["実装 1-1"].group(1), started["Gate 1 1-1"].group(1))
+        self.assertIn("- 処理中（0 件）: なし", self.report())
+        item = self.state()["items"]["010-a"]
+        self.assertEqual(item["status"], "done")
+        self.assertNotIn("stage", item)
+        self.assertNotIn("started_at", item)
+
+    def test_an_unconverged_what_leaves_no_stage_behind(self):
+        self.failing = {"T-010-a"}
+        self.put("010-a")
+        self.assertEqual(self.poll(), 1)
+        item = self.state()["items"]["010-a"]
+        self.assertEqual(item["status"], "unconverged")
+        self.assertNotIn("stage", item)
+        self.assertNotIn("started_at", item)
+
+    def test_the_report_starts_with_the_progress_report_and_the_h_section_follows(self):
+        self.put("010-a")
+        snaps = self.run_with_snapshots()
+        self.assertTrue(snaps["分解 T-010-a"].startswith("## 進捗ツリー\n- 人間作業: NONE\n"))
+        report = self.report()   # 走行の終わりは統合 PR の待ち。人間作業の行だけが置き換わる
+        self.assertTrue(report.startswith("## 進捗ツリー\n- 人間作業: REVIEW_REQUIRED "))
+        self.assertLess(report.index("## 進捗ツリー"), report.index("## H ライン"))
+
+    def test_an_environment_fault_stops_the_run_and_the_report_says_so(self):
+        self.put("010-a")
+        with mock.patch.object(hline, "decompose", side_effect=hline.Infra("gh が落ちた")):
+            self.assertEqual(self.poll(), 2)
+        report = self.report()
+        self.assertIn("- 状態: インフラ例外で停止", report)
+        self.assertRegex(report, r"- 人間作業: INFRA_HALTED 010-a: gh が落ちた（\d+ 回の試行）")
+        self.assertNotIn("- 人間作業: NONE", report)
+        item = self.state()["items"]["010-a"]
+        self.assertEqual(item["status"], "waiting")
+        self.assertNotIn("stage", item)
+
+    def test_a_queue_without_stage_fields_is_read_and_reported(self):
+        st = self.state()
+        st["items"] = {"010-a": {"status": "processing", "title": "t", "milestone": "B7.1", "task": None, "deps": []}}
+        hline_queue.save_state(self.cfg, st)
+        hline_report.write_report(self.cfg, self.state())
+        self.assertIn("- 処理中（1 件）: 010-a（段階: 不明／開始: 不明）", self.report())
+
+
+class Marks(World):
+    def st(self):
+        item = {"status": "processing", "title": "t", "milestone": "B7.1", "task": None, "deps": ["x"]}
+        return {"items": {"010-a": item, "020-b": dict(item, status="waiting")}, "awaiting_pr": None, "skipped": [],
+                "infra_halt": None}
+
+    def test_now_has_the_date_and_the_minute_and_today_stays_a_date(self):
+        self.assertRegex(hline_report.now(), rf"^{STAMP}$")
+        self.assertRegex(hline_report.today(), r"^\d{4}-\d{2}-\d{2}$")
+
+    def test_a_mark_without_a_name_changes_no_item_and_rewrites_the_report_and_the_state(self):
+        st = self.st()
+        before = json.loads(json.dumps(st))
+        hline_report.mark(self.cfg, st)
+        self.assertEqual(st, before)
+        self.assertEqual(self.state()["items"], before["items"])
+        self.assertIn("- 処理中（1 件）: 010-a（段階: 不明／開始: 不明）", self.report())
+        self.assertTrue((self.inbox / "TODO.md").exists())
+
+    def test_a_mark_with_a_stage_sets_it_and_keeps_the_first_start_time(self):
+        st = self.st()
+        with mock.patch.object(hline_report, "now", side_effect=["2026-10-05 04:32", "2026-10-05 04:40"]):
+            hline_report.mark(self.cfg, st, "010-a", "分解")
+            hline_report.mark(self.cfg, st, "010-a", "実装 1-1")
+        item = st["items"]["010-a"]
+        self.assertEqual((item["stage"], item["started_at"]), ("実装 1-1", "2026-10-05 04:32"))
+        self.assertEqual((item["status"], item["deps"]), ("processing", ["x"]))
+        self.assertEqual(list(st["items"]), ["010-a", "020-b"])
+        self.assertNotIn("stage", st["items"]["020-b"])
+        self.assertIn("010-a（段階: 実装 1-1／開始: 2026-10-05 04:32）", self.report())
+
+    def test_a_mark_with_a_name_only_removes_the_stage_and_the_start_time(self):
+        st = self.st()
+        hline_report.mark(self.cfg, st, "010-a", "分解")
+        hline_report.mark(self.cfg, st, "010-a")
+        self.assertNotIn("stage", st["items"]["010-a"])
+        self.assertNotIn("started_at", st["items"]["010-a"])
+
+    def test_the_stage_note_survives_missing_fields(self):
+        self.assertEqual(hline_report.stage_note({}), "（段階: 不明／開始: 不明）")
+        self.assertEqual(hline_report.stage_note({"stage": "分解"}), "（段階: 分解／開始: 不明）")
+        self.assertEqual(hline_report.stage_note({"stage": "分解", "started_at": "2026-10-05 04:32"}),
+                         "（段階: 分解／開始: 2026-10-05 04:32）")
+
+    def test_writing_the_same_state_twice_gives_the_same_report(self):
+        st = self.st()
+        hline_report.mark(self.cfg, st, "010-a", "分解")
+        once = self.report()
+        hline_report.write_report(self.cfg, st)
+        self.assertEqual(self.report(), once)
+
+
+class StageCalls(unittest.TestCase):
+    def run_task(self, verdicts, on_stage=True):
+        events, verdicts = [], iter(verdicts)
+
+        def implement(*a):
+            events.append("implement")
+            return 0, ["m"], {}
+
+        def gate(*a):
+            events.append("gate")
+            return next(verdicts), "out"
+
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(hline, "new_worktree", side_effect=lambda c, t: (Path(d), "b")), \
+                mock.patch.object(hline, "base_check", return_value=(True, "")), \
+                mock.patch.object(hline, "implement", side_effect=implement), \
+                mock.patch.object(hline, "changed_paths", return_value=["harness/x.py"]), \
+                mock.patch.object(hline, "gate", side_effect=gate):
+            kw = {"on_stage": lambda s: events.append(s)} if on_stage else {}
+            got = hline.run_task(CFG, "t", {}, Path(d), **kw)
+        return got, events
+
+    def test_each_attempt_announces_the_implementer_and_gate_1_before_calling_them(self):
+        (wt, _, tries), events = self.run_task([False, True])
+        self.assertEqual(events, ["実装 1-1", "implement", "Gate 1 1-1", "gate", "実装 1-2", "implement", "Gate 1 1-2", "gate"])
+        self.assertEqual([(t["run"], t["attempt"], t["gate"]) for t in tries], [(0, 1, False), (0, 2, True)])
+
+    def test_a_rerun_in_a_new_worktree_counts_the_run_in_the_stage(self):
+        n = CFG["max_attempts"] * (1 + CFG["reruns"])
+        (wt, _, tries), events = self.run_task([False] * n)
+        stages = [e for e in events if e.startswith("実装")]
+        self.assertEqual(stages[0], "実装 1-1")
+        self.assertEqual(stages[-1], f"実装 {CFG['reruns'] + 1}-{CFG['max_attempts']}")
+        self.assertEqual(len(stages), n)
+        self.assertIsNone(wt)
+
+    def test_without_on_stage_nothing_extra_happens(self):
+        (wt, _, tries), events = self.run_task([True], on_stage=False)
+        self.assertEqual(events, ["implement", "gate"])
+        self.assertIsNotNone(wt)
 
 
 class Lock(unittest.TestCase):

@@ -12,7 +12,7 @@ import yaml
 
 from hline_base import ROOT, must
 from hline_git import remote_ref
-from hline_queue import blocked, by_status
+from hline_queue import blocked, by_status, save_state
 
 import proc  # noqa: E402
 import progress  # noqa: E402
@@ -37,6 +37,11 @@ def progress_report(cfg):
     return must([sys.executable, "-m", "harness.progress", "report"], ROOT, t, "report")
 
 
+def stage_note(item):
+    """処理中の項目の注記。古い queue.json・recover で戻った項目には段階も開始の時刻も無い。"""
+    return f"（段階: {item.get('stage') or '不明'}／開始: {item.get('started_at') or '不明'}）"
+
+
 def h_section(cfg, st):
     items = st["items"]
 
@@ -48,7 +53,7 @@ def h_section(cfg, st):
     frozen = lambda i: f"（上流の未収束: {', '.join(i.get('frozen_by', []))}）"   # noqa: E731
     lines = ["## H ライン", f"- 状態: {line_status(cfg, st)}", f"- 統合ブランチ: {cfg['integration_branch']}",
              f"- 統合 PR: {st['awaiting_pr'] or 'なし'}", "", "## キュー",
-             row("済み", "done"), row("待ち", "waiting", waiting), row("処理中", "processing"),
+             row("済み", "done"), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
              row("未収束", "unconverged", lambda i: f"（{i.get('reason', '')}）"), row("凍結", "frozen", frozen)]
     if st["skipped"]:
         lines += ["", "## 受信箱に残した What"] + [f"- {s['file']}: {s['reason']}" for s in st["skipped"]]
@@ -90,6 +95,25 @@ def write_todo(cfg, st):
 
 def today():
     return datetime.date.today().isoformat()
+
+
+def now():
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
+def mark(cfg, st, name=None, stage=None, *, save=None, write=None):
+    """状態を書き、report.md・TODO.md を今の状態で書き直す。name があれば、その項目の段階を置く（stage 省略なら消す）。
+    save・write は呼び手の名前で差し替えるためのもの（既定はこのモジュールの save_state・write_report）。"""
+    if name is not None:
+        item = st["items"][name]
+        if stage is None:
+            item.pop("stage", None)
+            item.pop("started_at", None)
+        else:
+            item["stage"] = stage
+            item.setdefault("started_at", now())
+    (save or save_state)(cfg, st)
+    (write or write_report)(cfg, st)
 
 
 # ============================================================ 統合 PR の本文

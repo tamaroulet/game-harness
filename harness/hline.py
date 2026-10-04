@@ -35,7 +35,7 @@ from hline_git import (ahead, changed_paths, create_pr, drop_merged_branch, fetc
                        integrate, integrated, new_worktree, open_pr, pr_state)
 from hline_queue import (blocked, by_status, intake, load_state, next_runnable, pick, recover, refresh,  # noqa: E402,F401
                          save_state, what_path)
-from hline_report import pr_body, pr_title, today, write_report  # noqa: E402
+from hline_report import mark as _mark, pr_body, pr_title, today, write_report  # noqa: E402
 from hline_room import director_settings, setup  # noqa: E402,F401
 from hline_spec import boundary_problems, decompose, diff_lines  # noqa: E402
 
@@ -101,9 +101,15 @@ def base_check(cfg, wt):
 
 # ============================================================ 1 件の処理
 
-def run_task(cfg, tid, spec, outdir, first=None, task=None):
+def mark(cfg, st, name=None, stage=None):
+    """状態を書き、report.md を書き直す（hline_report.mark）。save_state・write_report はこのモジュールの名前で呼ぶ。"""
+    _mark(cfg, st, name, stage, save=save_state, write=write_report)
+
+
+def run_task(cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
     """作業ツリーを作り直しながら試す。通った (作業ツリー, ブランチ, 試行の記録) か None。作業ツリーは消さない（Detach）。
-    first は分解役が使った作業ツリー（最初の 1 回はそれを使う）。"""
+    first は分解役が使った作業ツリー（最初の 1 回はそれを使う）。on_stage は段階を知らせる副作用だけの関数。"""
+    on_stage = on_stage or (lambda stage: None)
     tries = []
     for run in range(1 + cfg["reruns"]):
         wt, branch = first if (run == 0 and first) else new_worktree(cfg, tid)
@@ -113,7 +119,9 @@ def run_task(cfg, tid, spec, outdir, first=None, task=None):
         feedback = None
         for attempt in range(1, cfg["max_attempts"] + 1):
             log = outdir / f"implementer-{run}-{attempt}.log"
+            on_stage(f"実装 {run + 1}-{attempt}")
             code, models, *rest = implement(cfg, wt, spec, feedback, log)   # rest は利用量（無い呼び手は None）
+            on_stage(f"Gate 1 {run + 1}-{attempt}")
             ok, feedback = gate(cfg, wt, changed_paths(wt, cfg), spec, task)
             tries.append({"run": run, "attempt": attempt, "cli_exit": code, "models": models, "gate": ok,
                           "usage": rest[0] if rest else None})
@@ -133,8 +141,9 @@ def process(cfg, st, name):
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / "what.md").write_text(what, encoding="utf-8")
     item.pop("infra_retries", None)
+    item.pop("started_at", None)   # 前の走行の途中で落ちた項目の開始の時刻を引き継がない
     item.update(status="processing", tid=tid)
-    save_state(cfg, st)
+    mark(cfg, st, name, "分解")
     print(f"[{tid}] {item['title']}")
 
     def attempt(n):   # 毎回、新しい作業ツリーから（分解役・実装役の試行の数えも 1 からやり直す）
@@ -143,7 +152,9 @@ def process(cfg, st, name):
             spec, item["decompose"] = decompose(cfg, wt, what, item, outdir)   # Gate A。適合しなければ実装役を呼ばない
             item["tries"] = []
             if spec is not None:
-                wt, branch, item["tries"] = run_task(cfg, tid, spec, outdir, (wt, branch), item["task"])
+                mark(cfg, st, name, "実装 1-1")
+                wt, branch, item["tries"] = run_task(cfg, tid, spec, outdir, (wt, branch), item["task"],
+                                                     on_stage=lambda s: mark(cfg, st, name, s))
             if spec is None or wt is None:
                 return False
             integrate(cfg, wt, name, item["title"], item["task"])
@@ -159,7 +170,7 @@ def process(cfg, st, name):
     except infra_retry.InfraExhausted as e:
         item.update(status="waiting", infra_retries=e.records)
         st["infra_halt"] = {"name": name, "reason": e.records[-1]["reason"], "attempts": len(e.records), "at": today()}
-        save_state(cfg, st)
+        mark(cfg, st, name)
         return False
     if records:
         item["infra_retries"] = records
@@ -169,7 +180,7 @@ def process(cfg, st, name):
         item.update(status="unconverged", at=today(), reason=item["decompose"]["reason"]
                     or f"{len(item['tries'])} 回の試行で Gate 1 に通らず、パッチを捨てた")
         print(f"[{tid}] 収束しませんでした: {item['reason']}")
-    save_state(cfg, st)
+    mark(cfg, st, name)
     return done
 
 
@@ -223,12 +234,12 @@ def run_line(cfg):
     if was_blocked and not blocked(cfg, st):
         intake(cfg, st)
         refresh(st)
-    save_state(cfg, st)
+    mark(cfg, st)
     unconverged = False
     while not blocked(cfg, st) and (name := next_runnable(st)):
         ok = process(cfg, st, name)
         refresh(st)
-        save_state(cfg, st)
+        mark(cfg, st)
         if st["infra_halt"]:
             break
         unconverged |= not ok
