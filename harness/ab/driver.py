@@ -26,6 +26,7 @@ _HARNESS = Path(__file__).resolve().parent.parent
 if str(_HARNESS) not in sys.path:
     sys.path.insert(0, str(_HARNESS))
 
+import agy_pinned  # noqa: E402
 import agy_stream  # noqa: E402
 import envcheck  # noqa: E402
 import fileops  # noqa: E402
@@ -86,7 +87,17 @@ def cli_version_guard(imp, measure=envcheck.cli_version, pinned=None):
     return got
 
 
-def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run, guard=cli_version_guard):
+def agy_guard(imp, measure=envcheck.cli_version, pinned=None, verify=agy_pinned.require):
+    """agy のときは、版を測る（= agy を起動する）より前に、導入先のファイルの SHA-256 を照合する。落ちれば ABError。"""
+    if imp["cli"] == "agy":
+        try:
+            verify()
+        except agy_pinned.AgyDigestError as e:
+            raise common.ABError(str(e)) from e
+    return cli_version_guard(imp, measure, pinned)
+
+
+def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run, guard=agy_guard):
     """実装役を 1 回呼ぶ。会話を続けるときは --conversation を付ける（resume）。
 
     stream-json のときは、B（pipeline）と同じ引数と読み取り（agy_stream）を使い、手番ごとの記録を返す。

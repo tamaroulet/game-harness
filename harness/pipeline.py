@@ -30,6 +30,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import adapters
+import agy_pinned
 import agy_stream
 import contract
 import implementer_context
@@ -441,8 +442,18 @@ def record_transients(c, prompt, workdir, retries):
     return out
 
 
+def guard_implementer(imp, verify=agy_pinned.require):
+    """agy のときは、起動の前に導入先のファイルの SHA-256 を照合する。落ちれば環境の異常として止める。"""
+    if imp.get("cli") == "agy":
+        try:
+            verify()
+        except agy_pinned.AgyDigestError as e:
+            sys.exit(f"ABORT: {e}")
+
+
 def call_implementer(c, feedback=""):
     imp = c.cfg["implementer"]
+    guard_implementer(imp)
     stream = agy_stream.is_stream(imp)
     impl_dir = (c.cfg.get("project") or {}).get("impl_dir")
     # v2.1c：v2.1 の呼び方（stream-json）のときは、細い作業場所（書き換えてよいファイルと契約と既存の型だけ）で
