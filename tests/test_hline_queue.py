@@ -416,7 +416,7 @@ class World(unittest.TestCase):
     def fake_decompose(self, cfg, wt, what, item, outdir):
         self.decomposed.append(item["title"])
         self.current = item["title"]
-        return SPEC, {"attempts": [{"attempt": 1, "cli_exit": 0, "models": ["claude-opus-5-5"], "valid": True}],
+        return SPEC, {"attempts": [{"attempt": 1, "cli_exit": 0, "models": ["claude-opus-5"], "valid": True}],
                       "reason": None}
 
     def fake_run_task(self, cfg, tid, spec, outdir, first=None, task=None):
@@ -499,7 +499,7 @@ class IntegrationPr(World):
         self.assertEqual(self.integrated, ["010-a", "020-b", "030-c"])
         self.assertEqual(len(self.created), 1)
         title, body = self.created[0]
-        for n in ("T-010-a", "T-020-b", "T-030-c", "claude-opus-5-5", "claude-sonnet-5-5"):
+        for n in ("T-010-a", "T-020-b", "T-030-c", "claude-opus-5", "claude-sonnet-5-5"):
             self.assertIn(n, body)
         self.assertEqual(self.state()["awaiting_pr"], "https://github.com/o/r/pull/1")
         self.assertIn("統合 PR 待ち", self.report())
@@ -782,7 +782,7 @@ class AgentFlow(World):
         def fake_run(args, cwd, ttl, label, env=None, input=None):
             if label == "分解役":
                 self.dec_inputs.append(input)
-                return 0, claude_json(self.dec_replies.pop(0), "claude-opus-5-5"), ""
+                return 0, claude_json(self.dec_replies.pop(0), "claude-opus-5"), ""
             if label == "実装役":
                 self.impl_inputs.append(input)
                 return 0, claude_json("できた", self.impl_model), ""
@@ -854,7 +854,7 @@ class AgentFlow(World):
         self.dec_replies = [json.dumps(SPEC)]
         self.put("010-a")
         self.poll()
-        self.assertEqual(self.state()["items"]["010-a"]["decompose"]["attempts"][0]["models"], ["claude-opus-5-5"])
+        self.assertEqual(self.state()["items"]["010-a"]["decompose"]["attempts"][0]["models"], ["claude-opus-5"])
         self.assertEqual(self.state()["items"]["010-a"]["tries"][0]["models"], ["claude-sonnet-5-5"])
 
     def test_a_decomposer_run_on_another_model_stops_as_an_environment_fault_and_keeps_the_what(self):
@@ -873,10 +873,10 @@ class AgentFlow(World):
 class Config(unittest.TestCase):
     def test_the_decomposer_is_pinned_to_an_exact_model_id(self):
         dec = CFG["decomposer"]
-        self.assertEqual((dec["model_flag"], dec["model"]), ("--model", "claude-opus-5-5"))
+        self.assertEqual((dec["model_flag"], dec["model"]), ("--model", "claude-opus-5"))
         args = hline.implementer_args(dec, ["claude"])
-        self.assertEqual(args[args.index("--model") + 1], "claude-opus-5-5")
-        self.assertEqual(model_pin.require(dec, "decomposer"), "claude-opus-5-5")
+        self.assertEqual(args[args.index("--model") + 1], "claude-opus-5")
+        self.assertEqual(model_pin.require(dec, "decomposer"), "claude-opus-5")
         self.assertIn("config/hline.json の decomposer", [w for w, _, _ in model_pin.agent_configs()])
         self.assertEqual([p for p in model_pin.problems() if "hline" in p], [])
 

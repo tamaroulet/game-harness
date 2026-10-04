@@ -33,7 +33,7 @@
     "cli": "claude",
     "headless_flag": "-p",
     "model_flag": "--model",
-    "model": "claude-opus-5-5",
+    "model": "claude-opus-5",
     "auxiliary_models": ["claude-haiku-"],
     "_flags_note": "What を TaskSpec JSON に変える分解役。読み取りだけを許し（作業ツリーを読んで対象シンボルを確かめる）、JSON を返させる。プロンプトは標準入力で渡す",
     "extra_flags": ["--allowedTools", "Read,Grep,Glob"],
