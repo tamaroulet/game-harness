@@ -24,6 +24,7 @@ import exitcode  # noqa: E402
 import proc  # noqa: E402,F401  テストが hline.proc を差し替える
 from hline_base import (CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args,  # noqa: E402,F401
                         load_config, must, run_agent, slug, title_of)
+from hline_gc import sweep  # noqa: E402
 from hline_git import (ahead, changed_paths, create_pr, drop_merged_branch, fetch, implementer_room,  # noqa: E402,F401
                        integrate, integrated, new_worktree, open_pr, pr_state)
 from hline_queue import (blocked, by_status, intake, load_state, next_runnable, pick, recover, refresh,  # noqa: E402,F401
@@ -157,6 +158,7 @@ def open_integration_pr(cfg, st):
 
 
 def run_line(cfg):
+    sweep(cfg)   # 前の走行の残骸の掃除。例外は出さず、戻り値も使わない（消せないものは次の起動で再び対象になる）
     st = load_state(cfg)
     fetch(cfg)
     recover(cfg, st, lambda n: integrated(cfg, n))

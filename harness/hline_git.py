@@ -34,8 +34,14 @@ def new_worktree(cfg, tid):
     t = cfg["ttl_seconds"]["git"]
     fetch(cfg)
     start = remote_ref(cfg) if integration_exists(cfg) else cfg["base"]
-    branch = f"hline/{tid}-{uuid.uuid4().hex[:8]}"
-    wt = Path(cfg["worktrees"]) / branch.replace("/", "-")
+    for _ in range(5):   # 前の走行の残骸（同じ名前のディレクトリ・ブランチ）と重ならない名前を選ぶ
+        branch = f"hline/{tid}-{uuid.uuid4().hex[:8]}"
+        wt = Path(cfg["worktrees"]) / branch.replace("/", "-")
+        if not wt.exists() and proc.run(["git", "rev-parse", "--verify", "-q", f"refs/heads/{branch}"], ROOT, t,
+                                        "git rev-parse")[0] != 0:
+            break
+    else:
+        raise Infra(f"作業ツリーの名前が 5 回とも既存と重なりました: {tid}")
     must(["git", "worktree", "add", "-q", "-b", branch, str(wt), start], ROOT, t, "git worktree add")
     implementer_room(wt, t)
     return wt, branch
