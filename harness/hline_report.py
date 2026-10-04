@@ -22,6 +22,8 @@ BODY_MAX = 60000   # GitHub の PR 本文の上限は 65536 文字
 
 
 def line_status(cfg, st):
+    if st.get("infra_halt"):
+        return "インフラ例外で停止"
     return "BLOCKED" if blocked(cfg, st) else "統合 PR 待ち" if st["awaiting_pr"] else "走行中"
 
 
@@ -54,7 +56,11 @@ def h_section(cfg, st):
 
 
 def human_line(cfg, st):
-    """report の人間作業欄。BLOCKED と統合 PR のレビューは人間の作業。それ以外は None（進捗の記録のまま）。"""
+    """report の人間作業欄。インフラ例外での停止・BLOCKED・統合 PR のレビューは人間の作業。それ以外は None（進捗の記録のまま）。"""
+    halt = st.get("infra_halt")
+    if halt:
+        return (f"- 人間作業: INFRA_HALTED {halt['name']}: {' '.join(str(halt['reason']).split())}（{halt['attempts']} 回の試行）。"
+                "環境を直すと次の走行が取り直します")
     blk = blocked(cfg, st)
     if blk:
         unconverged = [n for ns in blk.values() for n in ns]

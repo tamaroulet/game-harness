@@ -21,6 +21,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
+import infra_retry  # noqa: E402
+import model_pin  # noqa: E402
 import proc  # noqa: E402,F401  テストが hline.proc を差し替える
 from hline_base import (CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args,  # noqa: E402,F401
                         load_config, must, run_agent, slug, title_of)
@@ -52,10 +54,18 @@ def build_prompt(spec, feedback=None):
 
 
 def implement(cfg, wt, spec, feedback, log):
-    """実装役を 1 回呼ぶ。使ったモデルを照合し、記録する（作業規約：model_pin）。"""
-    code, models, _ = run_agent(cfg["implementer"], wt, cfg["ttl_seconds"]["implementer"], "実装役",
-                                build_prompt(spec, feedback), log)
-    return code, models
+    """実装役を 1 回呼ぶ。使ったモデルを照合し、記録する（model_pin）。TTL 超過・起動の失敗は Infra（試行にも Gate 1 にも進めない）。"""
+    agent = cfg["implementer"]
+    code, out, err = proc.run(implementer_args(agent, proc.resolve_cli(agent["cli"])), wt,
+                              cfg["ttl_seconds"]["implementer"], "実装役", input=build_prompt(spec, feedback))
+    Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
+    if code in infra_retry.INFRA_EXIT_CODES:
+        raise Infra(f"実装役の CLI が終了コード {code}: {infra_retry.classify_exit(code, err)}")
+    used, why = model_pin.claude_models(out)
+    try:
+        return code, model_pin.check_claude(agent, used, why, "H ラインの実装役")
+    except model_pin.ModelPinError as e:
+        raise Infra(f"{e}（CLI: {str(json.loads(out).get('result', '') if why is None else why)[:200]}）")
 
 
 def gate(cfg, wt, paths, spec=None, task=None):
@@ -98,31 +108,52 @@ def run_task(cfg, tid, spec, outdir, first=None, task=None):
 
 def process(cfg, st, name):
     """待ちの What 1 件を、分解 → Gate A → 実装 → Gate 1 → 統合ブランチへ。積めたら True、未収束なら False。
-    環境の異常（Infra）では What を失わない：状態は processing のまま残り、次の起動が統合ブランチを見て済みか待ちに戻す。"""
+    環境の異常（Infra）は新しい作業ツリーで呼び直す（実装役の試行に数えない）。続けば What を待ちに戻し、infra_halt を立てて False。"""
     item = st["items"][name]
     what = what_path(cfg, name).read_text(encoding="utf-8")
     tid = f"{datetime.datetime.now():%Y%m%d-%H%M}-{slug(name)}"
     outdir = Path(cfg["out"]) / tid
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / "what.md").write_text(what, encoding="utf-8")
+    item.pop("infra_retries", None)
     item.update(status="processing", tid=tid)
     save_state(cfg, st)
     print(f"[{tid}] {item['title']}")
-    wt, branch = new_worktree(cfg, tid)
-    spec, item["decompose"] = decompose(cfg, wt, what, item, outdir)   # Gate A。適合しなければ実装役を呼ばない
-    tries = []
-    if spec is not None:
-        wt, branch, tries = run_task(cfg, tid, spec, outdir, (wt, branch), item["task"])
-    item["tries"] = tries
-    if spec is not None and wt is not None:
-        integrate(cfg, wt, name, item["title"], item["task"])
+
+    def attempt(n):   # 毎回、新しい作業ツリーから（分解役・実装役の試行の数えも 1 からやり直す）
+        try:
+            wt, branch = new_worktree(cfg, tid)
+            spec, item["decompose"] = decompose(cfg, wt, what, item, outdir)   # Gate A。適合しなければ実装役を呼ばない
+            item["tries"] = []
+            if spec is not None:
+                wt, branch, item["tries"] = run_task(cfg, tid, spec, outdir, (wt, branch), item["task"])
+            if spec is None or wt is None:
+                return False
+            integrate(cfg, wt, name, item["title"], item["task"])
+            return True
+        except Infra as e:   # 呼び直しのたびに記録を残す（待った秒数は retry の記録で置き換わる）
+            item.setdefault("infra_retries", []).append({"attempt": n, "reason": str(e), "wait": None})
+            save_state(cfg, st)
+            raise
+
+    ic = cfg["infra_retry"]
+    try:
+        done, records = infra_retry.retry(attempt, Infra, ic["max_retries"], ic["wait_seconds"], log=print)
+    except infra_retry.InfraExhausted as e:
+        item.update(status="waiting", infra_retries=e.records)
+        st["infra_halt"] = {"name": name, "reason": e.records[-1]["reason"], "attempts": len(e.records), "at": today()}
+        save_state(cfg, st)
+        return False
+    if records:
+        item["infra_retries"] = records
+    if done:
         item["status"] = "done"
     else:
         item.update(status="unconverged", at=today(), reason=item["decompose"]["reason"]
-                    or f"{len(tries)} 回の試行で Gate 1 に通らず、パッチを捨てた")
+                    or f"{len(item['tries'])} 回の試行で Gate 1 に通らず、パッチを捨てた")
         print(f"[{tid}] 収束しませんでした: {item['reason']}")
     save_state(cfg, st)
-    return item["status"] == "done"
+    return done
 
 
 # ============================================================ 走行
@@ -160,6 +191,8 @@ def open_integration_pr(cfg, st):
 def run_line(cfg):
     sweep(cfg)   # 前の走行の残骸の掃除。例外は出さず、戻り値も使わない（消せないものは次の起動で再び対象になる）
     st = load_state(cfg)
+    st["infra_halt"] = None   # 前の走行の停止は、次の走行の自動の再開を妨げない
+    save_state(cfg, st)
     fetch(cfg)
     recover(cfg, st, lambda n: integrated(cfg, n))
     if st["awaiting_pr"] and not settle_pr(cfg, st):
@@ -176,9 +209,15 @@ def run_line(cfg):
     save_state(cfg, st)
     unconverged = False
     while not blocked(cfg, st) and (name := next_runnable(st)):
-        unconverged |= not process(cfg, st, name)
+        ok = process(cfg, st, name)
         refresh(st)
         save_state(cfg, st)
+        if st["infra_halt"]:
+            break
+        unconverged |= not ok
+    if st["infra_halt"]:
+        write_report(cfg, st)
+        return 2
     if not blocked(cfg, st) and not by_status(st, "waiting") and not by_status(st, "processing"):
         open_integration_pr(cfg, st)
     elif blocked(cfg, st):

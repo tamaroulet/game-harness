@@ -1,5 +1,5 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: S2-1
+active_task_id: S2-2
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -552,7 +552,7 @@ tasks:
   title: インフラ例外の Outer-Loop（新しい作業ツリーで上限つき再試行。実装役の試行回数を消費しない）
   group: B7.2
   target_repo: game-harness
-  status: in_progress
+  status: completed
   verification:
     command: python -m unittest tests.test_infra_retry
     expected_exit_code: 0
@@ -560,7 +560,7 @@ tasks:
   title: Base 検査を合格済みタスクの --filter に一本化し、除外の JSON を全廃する
   group: B7.2
   target_repo: game-harness
-  status: pending
+  status: in_progress
   verification:
     command: python -m unittest tests.test_base_whitelist
     expected_exit_code: 0
@@ -645,6 +645,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: S1-4
+  task: S2-1
   exit_code: 0
-  at: '2026-10-04T16:01:52'
+  at: '2026-10-04T18:04:12'

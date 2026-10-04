@@ -26,6 +26,7 @@ import hline_git  # noqa: E402
 import hline_queue  # noqa: E402
 import hline_report  # noqa: E402
 import hline_spec  # noqa: E402
+import infra_retry  # noqa: E402
 import model_pin  # noqa: E402
 import progress  # noqa: E402
 import yaml  # noqa: E402
@@ -390,6 +391,8 @@ class World(unittest.TestCase):
         def forbidden(*a, **kw):
             raise AssertionError(f"実際の外部呼び出しが起きました: {a[:1]}")
 
+        self.slept = []
+        self.patch(infra_retry, "SLEEP", new=self.slept.append)   # 呼び直しの待ち時間は実際には待たない
         self.patch(hline.proc, "run", side_effect=forbidden)
         self.patch(hline.proc, "resolve_cli", side_effect=forbidden)
         self.patch(hline, "fetch")
@@ -719,11 +722,11 @@ class Crash(World):
 
     def test_an_environment_fault_keeps_the_what_and_the_next_run_takes_it_again(self):
         self.put("010-a")
-        with mock.patch.object(hline, "decompose", side_effect=hline.Infra("gh が落ちた")), \
-                self.assertRaises(hline.Infra):
-            self.poll()
+        with mock.patch.object(hline, "decompose", side_effect=hline.Infra("gh が落ちた")) as dec:
+            self.assertEqual(self.poll(), 2)
+        self.assertEqual(dec.call_count, 1 + CFG["infra_retry"]["max_retries"])   # 呼び直しの後に止まる
         self.assertTrue((self.out / "queue" / "010-a.md").exists())
-        self.assertEqual(self.status("010-a"), "processing")
+        self.assertEqual(self.status("010-a"), "waiting")
         self.assertFalse((self.inbox / ".hline.lock").exists())
         self.poll()
         self.assertEqual(self.decomposed, ["T-010-a"])
@@ -862,8 +865,8 @@ class AgentFlow(World):
             return 0, claude_json(json.dumps(SPEC), "claude-sonnet-5-5"), ""
 
         self.put("010-a")
-        with mock.patch.object(hline.proc, "run", side_effect=other_model), self.assertRaises(hline.Infra):
-            self.poll()
+        with mock.patch.object(hline.proc, "run", side_effect=other_model):
+            self.assertEqual(self.poll(), 2)
         self.assertTrue((self.out / "queue" / "010-a.md").exists())
         self.assertEqual(self.impl_inputs, [])
 
