@@ -15,6 +15,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 import hline  # noqa: E402
+import hline_base  # noqa: E402
 
 CFG = hline.load_config()
 
@@ -41,7 +42,9 @@ class Inbox(unittest.TestCase):
             lock = hline.acquire_lock(d, 100)
             self.assertIsNotNone(lock)
             self.assertIsNone(hline.acquire_lock(d, 100))
-            self.assertIsNotNone(hline.acquire_lock(d, 100, now=lock.stat().st_mtime + 101))
+            self.assertIsNone(hline.acquire_lock(d, 100, now=lock.stat().st_mtime + 101))   # 生きている持ち主は古くても奪わない
+            with mock.patch.object(hline_base, "process_token", return_value=None):   # 持ち主が死んだ
+                self.assertIsNotNone(hline.acquire_lock(d, 100))   # 更新時刻が新しくても取り直す
 
 
 class Gate(unittest.TestCase):

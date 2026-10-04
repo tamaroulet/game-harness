@@ -10,6 +10,7 @@
 import contextlib
 import io
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -22,6 +23,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 import hline  # noqa: E402
+import hline_base  # noqa: E402
 import hline_git  # noqa: E402
 import hline_queue  # noqa: E402
 import hline_report  # noqa: E402
@@ -740,14 +742,121 @@ class Crash(World):
 
 
 class Lock(unittest.TestCase):
-    def test_the_heartbeat_keeps_a_long_run_from_looking_stale(self):
+    def write_lock(self, d, body):
+        lock = Path(d) / ".hline.lock"
+        lock.write_text(body if isinstance(body, str) else json.dumps(body), encoding="utf-8")
+        return lock
+
+    def test_the_heartbeat_keeps_the_mtime_fresh_while_it_runs_and_stops_after(self):
         with tempfile.TemporaryDirectory() as d:
             lock = hline.acquire_lock(d, 0.5)
+            first = lock.stat().st_mtime
             with hline.heartbeat(lock, 0.1):
-                time.sleep(1.0)
+                time.sleep(0.5)
+                self.assertGreater(lock.stat().st_mtime, first)
                 self.assertIsNone(hline.acquire_lock(d, 0.5))
-            time.sleep(0.7)
-            self.assertIsNotNone(hline.acquire_lock(d, 0.5))
+            stopped = lock.stat().st_mtime
+            time.sleep(0.3)
+            self.assertEqual(lock.stat().st_mtime, stopped)
+            self.assertIsNone(hline.acquire_lock(d, 0.5, now=stopped + 1))   # 生きている持ち主は、古くなっても奪わない
+
+    def test_the_lock_body_is_one_json_object_of_the_owner(self):
+        with tempfile.TemporaryDirectory() as d:
+            record = hline_base.read_lock(hline.acquire_lock(d, 100))
+        self.assertEqual(record["pid"], os.getpid())
+        self.assertEqual(record["token"], hline_base.process_token(os.getpid()))
+        self.assertIn("created", record)
+
+    def test_a_dead_owner_is_replaced_at_once_even_with_a_fresh_mtime(self):
+        child = subprocess.Popen([sys.executable, "-c", "pass"])
+        child.wait()
+        for how in ("a real exited pid", "a token lookup that finds no process"):
+            with self.subTest(how), tempfile.TemporaryDirectory() as d:
+                lock = self.write_lock(d, {"pid": child.pid, "token": "x", "created": time.time()})
+                if how == "a real exited pid":
+                    got = hline.acquire_lock(d, 3600)
+                else:
+                    self.write_lock(d, {"pid": os.getpid(), "token": "x", "created": 0})
+                    with mock.patch.object(hline_base, "process_token", return_value=None):
+                        got = hline.acquire_lock(d, 3600)
+                self.assertEqual(got, lock)
+                self.assertEqual(hline_base.read_lock(lock)["pid"], os.getpid())
+
+    def test_poll_runs_the_line_over_the_lock_of_a_dead_owner(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = json.loads(json.dumps(CFG))
+            cfg["inbox"] = d
+            self.write_lock(d, {"pid": os.getpid(), "token": "x", "created": time.time()})
+            with mock.patch.object(hline_base, "process_token", return_value=None), \
+                    mock.patch.object(hline, "run_line", return_value=0) as run:
+                self.assertEqual(quiet(hline.poll, cfg), 0)
+            run.assert_called_once()
+            self.assertFalse((Path(d) / ".hline.lock").exists())
+
+    def test_a_live_owner_keeps_the_lock_even_when_it_is_older_than_the_expiry(self):
+        with tempfile.TemporaryDirectory() as d:
+            lock = hline.acquire_lock(d, 10)
+            self.assertIsNone(hline.acquire_lock(d, 10, now=lock.stat().st_mtime + 11))
+
+    def test_a_reused_pid_is_a_dead_owner(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.write_lock(d, {"pid": os.getpid(), "token": "someone-else", "created": time.time()})
+            self.assertEqual(hline_base.owner_state(hline_base.read_lock(Path(d) / ".hline.lock")), "dead")
+            self.assertIsNotNone(hline.acquire_lock(d, 3600))
+
+    def test_a_lock_that_cannot_be_read_falls_back_to_the_time_rule(self):
+        bodies = {"old format": "9999", "empty": "", "broken json": "{\"pid\": ", "array": "[1, 2]", "number": "42"}
+        for name, body in bodies.items():
+            with self.subTest(name, case="fresh"), tempfile.TemporaryDirectory() as d:
+                lock = self.write_lock(d, body)
+                self.assertIsNone(hline.acquire_lock(d, 100, now=lock.stat().st_mtime + 1))
+            with self.subTest(name, case="expired"), tempfile.TemporaryDirectory() as d:
+                lock = self.write_lock(d, body)
+                self.assertIsNotNone(hline.acquire_lock(d, 100, now=lock.stat().st_mtime + 101))
+
+    def test_an_unknown_token_is_not_a_reason_to_take_the_lock(self):
+        with tempfile.TemporaryDirectory() as d:
+            lock = self.write_lock(d, {"pid": os.getpid(), "token": "x", "created": 0})
+            with mock.patch.object(hline_base, "process_token", return_value=hline_base.UNKNOWN_TOKEN):
+                self.assertIsNone(hline.acquire_lock(d, 100, now=lock.stat().st_mtime + 1))
+                self.assertIsNotNone(hline.acquire_lock(d, 100, now=lock.stat().st_mtime + 101))
+
+    def test_owner_state_of_a_record_that_has_no_usable_pid_or_token_is_unknown(self):
+        for record in (None, [], "1", {}, {"pid": "1", "token": "x"}, {"pid": True, "token": "x"}, {"pid": 1.5}):
+            with self.subTest(record=record), mock.patch.object(hline_base, "process_token", return_value="x"):
+                self.assertEqual(hline_base.owner_state(record), "unknown")
+        with mock.patch.object(hline_base, "process_token", return_value="x"):
+            self.assertEqual(hline_base.owner_state({"pid": 1}), "unknown")
+            self.assertEqual(hline_base.owner_state({"pid": 1, "token": 5}), "unknown")
+            self.assertEqual(hline_base.owner_state({"pid": 1, "token": "x"}), "alive")
+
+    def test_process_token_of_this_process_is_stable_and_an_exited_one_is_none(self):
+        if sys.platform != "win32" and not sys.platform.startswith("linux"):
+            self.skipTest("識別子を取れないプラットフォーム")
+        mine = hline_base.process_token(os.getpid())
+        self.assertIsInstance(mine, str)
+        self.assertNotEqual(mine, hline_base.UNKNOWN_TOKEN)
+        self.assertEqual(mine, hline_base.process_token(os.getpid()))
+        child = subprocess.Popen([sys.executable, "-c", "pass"])
+        child.wait()
+        self.assertIsNone(hline_base.process_token(child.pid))
+
+    def test_process_token_reads_starttime_from_proc_stat_on_linux(self):
+        stat = "5 (a) b) S " + "0 " * 18 + "424242 0 0"
+        with mock.patch.object(hline_base.sys, "platform", "linux"), \
+                mock.patch.object(hline_base.Path, "read_text", return_value=stat):
+            self.assertEqual(hline_base.process_token(5), "424242")
+        with mock.patch.object(hline_base.sys, "platform", "linux"):
+            with mock.patch.object(hline_base.Path, "read_text", side_effect=FileNotFoundError):
+                self.assertIsNone(hline_base.process_token(5))
+            with mock.patch.object(hline_base.Path, "read_text", side_effect=PermissionError):
+                self.assertEqual(hline_base.process_token(5), hline_base.UNKNOWN_TOKEN)
+            with mock.patch.object(hline_base.Path, "read_text", return_value="garbage"):
+                self.assertEqual(hline_base.process_token(5), hline_base.UNKNOWN_TOKEN)
+
+    def test_process_token_is_unknown_on_other_platforms(self):
+        with mock.patch.object(hline_base.sys, "platform", "darwin"):
+            self.assertEqual(hline_base.process_token(os.getpid()), hline_base.UNKNOWN_TOKEN)
 
     def test_a_second_start_while_the_run_exceeds_lock_stale_does_not_run_twice(self):
         with tempfile.TemporaryDirectory() as d:
