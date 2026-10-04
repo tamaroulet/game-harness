@@ -28,7 +28,8 @@ import model_pin  # noqa: E402
 import proc  # noqa: E402,F401  テストが hline.proc を差し替える
 import progress  # noqa: E402
 from hline_base import (CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args,  # noqa: E402,F401
-                        load_config, must, run_agent, slug, title_of)
+                        load_config, must, pinned_models, run_agent, slug, title_of)
+from hline_budget import usage  # noqa: E402
 from hline_gc import sweep  # noqa: E402
 from hline_git import (ahead, changed_paths, create_pr, drop_merged_branch, fetch, implementer_room,  # noqa: E402,F401
                        integrate, integrated, new_worktree, open_pr, pr_state)
@@ -65,11 +66,7 @@ def implement(cfg, wt, spec, feedback, log):
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
     if code in infra_retry.INFRA_EXIT_CODES:
         raise Infra(f"実装役の CLI が終了コード {code}: {infra_retry.classify_exit(code, err)}")
-    used, why = model_pin.claude_models(out)
-    try:
-        return code, model_pin.check_claude(agent, used, why, "H ラインの実装役")
-    except model_pin.ModelPinError as e:
-        raise Infra(f"{e}（CLI: {str(json.loads(out).get('result', '') if why is None else why)[:200]}）")
+    return code, pinned_models(agent, out, "実装役"), usage(out)
 
 
 def gate(cfg, wt, paths, spec=None, task=None):
@@ -116,9 +113,10 @@ def run_task(cfg, tid, spec, outdir, first=None, task=None):
         feedback = None
         for attempt in range(1, cfg["max_attempts"] + 1):
             log = outdir / f"implementer-{run}-{attempt}.log"
-            code, models = implement(cfg, wt, spec, feedback, log)
+            code, models, *rest = implement(cfg, wt, spec, feedback, log)   # rest は利用量（無い呼び手は None）
             ok, feedback = gate(cfg, wt, changed_paths(wt, cfg), spec, task)
-            tries.append({"run": run, "attempt": attempt, "cli_exit": code, "models": models, "gate": ok})
+            tries.append({"run": run, "attempt": attempt, "cli_exit": code, "models": models, "gate": ok,
+                          "usage": rest[0] if rest else None})
             (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
             if ok:
                 return wt, branch, tries

@@ -105,16 +105,19 @@ def implementer_args(agent, cli):
             + agent["extra_flags"] + agent["output_format_args"])
 
 
+def pinned_models(agent, out, label):
+    used, why = model_pin.claude_models(out)
+    try:
+        return model_pin.check_claude(agent, used, why, f"H ラインの{label}")
+    except model_pin.ModelPinError as e:   # 認証切れなどもここに来る。CLI の結果の文を添える
+        detail = json.loads(out).get("result", "") if why is None else why
+        raise Infra(f"{e}（CLI: {str(detail)[:200]}）")
+
+
 def run_agent(agent, wt, ttl, label, prompt, log):
     """エージェント（実装役・分解役）を 1 回呼び、使ったモデルを照合して記録する（作業規約：model_pin）。
     (CLI の終了コード, 使われたモデルの列, CLI の標準出力)。"""
     args = implementer_args(agent, proc.resolve_cli(agent["cli"]))
     code, out, err = proc.run(args, wt, ttl, label, input=prompt)
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
-    used, why = model_pin.claude_models(out)
-    try:
-        models = model_pin.check_claude(agent, used, why, f"H ラインの{label}")
-    except model_pin.ModelPinError as e:   # 認証切れなどもここに来る。CLI の結果の文を添える
-        detail = json.loads(out).get("result", "") if why is None else why
-        raise Infra(f"{e}（CLI: {str(detail)[:200]}）")
-    return code, models, out
+    return code, pinned_models(agent, out, label), out

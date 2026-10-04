@@ -6,10 +6,12 @@ TaskSpec だけを渡し、適合しなければ実装役を呼ばない（Gate 
 スキーマは config/taskspec.schema.json。検証器は標準ライブラリだけで書いた最小のもの（使うキーワードだけ）。
 """
 import fnmatch
+import hashlib
 import json
 from pathlib import Path
 
-from hline_base import ROOT, must, run_agent, write_json  # isort: skip（harness/ を import の道に足す）
+from hline_base import ROOT, must, pinned_models, write_json  # isort: skip（harness/ を import の道に足す）
+from hline_budget import call, limits  # noqa: E402
 
 import progress  # noqa: E402
 
@@ -104,27 +106,60 @@ def extract_json(text):
     return None, f"JSON として読めません: {why}"
 
 
+def spec_cache_path(cfg, what):
+    return Path(cfg["out"]) / "specs" / f"{hashlib.sha256(what.encode('utf-8')).hexdigest()}.json"
+
+
+def save_spec(cfg, what, spec):
+    path = spec_cache_path(cfg, what)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(path, {"what_sha256": path.stem, "spec": spec})
+    return path
+
+
+def load_spec(cfg, what, schema, command=None):
+    """保存した TaskSpec。What の本文のハッシュが一致し、Gate A に適合するときだけ。それ以外は None（例外は出さない）。"""
+    path = spec_cache_path(cfg, what)
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        spec = doc["spec"]
+        return spec if doc["what_sha256"] == path.stem and not gate_a(schema, spec, command) else None
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def decompose(cfg, wt, what, meta, outdir):
-    """分解役を呼んで TaskSpec にする。(TaskSpec か None, 記録)。スキーマに適合しなければ、違反を返してやり直し（上限つき）、
-    それでも適合しなければ None を返す。None のときは実装役を呼ばない。"""
-    schema, command, record = load_schema(cfg), None, {"attempts": [], "reason": None}
+    """保存した TaskSpec があれば再利用し、無ければ分解役で作る。(TaskSpec か None, 記録)。不適合・打ち切りは理由を返してやり直し、
+    上限を使い切っても駄目なら None（実装役を呼ばない）。"""
+    schema, command, record = load_schema(cfg), None, {"attempts": [], "reused": False, "reason": None}
     if meta["task"]:
         v = verification_of(wt, meta["task"])
         if not v:
             record["reason"] = f"進捗のタスク {meta['task']} の検証コマンドが見つかりません"
             return None, record
         command = v["command"]
+    agent, lim = cfg["decomposer"], limits(cfg["decomposer"])
+    spec = load_spec(cfg, what, schema, command)
+    if spec is not None:
+        write_json(Path(outdir) / "taskspec.json", spec)
+        return spec, dict(record, reused=True)
     problems = None
     for n in range(1, 2 + cfg["spec_retries"]):
-        code, models, out = run_agent(cfg["decomposer"], wt, cfg["ttl_seconds"]["decomposer"], "分解役",
-                                      decompose_prompt(what, meta, schema, command, problems),
-                                      Path(outdir) / f"decomposer-{n}.log")
+        code, out, cut, use = call(agent, wt, cfg["ttl_seconds"]["decomposer"], "分解役",
+                                   decompose_prompt(what, meta, schema, command, problems),
+                                   Path(outdir) / f"decomposer-{n}.log", lim)
+        if cut:   # 打ち切られた出力は Gate A の不適合と同じに扱う（モデルの照合はしない）
+            problems = [cut]
+            record["attempts"].append({"attempt": n, "cli_exit": code, "models": [], "valid": False, "cutoff": cut, "usage": use})
+            continue
+        models = pinned_models(agent, out, "分解役")
         result = json.loads(out).get("result")
         spec, why = extract_json(result if isinstance(result, str) else "")
         problems = [why] if why else gate_a(schema, spec, command)
-        record["attempts"].append({"attempt": n, "cli_exit": code, "models": models, "valid": not problems})
+        record["attempts"].append({"attempt": n, "cli_exit": code, "models": models, "valid": not problems, "usage": use})
         if not problems:
             write_json(Path(outdir) / "taskspec.json", spec)
+            save_spec(cfg, what, spec)
             return spec, record
     record["reason"] = "TaskSpec がスキーマに適合しません: " + " / ".join(problems)
     return None, record

@@ -85,7 +85,7 @@ class Implementer(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d, \
                 mock.patch.object(hline.proc, "resolve_cli", return_value=["claude"]), \
                 mock.patch.object(hline.proc, "run", return_value=(0, out, "")) as run:
-            code, models = hline.implement(CFG, Path(d), "# 題", "前回の出力", Path(d) / "log")
+            code, models, _ = hline.implement(CFG, Path(d), "# 題", "前回の出力", Path(d) / "log")
         self.assertEqual(models, ["claude-haiku-4-5", "claude-sonnet-5-5"])
         prompt = run.call_args.kwargs["input"]
         self.assertIn("# 題", prompt)
@@ -117,7 +117,7 @@ class Retries(unittest.TestCase):
         verdicts = iter(verdicts)
         with tempfile.TemporaryDirectory() as d, \
                 mock.patch.object(hline, "new_worktree", side_effect=lambda c, t: (Path(d), "b")) as wt, \
-                mock.patch.object(hline, "implement", return_value=(0, ["m"])), \
+                mock.patch.object(hline, "implement", return_value=(0, ["m"], {})), \
                 mock.patch.object(hline, "changed_paths", return_value=["harness/x.py"]), \
                 mock.patch.object(hline, "gate", side_effect=lambda c, w, p, *rest: (next(verdicts), "out")):
             got = hline.run_task(CFG, "t", "# x", Path(d))
