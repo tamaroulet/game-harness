@@ -3,6 +3,7 @@ harness.hline を import しない（循環を作らない）。依存は第 1 �
 import json
 from pathlib import Path
 
+import hline_abort
 import impacted
 import infra_retry
 from hline_base import Infra
@@ -19,6 +20,7 @@ def build_prompt(spec, feedback=None, symbol_map=None):
          "- タスク個別の検証（test_oracle の verification_command。無ければ自分が書いた tests/ のテスト）を手元で走らせて通す。"
          "全件テストはハーネスが走らせるので、自分では走らせない。既存のテストを壊さない",
          "- 全件テストはモジュールごとに別のプロセスで並列に走る。tests/ に書くテストは、固定の一時ディレクトリ・固定のポート・走る順番に依らせない",
+         hline_abort.instructions(),
          *(["", symbol_map] if symbol_map else []),   # 目次は最初の区切りの前に置く（区切りの後は TaskSpec の JSON だけ）
          "", "---", json.dumps(spec, ensure_ascii=False, indent=2)]
     if feedback:

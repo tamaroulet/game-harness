@@ -21,6 +21,7 @@ def failure_summary(cfg, outdir, tries, prev=None):
     p = ["## Gate 1 の出力（最後の試行。編集境界の違反を含む）",
          _tail(Path(outdir) / f"gate-{where}.log", n) if where else NO_RECORD, "",
          "## 実装役の終了コード", str(last["cli_exit"]) if last else NO_RECORD, "",
+         *(["## 打ち切り・断念の理由（Gate 1 を呼ばずに止めた）", str(last["abort"]), ""] if last and last.get("abort") else []),
          "## 実装役のログの末尾",
          _tail(Path(outdir) / f"implementer-{where}.log", n) if where else NO_RECORD]
     if prev:

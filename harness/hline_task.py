@@ -4,9 +4,15 @@ import datetime
 from pathlib import Path
 
 import fastsuite
+import hline_abort
 import infra_retry
 from hline_base import Infra
 from hline_budget import attempt_record, with_cutoff
+
+
+def digest_of(cfg, wt):
+    """作業ツリーの差分の digest。git の作業ツリーでない（.git が無い）ときは None で、同じ差分の判定はしない。"""
+    return hline_abort.patch_digest(wt, cfg["ttl_seconds"]["git"]) if (Path(wt) / ".git").exists() else None
 
 
 def run_task(host, cfg, tid, spec, outdir, first=None, task=None, on_stage=None, run=0):
@@ -17,11 +23,18 @@ def run_task(host, cfg, tid, spec, outdir, first=None, task=None, on_stage=None,
     ok, out = host.base_check(cfg, wt)
     if not ok:   # 実装の前から合格済みのテストが落ちている。作業ツリーを替えて呼び直す（試行に数えない）
         raise Infra(f"base（実装前）で合格済みのタスクのテストが落ちています: {out[-500:]}")
-    feedback = None
+    feedback = prev = None
     for attempt in range(1, cfg["max_attempts"] + 1):
         log = outdir / f"implementer-{run}-{attempt}.log"
         on_stage(f"実装 {run + 1}-{attempt}")
         code, models, *rest = host.implement(cfg, wt, spec, with_cutoff(tries and tries[-1]["cutoff"], feedback), log)   # rest は利用量・打ち切りの理由・ターン数
+        digest = digest_of(cfg, wt)
+        why = hline_abort.abort_reason(log, digest, prev)   # 断念・同じ差分の繰り返しは Gate 1 を呼ばずに打ち切る
+        prev = digest
+        if why is not None:
+            tries.append({**attempt_record(run, attempt, code, models, False, rest), "flaky": [], "abort": why})
+            (outdir / f"gate-{run}-{attempt}.log").write_text(f"Gate 1 は呼ばず、試行を打ち切りました: {why}\n", encoding="utf-8")
+            return None, None, tries
         on_stage(f"Gate 1 {run + 1}-{attempt}")
         ok, feedback = host.gate(cfg, wt, host.changed_paths(wt, cfg), spec, task)
         tries.append({**attempt_record(run, attempt, code, models, ok, rest), "flaky": list(fastsuite.flaky_names(feedback))})
@@ -29,6 +42,12 @@ def run_task(host, cfg, tid, spec, outdir, first=None, task=None, on_stage=None,
         if ok:
             return wt, branch, tries
     return None, None, tries
+
+
+def unconverged(item):
+    """収束しなかった What の理由：再分解・分解の Gate A の理由、無ければ最後の試行の打ち切り・断念の理由、無ければ試行の回数。"""
+    return ((item["respec"] or {}).get("reason") or item["decompose"]["reason"] or hline_abort.unconverged_reason(item["tries"])
+            or f"{len(item['tries'])} 回の試行で Gate 1 に通らず、パッチを捨てた")
 
 
 def process(host, cfg, st, name):
@@ -84,8 +103,7 @@ def process(host, cfg, st, name):
     if done:
         item["status"] = "done"
     else:
-        item.update(status="unconverged", at=host.today(), reason=(item["respec"] or {}).get("reason") or item["decompose"]["reason"]
-                    or f"{len(item['tries'])} 回の試行で Gate 1 に通らず、パッチを捨てた")
+        item.update(status="unconverged", at=host.today(), reason=unconverged(item))
         print(f"[{tid}] 収束しませんでした: {item['reason']}")
     host.mark(cfg, st, name)
     return done
