@@ -64,6 +64,11 @@ def stage_note(item):
     return f"（段階: {item.get('stage') or '不明'}／開始: {item.get('started_at') or '不明'}）"
 
 
+def flaky_tests(item):
+    """項目の試行の記録に残った、並列で落ちて単独で通ったテストの名前（現れた順・重複なし）。古い記録には無い。"""
+    return list(dict.fromkeys(n for t in item.get("tries", []) for n in t.get("flaky") or []))
+
+
 def h_section(cfg, st):
     items = st["items"]
 
@@ -77,6 +82,9 @@ def h_section(cfg, st):
              f"- 統合 PR: {st['awaiting_pr'] or 'なし'}", "", "## キュー",
              row("済み", "done"), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
              row("未収束", "unconverged", lambda i: f"（{i.get('reason', '')}）"), row("凍結", "frozen", frozen)]
+    flaky = [f"- {n}: {', '.join(flaky_tests(i))}" for n, i in sorted(items.items()) if flaky_tests(i)]
+    if flaky:
+        lines += ["", "## 揺れたテスト（並列で落ち、単独で通った）"] + flaky
     if st.get("self_change"):
         lines += ["", f"- ライン自身の変更を積んだので走行を区切った（積んだ What: {st['self_change']['name']}）"]
     if st["skipped"]:
@@ -153,8 +161,10 @@ def item_section(cfg, name, item, with_spec):
         spec = "（本文の上限のため省略。走行の記録の taskspec.json にある）"
     elif spec_file.exists():
         spec = spec_file.read_text(encoding="utf-8").strip()
+    flaky = flaky_tests(item)
+    flaky_line = f"- 揺れたテスト（並列で落ち、単独で通った）: {', '.join(flaky)}\n" if flaky else ""
     return (f"### {item['title']}（{name}）\n\n- 進捗のタスク: {item.get('task') or 'なし'}／マイルストーン: {item['milestone']}\n"
-            f"- 分解役: {len(dec)} 回の試行（Gate A）／使われたモデル: {', '.join(models)}\n\n"
+            f"- 分解役: {len(dec)} 回の試行（Gate A）／使われたモデル: {', '.join(models)}\n{flaky_line}\n"
             "| 作業ツリー | 試行 | CLI の終了コード | 使われたモデル | Gate 1 |\n|:--|:--|:--|:--|:--|\n"
             f"{tries}\n\n<details><summary>TaskSpec</summary>\n\n```json\n{spec}\n```\n\n</details>\n")
 

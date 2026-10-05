@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
-import base_whitelist  # noqa: E402
+import base_whitelist, fastsuite  # noqa: E402
 import gate_order  # noqa: E402
 import infra_retry  # noqa: E402
 import model_pin  # noqa: E402
@@ -126,7 +126,7 @@ def run_task(cfg, tid, spec, outdir, first=None, task=None, on_stage=None, run=0
         code, models, *rest = implement(cfg, wt, spec, with_cutoff(tries and tries[-1]["cutoff"], feedback), log)   # rest は利用量・打ち切りの理由・ターン数
         on_stage(f"Gate 1 {run + 1}-{attempt}")
         ok, feedback = gate(cfg, wt, changed_paths(wt, cfg), spec, task)
-        tries.append(attempt_record(run, attempt, code, models, ok, rest))
+        tries.append({**attempt_record(run, attempt, code, models, ok, rest), "flaky": list(fastsuite.flaky_names(feedback))})
         (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
         if ok:
             return wt, branch, tries

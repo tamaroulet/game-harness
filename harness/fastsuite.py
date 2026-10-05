@@ -15,6 +15,8 @@ from queue import Queue
 
 _RAN = re.compile(r"\bRan (\d+) tests?\b")
 _MODULE = re.compile(r"[A-Za-z_]\w*(\.[A-Za-z_]\w*)*")
+_FAILED = re.compile(r"^(?:FAIL|ERROR): (\S.*?)[ \t\r]*$", re.MULTILINE)
+FLAKY_PREFIX = "並列で落ちて単独で通ったテスト: "
 
 
 def discover(start_dir):
@@ -81,13 +83,37 @@ def run(modules, jobs=None, root=".", timeout=None):
         return [futures[i].result() for i in range(len(modules))]
 
 
-def report(results, seconds):
-    """(終了コード, 本文)。落ちたモジュールの出力を丸ごと入れ、総数・落ちた一覧・秒数を足す。"""
+def failed_tests(output):
+    """unittest の出力の `FAIL: ` `ERROR: ` の行の後ろの名前を、現れた順・重複なしで。"""
+    return tuple(dict.fromkeys(m.group(1) for m in _FAILED.finditer(output or "")))
+
+
+def recheck(results, root, timeout):
+    """落ちたモジュールだけを、並列にせず 1 回だけ走らせ直す。(置き換えた結果のリスト, 並列で落ちて単独で通ったテストの名前)。"""
+    bad = [r["module"] for r in results if r["code"] != 0]
+    if not bad:
+        return list(results), ()
+    again, flaky = {r["module"]: r for r in run(bad, 1, root, timeout)}, []
+    for r in results:
+        if r["module"] in again and again[r["module"]]["code"] == 0:
+            flaky += failed_tests(r["output"]) or (r["module"],)
+    return [again.get(r["module"], r) for r in results], tuple(dict.fromkeys(flaky))
+
+
+def flaky_names(text):
+    """report が作った本文（の一部）から、FLAKY_PREFIX の行の名前を取り出す。"""
+    names = [n.strip() for line in (text or "").splitlines() if line.startswith(FLAKY_PREFIX) for n in line[len(FLAKY_PREFIX):].split(", ")]
+    return tuple(dict.fromkeys(n for n in names if n))
+
+
+def report(results, seconds, flaky=()):
+    """(終了コード, 本文)。落ちたモジュールの出力を丸ごと入れ、総数・落ちた一覧・秒数を足す。flaky は終了コードに効かない。"""
     failed = [r for r in results if r["code"] != 0]
     parts = [f"===== 失敗: {r['module']}（終了コード {r['code']}）=====\n{r['output']}" for r in failed]
     parts += [f"走ったテスト: {sum(r['ran'] for r in results)} 件（{len(results)} モジュール）",
-              "落ちたモジュール: " + (", ".join(r["module"] for r in failed) or "なし"), f"壁時計: {seconds:.1f} 秒"]
-    return (1 if failed else 0), "\n".join(parts)
+              "落ちたモジュール: " + (", ".join(r["module"] for r in failed) or "なし")]
+    parts += [FLAKY_PREFIX + ", ".join(flaky)] if flaky else []
+    return (1 if failed else 0), "\n".join(parts + [f"壁時計: {seconds:.1f} 秒"])
 
 
 def _parse(argv):
@@ -118,7 +144,8 @@ def main(argv=None):
         print(e, file=sys.stderr)
         return 2
     started = time.monotonic()
-    code, body = report(run(modules, jobs, Path.cwd()), time.monotonic() - started)
+    results, flaky = recheck(run(modules, jobs, Path.cwd()), Path.cwd(), None)
+    code, body = report(results, time.monotonic() - started, flaky)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
     print(body)

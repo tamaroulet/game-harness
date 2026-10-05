@@ -141,7 +141,13 @@ class Boundary(unittest.TestCase):
         for codes, want in (((0, 0), 0), ((0, 1), 1)):
             with mock.patch.object(fs, "run", return_value=[result(n, c) for n, c in zip(NAMES, codes)]) as run, mock.patch("builtins.print"):
                 self.assertEqual(fs.main(["tests.test_a", "tests.test_b", "-j", "2"]), want)
-            self.assertEqual((list(run.call_args.args[0]), run.call_args.args[1]), (["tests.test_a", "tests.test_b"], 2))
+            first = run.call_args_list[0]
+            self.assertEqual((list(first.args[0]), first.args[1]), (["tests.test_a", "tests.test_b"], 2))
+            if want:   # 落ちたら、落ちたモジュールだけを単独で 1 回走らせ直す
+                self.assertEqual(run.call_count, 2)
+                self.assertEqual((list(run.call_args_list[1].args[0]), run.call_args_list[1].args[1]), (["tests.test_b"], 1))
+            else:
+                self.assertEqual(run.call_count, 1)
 
     def test_main_runs_a_real_module_in_a_child_process_and_prints_the_body(self):
         with mock.patch.object(Path, "cwd", return_value=ROOT), mock.patch("sys.stdout", new_callable=io.StringIO) as out:
