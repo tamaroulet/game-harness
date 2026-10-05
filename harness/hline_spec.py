@@ -159,7 +159,7 @@ def decompose(cfg, wt, what, meta, outdir, failure=None, tag="decomposer"):
     for n in range(1, 2 + cfg["spec_retries"]):
         code, out, cut, use = call(agent, wt, cfg["ttl_seconds"]["decomposer"], "分解役",
                                    decompose_prompt(what, meta, schema, command, problems, cutoff, read,
-                                                    symbol_map=symbolmap.prompt_text(cfg, wt), failure=failure),   # 毎回その場で作り直す
+                                                    symbol_map=symbolmap.prompt_text(cfg, wt, what=what), failure=failure),   # 毎回その場で作り直す
                                    Path(outdir) / f"{tag}-{n}.log", lim)
         if cut:   # 打ち切られた出力は Gate A の不適合と同じに扱う（モデルの照合はしない）
             problems, cutoff, read = [cut], cut, read_files(out)

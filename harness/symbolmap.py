@@ -1,11 +1,13 @@
 """リポジトリの目次。分解役・実装役が探索でターンを使い切らないよう、作業ツリーからその場で作って渡す。
 読み取りだけ（ast・pathlib）。子プロセス・ネットワーク・モデルは呼ばず、hline.py・hline_spec.py は import しない。"""
 import ast
+import re
 from pathlib import Path
 
 from hline_base import Infra  # isort: skip（harness/ を import の道に足す）
 
 HEAD = "# リポジトリの目次（harness/ のモジュール・クラス・関数。引数・行番号・import しているテストつき）"
+DOC_HEAD = "# 関係しそうなモジュールの説明（モジュール先頭の docstring）"
 NOTES = ("（引数を省いて縮めました）", "（引数とメソッドを省いて縮めました）")
 CUT = "…（長すぎるため以降を切り落としました）"
 DEFS = (ast.FunctionDef, ast.AsyncFunctionDef)
@@ -35,14 +37,14 @@ def _tree(source):
 
 
 def module_index(source, path):
-    """モジュール 1 つの目次。構文の誤りがあるときだけ None。"""
+    """モジュール 1 つの目次（doc は先頭の docstring か None）。構文の誤りがあるときだけ None。"""
     tree = _tree(source)
     if tree is None:
         return None
     classes = [{"name": c.name, "lineno": c.lineno, "methods": [_func(m) for m in c.body if isinstance(m, DEFS)]}
                for c in tree.body if isinstance(c, ast.ClassDef)]
     return {"path": str(path).replace("\\", "/"), "classes": classes,
-            "functions": [_func(f) for f in tree.body if isinstance(f, DEFS)], "tests": []}
+            "functions": [_func(f) for f in tree.body if isinstance(f, DEFS)], "tests": [], "doc": ast.get_docstring(tree)}
 
 
 def _imported(tree):
@@ -94,6 +96,50 @@ def spec_modules(spec):
     return tuple(dict.fromkeys(mods))
 
 
+def mentioned_modules(text, index):
+    """text にパス（/ 区切り。\\ 区切りも同じ）かファイル名が現れる index のモジュール（index の順・重複なし）。"""
+    text = text.replace("\\", "/")
+    def named(s):
+        return re.search(r"(?<![A-Za-z0-9_])" + re.escape(s) + r"(?![A-Za-z0-9_])", text)
+    return tuple(p for p in index.get("modules", {}) if named(p) or named(p.rsplit("/", 1)[-1]))
+
+
+def imported_modules(root, paths, index):
+    """paths のファイルが import している index のモジュール（1 段だけ。index の順・重複なし）。読めない・構文の誤りは飛ばす。"""
+    known, found = index.get("modules", {}), set()
+    for rel in paths:
+        try:
+            tree = _tree((Path(root) / rel).read_text(encoding="utf-8-sig", errors="replace"))
+        except OSError:
+            continue
+        for name in _imported(tree or ast.Module([], [])):
+            stem = "harness/" + name.removeprefix("harness.").replace(".", "/")
+            found.update(p for p in (stem + ".py", stem + "/__init__.py") if p in known)
+    return tuple(p for p in known if p in found)
+
+
+def candidate_modules(text, root, index):
+    """text が挙げたモジュールと、それらが import しているモジュール（1 段だけ。index の順・重複なし）。"""
+    mentioned = mentioned_modules(text, index)
+    want = set(mentioned) | set(imported_modules(root, mentioned, index))
+    return tuple(p for p in index.get("modules", {}) if p in want)
+
+
+def docs_text(index, paths, max_chars):
+    """paths のモジュールの docstring の節（max_chars を超えない）。入り切らないモジュールは末尾から落とし、最後の行で知らせる。"""
+    mods = index.get("modules", {})
+    docs = [(p, mods[p]["doc"]) for p in dict.fromkeys(paths) if p in mods and mods[p].get("doc")]
+    if max_chars < 1 or not docs:
+        return ""
+    parts = [f"## {p}\n{d}" for p, d in docs]
+    text = "\n\n".join([DOC_HEAD] + parts)
+    if len(text) <= max_chars:
+        return text
+    while parts and len("\n\n".join([DOC_HEAD] + parts) + "\n" + CUT) > max_chars:
+        parts.pop()
+    return "\n\n".join([DOC_HEAD] + parts) + "\n" + CUT if len(DOC_HEAD) + 1 + len(CUT) <= max_chars else CUT[:max_chars]
+
+
 def _line(f, level, pad):
     params = "..." if level else ", ".join(f["params"])
     return f"{pad}def {f['name']}({params})" + (f" -> {f['returns']}" if f["returns"] else "") + f"  L{f['lineno']}"
@@ -126,11 +172,14 @@ def limit(cfg):
     return v
 
 
-def prompt_text(cfg, wt, modules=None):
-    """作業ツリー wt からその場で作った目次の文字列（modules があればそれだけ）。作れなければ空文字列で、呼び手は止まらない。"""
+def prompt_text(cfg, wt, modules=None, what=None):
+    """作業ツリー wt からその場で作った目次の文字列（modules があればそれだけ）。what があれば、それが挙げたモジュール
+    （と import 先）の docstring の節（上限の 3 分の 1 まで）を前に添える。作れなければ空文字列で、呼び手は止まらない。"""
     try:
-        index = build(wt)
-        return render(index if modules is None else for_modules(index, modules), limit(cfg))
+        index, size = build(wt), limit(cfg)
+        shown = index if modules is None else for_modules(index, modules)
+        docs = docs_text(index, candidate_modules(what, wt, index), size // 3) if what else ""
+        return docs + "\n\n" + render(shown, size - len(docs) - 2) if docs else render(shown, size)
     except Infra:
         raise
     except Exception:  # noqa: BLE001 - 目次が作れなくても、分解役・実装役は呼ぶ

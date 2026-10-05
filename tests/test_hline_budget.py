@@ -29,9 +29,9 @@ def good(spec=SPEC):
 
 class Pure(unittest.TestCase):
     def test_limits_args_env_and_ttl_follow_the_config(self):
-        self.assertEqual(LIM, {"max_thinking_tokens": 6000, "max_turns": 30, "timeout_seconds": 300})
+        self.assertEqual(LIM, {"max_thinking_tokens": 6000, "max_turns": LIM["max_turns"], "timeout_seconds": 300})
         args = hb.agent_args(CFG["decomposer"], ["claude"], LIM)
-        self.assertEqual(args[-2:], ["--max-turns", "30"])
+        self.assertEqual(args[-2:], ["--max-turns", str(LIM["max_turns"])])
         self.assertEqual(args[:-2], hline.implementer_args(CFG["decomposer"], ["claude"]))
         given, before = {"A": "1"}, dict(os.environ)
         self.assertEqual(hb.agent_env(LIM, given), {"A": "1", "MAX_THINKING_TOKENS": "6000"})
@@ -45,10 +45,10 @@ class Pure(unittest.TestCase):
 
     def test_cutoff_reason(self):
         self.assertIn("300", hb.cutoff_reason(124, "", LIM))
-        for out in (json.dumps({"subtype": "error_max_turns"}), json.dumps({"num_turns": 30}),
+        for out in (json.dumps({"subtype": "error_max_turns"}), json.dumps({"num_turns": LIM["max_turns"]}),
                     json.dumps({"is_error": True, "subtype": "x_max_turns"})):
-            self.assertIn("30", hb.cutoff_reason(0, out, LIM))
-        for out in (json.dumps({"result": "x"}), json.dumps({"num_turns": 29}), json.dumps({"num_turns": "99"}),
+            self.assertIn(str(LIM["max_turns"]), hb.cutoff_reason(0, out, LIM))
+        for out in (json.dumps({"result": "x"}), json.dumps({"num_turns": LIM["max_turns"] - 1}), json.dumps({"num_turns": "99"}),
                     "not json", "[1]", ""):
             self.assertIsNone(hb.cutoff_reason(0, out, LIM), out)
 
@@ -138,7 +138,7 @@ class Flow(base.World):
         self.assertEqual(self.runs, [])
 
     def test_a_cutoff_is_retried_like_a_gate_a_violation_and_never_reaches_the_implementer(self):
-        self.dec_replies = [(124, "", ""), (0, reply("", subtype="error_max_turns"), ""), (0, reply("{}", num_turns=30), "")]
+        self.dec_replies = [(124, "", ""), (0, reply("", subtype="error_max_turns"), ""), (0, reply("{}", num_turns=LIM["max_turns"]), "")]
         self.put("010-a")
         self.assertEqual(self.poll(), 1)
         item = self.state()["items"]["010-a"]

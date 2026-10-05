@@ -38,11 +38,11 @@
     "model_flag": "--model",
     "model": "claude-opus-5",
     "auxiliary_models": ["claude-haiku-"],
-    "_flags_note": "What を TaskSpec JSON に変える分解役。読み取りだけを許し（作業ツリーを読んで対象シンボルを確かめる）、JSON を返させる。プロンプトは標準入力で渡す",
-    "extra_flags": ["--allowedTools", "Read,Grep,Glob"],
+    "_flags_note": "What を TaskSpec JSON に変える分解役。読み取りだけを許す。検索（Grep・Glob）は目次（symbol_map）と、What が挙げたモジュールの docstring の節で置き換えたので許さず、開くのは目次に無いファイルだけ。JSON を返させる。プロンプトは標準入力で渡す",
+    "extra_flags": ["--allowedTools", "Read"],
     "output_format_args": ["--output-format", "json"],
-    "budget": { "max_thinking_tokens": 6000, "max_turns": 30, "timeout_seconds": 300 },
-    "_budget_note": "分解役 1 回の思考の量・ターン数・時間の上限。上限で打ち切られた出力は Gate A の不適合と同じに扱い（理由を返してやり直す）、モデルの照合はしない"
+    "budget": { "max_thinking_tokens": 6000, "max_turns": 10, "timeout_seconds": 300 },
+    "_budget_note": "分解役 1 回の思考の量・ターン数・時間の上限。検索を目次で置き換えたので、ターン数は 10 に絞る。上限で打ち切られた出力は Gate A の不適合と同じに扱い（理由を返してやり直す）、モデルの照合はしない"
   },
 
   "implementer": {
