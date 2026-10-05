@@ -41,7 +41,7 @@
     "_flags_note": "What を TaskSpec JSON に変える分解役。読み取りだけを許し（作業ツリーを読んで対象シンボルを確かめる）、JSON を返させる。プロンプトは標準入力で渡す",
     "extra_flags": ["--allowedTools", "Read,Grep,Glob"],
     "output_format_args": ["--output-format", "json"],
-    "budget": { "max_thinking_tokens": 6000, "max_turns": 12, "timeout_seconds": 300 },
+    "budget": { "max_thinking_tokens": 6000, "max_turns": 30, "timeout_seconds": 300 },
     "_budget_note": "分解役 1 回の思考の量・ターン数・時間の上限。上限で打ち切られた出力は Gate A の不適合と同じに扱い（理由を返してやり直す）、モデルの照合はしない"
   },
 
