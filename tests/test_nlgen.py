@@ -19,7 +19,9 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(ROOT / "tests"))
 
+import agy_stub  # noqa: E402
 import nlgen  # noqa: E402
 import pipeline  # noqa: E402
 import propgen  # noqa: E402
@@ -134,6 +136,9 @@ class Rendering(unittest.TestCase):
 class Feedback(unittest.TestCase):
     SENTENCES = {"P-T1-01": "- P-T1-01（RL-16）：左の入力があるとき、X 座標が1減る"}
     LINE = "PROPERTY_FAIL id=P-T1-01 rule=RL-16 ops=[Left] expected=ActiveMino.X:3 actual=ActiveMino.X:4"
+
+    def setUp(self):
+        agy_stub.install(self)
 
     def test_the_same_lines_with_the_sentence_added(self):
         text = "\n".join(["コンパイルの診断", self.LINE, "PROPERTY_VACUOUS id=P-T1-01 rule=RL-16"])

@@ -11,10 +11,6 @@ import agy_pinned  # noqa: E402
 import pipeline  # noqa: E402
 from ab import common, driver  # noqa: E402
 
-# 既存のテストは実在の agy の導入先なしに pipeline.call_implementer を回す。雛形の期待値では止まるので、
-# このプロセスでは既定の照合を空振りにする（照合そのものはこのファイルが verify を渡して確かめる）。
-pipeline.guard_implementer.__defaults__ = (lambda: {},)
-
 IMP = {"cli": "agy", "headless_flag": "-p", "auto_approve_flag": "--yes", "model_flag": "--model", "model_name": "m"}
 PINNED = {"cli": {"agy": "1.2.14"}}
 

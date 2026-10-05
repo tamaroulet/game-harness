@@ -17,6 +17,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import agy_stub  # noqa: E402
 import quiet  # noqa: E402
 
 import envcheck  # noqa: E402
@@ -124,6 +125,9 @@ def stream(status, error=None, tokens=10):
 class PipelineRetry(quiet.Quiet, unittest.TestCase):
     IMP = {"cli": "agy", "headless_flag": "-p", "auto_approve_flag": "-y", "model_flag": "--model",
            "model_name": "m", "output_format_args": ["--output-format", "stream-json"]}
+
+    def setUp(self):
+        agy_stub.install(self)
 
     def ctx(self, d):
         return SimpleNamespace(unit={"prompt": "作る", "whitelist": ["a.cs"]}, sandbox=Path(d), sb=lambda rel: Path(d) / rel,

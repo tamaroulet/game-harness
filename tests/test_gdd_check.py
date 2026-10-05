@@ -21,7 +21,9 @@ import quiet  # noqa: E402
 import gdd_check  # noqa: E402
 import project  # noqa: E402
 
-gdd_check.CFG = gdd_check.load_config()
+
+def setUpModule():
+    gdd_check.CFG = gdd_check.load_config()
 
 GDD = """<!-- project: falling-blocks -->
 <!-- version: 2 -->

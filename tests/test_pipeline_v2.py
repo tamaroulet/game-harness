@@ -20,6 +20,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import agy_stub  # noqa: E402
 import quiet  # noqa: E402
 
 import pipeline  # noqa: E402
@@ -42,6 +43,9 @@ def trx(results):
 
 class EditOnly(unittest.TestCase):
     """§7：再試行を含めて編集だけ。"""
+
+    def setUp(self):
+        agy_stub.install(self)
 
     def test_policy_has_no_retry_unlock(self):
         self.assertFalse(hasattr(tool_policy, "RETRY"))

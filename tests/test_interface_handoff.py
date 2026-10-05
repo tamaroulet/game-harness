@@ -20,6 +20,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 sys.path.insert(0, str(ROOT / "tests"))
+import agy_stub  # noqa: E402
 import quiet  # noqa: E402
 
 import decompose  # noqa: E402
@@ -45,6 +46,9 @@ class Render(unittest.TestCase):
 
 
 class ImplementerPrompt(unittest.TestCase):
+    def setUp(self):
+        agy_stub.install(self)
+
     def prompt_for(self, unit):
         c = SimpleNamespace(unit=unit, sandbox=Path("C:/sb"), sb=lambda rel: Path("C:/sb") / rel,
                             cfg={"implementer": {"cli": "agy", "headless_flag": "-p", "auto_approve_flag": "-y",
