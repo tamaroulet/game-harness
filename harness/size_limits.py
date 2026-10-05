@@ -89,6 +89,41 @@ def scan(wt, paths, limits, source_of):
     return out
 
 
+def oversized_files(wt, lim, dirs=("harness", "tests")):
+    """wt の下の dirs の .py のうち、行数が new_module_max_lines を超えるもの。(相対パス, 行数) を行数の多い順、同数はパスの昇順で。読み取りだけ。"""
+    found = {}
+    for d in dirs:
+        for f in (Path(wt) / d).glob("**/*.py"):
+            try:
+                n = len(f.read_text(encoding="utf-8").splitlines())
+            except (OSError, UnicodeDecodeError):
+                continue
+            if n > lim["new_module_max_lines"]:
+                found[f.relative_to(wt).as_posix()] = n
+    return sorted(found.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
+def prompt_text(spec, wt, lim=None):
+    """実装役に見せる規模の制約の節。上限の数値は spec・lim・作業ツリーの実測から取る。読み取りだけで、"---" だけの行は入れない。"""
+    lim = limits() if lim is None else lim
+    box = spec.get("edit_boundary") if isinstance(spec, dict) else None
+    box = box if isinstance(box, dict) else {}
+    gone = box.get("deletable_files")
+    gone = [str(p) for p in gone] if isinstance(gone, (list, tuple)) else []
+    big = oversized_files(wt, lim)
+    cap = lim["new_module_max_lines"]
+    return "\n".join([
+        "## 規模の制約（ハーネスの門が機械で検査し、超えると落とします）",
+        *([f"- 追加してよい行数は {box['max_diff_lines']} 行以内"] if "max_diff_lines" in box else []),
+        f"- モジュール（.py）1 つの行数は {cap} 行以内。すでに {cap} 行を超えている既存のファイルは、増やせない",
+        f"- 関数 1 つの循環的複雑度は {lim['max_complexity']} 以内。超えそうなら関数を分ける",
+        f"- 丸ごと消してよいファイル: {', '.join(gone) or 'なし'}",
+        "- すでに上限を超えているファイル（これらには行を足さない。新しい処理は別のモジュールに置く）:" + ("" if big else " なし"),
+        *[f"  - {path}（{n} 行）" for path, n in big],
+        "- テストを足すときは、既存の大きなテストのファイルに書き足さず、新しいテストのファイルを作って書く",
+    ])
+
+
 def head_source(cfg, wt):
     def source_of(path):
         code, out, _ = proc.run(["git", "show", f"HEAD:{path}"], wt, cfg["ttl_seconds"]["git"], "git show")

@@ -21,10 +21,10 @@ from hline_room import director_settings, setup  # noqa: E402,F401
 from hline_spec import boundary_problems, decompose, diff_counts  # noqa: E402,F401
 
 
-def build_prompt(spec, feedback=None, symbol_map=None): return hline_prompt.build_prompt(spec, feedback, symbol_map)
+def build_prompt(spec, feedback=None, symbol_map=None, size_note=None): return hline_prompt.build_prompt(spec, feedback, "\n\n".join(filter(None, (symbol_map, size_note))) or None)   # 規模の節も目次と同じ、最初の区切りの前に入る
 
 
-def implement(cfg, wt, spec, feedback, log): return hline_prompt.implement(sys.modules[__name__], cfg, wt, spec, feedback, log)
+def implement(cfg, wt, spec, feedback, log): return hline_prompt.implement(argparse.Namespace(**{**vars(sys.modules[__name__]), "build_prompt": lambda s, f, m: build_prompt(s, f, m, size_limits.prompt_text(s, wt))}), cfg, wt, spec, feedback, log)
 
 
 def gate(cfg, wt, paths, spec=None, task=None): return hline_gate.gate(sys.modules[__name__], cfg, wt, paths, spec, task)
