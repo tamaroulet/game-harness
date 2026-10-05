@@ -26,8 +26,6 @@
 
   "gate_command": ["python", "-m", "harness.fastsuite", "discover", "-s", "tests"],
   "_gate_note": "H ラインの Gate 1（段 0）。モジュールごとに別のプロセスで並列に走らせる（harness/fastsuite.py）。判定は終了コードだけ（0 = 全部通った）。LLM は使わない",
-  "protected_paths": ["docs/progress.yaml", ".claude/"],
-  "_protected_note": "実装役が変えてはならないパス。docs/progress.yaml は harness.progress だけが変える。.claude/ は権限の設定",
 
   "ttl_seconds": { "implementer": 1800, "decomposer": 900, "gate": 1800, "git": 300, "gh": 120, "lock_stale": 14400 },
   "gate_tail_chars": 4000,

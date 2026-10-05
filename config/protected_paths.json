@@ -1,0 +1,11 @@
+{
+  "_comment": "H ライン Gate 1 で、実装役が変えてはならないパス（末尾が / ならその下すべて）。harness/hline_protect.py が走っているハーネスの根から読む（作業ツリーの写しは見ない）。この一覧のファイル自身と守りのテストは必ず入れる（欠ければ読み込みが止まる）。docs/progress.yaml は harness.progress だけが変える。.claude/ は権限の設定",
+  "protected_paths": [
+    "config/protected_paths.json",
+    "docs/progress.yaml",
+    ".claude/",
+    "tests/test_size_limits.py",
+    "tests/test_no_inline_review.py",
+    "tests/test_protected_paths.py"
+  ]
+}

@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
 import base_whitelist, fastsuite  # noqa: E402
 import gate_order  # noqa: E402
+import hline_protect  # noqa: E402
 import infra_retry  # noqa: E402
 import model_pin  # noqa: E402
 import proc  # noqa: E402,F401  テストが hline.proc を差し替える
@@ -78,9 +79,8 @@ def gate(cfg, wt, paths, spec=None, task=None):
     """H ラインの Gate 1。(通ったか, 実装役に返す出力)。TaskSpec があれば編集境界も、タスクがあれば進捗の検証コマンドも見る。"""
     if not paths:
         return False, "作業ツリーに変更がありません。TaskSpec を満たす変更を加えてください。"
-    bad = [p for p in paths if any(p == q or p.startswith(q) for q in cfg["protected_paths"])]
-    if bad:
-        return False, f"変えてはならないパスを変えています: {', '.join(bad)}。元に戻してください。"
+    if bad := hline_protect.violations(paths):
+        return False, hline_protect.reason(bad)
     problems = boundary_problems(spec, paths, diff_counts(cfg, wt)) if spec else []
     problems += size_limits.scan(wt, paths, size_limits.limits(), size_limits.head_source(cfg, wt))
     if problems:
