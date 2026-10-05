@@ -27,6 +27,7 @@ import infra_retry  # noqa: E402
 import model_pin  # noqa: E402
 import proc  # noqa: E402,F401  テストが hline.proc を差し替える
 import progress  # noqa: E402
+import size_limits  # noqa: E402
 from hline_base import (CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args,  # noqa: E402,F401
                         load_config, must, pinned_models, run_agent, slug, title_of)
 from hline_budget import usage  # noqa: E402
@@ -37,7 +38,7 @@ from hline_queue import (blocked, by_status, intake, load_state, next_runnable, 
                          save_state, what_path)
 from hline_report import mark as _mark, pr_body, pr_title, today, write_report  # noqa: E402
 from hline_room import director_settings, setup  # noqa: E402,F401
-from hline_spec import boundary_problems, decompose, diff_lines  # noqa: E402
+from hline_spec import boundary_problems, decompose, diff_counts  # noqa: E402
 
 
 # ============================================================ 実装役
@@ -76,10 +77,10 @@ def gate(cfg, wt, paths, spec=None, task=None):
     bad = [p for p in paths if any(p == q or p.startswith(q) for q in cfg["protected_paths"])]
     if bad:
         return False, f"変えてはならないパスを変えています: {', '.join(bad)}。元に戻してください。"
-    if spec:
-        problems = boundary_problems(spec, paths, diff_lines(cfg, wt))
-        if problems:
-            return False, "\n".join(problems)
+    problems = boundary_problems(spec, paths, diff_counts(cfg, wt)) if spec else []
+    problems += size_limits.scan(wt, paths, size_limits.limits(), size_limits.head_source(cfg, wt))
+    if problems:
+        return False, "\n".join(problems)
     first = gate_order.focused(cfg, wt, paths, task)   # 個別の検証が先。落ちたら全件テストは走らせない
     if first and not first[0]:
         return first

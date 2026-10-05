@@ -44,6 +44,7 @@ import oracle
 import os
 import project
 import propgen
+import size_limits
 import telemetry
 import testgen
 import transient
@@ -804,27 +805,13 @@ def gate_diff_lines(c, verbose=True):
     c.metrics["diff_added"], c.metrics["diff_deleted"] = added, deleted
     if verbose:
         print(f"    差分: {total} 行（追加 {added}・削除 {deleted}）")
-    return diff_budget_problem(c.unit, added, deleted)
+    over = size_limits.scan(c.sandbox, c.unit["whitelist"], size_limits.limits(), size_limits.head_source({"ttl_seconds": c.ttl}, c.sandbox))
+    return diff_budget_problem(c.unit, added, deleted) or (over[0] if over else None)
 
 
 def diff_budget_problem(unit, added, deleted):
-    """差分バジェット（ADR-003 §3.7）。超えていれば理由、収まっていれば None。
-
-    feature：追加 ≤ max_add_lines かつ 削除 ≤ max_del_lines（機能とリファクタリングを混ぜない）
-    refactor：追加と削除の合計 ≤ max_impl_lines
-    task_kind の無い既存の単位は feature として扱う。上限の無い既存の単位は max_impl_lines を追加の上限にする
-    """
-    if unit.get("task_kind", "feature") == "refactor":
-        total, limit = added + deleted, unit["max_impl_lines"]
-        return f"差分超過（refactor）: 合計 {total} 行 > {limit}" if total > limit else None
-    max_add = unit.get("max_add_lines", unit["max_impl_lines"])
-    max_del = unit.get("max_del_lines", unit["max_impl_lines"])
-    if added > max_add:
-        return f"差分超過（feature）: 追加 {added} 行 > {max_add}"
-    if deleted > max_del:
-        return (f"差分超過（feature）: 削除 {deleted} 行 > {max_del}。"
-                "削除が多いならリファクタリングの単位を先に切り出す")
-    return None
+    """差分バジェット（ADR-003 §3.7）。実体は size_limits.diff_budget_problem。"""
+    return size_limits.diff_budget_problem(unit, added, deleted)
 
 
 # ============================================================ テストの実行（アダプタ）

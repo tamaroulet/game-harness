@@ -121,8 +121,8 @@ class Schema(unittest.TestCase):
 
 class Boundary(unittest.TestCase):
     def gate(self, paths, lines=10, spec=None, tests=(0, "", "")):
-        with mock.patch.object(hline, "diff_lines", return_value=lines), \
-                mock.patch.object(hline.proc, "run", return_value=tests) as run:
+        with mock.patch.object(hline, "diff_counts", return_value={"added": lines, "deleted": 0, "deleted_files": ()}), \
+                mock.patch.object(hline.size_limits, "head_source", return_value=lambda p: None), mock.patch.object(hline.proc, "run", return_value=tests) as run:
             ok, msg = hline.gate(CFG, Path("."), paths, spec or spec_with(
                 allowed_files=["harness/", "tests/*.py"], forbidden_files=["harness/hline.py"], max_diff_lines=100))
         return ok, msg, run
@@ -170,7 +170,7 @@ class Boundary(unittest.TestCase):
             return "3\t2\ta.py\n-\t-\tlogo.png\n10\t0\tnew.py\n"
 
         with mock.patch.object(hline_spec, "must", side_effect=fake_must):
-            self.assertEqual(hline_spec.diff_lines(CFG, Path(".")), 15)
+            self.assertEqual(hline_spec.diff_counts(CFG, Path(".")), {"added": 13, "deleted": 2, "deleted_files": ()})   # 追加と削除を別に数える
         self.assertEqual(calls[0], ["git", "add", "-A", "-N"])   # 新しいファイルも差分に数える
 
 
