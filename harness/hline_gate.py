@@ -14,7 +14,7 @@ def gate(host, cfg, wt, paths, spec=None, task=None):
     problems += host.size_limits.scan(wt, paths, host.size_limits.limits(), host.size_limits.head_source(cfg, wt))
     if problems:
         return False, "\n".join(problems)
-    first = host.gate_order.focused(cfg, wt, paths, task)   # 個別の検証が先。落ちたら全件テストは走らせない
+    first = host.gate_order.focused(cfg, wt, paths, task, spec)   # 影響テストが先。落ちたら全件テストは走らせない
     if first and not first[0]:
         return first
     env = dict(os.environ, PYTHONUTF8="1")

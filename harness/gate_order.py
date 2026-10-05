@@ -5,21 +5,18 @@
 """
 import os
 import re
-import shlex
 
-import base_whitelist
+import impacted
 import proc
 from hline_spec import verification_of
 
-_TEST_FILE = re.compile(r"tests/(test_\w+)\.py")
 _FAILURE = re.compile(r"^(?:FAIL|ERROR): [^\n]*|^Traceback \(most recent call last\):.*?(?=^[=-]{20,}[ \t\r]*$|\Z)",
                       re.MULTILINE | re.DOTALL)
 
 
 def test_modules(paths):
     """変えたパスのうち tests/test_*.py に当たるものを tests.test_xxx の形に直す（重複は除き、現れた順）。"""
-    found = (_TEST_FILE.fullmatch(p.replace("\\", "/").removeprefix("./")) for p in paths)
-    return tuple(dict.fromkeys(f"tests.{m.group(1)}" for m in found if m))
+    return tuple(dict.fromkeys(filter(None, map(impacted.dotted, paths))))
 
 
 def failure_digest(text):
@@ -35,19 +32,20 @@ def report(command, code, out, err, limit, expected=0):
     return head[:limit] if room <= 0 else head + raw[-room:]
 
 
-def focused(cfg, wt, paths, task):
+def focused(cfg, wt, paths, task, spec=None):
     """タスク個別の検証（task があれば進捗の検証コマンド、無ければ変えた tests/ のテスト）を走らせる。
-    (通ったか, 出力)。走らせるものが無ければ None。"""
+    spec があれば、影響テスト（impacted.test_modules）だけを第 1 段で走らせる。(通ったか, 出力)。走らせるものが無ければ None。"""
+    v = None
     if task:
         v = verification_of(wt, task)
         if not v:
             return False, f"進捗のタスク {task} の検証コマンドが見つかりません"
-        text, expected, label = v["command"], v["expected_exit_code"], f"検証 {task}"
-        cmd = shlex.split(text)
-    else:
-        cmd, expected, label = base_whitelist.unittest_command(cfg["gate_command"], test_modules(paths)), 0, "Gate 1 個別"
-        if cmd is None:
-            return None
-        text = shlex.join(cmd)
+    changed = test_modules(paths)
+    modules = impacted.test_modules(wt, spec, v, changed) if spec else (() if task else changed)
+    stage = impacted.stage_command(cfg["gate_command"], modules, v)
+    if stage is None:
+        return None
+    text, cmd, expected = stage
+    label = f"検証 {task}" if task else "Gate 1 個別"
     code, out, err = proc.run(cmd, wt, cfg["ttl_seconds"]["gate"], label, env=dict(os.environ, PYTHONUTF8="1"))
     return code == expected, report(text, code, out, err, cfg["gate_tail_chars"], expected)

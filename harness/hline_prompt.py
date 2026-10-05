@@ -3,6 +3,7 @@ harness.hline を import しない（循環を作らない）。依存は第 1 �
 import json
 from pathlib import Path
 
+import impacted
 import infra_retry
 from hline_base import Infra
 from hline_budget import capped_args, outcome, turn_cap
@@ -27,10 +28,10 @@ def build_prompt(spec, feedback=None, symbol_map=None):
 
 def implement(host, cfg, wt, spec, feedback, log):
     """実装役を 1 回呼ぶ。使ったモデルを照合し記録する（model_pin）。TTL 超過・起動の失敗は Infra。ターン数の上限の打ち切りは例外にせず、照合しない（hline_budget.outcome）。"""
-    agent = cfg["implementer"]
-    code, out, err = host.proc.run(capped_args(agent, host.proc.resolve_cli(agent["cli"]), cap := turn_cap(agent)), wt,
-                                   cfg["ttl_seconds"]["implementer"], "実装役",
-                                   input=host.build_prompt(spec, feedback, host.symbolmap.prompt_text(cfg, wt, host.symbolmap.spec_modules(spec))))
+    agent, modules = cfg["implementer"], impacted.test_modules(wt, spec)   # 許す実行・入力に書く名前は、第 1 段と同じ影響テストから
+    shown = "\n\n".join(filter(None, (host.symbolmap.prompt_text(cfg, wt, host.symbolmap.spec_modules(spec)), impacted.prompt_note(modules))))
+    code, out, err = host.proc.run(capped_args(impacted.scoped_agent(agent, modules), host.proc.resolve_cli(agent["cli"]), cap := turn_cap(agent)),
+                                   wt, cfg["ttl_seconds"]["implementer"], "実装役", input=host.build_prompt(spec, feedback, shown))
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
     if code in infra_retry.INFRA_EXIT_CODES:
         raise Infra(f"実装役の CLI が終了コード {code}: {infra_retry.classify_exit(code, err)}")
