@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 
-from hline_base import Infra, implementer_args  # isort: skip（harness/ を import の道に足す）
+from hline_base import Infra, implementer_args, pinned_models  # isort: skip（harness/ を import の道に足す）
 
 import proc  # noqa: E402
 import telemetry  # noqa: E402
@@ -33,17 +33,62 @@ def ttl(ttl_seconds, lim):
 def cutoff_reason(code, out, lim):
     if code == 124:
         return f"時間の上限 {lim['timeout_seconds']} 秒で打ち切られました"
+    return turn_cutoff(out, lim["max_turns"])
+
+
+# ============================================================ 実装役：ターン数の上限だけ（思考の量・時間は掛けない）
+
+def turn_cap(agent):
+    b = agent.get("budget")
+    cap = b.get("max_turns") if isinstance(b, dict) else None
+    if isinstance(cap, bool) or not isinstance(cap, int) or cap < 1:
+        raise Infra(f"config/hline.json の budget.max_turns（1 以上の整数）が足りないか不正です: {b!r}")
+    return cap
+
+
+def capped_args(agent, cli, cap):
+    return implementer_args(agent, cli) + ["--max-turns", str(cap)]
+
+
+def _doc(out):
     try:
         doc = json.loads(out)
     except (ValueError, TypeError):
-        return None
-    if not isinstance(doc, dict):
-        return None
-    sub, turns = doc.get("subtype"), doc.get("num_turns")
-    if (sub == "error_max_turns" or (doc.get("is_error") and isinstance(sub, str) and "max_turns" in sub)
-            or (isinstance(turns, int) and not isinstance(turns, bool) and turns >= lim["max_turns"])):
-        return f"ターン数の上限 {lim['max_turns']} で打ち切られました"
+        return {}
+    return doc if isinstance(doc, dict) else {}
+
+
+def turns(out):
+    n = _doc(out).get("num_turns")
+    return n if isinstance(n, int) and not isinstance(n, bool) else None
+
+
+def turn_cutoff(out, cap):
+    """CLI の JSON 出力がターン数の上限での打ち切りなら、その理由。終了コードは見ない。"""
+    doc, n = _doc(out), turns(out)
+    sub = doc.get("subtype")
+    if sub == "error_max_turns" or (doc.get("is_error") and isinstance(sub, str) and "max_turns" in sub) or (n is not None and n >= cap):
+        return f"ターン数の上限 {cap} で打ち切られました"
     return None
+
+
+def outcome(agent, out, cap):
+    """(モデルの列, 利用量, 打ち切りの理由, ターン数)。打ち切りのときはモデルを照合せず、空の列にする。"""
+    cutoff = turn_cutoff(out, cap)
+    return ([] if cutoff else pinned_models(agent, out, "実装役")), usage(out), cutoff, turns(out)
+
+
+def attempt_record(run, attempt, code, models, ok, rest):
+    """実装役の試行 1 回の記録。rest は (利用量, 打ち切りの理由, ターン数) の先頭から。足りない分は None。"""
+    usage_, cutoff, n = (list(rest) + [None] * 3)[:3]
+    return {"run": run, "attempt": attempt, "cli_exit": code, "models": models, "gate": ok, "usage": usage_, "cutoff": cutoff, "turns": n}
+
+
+def with_cutoff(cutoff, feedback):
+    """前の試行が打ち切られて Gate 1 に落ちたとき、次の試行の feedback に理由と続きから進めてよいことを添える。"""
+    if not cutoff:
+        return feedback
+    return f"前回の実装役はターン数の上限で打ち切られました（{cutoff}）。作業ツリーに残った変更の続きから進めてかまいません。\n\n{feedback}"
 
 
 READ_TOOLS, READ_KEYS, READ_MAX = ("Read", "Grep", "Glob"), ("file_path", "path"), 40

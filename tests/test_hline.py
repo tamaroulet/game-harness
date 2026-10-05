@@ -88,7 +88,7 @@ class Implementer(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d, \
                 mock.patch.object(hline.proc, "resolve_cli", return_value=["claude"]), \
                 mock.patch.object(hline.proc, "run", return_value=(0, out, "")) as run:
-            code, models, _ = hline.implement(CFG, Path(d), "# 題", "前回の出力", Path(d) / "log")
+            code, models, *_ = hline.implement(CFG, Path(d), "# 題", "前回の出力", Path(d) / "log")
         self.assertEqual(models, ["claude-haiku-4-5", "claude-sonnet-5-5"])
         prompt = run.call_args.kwargs["input"]
         self.assertIn("# 題", prompt)

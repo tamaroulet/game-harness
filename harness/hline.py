@@ -31,7 +31,7 @@ import size_limits  # noqa: E402
 import symbolmap  # noqa: E402
 from hline_base import (CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args,  # noqa: E402,F401
                         load_config, must, pinned_models, run_agent, slug, title_of)
-from hline_budget import usage  # noqa: E402
+from hline_budget import attempt_record, capped_args, outcome, turn_cap, with_cutoff  # noqa: E402
 from hline_gc import sweep  # noqa: E402
 from hline_git import (ahead, changed_paths, create_pr, drop_merged_branch, fetch, implementer_room,  # noqa: E402,F401
                        integrate, integrated, new_worktree, open_pr, pr_state)
@@ -64,14 +64,14 @@ def build_prompt(spec, feedback=None, symbol_map=None):
 
 
 def implement(cfg, wt, spec, feedback, log):
-    """実装役を 1 回呼ぶ。使ったモデルを照合し、記録する（model_pin）。TTL 超過・起動の失敗は Infra（試行にも Gate 1 にも進めない）。"""
+    """実装役を 1 回呼ぶ。使ったモデルを照合し記録する（model_pin）。TTL 超過・起動の失敗は Infra。ターン数の上限の打ち切りは例外にせず、照合しない（hline_budget.outcome）。"""
     agent = cfg["implementer"]
-    code, out, err = proc.run(implementer_args(agent, proc.resolve_cli(agent["cli"])), wt, cfg["ttl_seconds"]["implementer"],
+    code, out, err = proc.run(capped_args(agent, proc.resolve_cli(agent["cli"]), cap := turn_cap(agent)), wt, cfg["ttl_seconds"]["implementer"],
                               "実装役", input=build_prompt(spec, feedback, symbolmap.prompt_text(cfg, wt, symbolmap.spec_modules(spec))))
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
     if code in infra_retry.INFRA_EXIT_CODES:
         raise Infra(f"実装役の CLI が終了コード {code}: {infra_retry.classify_exit(code, err)}")
-    return code, pinned_models(agent, out, "実装役"), usage(out)
+    return (code, *outcome(agent, out, cap))
 
 
 def gate(cfg, wt, paths, spec=None, task=None):
@@ -123,10 +123,10 @@ def run_task(cfg, tid, spec, outdir, first=None, task=None, on_stage=None, run=0
     for attempt in range(1, cfg["max_attempts"] + 1):
         log = outdir / f"implementer-{run}-{attempt}.log"
         on_stage(f"実装 {run + 1}-{attempt}")
-        code, models, *rest = implement(cfg, wt, spec, feedback, log)   # rest は利用量（無い呼び手は None）
+        code, models, *rest = implement(cfg, wt, spec, with_cutoff(tries and tries[-1]["cutoff"], feedback), log)   # rest は利用量・打ち切りの理由・ターン数
         on_stage(f"Gate 1 {run + 1}-{attempt}")
         ok, feedback = gate(cfg, wt, changed_paths(wt, cfg), spec, task)
-        tries.append({"run": run, "attempt": attempt, "cli_exit": code, "models": models, "gate": ok, "usage": rest[0] if rest else None})
+        tries.append(attempt_record(run, attempt, code, models, ok, rest))
         (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
         if ok:
             return wt, branch, tries

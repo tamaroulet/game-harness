@@ -118,7 +118,7 @@ class Flow(base.World):
         self.decompose(what, n=3)
         self.assertEqual(len(self.runs), 4)
 
-    def test_only_the_decomposer_call_carries_the_budget(self):
+    def test_the_implementer_carries_only_the_turn_cap_and_the_decomposer_the_whole_budget(self):
         self.dec_replies = [good()]
         self.put("010-a")
         self.poll()
@@ -127,7 +127,7 @@ class Flow(base.World):
         self.assertEqual(dec["args"][-2:], ["--max-turns", str(LIM["max_turns"])])
         self.assertEqual(dec["env"]["MAX_THINKING_TOKENS"], str(LIM["max_thinking_tokens"]))
         self.assertEqual(impl["ttl"], CFG["ttl_seconds"]["implementer"])
-        self.assertNotIn("--max-turns", impl["args"])
+        self.assertEqual(impl["args"][-2:], ["--max-turns", str(CFG["implementer"]["budget"]["max_turns"])])
         self.assertNotIn("MAX_THINKING_TOKENS", impl["env"] or {})
 
     def test_a_config_without_a_budget_stops_before_any_cli_starts(self):
