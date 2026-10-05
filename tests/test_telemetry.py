@@ -138,7 +138,6 @@ class IssueMetricsTests(unittest.TestCase):
                      {"name": "pipeline", "telemetry": {"attempts": [
                          {"implementer": {"usage": {"total_tokens": 5}}}]}}),
             self.rec({"name": "decompose", "telemetry": {"usage": {"total_tokens": 7}}},
-                     {"name": "audit", "telemetry": None, "telemetry_null_reason": "書かない"},
                      {"name": "pipeline", "telemetry": {"attempts": [
                          {"implementer": {"usage": {"total_tokens": 1}}},
                          {"implementer": {"usage": {"total_tokens": 2}}}]}}),

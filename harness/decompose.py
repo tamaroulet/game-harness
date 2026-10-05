@@ -29,8 +29,6 @@ harness/testgen.py が受入データから機械的に生成する。書き出�
 
 出題者（分解役）が仕様を誤解していれば、実装は誤りに忠実になる。
 実装役は不正できないが、出題者は間違えられる。
-その誤りを検出できるのはテストを書いていない第三者だけなので、
-生成物は harness/audit.py（別モデル）に通すこと。
 """
 import argparse
 import json
@@ -490,8 +488,7 @@ def decompose(a):
     for w in written:
         print("  " + w)
     rel = str(up.relative_to(ROOT)).replace("\\", "/")
-    print(f"\n次: python harness/audit.py --project {CFG['project_id']} --file {rel}")
-    print(f"    python harness/pipeline.py --project {CFG['project_id']} --unit {rel}")
+    print(f"\n次: python harness/pipeline.py --project {CFG['project_id']} --unit {rel}")
     return 0
 
 

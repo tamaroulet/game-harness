@@ -1,4 +1,4 @@
-"""道具（pipeline / decompose / audit）が --repo-dir の worktree で動くこと（docs/design/spec_pipeline.md §13 の 2）。
+"""道具（pipeline / decompose）が --repo-dir の worktree で動くこと（docs/design/spec_pipeline.md §13 の 2）。
 
     python -m unittest discover -s tests -v
 """
@@ -14,7 +14,6 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 
-import audit  # noqa: E402
 import decompose  # noqa: E402
 import pipeline  # noqa: E402
 
@@ -57,18 +56,6 @@ class RepoDirTests(unittest.TestCase):
     def test_decompose_writes_under_the_given_repo_dir(self):
         decompose.configure("unity-2d", repo_dir=str(self.wt))
         self.assertEqual(decompose.ROOT, self.wt)
-
-    def test_audit_reads_and_writes_under_the_given_repo_dir(self):
-        seen = {}
-
-        def fake_audit(path, verdict_json=None):
-            seen["root"] = audit.ROOT
-            return 0
-        with mock.patch.object(audit, "cmd_audit", side_effect=fake_audit), \
-                mock.patch.object(sys, "argv", ["audit.py", "--project", "unity-2d", "--file", "x.md",
-                                                "--repo-dir", str(self.wt)]):
-            audit.main()
-        self.assertEqual(seen["root"], self.wt)
 
 
 if __name__ == "__main__":

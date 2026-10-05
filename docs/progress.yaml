@@ -1,5 +1,5 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: S2-3
+active_task_id: S2-4
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -568,7 +568,7 @@ tasks:
   title: Gate 2（インラインの LLM レビュー）の廃止
   group: B7.2
   target_repo: game-harness
-  status: in_progress
+  status: completed
   verification:
     command: python -m unittest tests.test_no_inline_review
     expected_exit_code: 0
@@ -576,7 +576,7 @@ tasks:
   title: 規模の制約（差分 300 行・新規モジュール 300〜500 行・既存の超過は増やさない・複雑度 15 以下）
   group: B7.2
   target_repo: game-harness
-  status: pending
+  status: in_progress
   verification:
     command: python -m unittest tests.test_size_limits
     expected_exit_code: 0
@@ -645,6 +645,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: S2-2
+  task: S2-3
   exit_code: 0
-  at: '2026-10-04T18:41:17'
+  at: '2026-10-05T09:54:41'
