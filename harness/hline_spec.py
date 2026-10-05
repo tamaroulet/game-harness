@@ -79,7 +79,7 @@ def verification_of(wt, task_id):
 
 # ============================================================ 分解役
 
-def decompose_prompt(what, meta, schema, command, problems, cutoff=None, read=(), symbol_map=None):
+def decompose_prompt(what, meta, schema, command, problems, cutoff=None, read=(), symbol_map=None, failure=None):
     p = ["あなたはハーネス（Python のリポジトリ game-harness）の分解役です。次の What を、実装役に渡す TaskSpec（JSON）に変えてください。",
          "- 作業ディレクトリのリポジトリを読み、対象シンボルと編集境界を実在のファイルに合わせる（読み取りだけ。ファイルは作らない）",
          "- 実装役には What の本文を渡さない。実装に要る事柄はすべて TaskSpec に書く",
@@ -93,6 +93,9 @@ def decompose_prompt(what, meta, schema, command, problems, cutoff=None, read=()
         p += ["", "---", "次は作業ツリーから作ったリポジトリの目次です。ここにあるモジュールは開かず目次を信じてよく、"
               "ここに無いモジュールを読むときだけファイルを開いてください。", symbol_map]
     p += ["", "---", what.strip()]
+    if failure:
+        p += ["", "---", "前回の TaskSpec では実装役が収束しませんでした。次は、その失敗の要約です。",
+              "範囲を狭めるか編集境界を直して、TaskSpec を作り直してください。", failure]
     if problems:
         p += ["", "---", "前回の TaskSpec はスキーマに適合しませんでした。次の違反を直してください。"] + [f"- {x}" for x in problems]
     if cutoff is not None:
@@ -136,9 +139,9 @@ def load_spec(cfg, what, schema, command=None):
         return None
 
 
-def decompose(cfg, wt, what, meta, outdir):
+def decompose(cfg, wt, what, meta, outdir, failure=None, tag="decomposer"):
     """保存した TaskSpec があれば再利用し、無ければ分解役で作る。(TaskSpec か None, 記録)。不適合・打ち切りは理由を返してやり直し、
-    上限を使い切っても駄目なら None（実装役を呼ばない）。"""
+    上限を使い切っても駄目なら None（実装役を呼ばない）。failure（前回の失敗の要約）があるときは保存を使わず保存もしない。名前は tag で変わる。"""
     schema, command, record = load_schema(cfg), None, {"attempts": [], "reused": False, "reason": None}
     if meta["task"]:
         v = verification_of(wt, meta["task"])
@@ -147,16 +150,17 @@ def decompose(cfg, wt, what, meta, outdir):
             return None, record
         command = v["command"]
     agent, lim = cfg["decomposer"], limits(cfg["decomposer"])
-    spec = load_spec(cfg, what, schema, command)
+    spec_file = Path(outdir) / ("taskspec.json" if tag == "decomposer" else f"taskspec-{tag}.json")
+    spec = None if failure else load_spec(cfg, what, schema, command)
     if spec is not None:
-        write_json(Path(outdir) / "taskspec.json", spec)
+        write_json(spec_file, spec)
         return spec, dict(record, reused=True)
     problems, cutoff, read = None, None, ()
     for n in range(1, 2 + cfg["spec_retries"]):
         code, out, cut, use = call(agent, wt, cfg["ttl_seconds"]["decomposer"], "分解役",
                                    decompose_prompt(what, meta, schema, command, problems, cutoff, read,
-                                                    symbol_map=symbolmap.prompt_text(cfg, wt)),   # 毎回その場で作り直す
-                                   Path(outdir) / f"decomposer-{n}.log", lim)
+                                                    symbol_map=symbolmap.prompt_text(cfg, wt), failure=failure),   # 毎回その場で作り直す
+                                   Path(outdir) / f"{tag}-{n}.log", lim)
         if cut:   # 打ち切られた出力は Gate A の不適合と同じに扱う（モデルの照合はしない）
             problems, cutoff, read = [cut], cut, read_files(out)
             record["attempts"].append({"attempt": n, "cli_exit": code, "models": [], "valid": False, "cutoff": cut,
@@ -169,8 +173,9 @@ def decompose(cfg, wt, what, meta, outdir):
         problems = [why] if why else gate_a(schema, spec, command)
         record["attempts"].append({"attempt": n, "cli_exit": code, "models": models, "valid": not problems, "usage": use})
         if not problems:
-            write_json(Path(outdir) / "taskspec.json", spec)
-            save_spec(cfg, what, spec)
+            write_json(spec_file, spec)
+            if not failure:
+                save_spec(cfg, what, spec)
             return spec, record
     record["reason"] = "TaskSpec がスキーマに適合しません: " + " / ".join(problems)
     return None, record

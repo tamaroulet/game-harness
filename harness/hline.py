@@ -39,6 +39,7 @@ from hline_queue import (blocked, by_status, intake, load_state, next_runnable, 
                          save_state, what_path)
 from hline_report import (line_modules, mark as _mark, pr_body, pr_title, self_change, today,  # noqa: E402,F401
                           write_report)
+from hline_respec import second_round  # noqa: E402
 from hline_room import director_settings, setup  # noqa: E402,F401
 from hline_spec import boundary_problems, decompose, diff_counts  # noqa: E402
 
@@ -110,28 +111,25 @@ def mark(cfg, st, name=None, stage=None):
     _mark(cfg, st, name, stage, save=save_state, write=write_report)
 
 
-def run_task(cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
-    """作業ツリーを作り直しながら試す。通った (作業ツリー, ブランチ, 試行の記録) か None。作業ツリーは消さない（Detach）。
-    first は分解役が使った作業ツリー（最初の 1 回はそれを使う）。on_stage は段階を知らせる副作用だけの関数。"""
+def run_task(cfg, tid, spec, outdir, first=None, task=None, on_stage=None, run=0):
+    """1 つの作業ツリーで実装役を最大 max_attempts 回試す。通った (作業ツリー, ブランチ, 試行の記録) か None。first は分解役の作業ツリー（無ければ作る）。run は 0 = 最初、1 = 作り直し。"""
     on_stage = on_stage or (lambda stage: None)
     tries = []
-    for run in range(1 + cfg["reruns"]):
-        wt, branch = first if (run == 0 and first) else new_worktree(cfg, tid)
-        ok, out = base_check(cfg, wt)
-        if not ok:   # 実装の前から合格済みのテストが落ちている。作業ツリーを替えて呼び直す（試行に数えない）
-            raise Infra(f"base（実装前）で合格済みのタスクのテストが落ちています: {out[-500:]}")
-        feedback = None
-        for attempt in range(1, cfg["max_attempts"] + 1):
-            log = outdir / f"implementer-{run}-{attempt}.log"
-            on_stage(f"実装 {run + 1}-{attempt}")
-            code, models, *rest = implement(cfg, wt, spec, feedback, log)   # rest は利用量（無い呼び手は None）
-            on_stage(f"Gate 1 {run + 1}-{attempt}")
-            ok, feedback = gate(cfg, wt, changed_paths(wt, cfg), spec, task)
-            tries.append({"run": run, "attempt": attempt, "cli_exit": code, "models": models, "gate": ok,
-                          "usage": rest[0] if rest else None})
-            (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
-            if ok:
-                return wt, branch, tries
+    wt, branch = first or new_worktree(cfg, tid)
+    ok, out = base_check(cfg, wt)
+    if not ok:   # 実装の前から合格済みのテストが落ちている。作業ツリーを替えて呼び直す（試行に数えない）
+        raise Infra(f"base（実装前）で合格済みのタスクのテストが落ちています: {out[-500:]}")
+    feedback = None
+    for attempt in range(1, cfg["max_attempts"] + 1):
+        log = outdir / f"implementer-{run}-{attempt}.log"
+        on_stage(f"実装 {run + 1}-{attempt}")
+        code, models, *rest = implement(cfg, wt, spec, feedback, log)   # rest は利用量（無い呼び手は None）
+        on_stage(f"Gate 1 {run + 1}-{attempt}")
+        ok, feedback = gate(cfg, wt, changed_paths(wt, cfg), spec, task)
+        tries.append({"run": run, "attempt": attempt, "cli_exit": code, "models": models, "gate": ok, "usage": rest[0] if rest else None})
+        (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
+        if ok:
+            return wt, branch, tries
     return None, None, tries
 
 
@@ -155,13 +153,15 @@ def process(cfg, st, name):
         try:
             wt, branch = new_worktree(cfg, tid)
             spec, item["decompose"] = decompose(cfg, wt, what, item, outdir)   # Gate A。適合しなければ実装役を呼ばない
-            item["tries"] = []
+            item.update(tries=[], respec=None)
+            stage = lambda s: mark(cfg, st, name, s)
             if spec is not None:
                 mark(cfg, st, name, "実装 1-1")
-                wt, branch, item["tries"] = run_task(cfg, tid, spec, outdir, (wt, branch), item["task"],
-                                                     on_stage=lambda s: mark(cfg, st, name, s))
-            if spec is None or wt is None:
-                return False
+                wt, branch, item["tries"] = run_task(cfg, tid, spec, outdir, (wt, branch), item["task"], on_stage=stage)
+                if wt is None and cfg["respecs"]:   # 収束しなかった。失敗の要約を分解役に返して作り直し、1 回だけ再実行する
+                    mark(cfg, st, name, "再分解")
+                    wt, branch, _ = second_round(cfg, tid, what, item, outdir, spec, decompose, new_worktree, run_task, on_stage=stage)
+            if spec is None or wt is None: return False
             own = self_change(changed_paths(wt, cfg))
             integrate(cfg, wt, name, item["title"], item["task"])
             if own:
@@ -185,7 +185,7 @@ def process(cfg, st, name):
     if done:
         item["status"] = "done"
     else:
-        item.update(status="unconverged", at=today(), reason=item["decompose"]["reason"]
+        item.update(status="unconverged", at=today(), reason=(item["respec"] or {}).get("reason") or item["decompose"]["reason"]
                     or f"{len(item['tries'])} 回の試行で Gate 1 に通らず、パッチを捨てた")
         print(f"[{tid}] 収束しませんでした: {item['reason']}")
     mark(cfg, st, name)

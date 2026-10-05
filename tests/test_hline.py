@@ -131,11 +131,11 @@ class Retries(unittest.TestCase):
         self.assertIsNotNone(wt)
         self.assertEqual((len(tries), made), (2, 1))
 
-    def test_non_convergence_reruns_in_a_new_worktree_then_gives_up(self):
-        n = CFG["max_attempts"] * (1 + CFG["reruns"])
+    def test_non_convergence_gives_up_after_max_attempts_in_the_one_worktree(self):
+        n = CFG["max_attempts"]
         (wt, branch, tries), made = self.run_task([False] * n)
         self.assertIsNone(wt)
-        self.assertEqual((len(tries), made), (n, 1 + CFG["reruns"]))
+        self.assertEqual((len(tries), made), (n, 1))
 
 
 class DirectorRoom(unittest.TestCase):

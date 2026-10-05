@@ -18,8 +18,8 @@
   "_spec_retries_note": "Gate A：TaskSpec がスキーマに適合しないとき、違反の内容を分解役に返してやり直す回数の上限。それでも適合しなければ未収束",
 
   "max_attempts": 3,
-  "reruns": 1,
-  "_retry_note": "1 つの作業ツリーで実装役を最大 max_attempts 回。収束しなければ新しい作業ツリーで reruns 回だけやり直す（段 3 の再分解の代わり、§5）。それでも駄目なら TODO.md に記録する",
+  "respecs": 1,
+  "_retry_note": "1 つの作業ツリーで実装役を最大 max_attempts 回。収束しなければ、失敗の要約を分解役に返して TaskSpec を作り直し、新しい作業ツリーで respecs 回だけ再実行する",
 
   "infra_retry": { "max_retries": 2, "wait_seconds": [60, 300] },
   "_infra_retry_note": "インフラの例外（CLI の起動の失敗・タイムアウト・git や gh の一時的な失敗・認証の一時的な失敗）で、新しい作業ツリーで呼び直す回数の上限と、呼び直しの前に待つ秒数。実装役の試行回数（max_attempts）には数えない",
