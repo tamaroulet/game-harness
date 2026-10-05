@@ -3,15 +3,20 @@ harness.hline を import しない（循環を作らない）。依存は第 1 �
 import os
 from pathlib import Path
 
+import hline_boundary
 
-def gate(host, cfg, wt, paths, spec=None, task=None):
-    """H ラインの Gate 1。(通ったか, 実装役に返す出力)。TaskSpec があれば編集境界も、タスクがあれば進捗の検証コマンドも見る。"""
+
+def gate(host, cfg, wt, paths, spec=None, task=None, extended=()):
+    """H ラインの Gate 1。(通ったか, 実装役に返す出力)。TaskSpec があれば編集境界も、タスクがあれば進捗の検証コマンドも見る。
+    extended はハーネスが編集境界に足したテストのファイルで、あれば件数の減少・skip の増加も見る。"""
     if not paths:
         return False, "作業ツリーに変更がありません。TaskSpec を満たす変更を加えてください。"
     if bad := host.hline_protect.violations(paths):
         return False, host.hline_protect.reason(bad)
     problems = host.boundary_problems(spec, paths, host.diff_counts(cfg, wt)) if spec else []
     problems += host.size_limits.scan(wt, paths, host.size_limits.limits(), host.size_limits.head_source(cfg, wt))
+    if extended:
+        problems += hline_boundary.shrink_problems(wt, extended, host.size_limits.head_source(cfg, wt))
     if problems:
         return False, "\n".join(problems)
     first = host.gate_order.focused(cfg, wt, paths, task, spec)   # 影響テストが先。落ちたら全件テストは走らせない

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import fastsuite
 import hline_abort
+import hline_boundary
 import infra_retry
 from hline_base import Infra
 from hline_budget import attempt_record, with_cutoff
@@ -24,6 +25,7 @@ def run_task(host, cfg, tid, spec, outdir, first=None, task=None, on_stage=None,
     if not ok:   # 実装の前から合格済みのテストが落ちている。作業ツリーを替えて呼び直す（試行に数えない）
         raise Infra(f"base（実装前）で合格済みのタスクのテストが落ちています: {out[-500:]}")
     feedback = prev = None
+    extended = ()
     for attempt in range(1, cfg["max_attempts"] + 1):
         log = outdir / f"implementer-{run}-{attempt}.log"
         on_stage(f"実装 {run + 1}-{attempt}")
@@ -36,12 +38,23 @@ def run_task(host, cfg, tid, spec, outdir, first=None, task=None, on_stage=None,
             (outdir / f"gate-{run}-{attempt}.log").write_text(f"Gate 1 は呼ばず、試行を打ち切りました: {why}\n", encoding="utf-8")
             return None, None, tries
         on_stage(f"Gate 1 {run + 1}-{attempt}")
-        ok, feedback = host.gate(cfg, wt, host.changed_paths(wt, cfg), spec, task)
-        tries.append({**attempt_record(run, attempt, code, models, ok, rest), "flaky": list(fastsuite.flaky_names(feedback))})
+        changed = host.changed_paths(wt, cfg)
+        ok, feedback = host.gate(cfg, wt, changed, spec, task, *([extended] if extended else []))
+        tries.append(rec := {**attempt_record(run, attempt, code, models, ok, rest), "flaky": list(fastsuite.flaky_names(feedback))})
         (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
         if ok:
             return wt, branch, tries
+        if attempt < cfg["max_attempts"]:
+            spec, extended, feedback = widen(wt, spec, extended, feedback, changed, rec)
     return None, None, tries
+
+
+def widen(wt, spec, extended, feedback, changed, rec):
+    """Gate 1 が落ちたあと、変えたモジュールを確かめている落ちた既存のテストを編集境界に足す。(spec, 足したファイル全部, 次の試行への feedback)。"""
+    if not (added := hline_boundary.candidates(wt, spec, feedback, changed)):
+        return spec, extended, feedback
+    rec["boundary_added"] = list(added)
+    return hline_boundary.extend(spec, added), extended + added, f"{feedback}\n{hline_boundary.note(added)}"
 
 
 def unconverged(item):

@@ -163,8 +163,10 @@ def item_section(cfg, name, item, with_spec):
         spec = spec_file.read_text(encoding="utf-8").strip()
     flaky = flaky_tests(item)
     flaky_line = f"- 揺れたテスト（並列で落ち、単独で通った）: {', '.join(flaky)}\n" if flaky else ""
+    added = list(dict.fromkeys(f for t in item.get("tries", []) for f in t.get("boundary_added", [])))
+    added_line = f"- 編集境界にハーネスが足したテスト（変えたモジュールを確かめる既存のテスト）: {', '.join(added)}\n" if added else ""
     return (f"### {item['title']}（{name}）\n\n- 進捗のタスク: {item.get('task') or 'なし'}／マイルストーン: {item['milestone']}\n"
-            f"- 分解役: {len(dec)} 回の試行（Gate A）／使われたモデル: {', '.join(models)}\n{flaky_line}\n"
+            f"- 分解役: {len(dec)} 回の試行（Gate A）／使われたモデル: {', '.join(models)}\n{flaky_line}{added_line}\n"
             "| 作業ツリー | 試行 | CLI の終了コード | 使われたモデル | Gate 1 |\n|:--|:--|:--|:--|:--|\n"
             f"{tries}\n\n<details><summary>TaskSpec</summary>\n\n```json\n{spec}\n```\n\n</details>\n")
 

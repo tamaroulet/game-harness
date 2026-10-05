@@ -27,7 +27,7 @@ def build_prompt(spec, feedback=None, symbol_map=None, size_note=None): return h
 def implement(cfg, wt, spec, feedback, log): return hline_prompt.implement(argparse.Namespace(**{**vars(sys.modules[__name__]), "build_prompt": lambda s, f, m: build_prompt(s, f, m, size_limits.prompt_text(s, wt))}), cfg, wt, spec, feedback, log)
 
 
-def gate(cfg, wt, paths, spec=None, task=None): return hline_gate.gate(sys.modules[__name__], cfg, wt, paths, spec, task)
+def gate(cfg, wt, paths, spec=None, task=None, extended=()): return hline_gate.gate(sys.modules[__name__], cfg, wt, paths, spec, task, extended)
 
 
 def base_check(cfg, wt): return hline_gate.base_check(sys.modules[__name__], cfg, wt)
