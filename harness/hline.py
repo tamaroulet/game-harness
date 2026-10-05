@@ -28,6 +28,7 @@ import model_pin  # noqa: E402
 import proc  # noqa: E402,F401  テストが hline.proc を差し替える
 import progress  # noqa: E402
 import size_limits  # noqa: E402
+import symbolmap  # noqa: E402
 from hline_base import (CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args,  # noqa: E402,F401
                         load_config, must, pinned_models, run_agent, slug, title_of)
 from hline_budget import usage  # noqa: E402
@@ -44,7 +45,7 @@ from hline_spec import boundary_problems, decompose, diff_counts  # noqa: E402
 
 # ============================================================ 実装役
 
-def build_prompt(spec, feedback=None):
+def build_prompt(spec, feedback=None, symbol_map=None):
     """実装役に渡す入力。TaskSpec（JSON）だけで、What の本文（自然言語の背景）は渡さない。"""
     p = ["あなたはハーネス（Python のリポジトリ game-harness）の実装役です。作業ディレクトリはその作業ツリーです。",
          "次の TaskSpec（JSON）を満たす変更を、作業ディレクトリの中だけで行ってください。",
@@ -54,6 +55,7 @@ def build_prompt(spec, feedback=None):
          "- CLAUDE.md の進捗（anchor・report）と報告の規約は総監督向けで、あなたには適用しない",
          "- タスク個別の検証（test_oracle の verification_command。無ければ自分が書いた tests/ のテスト）を手元で走らせて通す。"
          "全件テストはハーネスが走らせるので、自分では走らせない。既存のテストを壊さない",
+         *(["", symbol_map] if symbol_map else []),   # 目次は最初の区切りの前に置く（区切りの後は TaskSpec の JSON だけ）
          "", "---", json.dumps(spec, ensure_ascii=False, indent=2)]
     if feedback:
         p += ["", "---", "前回の変更は判定に通りませんでした。次の出力を読んで直してください。", feedback]
@@ -63,8 +65,8 @@ def build_prompt(spec, feedback=None):
 def implement(cfg, wt, spec, feedback, log):
     """実装役を 1 回呼ぶ。使ったモデルを照合し、記録する（model_pin）。TTL 超過・起動の失敗は Infra（試行にも Gate 1 にも進めない）。"""
     agent = cfg["implementer"]
-    code, out, err = proc.run(implementer_args(agent, proc.resolve_cli(agent["cli"])), wt,
-                              cfg["ttl_seconds"]["implementer"], "実装役", input=build_prompt(spec, feedback))
+    code, out, err = proc.run(implementer_args(agent, proc.resolve_cli(agent["cli"])), wt, cfg["ttl_seconds"]["implementer"],
+                              "実装役", input=build_prompt(spec, feedback, symbolmap.prompt_text(cfg, wt, symbolmap.spec_modules(spec))))
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
     if code in infra_retry.INFRA_EXIT_CODES:
         raise Infra(f"実装役の CLI が終了コード {code}: {infra_retry.classify_exit(code, err)}")

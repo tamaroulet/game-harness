@@ -15,6 +15,7 @@ from hline_budget import call, limits, read_files  # noqa: E402
 from size_limits import added_over_limit  # noqa: E402
 
 import progress  # noqa: E402
+import symbolmap  # noqa: E402
 
 TYPES = {"object": dict, "array": list, "string": str, "boolean": bool}
 
@@ -78,7 +79,7 @@ def verification_of(wt, task_id):
 
 # ============================================================ 分解役
 
-def decompose_prompt(what, meta, schema, command, problems, cutoff=None, read=()):
+def decompose_prompt(what, meta, schema, command, problems, cutoff=None, read=(), symbol_map=None):
     p = ["あなたはハーネス（Python のリポジトリ game-harness）の分解役です。次の What を、実装役に渡す TaskSpec（JSON）に変えてください。",
          "- 作業ディレクトリのリポジトリを読み、対象シンボルと編集境界を実在のファイルに合わせる（読み取りだけ。ファイルは作らない）",
          "- 実装役には What の本文を渡さない。実装に要る事柄はすべて TaskSpec に書く",
@@ -88,6 +89,9 @@ def decompose_prompt(what, meta, schema, command, problems, cutoff=None, read=()
     if meta["task"]:
         p += ["", f"この What は進捗のタスク {meta['task']} です。test_oracle.verification_command に、次の検証コマンドをそのまま入れる: "
               f"`{command}`"]
+    if symbol_map:
+        p += ["", "---", "次は作業ツリーから作ったリポジトリの目次です。ここにあるモジュールは開かず目次を信じてよく、"
+              "ここに無いモジュールを読むときだけファイルを開いてください。", symbol_map]
     p += ["", "---", what.strip()]
     if problems:
         p += ["", "---", "前回の TaskSpec はスキーマに適合しませんでした。次の違反を直してください。"] + [f"- {x}" for x in problems]
@@ -150,7 +154,8 @@ def decompose(cfg, wt, what, meta, outdir):
     problems, cutoff, read = None, None, ()
     for n in range(1, 2 + cfg["spec_retries"]):
         code, out, cut, use = call(agent, wt, cfg["ttl_seconds"]["decomposer"], "分解役",
-                                   decompose_prompt(what, meta, schema, command, problems, cutoff, read),
+                                   decompose_prompt(what, meta, schema, command, problems, cutoff, read,
+                                                    symbol_map=symbolmap.prompt_text(cfg, wt)),   # 毎回その場で作り直す
                                    Path(outdir) / f"decomposer-{n}.log", lim)
         if cut:   # 打ち切られた出力は Gate A の不適合と同じに扱う（モデルの照合はしない）
             problems, cutoff, read = [cut], cut, read_files(out)

@@ -31,6 +31,8 @@
 
   "ttl_seconds": { "implementer": 1800, "decomposer": 900, "gate": 1800, "git": 300, "gh": 120, "lock_stale": 14400 },
   "gate_tail_chars": 4000,
+  "symbol_map": { "max_chars": 30000 },
+  "_symbol_map_note": "分解役・実装役に渡すリポジトリの目次（harness/ のモジュール・クラス・関数・引数・行番号と、import しているテスト）の文字数の上限。作業ツリーから呼び出しのたびに作り直す。超えるときは引数 → メソッド → 末尾の順に省く（harness/symbolmap.py）。実装役には target_symbols のモジュールの節だけを渡す",
 
   "decomposer": {
     "cli": "claude",
