@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 from hline_base import ROOT, must, pinned_models, write_json  # isort: skip（harness/ を import の道に足す）
-from hline_budget import call, limits  # noqa: E402
+from hline_budget import call, limits, read_files  # noqa: E402
 from size_limits import added_over_limit  # noqa: E402
 
 import progress  # noqa: E402
@@ -78,7 +78,7 @@ def verification_of(wt, task_id):
 
 # ============================================================ 分解役
 
-def decompose_prompt(what, meta, schema, command, problems):
+def decompose_prompt(what, meta, schema, command, problems, cutoff=None, read=()):
     p = ["あなたはハーネス（Python のリポジトリ game-harness）の分解役です。次の What を、実装役に渡す TaskSpec（JSON）に変えてください。",
          "- 作業ディレクトリのリポジトリを読み、対象シンボルと編集境界を実在のファイルに合わせる（読み取りだけ。ファイルは作らない）",
          "- 実装役には What の本文を渡さない。実装に要る事柄はすべて TaskSpec に書く",
@@ -91,6 +91,9 @@ def decompose_prompt(what, meta, schema, command, problems):
     p += ["", "---", what.strip()]
     if problems:
         p += ["", "---", "前回の TaskSpec はスキーマに適合しませんでした。次の違反を直してください。"] + [f"- {x}" for x in problems]
+    if cutoff is not None:
+        p += ["", f"前回は上限で打ち切られました（{cutoff}）。読むファイルを絞り、早く JSON を返してください。",
+              "前回に読んだファイル: " + (", ".join(read) if read else "記録なし")]
     return "\n".join(p) + "\n"
 
 
@@ -144,15 +147,17 @@ def decompose(cfg, wt, what, meta, outdir):
     if spec is not None:
         write_json(Path(outdir) / "taskspec.json", spec)
         return spec, dict(record, reused=True)
-    problems = None
+    problems, cutoff, read = None, None, ()
     for n in range(1, 2 + cfg["spec_retries"]):
         code, out, cut, use = call(agent, wt, cfg["ttl_seconds"]["decomposer"], "分解役",
-                                   decompose_prompt(what, meta, schema, command, problems),
+                                   decompose_prompt(what, meta, schema, command, problems, cutoff, read),
                                    Path(outdir) / f"decomposer-{n}.log", lim)
         if cut:   # 打ち切られた出力は Gate A の不適合と同じに扱う（モデルの照合はしない）
-            problems = [cut]
-            record["attempts"].append({"attempt": n, "cli_exit": code, "models": [], "valid": False, "cutoff": cut, "usage": use})
+            problems, cutoff, read = [cut], cut, read_files(out)
+            record["attempts"].append({"attempt": n, "cli_exit": code, "models": [], "valid": False, "cutoff": cut,
+                                       "read_files": list(read), "usage": use})
             continue
+        cutoff, read = None, ()
         models = pinned_models(agent, out, "分解役")
         result = json.loads(out).get("result")
         spec, why = extract_json(result if isinstance(result, str) else "")

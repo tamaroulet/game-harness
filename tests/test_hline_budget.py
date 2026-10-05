@@ -52,6 +52,30 @@ class Pure(unittest.TestCase):
                     "not json", "[1]", ""):
             self.assertIsNone(hb.cutoff_reason(0, out, LIM), out)
 
+    def test_read_files_collects_read_grep_glob_targets(self):
+        def use(name, **inp):
+            return {"type": "tool_use", "name": name, "input": inp}
+        doc = {"messages": [{"content": [use("Read", file_path="harness\\hline_spec.py"), use("Grep", path="harness", pattern="x"),
+                                         use("Glob", path="tests"), use("Read", file_path="harness/hline_spec.py"),
+                                         use("Bash", command="ls"), {"type": "text", "name": "Read", "input": {"file_path": "no"}}]}]}
+        self.assertEqual(hb.read_files(json.dumps(doc)), ("harness", "harness/hline_spec.py", "tests"))
+        for out in ("", "not json", "[1]", json.dumps({"result": "x"}), json.dumps({"a": [use("Bash", command="ls")]})):
+            self.assertEqual(hb.read_files(out), (), out)
+        many = {"c": [use("Read", file_path=f"f{n:03}.py") for n in range(50)]}
+        self.assertEqual(len(hb.read_files(json.dumps(many))), 40)
+
+    def test_decompose_prompt_mentions_the_cutoff_and_files_only_after_one(self):
+        args = ("何か", {"task": None}, {"type": "object"}, None, None)
+        plain = hline_spec.decompose_prompt(*args)
+        self.assertEqual(plain, hline_spec.decompose_prompt(*args, cutoff=None, read=("a.py",)))
+        for word in ("打ち切", "前回に読んだファイル"):
+            self.assertNotIn(word, plain)
+        cut = hline_spec.decompose_prompt(*args, cutoff="理由X", read=("a.py", "b/c.py"))
+        for word in ("打ち切", "前回に読んだファイル", "理由X", "a.py", "b/c.py"):
+            self.assertIn(word, cut)
+        self.assertNotIn("記録なし", cut)
+        self.assertIn("記録なし", hline_spec.decompose_prompt(*args, cutoff="理由X"))
+
 
 
 class Flow(base.World):
@@ -126,6 +150,21 @@ class Flow(base.World):
             self.assertEqual((a["models"], a["valid"]), ([], False))
             self.assertIn("打ち切", a["cutoff"])
         self.assertIn(item["decompose"]["attempts"][0]["cutoff"], agents[1]["input"])
+
+    def test_a_cutoff_retry_names_the_files_read_and_a_plain_violation_forgets_them(self):
+        tool = [{"type": "tool_use", "name": "Read", "input": {"file_path": "harness\\hline_spec.py"}}]
+        self.dec_replies = [(0, reply("", subtype="error_max_turns", messages=tool), ""), (0, reply("{}"), ""),
+                            (0, reply("{}"), "")]
+        (spec, rec), _ = self.decompose()
+        self.assertIsNone(spec)
+        decs = [r for r in self.runs if r["label"] == "分解役"]
+        self.assertEqual(len(decs), 1 + CFG["spec_retries"])
+        self.assertIn(rec["attempts"][0]["cutoff"], decs[1]["input"])
+        self.assertIn("harness/hline_spec.py", decs[1]["input"])
+        self.assertEqual(rec["attempts"][0]["read_files"], ["harness/hline_spec.py"])
+        for r in decs[2:]:
+            self.assertNotIn("前回に読んだファイル", r["input"])
+            self.assertNotIn("打ち切", r["input"])
 
     def test_every_call_leaves_its_usage_in_the_queue_state(self):
         self.dec_replies = [(0, reply("これは JSON ではない"), ""), good()]

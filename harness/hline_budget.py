@@ -46,6 +46,30 @@ def cutoff_reason(code, out, lim):
     return None
 
 
+READ_TOOLS, READ_KEYS, READ_MAX = ("Read", "Grep", "Glob"), ("file_path", "path"), 40
+
+
+def _tool_paths(node):
+    if isinstance(node, dict):
+        inp = node.get("input")
+        if node.get("type") == "tool_use" and node.get("name") in READ_TOOLS and isinstance(inp, dict):
+            yield from (inp[k] for k in READ_KEYS if isinstance(inp.get(k), str))
+        for v in node.values():
+            yield from _tool_paths(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _tool_paths(v)
+
+
+def read_files(out):
+    """分解役の標準出力にある Read・Grep・Glob の対象（区切りは '/'、重複なし、ソート済み、最大 40 件）。読めなければ空。"""
+    try:
+        doc = json.loads(out)
+    except (ValueError, TypeError):
+        return ()
+    return tuple(sorted({p.replace("\\", "/") for p in _tool_paths(doc) if p}))[:READ_MAX]
+
+
 def usage(out):
     return telemetry.cli_usage(out, "claude")
 
