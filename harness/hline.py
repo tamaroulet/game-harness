@@ -36,7 +36,8 @@ from hline_git import (ahead, changed_paths, create_pr, drop_merged_branch, fetc
                        integrate, integrated, new_worktree, open_pr, pr_state)
 from hline_queue import (blocked, by_status, intake, load_state, next_runnable, pick, recover, refresh,  # noqa: E402,F401
                          save_state, what_path)
-from hline_report import mark as _mark, pr_body, pr_title, today, write_report  # noqa: E402
+from hline_report import (line_modules, mark as _mark, pr_body, pr_title, self_change, today,  # noqa: E402,F401
+                          write_report)
 from hline_room import director_settings, setup  # noqa: E402,F401
 from hline_spec import boundary_problems, decompose, diff_counts  # noqa: E402
 
@@ -134,7 +135,8 @@ def run_task(cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
 
 def process(cfg, st, name):
     """待ちの What 1 件を、分解 → Gate A → 実装 → Gate 1 → 統合ブランチへ。積めたら True、未収束なら False。
-    環境の異常（Infra）は新しい作業ツリーで呼び直す（実装役の試行に数えない）。続けば What を待ちに戻し、infra_halt を立てて False。"""
+    環境の異常（Infra）は新しい作業ツリーで呼び直す（実装役の試行に数えない）。続けば What を待ちに戻し、infra_halt を立てて False。
+    ライン自身の変更を積んだときは st["self_change"] を置く（run_line が走行を区切る）。"""
     item = st["items"][name]
     what = what_path(cfg, name).read_text(encoding="utf-8")
     tid = f"{datetime.datetime.now():%Y%m%d-%H%M}-{slug(name)}"
@@ -158,7 +160,10 @@ def process(cfg, st, name):
                                                      on_stage=lambda s: mark(cfg, st, name, s))
             if spec is None or wt is None:
                 return False
+            own = self_change(changed_paths(wt, cfg))
             integrate(cfg, wt, name, item["title"], item["task"])
+            if own:
+                st["self_change"] = {"name": name, "paths": own}
             return True
         except Infra as e:   # 呼び直しのたびに記録を残す（待った秒数は retry の記録で置き換わる）
             item.setdefault("infra_retries", []).append({"attempt": n, "reason": str(e), "wait": None})
@@ -221,6 +226,7 @@ def run_line(cfg):
     sweep(cfg)   # 前の走行の残骸の掃除。例外は出さず、戻り値も使わない（消せないものは次の起動で再び対象になる）
     st = load_state(cfg)
     st["infra_halt"] = None   # 前の走行の停止は、次の走行の自動の再開を妨げない
+    st["self_change"] = None   # 前の走行の区切りも、次の走行を妨げない
     save_state(cfg, st)
     fetch(cfg)
     recover(cfg, st, lambda n: integrated(cfg, n))
@@ -244,6 +250,9 @@ def run_line(cfg):
         if st["infra_halt"]:
             break
         unconverged |= not ok
+        if st.get("self_change"):   # 読み込み済みのコードは古い。次の What は、積んだ変更を読み込んだ次の走行に任せる
+            print("ライン自身の変更を積んだので走行を区切った（次の走行で読み込み直す）")
+            break
     if st["infra_halt"]:
         write_report(cfg, st)
         return 2

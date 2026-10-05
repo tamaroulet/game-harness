@@ -399,7 +399,7 @@ class World(unittest.TestCase):
         self.patch(infra_retry, "SLEEP", new=self.slept.append)   # 呼び直しの待ち時間は実際には待たない
         self.patch(hline.proc, "run", side_effect=forbidden)
         self.patch(hline.proc, "resolve_cli", side_effect=forbidden)
-        self.patch(hline, "fetch")
+        [self.patch(hline, n) for n in ("fetch", "changed_paths")]   # changed_paths は空の反復を返す
         self.patch(hline, "integrated", side_effect=lambda c, n: n in self.integrated)
         self.patch(hline, "new_worktree", side_effect=lambda c, t: (self.wt, "b"))
         self.patch(hline, "integrate", side_effect=self.fake_integrate)

@@ -21,6 +21,28 @@ MARK = "<!-- hline-queue:"
 BODY_MAX = 60000   # GitHub の PR 本文の上限は 65536 文字
 
 
+SELF_CONFIGS = ("config/hline.json", "config/taskspec.schema.json")
+
+
+def line_modules():
+    """読み込み済みのモジュールのうち、このリポジトリの harness の下にあるものの、根からの相対パス（/ 区切り）の集合。"""
+    harness, root, found = (ROOT / "harness").resolve(), ROOT.resolve(), set()
+    for mod in list(sys.modules.values()):
+        try:
+            file = Path(getattr(mod, "__file__", None) or "").resolve()
+            if file.is_file() and harness in file.parents:
+                found.add(file.relative_to(root).as_posix())
+        except (OSError, ValueError, TypeError):
+            continue
+    return frozenset(found)
+
+
+def self_change(paths, modules=None):
+    """paths のうち、走行中のライン自身（読み込み済みのモジュール・2 つの設定ファイル）に当たるもの。正規化して並べ替える。"""
+    mods = line_modules() if modules is None else modules
+    return sorted({n for n in (p.replace("\\", "/") for p in paths) if n in mods or n in SELF_CONFIGS})
+
+
 def line_status(cfg, st):
     if st.get("infra_halt"):
         return "インフラ例外で停止"
@@ -55,6 +77,8 @@ def h_section(cfg, st):
              f"- 統合 PR: {st['awaiting_pr'] or 'なし'}", "", "## キュー",
              row("済み", "done"), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
              row("未収束", "unconverged", lambda i: f"（{i.get('reason', '')}）"), row("凍結", "frozen", frozen)]
+    if st.get("self_change"):
+        lines += ["", f"- ライン自身の変更を積んだので走行を区切った（積んだ What: {st['self_change']['name']}）"]
     if st["skipped"]:
         lines += ["", "## 受信箱に残した What"] + [f"- {s['file']}: {s['reason']}" for s in st["skipped"]]
     return "\n".join(lines) + "\n"
