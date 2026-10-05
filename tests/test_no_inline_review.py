@@ -41,7 +41,8 @@ def sources():
 class NoInlineReview(unittest.TestCase):
     def test_gate_paths_contain_no_model_invocation(self):
         """条件 1: H ラインの門は unittest の終了コードだけ。スケジューラの Issue の処理に監査の段が無い。"""
-        self.assertEqual(CFG["gate_command"][:3], ["python", "-m", "unittest"])
+        self.assertEqual(CFG["gate_command"][:2], ["python", "-m"])
+        self.assertIn(CFG["gate_command"][2], ("unittest", "harness.fastsuite"), "走らせるのはテストの実行器だけ")
         gate_src = inspect.getsource(hline.gate)
         for word in ("run_agent", "implement(", "claude", "agy", "OPENAI"):
             self.assertNotIn(word, gate_src)

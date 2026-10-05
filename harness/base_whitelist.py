@@ -38,6 +38,6 @@ def completed_modules(state, target_repo=None):
 
 
 def unittest_command(gate_command, modules):
-    """gate_command の `-m unittest` までに modules を並べる。走らせるものが無ければ None。"""
-    modules = list(modules)
-    return list(gate_command[:list(gate_command).index("unittest") + 1]) + modules if modules else None
+    """gate_command の `-m <実行モジュール>` までに modules を並べる。走らせるものが無ければ None。"""
+    modules, gate_command = list(modules), list(gate_command)
+    return gate_command[:gate_command.index("-m") + 2] + modules if modules else None

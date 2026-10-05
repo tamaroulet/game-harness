@@ -131,7 +131,7 @@ class Boundary(unittest.TestCase):
         ok, msg, run = self.gate(["harness/textnorm.py", "tests/test_textnorm.py"])
         self.assertTrue(ok)
         self.assertEqual([c.args[0] for c in run.call_args_list],
-                         [["python", "-m", "unittest", "tests.test_textnorm"], CFG["gate_command"]])   # 個別 → 全件
+                         [hline.base_whitelist.unittest_command(CFG["gate_command"], ["tests.test_textnorm"]), CFG["gate_command"]])   # 個別 → 全件
 
     def test_a_file_outside_the_allowed_files_fails_without_running_the_tests(self):
         ok, msg, run = self.gate(["harness/textnorm.py", "README.md"])

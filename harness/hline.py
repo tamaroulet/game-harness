@@ -52,10 +52,10 @@ def build_prompt(spec, feedback=None, symbol_map=None):
          "次の TaskSpec（JSON）を満たす変更を、作業ディレクトリの中だけで行ってください。",
          "- edit_boundary の allowed_files の外と forbidden_files は変えない。差分は max_diff_lines 行以内",
          "- contracts と test_oracle を満たすことを、unittest のテストを tests/ に書いて示す（既存の書き方に合わせる）",
-         "- docs/progress.yaml と .claude/ は変えない。git の操作はしない（コミットはハーネスが行う）",
-         "- CLAUDE.md の進捗（anchor・report）と報告の規約は総監督向けで、あなたには適用しない",
+         "- docs/progress.yaml と .claude/ は変えない。git の操作はしない（コミットはハーネスが行う）。CLAUDE.md の進捗（anchor・report）と報告の規約は総監督向けで、あなたには適用しない",
          "- タスク個別の検証（test_oracle の verification_command。無ければ自分が書いた tests/ のテスト）を手元で走らせて通す。"
          "全件テストはハーネスが走らせるので、自分では走らせない。既存のテストを壊さない",
+         "- 全件テストはモジュールごとに別のプロセスで並列に走る。tests/ に書くテストは、固定の一時ディレクトリ・固定のポート・走る順番に依らせない",
          *(["", symbol_map] if symbol_map else []),   # 目次は最初の区切りの前に置く（区切りの後は TaskSpec の JSON だけ）
          "", "---", json.dumps(spec, ensure_ascii=False, indent=2)]
     if feedback:

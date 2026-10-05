@@ -109,7 +109,7 @@ class Focused(unittest.TestCase):
         run = Run(focused=(1, "", SAMPLE))
         ok, msg = self.focused(["harness/x.py", "tests/test_a.py"], None, run)
         self.assertFalse(ok)
-        self.assertEqual(run.commands, [["python", "-m", "unittest", "tests.test_a"]])
+        self.assertEqual(run.commands, [hline.base_whitelist.unittest_command(CFG["gate_command"], ["tests.test_a"])])
         self.assertIn("FAIL: test_a", msg)
         run = Run()
         self.assertIsNone(self.focused(["harness/x.py"], None, run))

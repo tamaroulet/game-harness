@@ -24,8 +24,8 @@
   "infra_retry": { "max_retries": 2, "wait_seconds": [60, 300] },
   "_infra_retry_note": "インフラの例外（CLI の起動の失敗・タイムアウト・git や gh の一時的な失敗・認証の一時的な失敗）で、新しい作業ツリーで呼び直す回数の上限と、呼び直しの前に待つ秒数。実装役の試行回数（max_attempts）には数えない",
 
-  "gate_command": ["python", "-m", "unittest", "discover", "-s", "tests"],
-  "_gate_note": "H ラインの Gate 1（段 0）。終了コードだけで判定する。LLM は使わない",
+  "gate_command": ["python", "-m", "harness.fastsuite", "discover", "-s", "tests"],
+  "_gate_note": "H ラインの Gate 1（段 0）。モジュールごとに別のプロセスで並列に走らせる（harness/fastsuite.py）。判定は終了コードだけ（0 = 全部通った）。LLM は使わない",
   "protected_paths": ["docs/progress.yaml", ".claude/"],
   "_protected_note": "実装役が変えてはならないパス。docs/progress.yaml は harness.progress だけが変える。.claude/ は権限の設定",
 
