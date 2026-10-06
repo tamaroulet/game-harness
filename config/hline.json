@@ -9,7 +9,7 @@
   "base": "origin/main",
   "integration_branch": "hline/integration",
   "_integration_note": "Gate 1 を通った変更はこのブランチの先端に積む（作業ツリーもここから作る。無ければ base から）。タスクごとの PR は作らず、積むものが尽きたら main への統合 PR を 1 本だけ出して止まる",
-  "milestones": ["B7.1", "B7.2", "B7.3", "B7.4"],
+  "milestones": ["B7.1", "B7.2", "B7.3", "B7.4", "B7.5"],
   "_milestones_note": "このラインが取ってよいマイルストーン（進捗のグループの ID）。外のもの・宣言の無いものは受信箱に残す",
   "max_unconverged_per_milestone": 2,
   "_blocked_note": "同じマイルストーンで未収束がこの件数に達したら、ラインを BLOCKED で止める（統合 PR は作らない）",
