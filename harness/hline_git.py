@@ -4,6 +4,7 @@ Gate 1 を通った変更は統合ブランチ（設定の integration_branch）
 後のタスクは前のタスクの変更を含む。タスクごとの PR は作らず、統合 PR を 1 本だけ出す。
 """
 import json
+import os
 import sys
 import uuid
 from pathlib import Path
@@ -11,6 +12,7 @@ from pathlib import Path
 from hline_base import ROOT, Infra, must
 
 import proc  # noqa: E402
+import progress  # noqa: E402
 
 TRAILER = "H-Line-Item"
 
@@ -71,7 +73,7 @@ def integrate(cfg, wt, name, title, task):
     t = cfg["ttl_seconds"]
     if task:
         code, out, err = proc.run([sys.executable, "-m", "harness.progress", "complete", task], wt, t["gate"],
-                                  "harness.progress complete")
+                                  "harness.progress complete", env={**os.environ, progress.ORDER_FREE_ENV: "1"})
         if code != 0:
             raise Infra(f"harness.progress complete {task} が終了コード {code}: {(out + err)[-800:]}")
     must(["git", "add", "-A"], wt, t["git"], "git add")

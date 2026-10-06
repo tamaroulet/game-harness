@@ -22,6 +22,7 @@
 import argparse
 import datetime
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -38,6 +39,7 @@ TAIL_LINES = 20
 REPORT_MAX_LINES = 20
 VERIFY_TTL = 1800
 GIT_TTL = 120
+ORDER_FREE_ENV = "HLINE_PROGRESS_ORDER_FREE"   # "1" のとき main の complete が、現在のタスクでなくても記録する（H ライン用）
 
 
 class ProgressError(Exception):
@@ -270,14 +272,27 @@ def main_version(repo_root, ref, fetch=True):
     return yaml.safe_load(r.stdout)
 
 
-def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, now=None):
-    """0 = 完了にした、1 = 拒絶（REJECT）、2 = 検証コマンドが環境異常で終わった（ABORT）。"""
+def advance_active(state):
+    """進捗の順で最初の未完了のタスクを現在のタスクにする（ほかの in_progress は pending に戻す）。新しい id（無ければ None）を返す。"""
+    nxt = next((x for x in state["tasks"] if x["status"] != "completed"), None)
+    for x in state["tasks"]:
+        if x["status"] == "in_progress" and x is not nxt:
+            x["status"] = "pending"
+    if nxt:
+        nxt["status"] = "in_progress"
+    state["active_task_id"] = nxt["id"] if nxt else None
+    return state["active_task_id"]
+
+
+def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, now=None, *, require_active=True):
+    """0 = 完了にした、1 = 拒絶（REJECT）、2 = 検証コマンドが環境異常で終わった（ABORT）。
+    require_active=False は、現在のタスクでなくても（検証の照合と実行は同じに通して）完了にする。"""
     path = Path(repo_root) / REL_PATH
     state = load(path)
     problems = validate(state)
     if problems:
         raise ProgressError("progress.yaml の形が壊れています: " + " / ".join(problems))
-    if state.get("active_task_id") != task_id:
+    if require_active and state.get("active_task_id") != task_id:
         raise ProgressError(f"{task_id} は現在のタスクではありません（現在：{state.get('active_task_id')}）")
     t = task(state, task_id)
     v = t.get("verification")
@@ -310,10 +325,7 @@ def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, 
         return 1
     t["status"] = "completed"
     t.pop("review_pr", None)
-    nxt = next((x for x in state["tasks"] if x["status"] == "pending"), None)
-    if nxt:
-        nxt["status"] = "in_progress"
-    state["active_task_id"] = nxt["id"] if nxt else None
+    advance_active(state)
     save(state, path)
     out(f"完了: {task_id}（終了コード {rc}）。次の現在地：{state['active_task_id'] or 'なし'}")
     out(f"{REL_PATH} の変更をコミットして main に入れてください")
@@ -321,6 +333,12 @@ def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, 
 
 
 # ============================================================ CLI
+
+def _complete_cli(task_id):
+    if os.environ.get(ORDER_FREE_ENV) == "1":
+        return complete(task_id, require_active=False)
+    return complete(task_id)
+
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="進捗の外部主記憶（docs/progress.yaml）")
@@ -340,7 +358,7 @@ def main(argv=None):
     path = ROOT / REL_PATH
     try:
         if args.cmd == "complete":
-            return complete(args.task_id)
+            return _complete_cli(args.task_id)
         if args.cmd == "review":
             review(args.task_id, args.url, path)
             print(report(load(path)), end="")
