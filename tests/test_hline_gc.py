@@ -1,6 +1,7 @@
-"""H ライン（harness/hline_gc.py）の作業ツリーの掃除の検査（S1-2）。git は一時ディレクトリの小さなリポジトリで本物を使い、
+﻿"""H ライン（harness/hline_gc.py）の作業ツリーの掃除の検査（S1-2）。git は一時ディレクトリの小さなリポジトリで本物を使い、
 worktrees・out・ROOT は必ず一時ディレクトリに差し替える（実物の置き場を対象にしない）。再試行の待ちは 0 秒にする。"""
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -31,7 +32,7 @@ class Repo(unittest.TestCase):
                               capture_output=True, text=True, encoding="utf-8").stdout
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
+        self.tmp = Path(os.path.realpath(tempfile.mkdtemp()))
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.origin, self.clone, self.wt, self.out = (self.tmp / n for n in ("origin", "clone", "wt", "out"))
         self.origin.mkdir()
