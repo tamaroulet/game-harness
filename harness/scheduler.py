@@ -1,4 +1,4 @@
-"""MS4 スケジューラ。ready の Issue を 1 本ずつ、分解 → 監査 → 実装 → 統合ブランチへマージまで運ぶ。
+"""MS4 スケジューラ。ready の Issue を 1 本ずつ、分解 → 実装 → 統合ブランチへマージまで運ぶ。
 
     python harness/scheduler.py --project unity-2d --dry-run     # 対象と予定だけ表示。何も変えない
     python harness/scheduler.py --project unity-2d               # 一覧を 1 周して終わる
@@ -29,8 +29,6 @@
          origin/<統合ブランチ>。本体の clone は main のまま触らない
          decompose.py   0 → 次 / 1 → 不合格 / それ以外 → ABORT
          生成物をコミット（想定外のパスがあれば ABORT）
-         audit.py       単位定義と受入テスト（＝オラクル）だけを見る。キーが無ければスキップ。
-                        結果は合否に使わない（required=false のとき）。実装そのものは監査しない
          pipeline.py    0 → 統合ブランチへマージ / 1 → 不合格 / それ以外 → ABORT
          統合ブランチへ --no-ff でローカルマージし、そのまま push。Issue に ms4:integrated
     4. 周の末尾。積まれた Issue が下限に達したか、ready が尽きたら統合 PR を 1 本作る
@@ -53,9 +51,9 @@ Issue は main から切るので、承認待ちの先行 Issue の実装を後�
 **なぜ機械可読なマージコミットにするのか**
 
 統合 PR には 3〜4 本の Issue が入る。人間はそのまとまりを 1 回で承認するので、「どの Issue が
-どの実行（Run-Id）の、どのハーネスの版・どの契約の版で、どんな監査判定を受けて入ったか」を
+どの実行（Run-Id）の、どのハーネスの版・どの契約の版で入ったか」を
 コミット履歴から機械で読めないと、後から検証できない。マージコミットの本文に Issue / Run-Id /
-Harness-SHA / Contract-SHA / Audit-Verdict / Gate-Result を固定の書式で書き、統合 PR で
+Harness-SHA / Contract-SHA / Gate-Result を固定の書式で書き、統合 PR で
 runs.jsonl と突き合わせた照合レポートを付ける。
 
 **なぜ競合を自分で直さないのか**
@@ -90,6 +88,7 @@ ms4:failed を付け、ログ末尾をコメントし、次の Issue へ進む�
 その時点で作業ツリーが汚れていたら、それはもう不合格ではなく ABORT に格上げする。
 """
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -106,6 +105,7 @@ import adapters
 import contract
 import exitcode
 import fileops
+import job_object
 import gdd_check
 import project
 import telemetry
@@ -117,17 +117,11 @@ SPEC_FILES = ("docs/spec/spec.md", "docs/spec/questions.md")
 
 # 統合ブランチのマージコミットに必ず入れる行（機械照合用。統合 PR で runs.jsonl と突き合わせる）。
 # 順序も固定する。読むときは行頭の完全一致でしか拾わない（本文中の引用に釣られない）。
-MERGE_TRAILERS = ("Issue", "Run-Id", "Harness-SHA", "Contract-SHA", "Audit-Verdict", "Gate-Result")
+MERGE_TRAILERS = ("Issue", "Run-Id", "Harness-SHA", "Contract-SHA", "Gate-Result")
 TRAILER_RE = re.compile(r"^(" + "|".join(MERGE_TRAILERS) + r"): (.+)$", re.M)
 ISSUE_REF_RE = re.compile(r"#([1-9][0-9]*)$")
 
-# 監査役が返してよい判定。これ以外は「読めなかった」として扱う。
-VERDICT_ORDER = {"ok": 0, "concern": 1, "reject": 2}
 VERDICT_UNKNOWN = "unknown"
-VERDICT_SKIPPED = "skipped"
-# 複数ファイルの判定をまとめるときの強さ。「取れなかった」を ok に畳まず（0 と「不明」を
-# 混ぜない、と同じ理由）、かつ reject を unknown で覆い隠さない（強い警告のほうを人間に見せる）。
-VERDICT_RANK = {"ok": 0, VERDICT_UNKNOWN: 1, "concern": 2, "reject": 3}
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -177,8 +171,12 @@ def kill_pid_tree(pid):
         return False
 
 
-def kill_tree(proc):
+def kill_tree(proc, job=None):
     """子だけ殺すと孫（エンジンのエディタ・agy）が孤児になって走り続ける。木ごと止める。"""
+    if job is not None:  # Job を閉じて止まらなかった分だけ、下の taskkill → kill に落ちる
+        job_object.close(job)
+        if job_object.exited(proc, 3):
+            return
     if sys.platform == "win32":
         if not kill_pid_tree(proc.pid):
             proc.kill()  # taskkill 自体が固まったら、せめて直下の子は止める
@@ -221,7 +219,7 @@ def pid_alive(pid):
 
 
 def run_logged(args, cwd, ttl, log_path, env, on_wait=None, tick=30):
-    """長い子プロセス（decompose / audit / pipeline）。出力は逐次ファイルへ。
+    """長い子プロセス（decompose / pipeline）。出力は逐次ファイルへ。
 
     pipeline は 1 時間を超えうる。メモリに溜めて最後に書くと、途中で何が
     起きているか誰にも見えず、殺されたときに何も残らない。
@@ -230,13 +228,13 @@ def run_logged(args, cwd, ttl, log_path, env, on_wait=None, tick=30):
     待ちが長くても、外から「生きて待っている」ことが分かるようにするため。
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("wb") as f:
+    with log_path.open("wb") as f, contextlib.ExitStack() as stack:  # 抜けるとき Job を閉じる
         f.write(("$ " + " ".join(args) + "\n\n").encode("utf-8"))
         f.flush()
+        child = job_object.Child(args, cwd=str(cwd), stdout=f, stderr=subprocess.STDOUT,
+                                 stdin=subprocess.DEVNULL, env=env, creationflags=_NO_WINDOW)
         try:
-            proc = subprocess.Popen(args, cwd=str(cwd), stdout=f, stderr=subprocess.STDOUT,
-                                    stdin=subprocess.DEVNULL, env=env,
-                                    creationflags=_NO_WINDOW)
+            proc = stack.enter_context(child)
         except FileNotFoundError as e:
             f.write(f"コマンドが見つかりません: {e}\n".encode("utf-8"))
             return 127
@@ -246,7 +244,7 @@ def run_logged(args, cwd, ttl, log_path, env, on_wait=None, tick=30):
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                kill_tree(proc)
+                child.kill_tree()
                 f.write(f"\n\nTTL超過 ({ttl}s)。プロセス木ごと停止しました\n".encode("utf-8"))
                 return 124
             try:
@@ -824,7 +822,6 @@ class Scheduler:
         self.harness_sha = out.strip() if rc == 0 and out.strip() else None
 
         self.test_dir = cfg["test_dir"].strip("/")
-        self.audit_dir = cfg["audit_dir"].strip("/")
         # 承認依頼に載せる受入テスト一覧は、言語ごとの抽出器で作る（fast アダプタ）。
         # 設定に無ければ例外で止まる（既定の言語を仮定しない）。
         self.fast = adapters.load("fast", cfg["adapters"]["fast"])
@@ -1101,7 +1098,7 @@ class Scheduler:
         records = [r for r in self.read_runs() if r.get("issue") == n] + [rec]
         tokens, t_why = telemetry.tokens_total(records)
         units_dir = self.cfg["unit_path_template"].rsplit("/", 1)[0] + "/"
-        exclude = [self.test_dir + "/", units_dir, self.audit_dir + "/", "reports/"]
+        exclude = [self.test_dir + "/", units_dir, "reports/"]
         loc, l_why = self.git.added_lines(merge_sha, exclude)
         telemetry.put(rec, "tokens_total", tokens, t_why)
         telemetry.put(rec, "accepted_loc", loc, l_why)
@@ -1379,12 +1376,12 @@ class Scheduler:
                         "契約の版を記録できないので、統合ブランチへ入れません")
         return sha
 
-    def merge_message(self, n, verdict, contract_sha):
+    def merge_message(self, n, contract_sha):
         """統合ブランチへのマージコミットの本文。統合 PR で runs.jsonl と機械照合するため、
         書式を固定する（MERGE_TRAILERS の順序どおり、1 行 1 項目）。"""
         values = {"Issue": f"#{n}", "Run-Id": self.run_id,
                   "Harness-SHA": self.harness_sha or VERDICT_UNKNOWN,
-                  "Contract-SHA": contract_sha, "Audit-Verdict": verdict,
+                  "Contract-SHA": contract_sha,
                   "Gate-Result": "PASSED"}
         head = f"feat(core): implement Issue #{n} into {self.integration_branch()}"
         return head + "\n\n" + "".join(f"{k}: {values[k]}\n" for k in MERGE_TRAILERS)
@@ -1436,15 +1433,6 @@ class Scheduler:
         rec["test_count"] = self.summarize_tests(n, tests)[0]
         self.igit.add_commit(changed, f"test(ms4): acceptance tests for issue #{n}")
 
-        # ---- 監査（実装の前。分解役が書いたテストと単位定義を見る）
-        audit_failed, _ = self.audit(rec, [unit] + tests)
-        changed = self.igit.changed_paths()
-        if changed:
-            self.require_only(changed, [lambda p: p.startswith(self.audit_dir + "/")], "audit.py")
-            self.igit.add_commit(changed, f"docs(audit): audit reports for issue #{n}")
-        if audit_failed and self.cfg["audit"]["required"]:
-            raise Reject("監査が必須の設定ですが、監査が完了しませんでした: " + rec["audit"])
-
         self.igit.push_upstream(branch)
 
         # ---- 実装
@@ -1458,80 +1446,14 @@ class Scheduler:
 
         self.merge_into_integration(n, branch, integ, unit, rec)
 
-    AUDIT_LABEL = "監査（実装の前）"
-
-    def audit(self, rec, files):
-        """実装の前に、単位定義と受入テスト（＝オラクル）を第三者のモデルに見せる。
-        戻り値: (完了しなかったか, 判定)。
-
-        **判定は合否に使わない**（非決定的な門を増やさない）。ok / concern / reject を
-        マージコミット・runs.jsonl・統合 PR の承認依頼の先頭に載せ、人間の目に入れる（§13 の 3）。
-        判定を読み取れなかったものは unknown にする。ok に畳まない。
-
-        **実装そのものは監査しない**（2026-09-19 の決定）。実装の正しさはコンパイラと
-        決定論的な受入テストが決めるので、そこへ LLM の判定を重ねても情報が増えない。
-        一方オラクルは、コンパイラにもテストにも検査できない（恒真なテストはコンパイルも
-        通るし合格もする）。残すのがここだけなのは、そのため。
-        """
-        key = "audit"
-        if not self.cfg["audit"].get("enabled", True):
-            rec[key] = "skipped (??????)"
-            rec[key + "_verdict"] = VERDICT_SKIPPED
-            print(f"  [{self.AUDIT_LABEL}] ?????????????????")
-            return False, VERDICT_SKIPPED
-        key_env = self.cfg["audit"]["key_env"]
-        if not os.environ.get(key_env):
-            rec[key] = f"skipped ({key_env} 未設定)"
-            rec[key + "_verdict"] = VERDICT_SKIPPED
-            print(f"  [{self.AUDIT_LABEL}] {key_env} が無いのでスキップ")
-            return True, VERDICT_SKIPPED
-        if not files:
-            rec[key] = "skipped (対象のファイルがありません)"
-            rec[key + "_verdict"] = VERDICT_SKIPPED
-            return False, VERDICT_SKIPPED
-        failed, verdicts, findings = [], [], []
-        for f in files:
-            tag = Path(f).stem
-            vpath = self.out / f"issue_{rec['issue']}" / f"audit_{tag}.verdict.json"
-            fileops.unlink(vpath)
-            rc, _ = self.step(rec, "audit", tag=tag, cwd=self.wt, file=f, verdict=str(vpath))
-            if rc != 0:
-                failed.append(f"{f} rc={rc}")
-                continue
-            data, why = telemetry.read(vpath)
-            got = (data or {}).get("verdict")
-            verdicts.append(got)
-            findings += [f"`{Path(f).name}`: {x}" for x in ((data or {}).get("findings") or [])]
-            if got not in VERDICT_ORDER:
-                print(f"  [{self.AUDIT_LABEL}] {f}: 判定を読めません: "
-                      + str((data or {}).get("verdict_null_reason") or why))
-        verdict = self.worst_verdict(verdicts)
-        rec[key] = "failed: " + "; ".join(failed) if failed else "done"
-        rec[key + "_verdict"] = verdict
-        rec[key + "_findings"] = findings
-        return bool(failed), verdict
-
-    @staticmethod
-    def worst_verdict(verdicts):
-        """複数のファイルの判定をまとめる。強いほうを採り、読めなかったものは unknown として数える。"""
-        if not verdicts:
-            return VERDICT_SKIPPED
-        got = [v if v in VERDICT_ORDER else VERDICT_UNKNOWN for v in verdicts]
-        return max(got, key=lambda v: VERDICT_RANK[v])
-
     def impl_files(self, branch, integ):
         """Issue のブランチが統合ブランチから足した、実装のファイル。
 
-        テスト・単位定義・監査レポート・記録は外す（分解役の出力は実装の前に監査済み）。
-
-        **エンジンが自動で作る付随ファイルも外す。** 人が書いた実装ではないし、中身は
-        機械が振った識別子だけで、読ませても指摘は出るが意味が無い。実測では 59 文字の
-        付随ファイル 6 件に監査役が約 6 分かけ、そのそれぞれに「指摘 7 件」を返していた
-        （2026-09-19 の Issue #12。監査はマージ直前の最大の時間項だった）。
-        外すのは監査の対象からだけで、付随ファイル自体はマージには載る。
+        テスト・単位定義・記録は外す。エンジンが自動で作る付随ファイルも外す（人が書いた
+        実装ではなく、中身は機械が振った識別子だけ）。付随ファイル自体はマージには載る。
         """
         units_dir = self.cfg["unit_path_template"].rsplit("/", 1)[0] + "/"
-        skip = (self.test_dir + "/", self.audit_dir + "/", units_dir, "reports/")
+        skip = (self.test_dir + "/", units_dir, "reports/")
         return [x for x in self.igit.diff_names(f"origin/{integ}...{branch}")
                 if not any(x.startswith(s) for s in skip) and not self.engine.is_companion(x)]
 
@@ -1555,22 +1477,15 @@ class Scheduler:
         rec["head_sha"] = sha
         rec["playtest"] = "required" if self.unit_field(unit, "playtest") == "required" else "none"
 
-        # ---- 実装そのものは監査しない。ここに LLM の判定を置かない。
-        # 実装の正しさはコンパイラと決定論的な受入テストが決める。門（F2P / P2P / 静的検査 /
-        # 改変ブロック）を通った実装へ、さらに非決定的な読み手を重ねても情報が増えない。
-        # 実測では 1 Issue あたり 13 分（通算 29 分の 45%）を使い、全体の最大の時間項だった。
-        # 残すのはオラクル（単位定義と受入テスト）の監査だけで、そちらはコンパイラにも
-        # テストにも代替できない。Audit-Verdict には、実装の前に回したその判定を載せる。
         impl = self.impl_files(branch, integ)
         rec["impl_files"] = impl
-        verdict = rec.get("audit_verdict") or VERDICT_SKIPPED
         contract_sha = self.contract_sha()
 
         # ---- ローカルマージ。統合ブランチ側に立って --no-ff（1 Issue = 1 マージコミット）
         self.igit.fetch_branch(integ)
         self.igit.checkout_new(integ, f"origin/{integ}")
         base_sha = self.igit.head_sha()
-        ok, detail = self.igit.merge_no_ff(branch, self.merge_message(n, verdict, contract_sha))
+        ok, detail = self.igit.merge_no_ff(branch, self.merge_message(n, contract_sha))
         if not ok:
             self.igit.merge_abort()
             self.igit.reset_hard(base_sha)
@@ -1590,7 +1505,7 @@ class Scheduler:
 
         # ---- 二重処理の防止。Issue はここでは閉じない（閉じるのは統合 PR の Closes #N）
         self.gh.comment(n, f"ms4:{n}:integrated:{merge_sha}",
-                        self.integrated_report(n, integ, rec, verdict))
+                        self.integrated_report(n, integ, rec))
         self.gh.set_labels(n, add=["integrated"], remove=["running", "ready"])
         self.accepted_metrics(rec, n, merge_sha)
 
@@ -1600,17 +1515,12 @@ class Scheduler:
             self.git.delete_remote_branch(branch)
         self.wt, self.igit = None, None
 
-    def integrated_report(self, n, integ, rec, verdict):
-        found = rec.get("audit_findings") or []
+    def integrated_report(self, n, integ, rec):
         body = (f"**ms4: 統合ブランチへマージしました** — Issue #{n}\n\n"
                 f"- 統合ブランチ: `{integ}`\n"
                 f"- マージコミット: `{rec['merge_sha'][:8]}`（Issue 側の先頭 `{rec['head_sha'][:8]}`）\n"
                 f"- 門: F2P / P2P / 静的検査 / 改変ブロック すべて合格（`Gate-Result: PASSED`）\n"
-                f"- 監査の判定（実装の前・単位定義と受入テストが対象）: **{verdict}**"
-                f"（合否には使っていません）\n"
                 f"- Run-Id: `{self.run_id}`\n\n")
-        if found:
-            body += "### 監査役の指摘（実装の前・単位定義と受入テスト）\n\n" + "\n".join(f"- {x}" for x in found[:20]) + "\n\n"
         body += (f"この Issue はまだ閉じていません。人間の承認（H1）とプレイ確認（H2）は、"
                  f"`{integ}` から `{self.base}` への統合 PR で 1 回だけ受けます。\n")
         return body
@@ -1765,7 +1675,7 @@ class Scheduler:
             m = c["merge"]
             rows.append(f"| #{c['issue']} | `{m['sha'][:8]}` | `{m['Run-Id']}` | "
                         f"`{m['Harness-SHA'][:8]}` | `{m['Contract-SHA'][:8]}` | "
-                        f"{m['Audit-Verdict']} | {m['Gate-Result']} | "
+                        f"{m['Gate-Result']} | "
                         + ("OK" if c["problem"] is None else "**不一致**") + " |")
         problems = [f"- Issue #{c['issue']}: {c['problem']}" for c in checked if c["problem"]]
         return (
@@ -1776,28 +1686,24 @@ class Scheduler:
             "人間の承認（H1）とプレイ確認（H2）は、この PR で 1 回だけ受けます。"
             f"`{self.base}` へはマージコミット（`--merge`）で入れます（squash しません）。\n\n"
             "### コミットと記録の照合\n\n"
-            "| Issue | マージ | Run-Id | Harness | Contract | 監査 | 門 | 照合 |\n"
-            "|:--|:--|:--|:--|:--|:--|:--|:--|\n" + "\n".join(rows) + "\n\n"
+            "| Issue | マージ | Run-Id | Harness | Contract | 門 | 照合 |\n"
+            "|:--|:--|:--|:--|:--|:--|:--|\n" + "\n".join(rows) + "\n\n"
             + ("**照合できない行があります。承認の前に確認してください。**\n\n"
                + "\n".join(problems) + "\n" if problems else
                "すべてのマージコミットが `runs.jsonl` の記録と一致しています。\n"))
 
     def integration_approval_request(self, integ, checked, head, num):
-        """承認依頼の本文。監査の判定を先頭に置き、受入テストは C# から機械抽出する。"""
+        """承認依頼の本文。受入テストは C# から機械抽出する。"""
         project_id = self.cfg.get("project_id") or self.cfg["repo_slug"]
-        blocks, findings = [], []
+        blocks = []
         for c in checked:
             n = c["issue"]
             unit = self.cfg["unit_path_template"].format(number=n)
             total, md = self.summarize_tests(n, c["tests"])
             hcp = self.unit_field(unit, "human_check_point", root=self.wt)
-            blocks.append(f"#### Issue #{n}（監査（実装の前） {c['merge']['Audit-Verdict']}、"
-                          f"受入テスト {total} 件）\n\n{md}\n\n"
+            blocks.append(f"#### Issue #{n}（受入テスト {total} 件）\n\n{md}\n\n"
                           "人間が実機で見ること: "
                           + (hcp or "（単位定義に human_check_point がありません）") + "\n")
-            run = c["run"] or {}
-            findings += [f"- Issue #{n} {x}" for x in (run.get("audit_findings") or [])]
-        verdicts = ", ".join("#%d %s" % (c["issue"], c["merge"]["Audit-Verdict"]) for c in checked)
         playtest = [c["issue"] for c in checked if c["playtest"]]
         playtest_note = (
             "### プレイ確認\n\n**必要**（Issue "
@@ -1807,10 +1713,7 @@ class Scheduler:
         body = (
             f"**ms4: 承認依頼** — 統合 PR（`{integ}` → `{self.base}`）\n\n"
             f"対象コミット: `{head[:8]}`（この SHA に対してだけ有効。push されると承認は外れます）\n\n"
-            "### 監査の判定\n\n" + verdicts
-            + "（合否には使っていません。ok / concern / reject 以外は、判定を読み取れなかったことを表します）\n\n"
-            + (("指摘:\n\n" + "\n".join(findings[:40]) + "\n\n") if findings else "")
-            + "### 受入テスト（分解役が書いたもの。C# から機械抽出）\n\n"
+            "### 受入テスト（分解役が書いたもの。C# から機械抽出）\n\n"
             + "\n".join(blocks) + "\n"
             + playtest_note
             + "### 承認\n\n```\n"
@@ -2264,7 +2167,7 @@ class Scheduler:
                   f"{self.cfg['integration_max_issues']} 本、統合 PR の下限 "
                   f"{self.cfg['integration_pr_min_issues']} 本）")
             for m in merges:
-                print(f"  #{m['issue']} `{m['sha'][:8]}` run {m['Run-Id']} 監査 {m['Audit-Verdict']}")
+                print(f"  #{m['issue']} `{m['sha'][:8]}` run {m['Run-Id']}")
         else:
             merges = []
             print(f"統合ブランチ: {integ}（まだ無い。origin/{self.base} から作ります）")
@@ -2275,12 +2178,10 @@ class Scheduler:
             unit = self.cfg["unit_path_template"].format(number=n)
             print(f"\n#{n} {it['title']}")
             print(f"  ブランチ: {self.cfg['branch_prefix']}{n}（origin/{integ} から切る）")
-            for name, fmt in (("decompose", {"number": n}), ("audit", {"file": unit}),
-                              ("pipeline", {"unit": unit})):
+            for name, fmt in (("decompose", {"number": n}), ("pipeline", {"unit": unit})):
                 print("  " + " ".join(a.format(python="python", harness=project.HARNESS_DIR.as_posix(),
                                                project=self.cfg.get("project_id", ""),
                                                telemetry=f"<{name}.telemetry.json>",
-                                               verdict=f"<audit.verdict.json>",
                                                repo=str(self.runner_worktree()), **fmt)
                                       for a in self.cfg["commands"][name]))
         print("\n（dry-run: 何も変更していません）")
@@ -2354,7 +2255,7 @@ class Scheduler:
 
 
 PROJECT_KEYS = ("project_id", "repo_slug", "repo_dir", "base_branch", "out_dir",
-                "test_dir", "audit_dir", "unit_path_template", "required_checks", "adapters")
+                "test_dir", "unit_path_template", "required_checks", "adapters")
 
 
 def build_config(project_id):
@@ -2376,7 +2277,6 @@ def build_config(project_id):
         base_branch=p["base_branch"],
         out_dir=p["out_dir"],
         test_dir=p["test_dir"],
-        audit_dir=project.config("audit")["out_dir"],
         unit_path_template=p["units_dir"].rstrip("/") + "/issue_{number}.json",
         required_checks=p.get("required_checks") or [],
         adapters=p["adapters"],

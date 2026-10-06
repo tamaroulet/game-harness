@@ -8,7 +8,7 @@
           汚れの扱いは git の実挙動で確かめないと意味がない）
   GitHub  FakeGH。gh の引数を解釈してメモリ上の Issue を書き換える。
           GitHub クラスの引数組み立て・JSON 解釈・再試行はそのまま通る
-  子      stub.py。decompose / audit / pipeline の代わりに、Issue 番号ごとの
+  子      stub.py。decompose / pipeline の代わりに、Issue 番号ごとの
           指示どおりにファイルを書き、終了コードを返す
 
 一時ディレクトリは C:\\src\\.local\\out\\harness\\selftest\\ の下（リポジトリ直下に置かない）。
@@ -30,7 +30,8 @@ from unittest import mock
 
 HERE = Path(__file__).resolve().parent.parent / "harness"
 sys.path.insert(0, str(HERE))
-
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 import exitcode  # noqa: E402
 import project  # noqa: E402
 import scheduler as ms4  # noqa: E402
@@ -57,8 +58,6 @@ def number():
 
 n = number()
 mode = plan.get(role, {}).get(n, plan.get(role, {}).get("*", "ok"))
-if role == "audit":
-    mode = plan.get("audit", {}).get(n, "ok")
 
 def write(rel, text):
     p = Path(rel)
@@ -97,16 +96,6 @@ if role == "decompose":
         sys.exit(2)
     if mode == "rc3":
         sys.exit(3)
-
-if role == "audit":
-    if mode in ("ok", "concern", "reject", "no_verdict"):
-        write(f"reports/audits/audit_{Path(arg).stem}.md", "# audit\n")
-        if mode != "no_verdict":   # no_verdict = 監査役が決められた形で返さなかった
-            write_tel({"schema": 1, "tool": "audit", "file": arg, "verdict": mode,
-                       "findings": [] if mode == "ok" else ["境界値の確認が要る"]})
-        sys.exit(0)
-    if mode == "fail":
-        sys.exit(1)
 
 if role == "pipeline":
     if mode in ("ok", "companion"):
@@ -407,7 +396,7 @@ class FakeGH:
 
 # ============================================================ 足場
 
-class Base(unittest.TestCase):
+class Base(quiet.Quiet, unittest.TestCase):
     def setUp(self):
         SELFTEST_BASE.mkdir(parents=True, exist_ok=True)
         self.tmp = Path(tempfile.mkdtemp(prefix="t-", dir=SELFTEST_BASE))
@@ -464,14 +453,11 @@ class Base(unittest.TestCase):
             "required_clis": ["git"],
             "commands": {
                 "decompose": ["{python}", stub, "decompose", "{number}"],
-                "audit": ["{python}", stub, "audit", "{file}", "{verdict}"],
                 "pipeline": ["{python}", stub, "pipeline", "{unit}"],
             },
             "unit_path_template": "tools/units/issue_{number}.json",
             "test_dir": "tests/Core.Tests",
-            "audit_dir": "reports/audits",
-            "audit": {"required": False, "key_env": "MS4_TEST_AUDIT_KEY"},
-            "ttl_seconds": {"git": 60, "gh": 10, "decompose": 60, "audit": 60, "pipeline": 60},
+            "ttl_seconds": {"git": 60, "gh": 10, "decompose": 60, "pipeline": 60},
             "ci_find_seconds": 3, "ci_watch_seconds": 3, "ci_poll_interval_seconds": 1,
             "net_retries": 2, "net_retry_interval_seconds": 5,
             "comment_log_tail_chars": 800,
@@ -481,7 +467,6 @@ class Base(unittest.TestCase):
         self.sleeps = []
         self.env = mock.patch.dict(os.environ, {"STUB_PLAN": str(self.tmp / "plan.json")})
         self.env.start()
-        os.environ.pop("MS4_TEST_AUDIT_KEY", None)
 
     def tearDown(self):
         self.env.stop()
@@ -597,7 +582,6 @@ class ProjectConfigTests(unittest.TestCase):
         self.assertEqual(cfg["repo_slug"], "tamaroulet/unity-2d")
         self.assertEqual(cfg["unit_path_template"], "tools/units/issue_{number}.json")
         self.assertEqual(cfg["test_dir"], "tests/Core.Tests")
-        self.assertEqual(cfg["audit_dir"], "reports/audits")
         for k in ms4.PROJECT_KEYS:
             self.assertIn(k, cfg)
         # Scheduler がそのまま受け取れること（GitHub・git には触れない）
@@ -605,11 +589,10 @@ class ProjectConfigTests(unittest.TestCase):
 
     def test_commands_expand_to_harness_scripts(self):
         cfg = ms4.build_config("unity-2d")
-        for name, script in (("decompose", "decompose.py"), ("audit", "audit.py"),
-                             ("pipeline", "pipeline.py")):
+        for name, script in (("decompose", "decompose.py"), ("pipeline", "pipeline.py")):
             args = [a.format(python="py", harness=project.HARNESS_DIR.as_posix(),
                              project="unity-2d", number=5, file="f", unit="u", telemetry="t.json",
-                             verdict="v.json", repo="r")
+                             repo="r")
                     for a in cfg["commands"][name]]
             self.assertTrue(Path(args[1]).name == script and Path(args[1]).exists(), args)
             self.assertEqual(args[2:4], ["--project", "unity-2d"])
@@ -711,7 +694,6 @@ class SchedulerTests(Base):
         self.assertTrue(body.startswith(f"feat(core): implement Issue #5 into {self.INTEG}"), body)
         self.assertEqual(self.trailer(body, "Issue"), "#5")
         self.assertEqual(self.trailer(body, "Gate-Result"), "PASSED")
-        self.assertEqual(self.trailer(body, "Audit-Verdict"), "skipped", "鍵が無ければ判定は skipped")
         self.assertEqual(self.trailer(body, "Run-Id"), self.runs()[0]["run_id"])
         self.assertEqual(self.trailer(body, "Contract-SHA"),
                          git(self.work, "rev-parse", "origin/main:.harness.toml"))
@@ -763,7 +745,6 @@ class SchedulerTests(Base):
 
         runs = self.runs()
         self.assertEqual([r["result"] for r in runs], ["PASSED", "AWAITING", "PASSED"])
-        self.assertIn("skipped", runs[0]["audit"])
         self.assertEqual([s["name"] for s in runs[0]["steps"]], ["decompose", "pipeline"])
         self.assertTrue(runs[2]["ci_run"])
 
@@ -1268,29 +1249,17 @@ class SchedulerTests(Base):
         self.assertEqual(gh.calls, [])
 
     # 10
-    def test_audit_runs_only_before_the_implementation(self):
-        """監査はオラクル（単位定義と受入テスト）だけを見る。実装そのものは監査しない。
-
-        実装の正しさはコンパイラと決定論的な受入テストが決めるので、門を通った実装へ
-        非決定的な読み手を重ねても情報が増えない。実測では 1 Issue あたり 13 分
-        （通算 29 分の 45%）を使い、全体の最大の時間項だった（2026-09-19 の Issue #12）。
-        一方オラクルはコンパイラにもテストにも検査できないので、そちらは残す。
-        """
-        os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
+    def test_issue_goes_from_decompose_straight_to_pipeline(self):
+        """LLM のレビューの段は無い。分解 → 実装の 2 段だけで、判定はマージコミットに載らない。"""
         gh = FakeGH([(5, "a")])
         self.assertEqual(self.run_scheduler(gh), 0)
         files = self.remote_files(self.INTEG)
-        self.assertIn("reports/audits/audit_issue_5.md", files, "実装の前: 単位定義")
-        self.assertIn("reports/audits/audit_Issue5Tests.md", files, "実装の前: 受入テスト")
-        self.assertNotIn("reports/audits/audit_Issue5.md", files, "実装そのものは監査しない")
+        self.assertFalse([f for f in files if f.startswith("reports/audits/")])
         issue = self.runs()[0]
-        self.assertEqual(issue["audit"], "done")
-        self.assertNotIn("merge_audit", issue, "マージ直前の監査は記録ごと無くなる")
+        self.assertEqual([s["name"] for s in issue["steps"]], ["decompose", "pipeline"])
         self.assertEqual(issue["impl_files"], ["Game/Assets/Core/Issue5.cs"],
                          "何を実装として足したかの記録は残る")
-        self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "ok",
-                         "Audit-Verdict にはオラクル監査の判定を載せる")
-        self.assertEqual(issue["audit_verdict"], "ok")
+        self.assertNotIn("Audit-Verdict", self.merge_messages()[0])
 
     def test_companion_files_are_not_counted_as_implementation(self):
         """エンジンが自動で作る付随ファイルは、実装として数えない。
@@ -1298,13 +1267,8 @@ class SchedulerTests(Base):
         人が書いたものではないので、runs.jsonl の impl_files に混ぜない
         （accepted_loc とは別の記録。あちらの定義は触っていない）。
 
-        実装そのものの監査を撤廃するまでは、この除外が監査の対象からも外す働きをしていた。
-        当時は 59 文字の付随ファイル 6 件に監査役が約 6 分かけ、そのそれぞれに「指摘 7 件」を
-        返していた（2026-09-19 の Issue #12）。
-
         外すのは記録からだけで、付随ファイル自体はマージには載る。
         """
-        os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
         self.plan["pipeline"] = {"5": "companion"}
         gh = FakeGH([(5, "a")])
         self.assertEqual(self.run_scheduler(gh), 0)
@@ -1316,60 +1280,6 @@ class SchedulerTests(Base):
         files = self.remote_files(self.INTEG)
         self.assertIn("Game/Assets/Core/Issue5.cs.meta", files,
                       "外すのは記録からだけ。付随ファイルはマージに載る")
-
-    def test_an_unreadable_verdict_is_unknown_not_ok(self):
-        """監査役が決められた形で返さなかった。判定を ok に畳まない。"""
-        os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
-        self.plan["audit"] = {"5": "no_verdict"}
-        gh = FakeGH([(5, "a")])
-        self.assertEqual(self.run_scheduler(gh), 0)
-        self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "unknown")
-        self.assertEqual(self.runs()[0]["audit"], "done", "監査自体は動いている")
-
-    def test_audit_verdict_reaches_the_commit_and_the_approval_request(self):
-        os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
-        self.plan["audit"] = {"5": "concern"}
-        gh = FakeGH([(5, "a")])
-        self.assertEqual(self.run_scheduler(gh), 0)
-        self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "concern")
-        issue = self.runs()[0]
-        self.assertEqual(issue["audit_verdict"], "concern")
-        self.assertEqual(issue["audit_findings"],
-                         ["`issue_5.json`: 境界値の確認が要る",
-                          "`Issue5Tests.cs`: 境界値の確認が要る"],
-                         "指摘はオラクル（単位定義と受入テスト）に対するもの")
-        pr = gh.prs[gh.integration_pr()]
-        request = [c for c in pr["comments"] if "ms4:approval-request" in c][0]
-        self.assertIn("### 監査の判定", request)
-        self.assertIn("#5 concern", request)
-        self.assertIn("境界値の確認が要る", request, "指摘が承認依頼に出る")
-
-    def test_a_single_reject_verdict_decides_the_whole_issue(self):
-        os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
-        self.plan["audit"] = {"5": "reject"}
-        gh = FakeGH([(5, "a")])
-        self.assertEqual(self.run_scheduler(gh), 0)
-        self.assertEqual(self.trailer(self.merge_messages()[0], "Audit-Verdict"), "reject")
-        self.assertEqual(gh.issues[5]["labels"], {"ms4:integrated"},
-                         "判定は合否に使わない（門を通っていれば統合ブランチへ入る）")
-
-    def test_audit_failure_is_recorded_but_not_blocking(self):
-        os.environ["MS4_TEST_AUDIT_KEY"] = "dummy"
-        gh = FakeGH([(5, "a")])
-        self.plan["audit"] = {"5": "fail"}
-        self.assertEqual(self.run_scheduler(gh), 0)
-        self.assertTrue(self.runs()[0]["audit"].startswith("failed"))
-        self.assertEqual(gh.issues[5]["labels"], {"ms4:integrated"})
-
-    def test_required_audit_without_key_rejects(self):
-        self.cfg["audit"]["required"] = True
-        gh = FakeGH([(5, "a")])
-        self.assertEqual(self.run_scheduler(gh), 1)
-        self.assertEqual(gh.issues[5]["labels"], {"ms4:failed"})
-        self.assertEqual([s["name"] for s in self.runs()[0]["steps"]], ["decompose"],
-                         "実装へ進まない")
-        self.assertEqual(self.branch(), "main")
-        self.assertEqual(self.dirty(), "")
 
     # 11
     def test_decompose_writing_outside_allowed_paths_aborts(self):

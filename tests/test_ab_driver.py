@@ -18,6 +18,8 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 from ab import check, common, driver, measure, report  # noqa: E402
 import pipeline  # noqa: E402
@@ -154,7 +156,7 @@ class CostModel(unittest.TestCase):
         self.assertIn("| T1 | B | 1/1 | 1 | 2 | 0 | 0 | 1 / 0 | 0 | 1000000 | 400000 | 1400000 | 1.1000 | 10.0 |", text)
 
 
-class ConditionA(unittest.TestCase):
+class ConditionA(quiet.Quiet, unittest.TestCase):
     """同じ会話に積む（2 回目以降は --conversation）。受入を通ったら止め、最大 3 回まで。"""
 
     def setUp(self):
@@ -290,7 +292,7 @@ class Tokens(unittest.TestCase):
         self.assertIsNone(driver._tokens(calls)["cache_read"], "1 つでも不明なら推測で埋めない")
 
 
-class ConditionB(unittest.TestCase):
+class ConditionB(quiet.Quiet, unittest.TestCase):
     def test_pipeline_is_called_local_only_in_its_own_places(self):
         args = driver.pipeline_args(Path("u.json"), Path("wt"), Path("sb"), Path("out"), Path("t.json"))
         for flag in ("--local-only", "--sandbox", "--out-dir", "--repo-dir", "--telemetry", "--skip-selftest"):
@@ -313,21 +315,20 @@ class ConditionB(unittest.TestCase):
         self.assertEqual((rec["attempts"], rec["implementer_calls"]), (1, 2))
         self.assertEqual(driver._tokens(rec["calls"])["input"], 30)
 
-    def test_known_failures_of_the_previous_task_are_passed_to_the_pipeline(self):
-        """前のタスクの終わりに落ちていたテストを pipeline に渡す（S2）。"""
-        seen = {}
+    def test_passed_tasks_are_passed_to_the_pipeline(self):
+        seen = []
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)
 
             def runner(args, cwd, ttl, label):
-                seen["names"] = json.loads(Path(args[args.index("--known-failures") + 1]).read_text(encoding="utf-8"))
+                seen.append(args)
                 return 1, "", ""
             ctx = {"out": out, "m": {"_base": d}, "wt": out / "wt", "sandbox": out / "sb"}
-            driver.run_task_b(ctx, {"id": "T3", "unit": "u.json"}, {}, {"known_failures": ["G.B4abT2Cases.Case_a"]},
-                              runner=runner)
-        self.assertEqual(seen["names"], ["G.B4abT2Cases.Case_a"])
-        self.assertEqual(driver.failing_names({"a": "Passed", "b": "Failed"}), ["b"])
-        self.assertIsNone(driver.failing_names(None))
+            for passed in (["T1", "T2"], []):
+                driver.run_task_b(ctx, {"id": "T3", "unit": "u.json"}, {}, {"passed_tasks": passed}, runner=runner)
+            self.assertEqual(list(out.glob("*.known_failures.json")), [])
+        self.assertEqual(seen[0][seen[0].index("--passed-tasks") + 1], "T1,T2")
+        self.assertNotIn("--passed-tasks", seen[1])
 
     def test_local_only_commits_without_push_or_ci(self):
         with tempfile.TemporaryDirectory() as d:

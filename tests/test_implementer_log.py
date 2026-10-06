@@ -19,7 +19,9 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(ROOT / "tests"))
 
+import agy_stub  # noqa: E402
 import pipeline  # noqa: E402
 
 # 実測で採れた拒否の応答（Issue #12 の試行 1）。rc は 0 で返ってきていた。
@@ -30,6 +32,7 @@ REFUSAL = ("### 現在の状況\n"
 
 class ImplementerLogTests(unittest.TestCase):
     def setUp(self):
+        agy_stub.install(self)
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.out = self.tmp / "out"

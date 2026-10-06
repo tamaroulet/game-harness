@@ -1,0 +1,5 @@
+{
+  "_comment": "agy の導入先のファイルの SHA-256 の期待値（S1-4）。harness/agy_pinned.py が、実装役を起動する前に実物と照合する。この雛形は未記録（install_dir が null、files が空）なので、照合は落ちて agy の起動は止まる。人間が `python -m harness.agy_pinned --measure <導入先> <ファイル名>...` の出力を、承認つきの PR でここに書く。ACL の手順は docs/ops/agy_acl.md",
+  "install_dir": null,
+  "files": {}
+}

@@ -21,7 +21,9 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(ROOT / "tests"))
 
+import agy_stub  # noqa: E402
 import contractgen  # noqa: E402
 import implementer_context  # noqa: E402
 import narrow_dir  # noqa: E402
@@ -103,6 +105,9 @@ def v2_template(k):
 
 class NarrowDir(unittest.TestCase):
     """裁定 2：読めるものを、頼みではなく置き場所で絞る。"""
+
+    def setUp(self):
+        agy_stub.install(self)
 
     def test_only_listed_files_are_placed_and_changes_are_written_back(self):
         with tempfile.TemporaryDirectory() as origin, tempfile.TemporaryDirectory() as tmp:

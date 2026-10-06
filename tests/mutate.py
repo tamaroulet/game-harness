@@ -376,9 +376,6 @@ M = [
     ('M116 decompose が --repo-dir を無視する', 'decompose.py',
      '    if repo_dir:\n        p["repo_dir"] = repo_dir',
      '    if False:\n        p["repo_dir"] = repo_dir'),
-    ('M117 audit が --repo-dir を無視する', 'audit.py',
-     '    ROOT = Path(a.repo_dir or project.load(a.project)["repo_dir"])',
-     '    ROOT = Path(project.load(a.project)["repo_dir"])'),
 
     # ---- 統合ブランチ直接 push（PR 2: S24。docs/design/spec_pipeline.md §13 の 1・3）
     ('M118 統合ブランチが無くても作らない', 'scheduler.py',
@@ -414,18 +411,12 @@ M = [
     ('M128 契約が読めなくても統合ブランチへ入れる', 'scheduler.py',
      '        if not sha:\n            raise Abort(',
      '        if False:\n            raise Abort('),
-    ('M129 読み取れない監査の判定を ok にする', 'scheduler.py',
-     '            verdicts.append(got)',
-     '            verdicts.append(got if got in VERDICT_ORDER else "ok")'),
     ('M130 Issue を統合ブランチではなく base から切る', 'scheduler.py',
      '        wt, self.igit = self.prepare_runner(branch, f"origin/{integ}")',
      '        wt, self.igit = self.prepare_runner(branch, f"origin/{self.base}")'),
     ('M131 マージした統合ブランチを消さない', 'scheduler.py',
      '            self.git.delete_remote_branch(branch)\n            rec["result"] = "PASSED"',
      '            rec["result"] = "PASSED"'),
-    ('M133 読めない判定で reject を覆い隠す', 'scheduler.py',
-     'VERDICT_RANK = {"ok": 0, VERDICT_UNKNOWN: 1, "concern": 2, "reject": 3}',
-     'VERDICT_RANK = {"ok": 0, VERDICT_UNKNOWN: 4, "concern": 2, "reject": 3}'),
     ('M132 積む本数の上限を見ない', 'scheduler.py',
      '            issues = ready[:max(0, min(limit, room))]',
      '            issues = ready[:limit]'),
@@ -479,9 +470,6 @@ M_SCHEDULER = [
     ('M147 付随ファイルも実装として数える', 'scheduler.py',
      '                if not any(x.startswith(s) for s in skip) and not self.engine.is_companion(x)]',
      '                if not any(x.startswith(s) for s in skip)]'),
-    ('M148 Audit-Verdict にオラクル監査の判定を運ばず ok を直書きする', 'scheduler.py',
-     '        verdict = rec.get("audit_verdict") or VERDICT_SKIPPED',
-     '        verdict = "ok"'),
 ]
 
 M_DECOMPOSE = [

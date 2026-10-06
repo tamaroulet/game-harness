@@ -1,5 +1,5 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: S0-1
+active_task_id: S4-1
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -512,16 +512,15 @@ tasks:
   title: H ラインと総監督の部屋、カナリア（改行の正規化）の自走で PR まで
   group: B7.0
   target_repo: game-harness
-  status: in_progress
+  status: completed
   verification:
     command: python -m unittest tests.test_hline tests.test_textnorm
     expected_exit_code: 0
-  review_pr: https://github.com/tamaroulet/game-harness/pull/143
 - id: S1-1
   title: タスクキューと TaskSpec JSON（Gate A：スキーマ適合）。未着手を依存順に引き抜き、作業ツリーを作って連続消化する。受信箱は投入口として残す
   group: B7.1
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_hline_queue
     expected_exit_code: 0
@@ -529,7 +528,7 @@ tasks:
   title: 使い捨て作業ツリーの非同期の掃除（起動時に消せるものだけ消す。削除の失敗が結果に影響しない）
   group: B7.1
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_hline_gc
     expected_exit_code: 0
@@ -537,7 +536,7 @@ tasks:
   title: すべての子プロセスを Job Object（KILL_ON_JOB_CLOSE）の配下で起動する
   group: B7.1
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_job_object
     expected_exit_code: 0
@@ -545,7 +544,7 @@ tasks:
   title: agy の起動前の SHA-256 照合と、ACL（icacls /deny）の人間向けの手順
   group: B7.1
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_agy_pinned
     expected_exit_code: 0
@@ -553,7 +552,7 @@ tasks:
   title: インフラ例外の Outer-Loop（新しい作業ツリーで上限つき再試行。実装役の試行回数を消費しない）
   group: B7.2
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_infra_retry
     expected_exit_code: 0
@@ -561,7 +560,7 @@ tasks:
   title: Base 検査を合格済みタスクの --filter に一本化し、除外の JSON を全廃する
   group: B7.2
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_base_whitelist
     expected_exit_code: 0
@@ -569,7 +568,7 @@ tasks:
   title: Gate 2（インラインの LLM レビュー）の廃止
   group: B7.2
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_no_inline_review
     expected_exit_code: 0
@@ -577,7 +576,7 @@ tasks:
   title: 規模の制約（差分 300 行・新規モジュール 300〜500 行・既存の超過は増やさない・複雑度 15 以下）
   group: B7.2
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_size_limits
     expected_exit_code: 0
@@ -585,7 +584,7 @@ tasks:
   title: 未収束の扱い（自動の再分解 1 回・下流だけ凍結・同じマイルストーンで凍結 2 件なら停止・通知は 1 日 1 回）
   group: B7.2
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_freeze_policy
     expected_exit_code: 0
@@ -593,7 +592,7 @@ tasks:
   title: TaskSpec IR の 5 要素（対象シンボルと型シグネチャ・事前／事後条件と不変量・編集境界・テストオラクル指針）と Gate B（AST のシンボル照合）
   group: B7.3
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_taskspec
     expected_exit_code: 0
@@ -601,7 +600,7 @@ tasks:
   title: 分解役（claude-opus-5-5）が TaskSpec から受入テスト（Red）を合成し、Gate C（ビルド可能・未実装で Red）で検査する
   group: B7.3
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_red_tests
     expected_exit_code: 0
@@ -609,7 +608,7 @@ tasks:
   title: 実装役にはシグネチャと Red のテストだけを渡し、Green にする実装だけを受ける（H ラインとゲームのライン）
   group: B7.3
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_tdd_boundary
     expected_exit_code: 0
@@ -617,7 +616,7 @@ tasks:
   title: Refactorer の非同期起動（10 タスクごと・マイルストーンの完了時。Gate 1 が 100% 通るときだけ受理）
   group: B7.4
   target_repo: game-harness
-  status: pending
+  status: in_progress
   verification:
     command: python -m unittest tests.test_refactorer
     expected_exit_code: 0
@@ -646,6 +645,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: V2R-U7
+  task: S2-5
   exit_code: 0
-  at: '2026-10-03T21:03:35'
+  at: '2026-10-06T15:04:30'

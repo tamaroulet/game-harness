@@ -30,7 +30,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import adapters
+import agy_pinned
 import agy_stream
+import base_whitelist
 import contract
 import implementer_context
 import narrow_dir
@@ -42,6 +44,7 @@ import oracle
 import os
 import project
 import propgen
+import size_limits
 import telemetry
 import testgen
 import transient
@@ -79,6 +82,7 @@ class Ctx:
         self.ctrl_pass = self.oracle["must_pass"]
         # 実装前（base）の測定結果。establish_base が 1 回だけ埋める。無ければ判定しない。
         self.base = None
+        self.passed_tasks = ()   # 合格済みのタスクの ID。base の検査でだけ使う
         # 契約（.harness.toml）の [static]。main の apply_contract が 1 回だけ埋める。
         # 無いまま静的な門に来たら止まる（contract.effective_forbidden が ContractError）。
         self.contract = None
@@ -441,8 +445,18 @@ def record_transients(c, prompt, workdir, retries):
     return out
 
 
+def guard_implementer(imp, verify=agy_pinned.require):
+    """agy のときは、起動の前に導入先のファイルの SHA-256 を照合する。落ちれば環境の異常として止める。"""
+    if imp.get("cli") == "agy":
+        try:
+            verify()
+        except agy_pinned.AgyDigestError as e:
+            sys.exit(f"ABORT: {e}")
+
+
 def call_implementer(c, feedback=""):
     imp = c.cfg["implementer"]
+    guard_implementer(imp)
     stream = agy_stream.is_stream(imp)
     impl_dir = (c.cfg.get("project") or {}).get("impl_dir")
     # v2.1c：v2.1 の呼び方（stream-json）のときは、細い作業場所（書き換えてよいファイルと契約と既存の型だけ）で
@@ -791,27 +805,13 @@ def gate_diff_lines(c, verbose=True):
     c.metrics["diff_added"], c.metrics["diff_deleted"] = added, deleted
     if verbose:
         print(f"    差分: {total} 行（追加 {added}・削除 {deleted}）")
-    return diff_budget_problem(c.unit, added, deleted)
+    over = size_limits.scan(c.sandbox, c.unit["whitelist"], size_limits.limits(), size_limits.head_source({"ttl_seconds": c.ttl}, c.sandbox))
+    return diff_budget_problem(c.unit, added, deleted) or (over[0] if over else None)
 
 
 def diff_budget_problem(unit, added, deleted):
-    """差分バジェット（ADR-003 §3.7）。超えていれば理由、収まっていれば None。
-
-    feature：追加 ≤ max_add_lines かつ 削除 ≤ max_del_lines（機能とリファクタリングを混ぜない）
-    refactor：追加と削除の合計 ≤ max_impl_lines
-    task_kind の無い既存の単位は feature として扱う。上限の無い既存の単位は max_impl_lines を追加の上限にする
-    """
-    if unit.get("task_kind", "feature") == "refactor":
-        total, limit = added + deleted, unit["max_impl_lines"]
-        return f"差分超過（refactor）: 合計 {total} 行 > {limit}" if total > limit else None
-    max_add = unit.get("max_add_lines", unit["max_impl_lines"])
-    max_del = unit.get("max_del_lines", unit["max_impl_lines"])
-    if added > max_add:
-        return f"差分超過（feature）: 追加 {added} 行 > {max_add}"
-    if deleted > max_del:
-        return (f"差分超過（feature）: 削除 {deleted} 行 > {max_del}。"
-                "削除が多いならリファクタリングの単位を先に切り出す")
-    return None
+    """差分バジェット（ADR-003 §3.7）。実体は size_limits.diff_budget_problem。"""
+    return size_limits.diff_budget_problem(unit, added, deleted)
 
 
 # ============================================================ テストの実行（アダプタ）
@@ -944,15 +944,6 @@ def new_test_files(c):
     return sorted(set(found))
 
 
-def task_test_classes(required):
-    """性質テストの受入（`Properties<タスク>Cases.<性質>_Public`）のクラスの部分一致の鍵（`Properties<タスク>Cases.`）。
-
-    同じクラスの `_Hidden`（非公開シードの版）は受入に列挙していないが、実装前に落ちるのは当然。性質テスト以外の受入
-    （クラス名だけの v1 の単位など）には何も足さない。そのまま切ると名前空間になり、全部を除いてしまう。
-    """
-    return sorted({t.rsplit(".", 1)[0] + "." for t in required if t.endswith("_Public") and "." in t})
-
-
 def establish_base(c):
     """実装前（base）を 1 回だけ測る。戻り値 (None | "REJECT" | "ABORT", 理由)。
 
@@ -1003,11 +994,10 @@ def establish_base(c):
         q = o["quarantine"]
         aborts = (oracle.controls(fast_p2p, F, o["must_pass"], o["must_fail"], False)
                   + oracle.controls(engine, E, o["must_pass"], o["must_fail"], False))
-        # 実装前に落ちてよいのは、このタスクのテスト。名前の列挙ではなく、受入テストのクラスの単位で除く
-        # （v2r-r1-01 の A1・B は、受入に列挙していない同じクラスの _Hidden が base で落ちて、T2 で止まった）
-        expected = list(required) + task_test_classes(required)
-        broken = (oracle.unexpected_failures(fast_p2p, F, o["must_fail"], q, expected)
-                  + oracle.unexpected_failures(engine, E, o["must_fail"], q, expected))
+        # base で止めるのは、合格済みのタスクのテストの失敗だけ。未実装のタスクのテストは落ちていて当然（base_whitelist.py）
+        failed = (oracle.unexpected_failures(fast_p2p, F, o["must_fail"], q)
+                  + oracle.unexpected_failures(engine, E, o["must_fail"], q))
+        broken = list(base_whitelist.selected(failed, getattr(c, "passed_tasks", ())))
         if broken:
             aborts.append(f"base（実装前）で既に失敗しているテスト {len(broken)} 件: "
                           + ", ".join(broken[:3]))
@@ -1969,8 +1959,8 @@ def git_head(cwd, ttl):
 
 # ============================================================ A の判定（V2-6 の試験制度の対称化）
 
-def judge_context(project_id, unit_path, repo_dir, sandbox, out_dir, known_failures=()):
-    """条件 A の判定の文脈。main と同じ準備（単位の検査・契約・既知の失敗）をして base を測る。
+def judge_context(project_id, unit_path, repo_dir, sandbox, out_dir, passed_tasks=()):
+    """条件 A の判定の文脈。main と同じ準備（単位の検査・契約・合格済みのタスク）をして base を測る。
 
     docs/design/v2_6_exam_symmetry.md §3.1：A にも B と同じ検査の列を同じ順で当てる。repo_dir は A の作業ツリー
     （タスクの始めにコミットしてある）で、base はその HEAD。サンドボックスは A 専用。戻り値 (c, verdict, msg)。
@@ -1981,7 +1971,7 @@ def judge_context(project_id, unit_path, repo_dir, sandbox, out_dir, known_failu
     cfg["paths"]["sandbox"], cfg["paths"]["out_dir"] = str(sandbox), str(out_dir)
     c = Ctx(cfg, unit_path)
     c.local_only = True
-    c.oracle["quarantine"] = _add_known(c.oracle["quarantine"], list(known_failures))
+    c.passed_tasks = tuple(passed_tasks)
     require_unit_safe(c)
     apply_contract(c)
     require_unit_schema(c, Path(unit_path).read_bytes())
@@ -2069,23 +2059,6 @@ def judge(c, source, n):
     return "SUCCESS", ""
 
 
-def _add_known(quarantine, names):
-    return tuple(quarantine) + tuple(n for n in names if n not in quarantine)
-
-
-def with_known_failures(quarantine, path):
-    """隔離に、前のタスクの終わりに落ちていたテストを足す（S2 を標準にした。v2 §5.2）。
-
-    タスクを積み重ねると、落としたタスクのテストが次のタスクの base に残り、
-    「base で既に失敗」の ABORT が連鎖する（b4-smoke-01 の B、game-harness#63）。呼び出し側（ドライバ・
-    スケジューラ）が、前のタスクの測定で落ちていたテストの名前を渡す。受入テストの判定（F2P）には使わない。
-    """
-    names = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(names, list) or not all(isinstance(n, str) and n for n in names):
-        sys.exit(f"ABORT: --known-failures はテスト名の配列にしてください: {path}")
-    return _add_known(quarantine, names)
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", required=True, help="projects/<id>（harness のプロジェクト ID）")
@@ -2097,9 +2070,7 @@ def main():
                                        "（既定は project.json の repo_dir）")
     ap.add_argument("--local-only", action="store_true",
                     help="push・CI・TIMELINE を行わず、--repo-dir の中の commit で終える（A/B 実験用）")
-    ap.add_argument("--known-failures",
-                    help="前のタスクの終わりに落ちていたテストの名前（JSON の配列）。base の検査と P2P から外す"
-                         "（v2 §5.2。受入テストの判定には使わない）")
+    ap.add_argument("--passed-tasks", default="", help="合格済みのタスクの ID（','区切り）。base はそのテストの失敗だけを止める")
     ap.add_argument("--sandbox", help="サンドボックスの置き場（既定は pipeline.json の paths.sandbox）")
     ap.add_argument("--out-dir", help="出力の置き場（既定は pipeline.json の paths.out_dir）")
     ap.add_argument("--first-submission", help="最初の実装役の呼び出しの後の変更を残す置き場（A/B 実験の最初の提出の記録。判定には使わない）")
@@ -2127,9 +2098,8 @@ def main():
         c.local_only = args.local_only
         c.first_submission = Path(args.first_submission) if args.first_submission else None
         c.tel, c.tel_path = tel, tel_path
-        if args.known_failures:
-            c.oracle["quarantine"] = with_known_failures(c.oracle["quarantine"], args.known_failures)
-            tel["known_failures"] = len(c.oracle["quarantine"])
+        c.passed_tasks = base_whitelist.parse_ids(args.passed_tasks)
+        tel["passed_tasks"] = len(c.passed_tasks)
         imp = c.cfg["implementer"]
         tel.update(unit_id=c.unit.get("id"),
                    unit_sha256=hashlib.sha256(unit_path.read_bytes()).hexdigest(),

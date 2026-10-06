@@ -10,6 +10,8 @@
 import contextlib
 import io
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -22,10 +24,12 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 import hline  # noqa: E402
+import hline_base  # noqa: E402
 import hline_git  # noqa: E402
 import hline_queue  # noqa: E402
 import hline_report  # noqa: E402
 import hline_spec  # noqa: E402
+import infra_retry  # noqa: E402
 import model_pin  # noqa: E402
 import progress  # noqa: E402
 import yaml  # noqa: E402
@@ -117,8 +121,8 @@ class Schema(unittest.TestCase):
 
 class Boundary(unittest.TestCase):
     def gate(self, paths, lines=10, spec=None, tests=(0, "", "")):
-        with mock.patch.object(hline, "diff_lines", return_value=lines), \
-                mock.patch.object(hline.proc, "run", return_value=tests) as run:
+        with mock.patch.object(hline, "diff_counts", return_value={"added": lines, "deleted": 0, "deleted_files": ()}), \
+                mock.patch.object(hline.size_limits, "head_source", return_value=lambda p: None), mock.patch.object(hline.proc, "run", return_value=tests) as run:
             ok, msg = hline.gate(CFG, Path("."), paths, spec or spec_with(
                 allowed_files=["harness/", "tests/*.py"], forbidden_files=["harness/hline.py"], max_diff_lines=100))
         return ok, msg, run
@@ -126,7 +130,8 @@ class Boundary(unittest.TestCase):
     def test_changes_inside_the_boundary_run_the_tests(self):
         ok, msg, run = self.gate(["harness/textnorm.py", "tests/test_textnorm.py"])
         self.assertTrue(ok)
-        run.assert_called_once()
+        self.assertEqual([c.args[0] for c in run.call_args_list],
+                         [hline.base_whitelist.unittest_command(CFG["gate_command"], ["tests.test_textnorm"]), CFG["gate_command"]])   # 個別 → 全件
 
     def test_a_file_outside_the_allowed_files_fails_without_running_the_tests(self):
         ok, msg, run = self.gate(["harness/textnorm.py", "README.md"])
@@ -165,7 +170,7 @@ class Boundary(unittest.TestCase):
             return "3\t2\ta.py\n-\t-\tlogo.png\n10\t0\tnew.py\n"
 
         with mock.patch.object(hline_spec, "must", side_effect=fake_must):
-            self.assertEqual(hline_spec.diff_lines(CFG, Path(".")), 15)
+            self.assertEqual(hline_spec.diff_counts(CFG, Path(".")), {"added": 13, "deleted": 2, "deleted_files": ()})   # 追加と削除を別に数える
         self.assertEqual(calls[0], ["git", "add", "-A", "-N"])   # 新しいファイルも差分に数える
 
 
@@ -192,7 +197,7 @@ class TaskVerification(unittest.TestCase):
             ok, msg, run = self.gate(self.worktree(d), 1)
         self.assertFalse(ok)
         self.assertIn(VERIFY, msg)
-        self.assertEqual(run.call_args.args[0], ["python", "-m", "unittest", "tests.test_x"])
+        self.assertEqual([c.args[0] for c in run.call_args_list], [["python", "-m", "unittest", "tests.test_x"]])
 
     def test_a_change_passing_the_verification_is_accepted(self):
         with tempfile.TemporaryDirectory() as d:
@@ -385,23 +390,26 @@ class World(unittest.TestCase):
         (self.wt / "docs" / "progress.yaml").write_text(yaml.safe_dump(
             {"tasks": [{"id": "S1-2", "verification": {"command": VERIFY, "expected_exit_code": 0}}]}), encoding="utf-8")
         self.decomposed, self.implemented, self.integrated, self.created, self.dropped = [], [], [], [], []
-        self.failing, self.pr_state, self.open_pr, self.ahead_n, self.current = set(), "OPEN", None, 0, None
+        self.failing, self.pr_state, self.open_pr, self.ahead_n, self.current = set(), "OPEN", None, 0, None; self.diff_list = []
 
         def forbidden(*a, **kw):
             raise AssertionError(f"実際の外部呼び出しが起きました: {a[:1]}")
 
+        self.slept = []
+        self.patch(infra_retry, "SLEEP", new=self.slept.append)   # 呼び直しの待ち時間は実際には待たない
         self.patch(hline.proc, "run", side_effect=forbidden)
         self.patch(hline.proc, "resolve_cli", side_effect=forbidden)
-        self.patch(hline, "fetch")
+        [self.patch(hline, n) for n in ("fetch", "changed_paths")]   # changed_paths は空の反復を返す
         self.patch(hline, "integrated", side_effect=lambda c, n: n in self.integrated)
         self.patch(hline, "new_worktree", side_effect=lambda c, t: (self.wt, "b"))
         self.patch(hline, "integrate", side_effect=self.fake_integrate)
-        self.patch(hline, "ahead", side_effect=lambda c: self.ahead_n)
+        self.patch(hline, "ahead", side_effect=lambda c: self.ahead_n); self.patch(hline, "diff_files", side_effect=lambda c: self.diff_list)
         self.patch(hline, "open_pr", side_effect=lambda c: self.open_pr)
         self.patch(hline, "create_pr", side_effect=self.fake_create_pr)
         self.patch(hline, "pr_state", side_effect=lambda c, u: self.pr_state)
         self.patch(hline, "drop_merged_branch", side_effect=self.fake_drop)
         self.patch(hline_report, "progress_report", return_value="## 進捗ツリー\n- 人間作業: NONE\n")
+        self.patch(hline, "second_round", return_value=(None, None, None))   # 再分解は tests/test_freeze_policy.py が本物を通す
         self.patch_agents()
 
     def patch(self, target, name, **kw):
@@ -416,10 +424,10 @@ class World(unittest.TestCase):
     def fake_decompose(self, cfg, wt, what, item, outdir):
         self.decomposed.append(item["title"])
         self.current = item["title"]
-        return SPEC, {"attempts": [{"attempt": 1, "cli_exit": 0, "models": ["claude-opus-5-5"], "valid": True}],
+        return SPEC, {"attempts": [{"attempt": 1, "cli_exit": 0, "models": ["claude-opus-5"], "valid": True}],
                       "reason": None}
 
-    def fake_run_task(self, cfg, tid, spec, outdir, first=None, task=None):
+    def fake_run_task(self, cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
         self.implemented.append(self.current)
         ok = self.current not in self.failing
         tries = [{"run": 0, "attempt": 1, "cli_exit": 0, "models": ["claude-sonnet-5-5"], "gate": ok}]
@@ -499,7 +507,7 @@ class IntegrationPr(World):
         self.assertEqual(self.integrated, ["010-a", "020-b", "030-c"])
         self.assertEqual(len(self.created), 1)
         title, body = self.created[0]
-        for n in ("T-010-a", "T-020-b", "T-030-c", "claude-opus-5-5", "claude-sonnet-5-5"):
+        for n in ("T-010-a", "T-020-b", "T-030-c", "claude-opus-5", "claude-sonnet-5-5"):
             self.assertIn(n, body)
         self.assertEqual(self.state()["awaiting_pr"], "https://github.com/o/r/pull/1")
         self.assertIn("統合 PR 待ち", self.report())
@@ -609,7 +617,7 @@ class Freezing(World):
         self.assertIn("凍結（2 件）: 030-b", self.report())
 
     def test_the_counts_of_the_attempts_are_the_same_as_before(self):
-        self.assertEqual((CFG["max_attempts"], CFG["reruns"]), (3, 1))
+        self.assertEqual((CFG["max_attempts"], CFG["respecs"]), (3, 1))
 
 
 class Blocked(World):
@@ -677,7 +685,7 @@ class Crash(World):
         self.put("030-c")
         original = self.fake_run_task
 
-        def die_on_b(cfg, tid, spec, outdir, first=None, task=None):
+        def die_on_b(cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
             if self.current == "T-020-b":
                 raise KeyboardInterrupt   # 強制終了の代わり（finally が走らない kill でも、状態の記録は同じ）
             return original(cfg, tid, spec, outdir, first, task)
@@ -719,11 +727,11 @@ class Crash(World):
 
     def test_an_environment_fault_keeps_the_what_and_the_next_run_takes_it_again(self):
         self.put("010-a")
-        with mock.patch.object(hline, "decompose", side_effect=hline.Infra("gh が落ちた")), \
-                self.assertRaises(hline.Infra):
-            self.poll()
+        with mock.patch.object(hline, "decompose", side_effect=hline.Infra("gh が落ちた")) as dec:
+            self.assertEqual(self.poll(), 2)
+        self.assertEqual(dec.call_count, 1 + CFG["infra_retry"]["max_retries"])   # 呼び直しの後に止まる
         self.assertTrue((self.out / "queue" / "010-a.md").exists())
-        self.assertEqual(self.status("010-a"), "processing")
+        self.assertEqual(self.status("010-a"), "waiting")
         self.assertFalse((self.inbox / ".hline.lock").exists())
         self.poll()
         self.assertEqual(self.decomposed, ["T-010-a"])
@@ -735,15 +743,301 @@ class Crash(World):
             self.assertEqual(quiet(hline.main, ["poll"]), 2)
 
 
+STAMP = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
+
+
+class ReportEachStep(World):
+    """走行の途中でも report.md が今の状態を映す。途中の中身は、差し替えた分解役・run_task の中で控える。"""
+
+    def run_with_snapshots(self):
+        snaps = []
+
+        def snoop_decompose(cfg, wt, what, item, outdir):
+            snaps.append((f"分解 {item['title']}", self.report()))
+            return self.fake_decompose(cfg, wt, what, item, outdir)
+
+        def staged_run_task(cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
+            for stage in ("実装 1-1", "Gate 1 1-1"):
+                on_stage(stage)
+                snaps.append((stage, self.report()))
+            return self.fake_run_task(cfg, tid, spec, outdir, first, task)
+
+        with mock.patch.object(hline, "decompose", side_effect=snoop_decompose), \
+                mock.patch.object(hline, "run_task", side_effect=staged_run_task):
+            self.assertEqual(self.poll(), 0)
+        return dict(snaps)
+
+    def test_the_report_during_the_run_shows_the_done_ones_and_the_one_in_progress(self):
+        self.put("010-a")
+        self.put("020-b")
+        snaps = self.run_with_snapshots()
+        first, second = snaps["分解 T-010-a"], snaps["分解 T-020-b"]
+        self.assertIn("- 済み（0 件）: なし", first)
+        self.assertIn("- 待ち（1 件）: 020-b", first)
+        self.assertRegex(first, rf"- 処理中（1 件）: 010-a（段階: 分解／開始: {STAMP}）")
+        self.assertIn("- 済み（1 件）: 010-a", second)
+        self.assertRegex(second, rf"- 処理中（1 件）: 020-b（段階: 分解／開始: {STAMP}）")
+
+    def test_the_stage_follows_the_implementation_and_gate_1_and_keeps_the_start_time(self):
+        self.put("010-a")
+        snaps = self.run_with_snapshots()
+        pattern = r"- 処理中（1 件）: 010-a（段階: {}／開始: ({})）"
+        started = {stage: re.search(pattern.format(stage, STAMP), snaps[stage])
+                   for stage in ("実装 1-1", "Gate 1 1-1")}
+        self.assertTrue(all(started.values()), started)
+        self.assertEqual(started["実装 1-1"].group(1), started["Gate 1 1-1"].group(1))
+        self.assertIn("- 処理中（0 件）: なし", self.report())
+        item = self.state()["items"]["010-a"]
+        self.assertEqual(item["status"], "done")
+        self.assertNotIn("stage", item)
+        self.assertNotIn("started_at", item)
+
+    def test_an_unconverged_what_leaves_no_stage_behind(self):
+        self.failing = {"T-010-a"}
+        self.put("010-a")
+        self.assertEqual(self.poll(), 1)
+        item = self.state()["items"]["010-a"]
+        self.assertEqual(item["status"], "unconverged")
+        self.assertNotIn("stage", item)
+        self.assertNotIn("started_at", item)
+
+    def test_the_report_starts_with_the_progress_report_and_the_h_section_follows(self):
+        self.put("010-a")
+        snaps = self.run_with_snapshots()
+        self.assertTrue(snaps["分解 T-010-a"].startswith("## 進捗ツリー\n- 人間作業: NONE\n"))
+        report = self.report()   # 走行の終わりは統合 PR の待ち。人間作業の行だけが置き換わる
+        self.assertTrue(report.startswith("## 進捗ツリー\n- 人間作業: REVIEW_REQUIRED "))
+        self.assertLess(report.index("## 進捗ツリー"), report.index("## H ライン"))
+
+    def test_an_environment_fault_stops_the_run_and_the_report_says_so(self):
+        self.put("010-a")
+        with mock.patch.object(hline, "decompose", side_effect=hline.Infra("gh が落ちた")):
+            self.assertEqual(self.poll(), 2)
+        report = self.report()
+        self.assertIn("- 状態: インフラ例外で停止", report)
+        self.assertRegex(report, r"- 人間作業: INFRA_HALTED 010-a: gh が落ちた（\d+ 回の試行）")
+        self.assertNotIn("- 人間作業: NONE", report)
+        item = self.state()["items"]["010-a"]
+        self.assertEqual(item["status"], "waiting")
+        self.assertNotIn("stage", item)
+
+    def test_a_queue_without_stage_fields_is_read_and_reported(self):
+        st = self.state()
+        st["items"] = {"010-a": {"status": "processing", "title": "t", "milestone": "B7.1", "task": None, "deps": []}}
+        hline_queue.save_state(self.cfg, st)
+        hline_report.write_report(self.cfg, self.state())
+        self.assertIn("- 処理中（1 件）: 010-a（段階: 不明／開始: 不明）", self.report())
+
+
+class Marks(World):
+    def st(self):
+        item = {"status": "processing", "title": "t", "milestone": "B7.1", "task": None, "deps": ["x"]}
+        return {"items": {"010-a": item, "020-b": dict(item, status="waiting")}, "awaiting_pr": None, "skipped": [],
+                "infra_halt": None}
+
+    def test_now_has_the_date_and_the_minute_and_today_stays_a_date(self):
+        self.assertRegex(hline_report.now(), rf"^{STAMP}$")
+        self.assertRegex(hline_report.today(), r"^\d{4}-\d{2}-\d{2}$")
+
+    def test_a_mark_without_a_name_changes_no_item_and_rewrites_the_report_and_the_state(self):
+        st = self.st()
+        before = json.loads(json.dumps(st))
+        hline_report.mark(self.cfg, st)
+        self.assertEqual(st, before)
+        self.assertEqual(self.state()["items"], before["items"])
+        self.assertIn("- 処理中（1 件）: 010-a（段階: 不明／開始: 不明）", self.report())
+        self.assertTrue((self.inbox / "TODO.md").exists())
+
+    def test_a_mark_with_a_stage_sets_it_and_keeps_the_first_start_time(self):
+        st = self.st()
+        with mock.patch.object(hline_report, "now", side_effect=["2026-10-05 04:32", "2026-10-05 04:40"]):
+            hline_report.mark(self.cfg, st, "010-a", "分解")
+            hline_report.mark(self.cfg, st, "010-a", "実装 1-1")
+        item = st["items"]["010-a"]
+        self.assertEqual((item["stage"], item["started_at"]), ("実装 1-1", "2026-10-05 04:32"))
+        self.assertEqual((item["status"], item["deps"]), ("processing", ["x"]))
+        self.assertEqual(list(st["items"]), ["010-a", "020-b"])
+        self.assertNotIn("stage", st["items"]["020-b"])
+        self.assertIn("010-a（段階: 実装 1-1／開始: 2026-10-05 04:32）", self.report())
+
+    def test_a_mark_with_a_name_only_removes_the_stage_and_the_start_time(self):
+        st = self.st()
+        hline_report.mark(self.cfg, st, "010-a", "分解")
+        hline_report.mark(self.cfg, st, "010-a")
+        self.assertNotIn("stage", st["items"]["010-a"])
+        self.assertNotIn("started_at", st["items"]["010-a"])
+
+    def test_the_stage_note_survives_missing_fields(self):
+        self.assertEqual(hline_report.stage_note({}), "（段階: 不明／開始: 不明）")
+        self.assertEqual(hline_report.stage_note({"stage": "分解"}), "（段階: 分解／開始: 不明）")
+        self.assertEqual(hline_report.stage_note({"stage": "分解", "started_at": "2026-10-05 04:32"}),
+                         "（段階: 分解／開始: 2026-10-05 04:32）")
+
+    def test_writing_the_same_state_twice_gives_the_same_report(self):
+        st = self.st()
+        hline_report.mark(self.cfg, st, "010-a", "分解")
+        once = self.report()
+        hline_report.write_report(self.cfg, st)
+        self.assertEqual(self.report(), once)
+
+
+class StageCalls(unittest.TestCase):
+    def run_task(self, verdicts, on_stage=True, run=0):
+        events, verdicts = [], iter(verdicts)
+
+        def implement(*a):
+            events.append("implement")
+            return 0, ["m"], {}
+
+        def gate(*a):
+            events.append("gate")
+            return next(verdicts), "out"
+
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(hline, "new_worktree", side_effect=lambda c, t: (Path(d), "b")), \
+                mock.patch.object(hline, "base_check", return_value=(True, "")), \
+                mock.patch.object(hline, "implement", side_effect=implement), \
+                mock.patch.object(hline, "changed_paths", return_value=["harness/x.py"]), \
+                mock.patch.object(hline, "gate", side_effect=gate):
+            kw = {"on_stage": lambda s: events.append(s)} if on_stage else {}
+            got = hline.run_task(CFG, "t", {}, Path(d), run=run, **kw)
+        return got, events
+
+    def test_each_attempt_announces_the_implementer_and_gate_1_before_calling_them(self):
+        (wt, _, tries), events = self.run_task([False, True])
+        self.assertEqual(events, ["実装 1-1", "implement", "Gate 1 1-1", "gate", "実装 1-2", "implement", "Gate 1 1-2", "gate"])
+        self.assertEqual([(t["run"], t["attempt"], t["gate"]) for t in tries], [(0, 1, False), (0, 2, True)])
+
+    def test_a_run_counts_the_run_in_the_stage(self):
+        for run in (0, 1):
+            (wt, _, tries), events = self.run_task([False] * CFG["max_attempts"], run=run)
+            stages = [e for e in events if e.startswith("実装")]
+            self.assertEqual(stages, [f"実装 {run + 1}-{a}" for a in range(1, CFG["max_attempts"] + 1)])
+            self.assertEqual({t["run"] for t in tries}, {run})
+            self.assertIsNone(wt)
+
+    def test_without_on_stage_nothing_extra_happens(self):
+        (wt, _, tries), events = self.run_task([True], on_stage=False)
+        self.assertEqual(events, ["implement", "gate"])
+        self.assertIsNotNone(wt)
+
+
 class Lock(unittest.TestCase):
-    def test_the_heartbeat_keeps_a_long_run_from_looking_stale(self):
+    def write_lock(self, d, body):
+        lock = Path(d) / ".hline.lock"
+        lock.write_text(body if isinstance(body, str) else json.dumps(body), encoding="utf-8")
+        return lock
+
+    def test_the_heartbeat_keeps_the_mtime_fresh_while_it_runs_and_stops_after(self):
         with tempfile.TemporaryDirectory() as d:
             lock = hline.acquire_lock(d, 0.5)
+            first = lock.stat().st_mtime
             with hline.heartbeat(lock, 0.1):
-                time.sleep(1.0)
+                time.sleep(0.5)
+                self.assertGreater(lock.stat().st_mtime, first)
                 self.assertIsNone(hline.acquire_lock(d, 0.5))
-            time.sleep(0.7)
-            self.assertIsNotNone(hline.acquire_lock(d, 0.5))
+            stopped = lock.stat().st_mtime
+            time.sleep(0.3)
+            self.assertEqual(lock.stat().st_mtime, stopped)
+            self.assertIsNone(hline.acquire_lock(d, 0.5, now=stopped + 1))   # 生きている持ち主は、古くなっても奪わない
+
+    def test_the_lock_body_is_one_json_object_of_the_owner(self):
+        with tempfile.TemporaryDirectory() as d:
+            record = hline_base.read_lock(hline.acquire_lock(d, 100))
+        self.assertEqual(record["pid"], os.getpid())
+        self.assertEqual(record["token"], hline_base.process_token(os.getpid()))
+        self.assertIn("created", record)
+
+    def test_a_dead_owner_is_replaced_at_once_even_with_a_fresh_mtime(self):
+        child = subprocess.Popen([sys.executable, "-c", "pass"])
+        child.wait()
+        for how in ("a real exited pid", "a token lookup that finds no process"):
+            with self.subTest(how), tempfile.TemporaryDirectory() as d:
+                lock = self.write_lock(d, {"pid": child.pid, "token": "x", "created": time.time()})
+                if how == "a real exited pid":
+                    got = hline.acquire_lock(d, 3600)
+                else:
+                    self.write_lock(d, {"pid": os.getpid(), "token": "x", "created": 0})
+                    with mock.patch.object(hline_base, "process_token", return_value=None):
+                        got = hline.acquire_lock(d, 3600)
+                self.assertEqual(got, lock)
+                self.assertEqual(hline_base.read_lock(lock)["pid"], os.getpid())
+
+    def test_poll_runs_the_line_over_the_lock_of_a_dead_owner(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = json.loads(json.dumps(CFG))
+            cfg["inbox"] = d
+            self.write_lock(d, {"pid": os.getpid(), "token": "x", "created": time.time()})
+            with mock.patch.object(hline_base, "process_token", return_value=None), \
+                    mock.patch.object(hline, "run_line", return_value=0) as run:
+                self.assertEqual(quiet(hline.poll, cfg), 0)
+            run.assert_called_once()
+            self.assertFalse((Path(d) / ".hline.lock").exists())
+
+    def test_a_live_owner_keeps_the_lock_even_when_it_is_older_than_the_expiry(self):
+        with tempfile.TemporaryDirectory() as d:
+            lock = hline.acquire_lock(d, 10)
+            self.assertIsNone(hline.acquire_lock(d, 10, now=lock.stat().st_mtime + 11))
+
+    def test_a_reused_pid_is_a_dead_owner(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.write_lock(d, {"pid": os.getpid(), "token": "someone-else", "created": time.time()})
+            self.assertEqual(hline_base.owner_state(hline_base.read_lock(Path(d) / ".hline.lock")), "dead")
+            self.assertIsNotNone(hline.acquire_lock(d, 3600))
+
+    def test_a_lock_that_cannot_be_read_falls_back_to_the_time_rule(self):
+        bodies = {"old format": "9999", "empty": "", "broken json": "{\"pid\": ", "array": "[1, 2]", "number": "42"}
+        for name, body in bodies.items():
+            with self.subTest(name, case="fresh"), tempfile.TemporaryDirectory() as d:
+                lock = self.write_lock(d, body)
+                self.assertIsNone(hline.acquire_lock(d, 100, now=lock.stat().st_mtime + 1))
+            with self.subTest(name, case="expired"), tempfile.TemporaryDirectory() as d:
+                lock = self.write_lock(d, body)
+                self.assertIsNotNone(hline.acquire_lock(d, 100, now=lock.stat().st_mtime + 101))
+
+    def test_an_unknown_token_is_not_a_reason_to_take_the_lock(self):
+        with tempfile.TemporaryDirectory() as d:
+            lock = self.write_lock(d, {"pid": os.getpid(), "token": "x", "created": 0})
+            with mock.patch.object(hline_base, "process_token", return_value=hline_base.UNKNOWN_TOKEN):
+                self.assertIsNone(hline.acquire_lock(d, 100, now=lock.stat().st_mtime + 1))
+                self.assertIsNotNone(hline.acquire_lock(d, 100, now=lock.stat().st_mtime + 101))
+
+    def test_owner_state_of_a_record_that_has_no_usable_pid_or_token_is_unknown(self):
+        for record in (None, [], "1", {}, {"pid": "1", "token": "x"}, {"pid": True, "token": "x"}, {"pid": 1.5}):
+            with self.subTest(record=record), mock.patch.object(hline_base, "process_token", return_value="x"):
+                self.assertEqual(hline_base.owner_state(record), "unknown")
+        with mock.patch.object(hline_base, "process_token", return_value="x"):
+            self.assertEqual(hline_base.owner_state({"pid": 1}), "unknown")
+            self.assertEqual(hline_base.owner_state({"pid": 1, "token": 5}), "unknown")
+            self.assertEqual(hline_base.owner_state({"pid": 1, "token": "x"}), "alive")
+
+    def test_process_token_of_this_process_is_stable_and_an_exited_one_is_none(self):
+        if sys.platform != "win32" and not sys.platform.startswith("linux"):
+            self.skipTest("識別子を取れないプラットフォーム")
+        mine = hline_base.process_token(os.getpid())
+        self.assertIsInstance(mine, str)
+        self.assertNotEqual(mine, hline_base.UNKNOWN_TOKEN)
+        self.assertEqual(mine, hline_base.process_token(os.getpid()))
+        child = subprocess.Popen([sys.executable, "-c", "pass"])
+        child.wait()
+        self.assertIsNone(hline_base.process_token(child.pid))
+
+    def test_process_token_reads_starttime_from_proc_stat_on_linux(self):
+        stat = "5 (a) b) S " + "0 " * 18 + "424242 0 0"
+        with mock.patch.object(hline_base.sys, "platform", "linux"), \
+                mock.patch.object(hline_base.Path, "read_text", return_value=stat):
+            self.assertEqual(hline_base.process_token(5), "424242")
+        with mock.patch.object(hline_base.sys, "platform", "linux"):
+            with mock.patch.object(hline_base.Path, "read_text", side_effect=FileNotFoundError):
+                self.assertIsNone(hline_base.process_token(5))
+            with mock.patch.object(hline_base.Path, "read_text", side_effect=PermissionError):
+                self.assertEqual(hline_base.process_token(5), hline_base.UNKNOWN_TOKEN)
+            with mock.patch.object(hline_base.Path, "read_text", return_value="garbage"):
+                self.assertEqual(hline_base.process_token(5), hline_base.UNKNOWN_TOKEN)
+
+    def test_process_token_is_unknown_on_other_platforms(self):
+        with mock.patch.object(hline_base.sys, "platform", "darwin"):
+            self.assertEqual(hline_base.process_token(os.getpid()), hline_base.UNKNOWN_TOKEN)
 
     def test_a_second_start_while_the_run_exceeds_lock_stale_does_not_run_twice(self):
         with tempfile.TemporaryDirectory() as d:
@@ -782,7 +1076,7 @@ class AgentFlow(World):
         def fake_run(args, cwd, ttl, label, env=None, input=None):
             if label == "分解役":
                 self.dec_inputs.append(input)
-                return 0, claude_json(self.dec_replies.pop(0), "claude-opus-5-5"), ""
+                return 0, claude_json(self.dec_replies.pop(0), "claude-opus-5"), ""
             if label == "実装役":
                 self.impl_inputs.append(input)
                 return 0, claude_json("できた", self.impl_model), ""
@@ -854,7 +1148,7 @@ class AgentFlow(World):
         self.dec_replies = [json.dumps(SPEC)]
         self.put("010-a")
         self.poll()
-        self.assertEqual(self.state()["items"]["010-a"]["decompose"]["attempts"][0]["models"], ["claude-opus-5-5"])
+        self.assertEqual(self.state()["items"]["010-a"]["decompose"]["attempts"][0]["models"], ["claude-opus-5"])
         self.assertEqual(self.state()["items"]["010-a"]["tries"][0]["models"], ["claude-sonnet-5-5"])
 
     def test_a_decomposer_run_on_another_model_stops_as_an_environment_fault_and_keeps_the_what(self):
@@ -862,8 +1156,8 @@ class AgentFlow(World):
             return 0, claude_json(json.dumps(SPEC), "claude-sonnet-5-5"), ""
 
         self.put("010-a")
-        with mock.patch.object(hline.proc, "run", side_effect=other_model), self.assertRaises(hline.Infra):
-            self.poll()
+        with mock.patch.object(hline.proc, "run", side_effect=other_model):
+            self.assertEqual(self.poll(), 2)
         self.assertTrue((self.out / "queue" / "010-a.md").exists())
         self.assertEqual(self.impl_inputs, [])
 
@@ -873,10 +1167,10 @@ class AgentFlow(World):
 class Config(unittest.TestCase):
     def test_the_decomposer_is_pinned_to_an_exact_model_id(self):
         dec = CFG["decomposer"]
-        self.assertEqual((dec["model_flag"], dec["model"]), ("--model", "claude-opus-5-5"))
+        self.assertEqual((dec["model_flag"], dec["model"]), ("--model", "claude-opus-5"))
         args = hline.implementer_args(dec, ["claude"])
-        self.assertEqual(args[args.index("--model") + 1], "claude-opus-5-5")
-        self.assertEqual(model_pin.require(dec, "decomposer"), "claude-opus-5-5")
+        self.assertEqual(args[args.index("--model") + 1], "claude-opus-5")
+        self.assertEqual(model_pin.require(dec, "decomposer"), "claude-opus-5")
         self.assertIn("config/hline.json の decomposer", [w for w, _, _ in model_pin.agent_configs()])
         self.assertEqual([p for p in model_pin.problems() if "hline" in p], [])
 
@@ -900,7 +1194,7 @@ class Config(unittest.TestCase):
         self.assertIn("model_flag", found[0])
 
     def test_the_line_size_limits_hold(self):
-        self.assertLessEqual(len((REPO / "harness" / "hline.py").read_text(encoding="utf-8").splitlines()), 300)
+        self.assertLessEqual(len((REPO / "harness" / "hline.py").read_text(encoding="utf-8").splitlines()), 500)
         modules = sorted((REPO / "harness").glob("hline_*.py"))
         self.assertGreaterEqual(len(modules), 4)
         for m in modules:

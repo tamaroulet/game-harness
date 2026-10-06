@@ -4,13 +4,16 @@ Gate 1 を通った変更は統合ブランチ（設定の integration_branch）
 後のタスクは前のタスクの変更を含む。タスクごとの PR は作らず、統合 PR を 1 本だけ出す。
 """
 import json
+import os
 import sys
 import uuid
 from pathlib import Path
 
-from hline_base import ROOT, Infra, must
+from hline_base import ROOT, Fatal, Infra, must
 
+import infra_retry  # noqa: E402
 import proc  # noqa: E402
+import progress  # noqa: E402
 
 TRAILER = "H-Line-Item"
 
@@ -34,8 +37,14 @@ def new_worktree(cfg, tid):
     t = cfg["ttl_seconds"]["git"]
     fetch(cfg)
     start = remote_ref(cfg) if integration_exists(cfg) else cfg["base"]
-    branch = f"hline/{tid}-{uuid.uuid4().hex[:8]}"
-    wt = Path(cfg["worktrees"]) / branch.replace("/", "-")
+    for _ in range(5):   # 前の走行の残骸（同じ名前のディレクトリ・ブランチ）と重ならない名前を選ぶ
+        branch = f"hline/{tid}-{uuid.uuid4().hex[:8]}"
+        wt = Path(cfg["worktrees"]) / branch.replace("/", "-")
+        if not wt.exists() and proc.run(["git", "rev-parse", "--verify", "-q", f"refs/heads/{branch}"], ROOT, t,
+                                        "git rev-parse")[0] != 0:
+            break
+    else:
+        raise Infra(f"作業ツリーの名前が 5 回とも既存と重なりました: {tid}")
     must(["git", "worktree", "add", "-q", "-b", branch, str(wt), start], ROOT, t, "git worktree add")
     implementer_room(wt, t)
     return wt, branch
@@ -65,13 +74,19 @@ def integrate(cfg, wt, name, title, task):
     t = cfg["ttl_seconds"]
     if task:
         code, out, err = proc.run([sys.executable, "-m", "harness.progress", "complete", task], wt, t["gate"],
-                                  "harness.progress complete")
+                                  "harness.progress complete", env={**os.environ, progress.ORDER_FREE_ENV: "1"})
         if code != 0:
-            raise Infra(f"harness.progress complete {task} が終了コード {code}: {(out + err)[-800:]}")
+            raise Fatal(f"harness.progress complete {task} が終了コード {code} で、進捗の記録が拒まれました。再試行しません: "
+                        f"{(out + err)[-800:]}")
     must(["git", "add", "-A"], wt, t["git"], "git add")
     must(["git", "commit", "-q", "-m", f"feat(hline): {title}\n\n{TRAILER}: {name}\n{cfg['commit_trailer']}\n"],
          wt, t["git"], "git commit")
-    must(["git", "push", "-q", "origin", f"HEAD:refs/heads/{cfg['integration_branch']}"], wt, t["git"], "git push")
+    code, out, err = proc.run(["git", "push", "-q", "origin", f"HEAD:refs/heads/{cfg['integration_branch']}"], wt,
+                              t["git"], "git push")
+    if code != 0:
+        if reason := infra_retry.fatal_push_reason(code, out + err):
+            raise Fatal(reason)
+        raise Infra(f"git push が失敗しました（終了コード {code}）: {(err or out)[-800:]}")
 
 
 def integrated(cfg, name):

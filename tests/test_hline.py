@@ -15,6 +15,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 import hline  # noqa: E402
+import hline_base  # noqa: E402
 
 CFG = hline.load_config()
 
@@ -41,7 +42,9 @@ class Inbox(unittest.TestCase):
             lock = hline.acquire_lock(d, 100)
             self.assertIsNotNone(lock)
             self.assertIsNone(hline.acquire_lock(d, 100))
-            self.assertIsNotNone(hline.acquire_lock(d, 100, now=lock.stat().st_mtime + 101))
+            self.assertIsNone(hline.acquire_lock(d, 100, now=lock.stat().st_mtime + 101))   # 生きている持ち主は古くても奪わない
+            with mock.patch.object(hline_base, "process_token", return_value=None):   # 持ち主が死んだ
+                self.assertIsNotNone(hline.acquire_lock(d, 100))   # 更新時刻が新しくても取り直す
 
 
 class Gate(unittest.TestCase):
@@ -85,7 +88,7 @@ class Implementer(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d, \
                 mock.patch.object(hline.proc, "resolve_cli", return_value=["claude"]), \
                 mock.patch.object(hline.proc, "run", return_value=(0, out, "")) as run:
-            code, models = hline.implement(CFG, Path(d), "# 題", "前回の出力", Path(d) / "log")
+            code, models, *_ = hline.implement(CFG, Path(d), "# 題", "前回の出力", Path(d) / "log")
         self.assertEqual(models, ["claude-haiku-4-5", "claude-sonnet-5-5"])
         prompt = run.call_args.kwargs["input"]
         self.assertIn("# 題", prompt)
@@ -117,7 +120,7 @@ class Retries(unittest.TestCase):
         verdicts = iter(verdicts)
         with tempfile.TemporaryDirectory() as d, \
                 mock.patch.object(hline, "new_worktree", side_effect=lambda c, t: (Path(d), "b")) as wt, \
-                mock.patch.object(hline, "implement", return_value=(0, ["m"])), \
+                mock.patch.object(hline, "implement", return_value=(0, ["m"], {})), \
                 mock.patch.object(hline, "changed_paths", return_value=["harness/x.py"]), \
                 mock.patch.object(hline, "gate", side_effect=lambda c, w, p, *rest: (next(verdicts), "out")):
             got = hline.run_task(CFG, "t", "# x", Path(d))
@@ -128,11 +131,11 @@ class Retries(unittest.TestCase):
         self.assertIsNotNone(wt)
         self.assertEqual((len(tries), made), (2, 1))
 
-    def test_non_convergence_reruns_in_a_new_worktree_then_gives_up(self):
-        n = CFG["max_attempts"] * (1 + CFG["reruns"])
+    def test_non_convergence_gives_up_after_max_attempts_in_the_one_worktree(self):
+        n = CFG["max_attempts"]
         (wt, branch, tries), made = self.run_task([False] * n)
         self.assertIsNone(wt)
-        self.assertEqual((len(tries), made), (n, 1 + CFG["reruns"]))
+        self.assertEqual((len(tries), made), (n, 1))
 
 
 class DirectorRoom(unittest.TestCase):

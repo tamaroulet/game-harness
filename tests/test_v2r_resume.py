@@ -22,7 +22,7 @@ TASKS = [{"id": f"T{i}", "unit": f"units/T{i}.json"} for i in (1, 2, 3)]
 
 
 def row(task, end):
-    return {"task": task, "resume": {"end_commit": end, "passing": ["A.t1"], "known_failures": ["A.t9"]}}
+    return {"task": task, "resume": {"end_commit": end, "passing": ["A.t1"], "passed_tasks": ["T1"]}}
 
 
 class ResumePoint(unittest.TestCase):
@@ -102,7 +102,7 @@ class RunCondition(unittest.TestCase):
 
     def run_it(self, resume=False, fail_at=None):
         def runner(ctx, task, unit, state):
-            self.ran.append((task["id"], ctx["index"], list(state["known_failures"])))
+            self.ran.append((task["id"], ctx["index"], list(state["passed_tasks"])))
             if task["id"] == fail_at:
                 raise OSError("掴まれていた")
             return {"attempts": 1, "accepted": True, "calls": []}
@@ -160,7 +160,7 @@ class RunCondition(unittest.TestCase):
         self.git.clear()
         self.assertEqual(self.run_it(resume=True), 0)
         self.assertEqual([(t, i) for t, i, _ in self.ran], [("T2", 2), ("T3", 3)], "T1 は流し直さない。番号は続き")
-        self.assertEqual(self.ran[0][2], ["A.t9"], "前のタスクの終わりの失敗の一覧を、行から戻す")
+        self.assertEqual(self.ran[0][2], ["T1"], "受入が通ったタスクの一覧を、行から戻す")
         self.assertIn(["reset", "-q", "--hard", "c2"], self.git, "T1 の終わりのコミットに戻す")
         self.assertNotIn("worktree", [a[0] for a in self.git], "作業ツリーは作り直さない")
         self.assertEqual([r["task"] for r in self.rows()], ["T1", "T2", "T3"])

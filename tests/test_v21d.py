@@ -21,7 +21,9 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(ROOT / "tests"))
 
+import agy_stub  # noqa: E402
 import agy_stream  # noqa: E402
 import contractgen  # noqa: E402
 import implementer_context  # noqa: E402
@@ -138,6 +140,9 @@ class OwnState(unittest.TestCase):
 
 
 class DiscardAfterCall(unittest.TestCase):
+    def setUp(self):
+        agy_stub.install(self)
+
     def test_pipeline_removes_the_workspace_after_writing_back(self):
         seen = {}
         with tempfile.TemporaryDirectory() as d:

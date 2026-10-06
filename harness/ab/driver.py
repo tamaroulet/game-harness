@@ -26,6 +26,7 @@ _HARNESS = Path(__file__).resolve().parent.parent
 if str(_HARNESS) not in sys.path:
     sys.path.insert(0, str(_HARNESS))
 
+import agy_pinned  # noqa: E402
 import agy_stream  # noqa: E402
 import envcheck  # noqa: E402
 import fileops  # noqa: E402
@@ -86,7 +87,17 @@ def cli_version_guard(imp, measure=envcheck.cli_version, pinned=None):
     return got
 
 
-def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run, guard=cli_version_guard):
+def agy_guard(imp, measure=envcheck.cli_version, pinned=None, verify=agy_pinned.require):
+    """agy のときは、版を測る（= agy を起動する）より前に、導入先のファイルの SHA-256 を照合する。落ちれば ABError。"""
+    if imp["cli"] == "agy":
+        try:
+            verify()
+        except agy_pinned.AgyDigestError as e:
+            raise common.ABError(str(e)) from e
+    return cli_version_guard(imp, measure, pinned)
+
+
+def agy_call(imp, prompt, cwd, conversation_id, ttl, runner=run, guard=agy_guard):
     """実装役を 1 回呼ぶ。会話を続けるときは --conversation を付ける（resume）。
 
     stream-json のときは、B（pipeline）と同じ引数と読み取り（agy_stream）を使い、手番ごとの記録を返す。
@@ -161,7 +172,7 @@ def _pipeline_judge(ctx, task, state):
     try:
         jc, verdict, msg = pipeline.judge_context(PROJECT, unit_path, ctx["wt"], ctx["judge_sandbox"],
                                                   Path(ctx["out"]) / "judge" / task["id"],
-                                                  state.get("known_failures") or [])
+                                                  state.get("passed_tasks") or [])
     except SystemExit as e:
         return None, f"ABORT: {e.code}", None
     if verdict in ("ABORT", "REJECT"):
@@ -394,19 +405,14 @@ def instrument_faults(feedback, props):
 
 # ============================================================ 条件 B
 
-def pipeline_args(unit_path, wt, sandbox, out, tel, known_failures=None, first=None):
+def pipeline_args(unit_path, wt, sandbox, out, tel, passed_tasks=(), first=None):
     # 門の自己検査（--skip-selftest で省く）は門そのものの健全性の検査で、タスクの仕事ではない。
     # dry-01 では 405.9 秒のうち 177.1 秒を占めた。門の健全性は tests/ と pipeline --selftest で別に確かめる
     return [sys.executable, str(common.ROOT / "harness" / "pipeline.py"), "--project", PROJECT,
             "--unit", str(unit_path), "--repo-dir", str(wt), "--local-only", "--skip-selftest",
             "--sandbox", str(sandbox), "--out-dir", str(out), "--telemetry", str(tel)] + (
-                ["--known-failures", str(known_failures)] if known_failures else []) + (
+                ["--passed-tasks", ",".join(passed_tasks)] if passed_tasks else []) + (
                 ["--first-submission", str(first)] if first else [])
-
-
-def failing_names(results):
-    """測定の結果で Passed でないテストの名前。ビルドが通らなければ None。"""
-    return None if results is None else sorted(n for n, o in results.items() if o != "Passed")
 
 
 CALL_RECORD = ("attempt", "rc", "seconds", "model", "cli_version", "prompt_chars", "prompt_parts", "outcome",
@@ -461,12 +467,8 @@ def run_task_b(ctx, task, unit, state, runner=run):
     (out / task["id"]).mkdir(parents=True, exist_ok=True)
     tel = out / task["id"] / f"{task['id']}.pipeline.json"
     unit_path = Path(ctx["m"]["_base"]) / task["unit"]
-    # 前のタスクの終わりに落ちていたテストは、base の検査と P2P から外す（S2）。A の測定器も
-    # 「前のタスクの終わりに通っていたもの」だけを P2P に数えるので、同じ扱いになる
-    known = out / f"{task['id']}.known_failures.json"
-    known.write_text(json.dumps(state.get("known_failures") or [], ensure_ascii=False), encoding="utf-8")
     rc, stdout, stderr = runner(pipeline_args(unit_path, ctx["wt"], ctx["sandbox"], out / "pipeline" / task["id"], tel,
-                                              known, first=first_dir(out, task)),
+                                              state.get("passed_tasks") or [], first=first_dir(out, task)),
                                 str(common.ROOT), PIPELINE_TTL, f"pipeline（条件 B、{task['id']}）")
     (out / f"{task['id']}.pipeline.log").write_text(f"{stdout}\n{stderr}\n", encoding="utf-8")
     data, _ = telemetry.read(tel)
@@ -616,11 +618,11 @@ def _run_tasks(ctx, m, units, proj, p, run_id, condition, task_runner, decl, met
     if carry is None:
         results, _ = measure.run_fast(p["wt"], ctx["test_project"], p["out"], "baseline")
         prev = measure.passing(results)
-        state = {"conversation_id": None, "known_failures": failing_names(results) or []}
+        state = {"conversation_id": None, "passed_tasks": []}
     else:
         # 再開：最後に行を書いたタスクの終わりの測定を、行に残した値から戻す（測り直さない）
         prev = set(carry["passing"])
-        state = {"conversation_id": None, "known_failures": list(carry["known_failures"])}
+        state = {"conversation_id": None, "passed_tasks": list(carry.get("passed_tasks") or [])}
     for i, (task, unit) in enumerate(zip(m["tasks"], units), start=1):
         if i <= done:
             continue
@@ -670,12 +672,10 @@ def _run_tasks(ctx, m, units, proj, p, run_id, condition, task_runner, decl, met
         if first is not None:
             line["first_submission"] = first
         prev = measure.passing(results)
-        # ビルドが通らなかったときは名前が取れないので、前の一覧のまま
-        known = failing_names(results)
-        if known is not None:
-            state["known_failures"] = known
+        if line["accepted"]:
+            state["passed_tasks"].append(task["id"])
         # 再開の情報（原則 P5）：このタスクの終わりのコミットと、次のタスクの P2P の比べる元
-        line["resume"] = {"end_commit": end, "passing": sorted(prev), "known_failures": list(state["known_failures"])}
+        line["resume"] = {"end_commit": end, "passing": sorted(prev), "passed_tasks": list(state["passed_tasks"])}
         with metrics.open("a", encoding="utf-8") as f:
             f.write(json.dumps(line, ensure_ascii=False) + "\n")
         print(f"[{condition}] {task['id']}: 受入 {passed}/{total}、P2P の破壊 {len(broken)}、"

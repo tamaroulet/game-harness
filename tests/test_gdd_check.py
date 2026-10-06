@@ -15,11 +15,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
 
 import gdd_check  # noqa: E402
 import project  # noqa: E402
 
-gdd_check.CFG = gdd_check.load_config()
+
+def setUpModule():
+    gdd_check.CFG = gdd_check.load_config()
 
 GDD = """<!-- project: falling-blocks -->
 <!-- version: 2 -->
@@ -418,11 +422,17 @@ class CliTests(unittest.TestCase):
                 (d / f"{k}.md").write_bytes(v.encode("utf-8"))
             args = ["--project", "falling-blocks", "--gdd", str(d / "gdd.md"), "--spec", str(d / "spec.md"),
                     "--questions", str(d / "questions.md"), "--summary", str(d / "s.json")]
-            self.assertEqual(gdd_check.main(args), 0)
+            rc, out = quiet.captured(gdd_check.main, args)
+            self.assertEqual(rc, 0)
+            self.assertIn("RESULT:", out)
             self.assertTrue(json.loads((d / "s.json").read_text(encoding="utf-8"))["summary"]["mergeable"])
             (d / "spec.md").write_bytes(spec(lp=["| LP-01 | PR-99 を使う | L6 |"]).encode("utf-8"))
-            self.assertEqual(gdd_check.main(args), 1)
-            self.assertEqual(gdd_check.main(args[:4] + ["--spec", str(d / "nope.md")] + args[6:]), 2)
+            rc, out = quiet.captured(gdd_check.main, args)
+            self.assertEqual(rc, 1)
+            self.assertIn("RESULT:", out)
+            rc, out = quiet.captured(gdd_check.main, args[:4] + ["--spec", str(d / "nope.md")] + args[6:])
+            self.assertEqual(rc, 2)
+            self.assertIn("ABORT", out)
             gdd_check.CFG = gdd_check.load_config()
 
 

@@ -1,5 +1,5 @@
 {
-  "_comment": "scheduler.py の共通設定（全プロジェクト）。リポジトリ・テスト置き場・出力先は projects/<id>/project.json、監査レポートの置き場は config/audit.json から差し込まれる。ここに再掲しない。",
+  "_comment": "scheduler.py の共通設定（全プロジェクト）。リポジトリ・テスト置き場・出力先は projects/<id>/project.jsonから差し込まれる。ここに再掲しない。",
 
   "branch_prefix": "ms4/issue-",
 
@@ -33,10 +33,9 @@
   "_worktree_note": "作業はこの下の worktree で行う。Issue は固定の <project>-issue-runner を使い回し（物理削除しない。runner_worktree_name）、GDD の PR は使い捨ての <project>-gdd-v<版>-<sha8> を使う。本体の clone（repo_dir）には書き込まない（docs/design/spec_pipeline.md §13）",
   "worktree_root": "C:\\src\\.local\\wt",
 
-  "_commands_note": "{python} は実行中の Python、{harness} は harness/ の絶対パス、{project} はプロジェクト ID、{telemetry} はログの隣のテレメトリ JSON、{verdict} は監査の判定の書き出し先、{repo} は作業する worktree（cwd も同じ）。テストではここをスタブに差し替える",
+  "_commands_note": "{python} は実行中の Python、{harness} は harness/ の絶対パス、{project} はプロジェクト ID、{telemetry} はログの隣のテレメトリ JSON、{repo} は作業する worktree（cwd も同じ）。テストではここをスタブに差し替える",
   "commands": {
     "decompose": ["{python}", "{harness}/decompose.py", "--project", "{project}", "--issue", "{number}", "--repo-dir", "{repo}", "--telemetry", "{telemetry}"],
-    "audit":     ["{python}", "{harness}/audit.py", "--project", "{project}", "--file", "{file}", "--repo-dir", "{repo}", "--verdict-json", "{verdict}"],
     "pipeline":  ["{python}", "{harness}/pipeline.py", "--project", "{project}", "--unit", "{unit}", "--repo-dir", "{repo}", "--telemetry", "{telemetry}"],
     "playtest":  ["{python}", "{harness}/playtest.py", "--project", "{project}", "--pr", "{pr}", "--sha", "{sha}", "--telemetry", "{telemetry}"],
     "spec":      ["{python}", "{harness}/spec.py", "--project", "{project}", "--gdd", "{gdd}", "--out-dir", "{out_dir}", "--work-dir", "{work_dir}", "--previous-spec", "{previous_spec}", "--telemetry", "{telemetry}"]
@@ -45,21 +44,12 @@
   "_condition_note": "runs.jsonl の condition。比較実験で、門番の無い再試行ループ（loop-no-gate）の記録と区別する（docs/design/telemetry.md）",
   "experiment_condition": "harness",
 
-  "audit": {
-    "_enabled_note": "false: ?????????????v2 ?? ???????????????????",
-    "enabled": false,
-    "_required_note": "false: キーが無ければスキップ、失敗しても記録のみ。監査結果は合否に使わない（人間の決定 2026-09-13）",
-    "required": false,
-    "key_env": "OPENAI_API_KEY"
-  },
-
   "_spec_note": "構造化役は Claude CLI を最大 3 回（config/spec.json の claude TTL 900s × 3 と CLI のバージョン確認）",
   "_ttl_note": "pipeline は自己検査の Unity 実行と 3 試行（各 Unity 最大 1800s + CI 待ち）を含む。途中で殺すと Unity が孤児になるので長めに取る",
   "ttl_seconds": {
     "git": 180,
     "gh": 90,
     "decompose": 1500,
-    "audit": 900,
     "pipeline": 18000,
     "playtest": 3900,
     "spec": 3000

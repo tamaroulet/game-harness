@@ -18,26 +18,31 @@
   "_spec_retries_note": "Gate A：TaskSpec がスキーマに適合しないとき、違反の内容を分解役に返してやり直す回数の上限。それでも適合しなければ未収束",
 
   "max_attempts": 3,
-  "reruns": 1,
-  "_retry_note": "1 つの作業ツリーで実装役を最大 max_attempts 回。収束しなければ新しい作業ツリーで reruns 回だけやり直す（段 3 の再分解の代わり、§5）。それでも駄目なら TODO.md に記録する",
+  "respecs": 1,
+  "_retry_note": "1 つの作業ツリーで実装役を最大 max_attempts 回。収束しなければ、失敗の要約を分解役に返して TaskSpec を作り直し、新しい作業ツリーで respecs 回だけ再実行する",
 
-  "gate_command": ["python", "-m", "unittest", "discover", "-s", "tests"],
-  "_gate_note": "H ラインの Gate 1（段 0）。終了コードだけで判定する。LLM は使わない",
-  "protected_paths": ["docs/progress.yaml", ".claude/"],
-  "_protected_note": "実装役が変えてはならないパス。docs/progress.yaml は harness.progress だけが変える。.claude/ は権限の設定",
+  "infra_retry": { "max_retries": 2, "wait_seconds": [60, 300] },
+  "_infra_retry_note": "インフラの例外（CLI の起動の失敗・タイムアウト・git や gh の一時的な失敗・認証の一時的な失敗）で、新しい作業ツリーで呼び直す回数の上限と、呼び直しの前に待つ秒数。実装役の試行回数（max_attempts）には数えない",
+
+  "gate_command": ["python", "-m", "harness.fastsuite", "discover", "-s", "tests"],
+  "_gate_note": "H ラインの Gate 1（段 0）。モジュールごとに別のプロセスで並列に走らせる（harness/fastsuite.py）。判定は終了コードだけ（0 = 全部通った）。LLM は使わない",
 
   "ttl_seconds": { "implementer": 1800, "decomposer": 900, "gate": 1800, "git": 300, "gh": 120, "lock_stale": 14400 },
   "gate_tail_chars": 4000,
+  "symbol_map": { "max_chars": 30000 },
+  "_symbol_map_note": "分解役・実装役に渡すリポジトリの目次（harness/ のモジュール・クラス・関数・引数・行番号と、import しているテスト）の文字数の上限。作業ツリーから呼び出しのたびに作り直す。超えるときは引数 → メソッド → 末尾の順に省く（harness/symbolmap.py）。実装役には target_symbols のモジュールの節だけを渡す",
 
   "decomposer": {
     "cli": "claude",
     "headless_flag": "-p",
     "model_flag": "--model",
-    "model": "claude-opus-5-5",
+    "model": "claude-opus-5",
     "auxiliary_models": ["claude-haiku-"],
-    "_flags_note": "What を TaskSpec JSON に変える分解役。読み取りだけを許し（作業ツリーを読んで対象シンボルを確かめる）、JSON を返させる。プロンプトは標準入力で渡す",
-    "extra_flags": ["--allowedTools", "Read,Grep,Glob"],
-    "output_format_args": ["--output-format", "json"]
+    "_flags_note": "What を TaskSpec JSON に変える分解役。読み取りだけを許す。検索（Grep・Glob）は目次（symbol_map）と、What が挙げたモジュールの docstring の節で置き換えたので許さず、開くのは目次に無いファイルだけ。JSON を返させる。プロンプトは標準入力で渡す",
+    "extra_flags": ["--allowedTools", "Read"],
+    "output_format_args": ["--output-format", "json"],
+    "budget": { "max_thinking_tokens": 6000, "max_turns": 10, "timeout_seconds": 300 },
+    "_budget_note": "分解役 1 回の思考の量・ターン数・時間の上限。検索を目次で置き換えたので、ターン数は 10 に絞る。上限で打ち切られた出力は Gate A の不適合と同じに扱い（理由を返してやり直す）、モデルの照合はしない"
   },
 
   "implementer": {
@@ -49,8 +54,16 @@
     "_flags_note": "作業ツリー（cwd）の中の編集と unittest の実行だけを許す。プロンプトは標準入力で渡す（cmd.exe が引数の改行で切るため）",
     "extra_flags": ["--permission-mode", "acceptEdits",
                     "--allowedTools", "Read,Grep,Glob,Edit,Write,Bash(python -m unittest:*)"],
-    "output_format_args": ["--output-format", "json"]
+    "output_format_args": ["--output-format", "json"],
+    "budget": { "max_turns": 15 },
+    "_budget_note": "実装役 1 回のターン数の上限（--max-turns）。値はここだけに置く。打ち切られても作業ツリーは捨てず、残った変更をそのまま Gate 1 に渡す。落ちたら、打ち切りの理由を添えて次の試行に渡す。思考の量・時間の上限は掛けない（時間は ttl_seconds.implementer）"
   },
+
+  "pr_hygiene": {
+    "forbidden_globs": ["*.log", "*.tmp", "*.bak", "__pycache__/", "queue.json", "report.md", "TODO.md", "integration-pr.md"],
+    "max_file_bytes": 1048576
+  },
+  "_pr_hygiene_note": "統合 PR を出す前の差分の検査。生ログ・実装役や分解役の出力・キューの状態・一時ファイル（forbidden_globs）と、上限を超える大きさのファイル（max_file_bytes）が混ざっていたら PR を出さず、UNCLEAN_DIFF で止まる。受信箱・作業ツリー・生ログの置き場の末尾のディレクトリ名も禁止に足す（harness/hline_hygiene.py）",
 
   "commit_trailer": "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 }
