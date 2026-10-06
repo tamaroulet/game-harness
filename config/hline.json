@@ -59,5 +59,11 @@
     "_budget_note": "実装役 1 回のターン数の上限（--max-turns）。値はここだけに置く。打ち切られても作業ツリーは捨てず、残った変更をそのまま Gate 1 に渡す。落ちたら、打ち切りの理由を添えて次の試行に渡す。思考の量・時間の上限は掛けない（時間は ttl_seconds.implementer）"
   },
 
+  "pr_hygiene": {
+    "forbidden_globs": ["*.log", "*.tmp", "*.bak", "__pycache__/", "queue.json", "report.md", "TODO.md", "integration-pr.md"],
+    "max_file_bytes": 1048576
+  },
+  "_pr_hygiene_note": "統合 PR を出す前の差分の検査。生ログ・実装役や分解役の出力・キューの状態・一時ファイル（forbidden_globs）と、上限を超える大きさのファイル（max_file_bytes）が混ざっていたら PR を出さず、UNCLEAN_DIFF で止まる。受信箱・作業ツリー・生ログの置き場の末尾のディレクトリ名も禁止に足す（harness/hline_hygiene.py）",
+
   "commit_trailer": "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 }

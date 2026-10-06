@@ -104,6 +104,8 @@ def human_line(cfg, st):
         return (f"- 人間作業: BLOCKED 同じマイルストーンで未収束が {cfg['max_unconverged_per_milestone']} 件に達しました"
                 f"（未収束: {', '.join(unconverged)}／凍結: {', '.join(by_status(st, 'frozen')) or 'なし'}）。"
                 "直した What を同じ名前で受信箱に置くと再開します")
+    if hyg := st.get("hygiene_halt"):
+        return f"- 人間作業: UNCLEAN_DIFF {'／'.join(hyg['files'])}"
     if st["awaiting_pr"]:
         return f"- 人間作業: REVIEW_REQUIRED {st['awaiting_pr']}"
     return None

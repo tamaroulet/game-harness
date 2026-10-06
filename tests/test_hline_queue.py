@@ -390,7 +390,7 @@ class World(unittest.TestCase):
         (self.wt / "docs" / "progress.yaml").write_text(yaml.safe_dump(
             {"tasks": [{"id": "S1-2", "verification": {"command": VERIFY, "expected_exit_code": 0}}]}), encoding="utf-8")
         self.decomposed, self.implemented, self.integrated, self.created, self.dropped = [], [], [], [], []
-        self.failing, self.pr_state, self.open_pr, self.ahead_n, self.current = set(), "OPEN", None, 0, None
+        self.failing, self.pr_state, self.open_pr, self.ahead_n, self.current = set(), "OPEN", None, 0, None; self.diff_list = []
 
         def forbidden(*a, **kw):
             raise AssertionError(f"実際の外部呼び出しが起きました: {a[:1]}")
@@ -403,7 +403,7 @@ class World(unittest.TestCase):
         self.patch(hline, "integrated", side_effect=lambda c, n: n in self.integrated)
         self.patch(hline, "new_worktree", side_effect=lambda c, t: (self.wt, "b"))
         self.patch(hline, "integrate", side_effect=self.fake_integrate)
-        self.patch(hline, "ahead", side_effect=lambda c: self.ahead_n)
+        self.patch(hline, "ahead", side_effect=lambda c: self.ahead_n); self.patch(hline, "diff_files", side_effect=lambda c: self.diff_list)
         self.patch(hline, "open_pr", side_effect=lambda c: self.open_pr)
         self.patch(hline, "create_pr", side_effect=self.fake_create_pr)
         self.patch(hline, "pr_state", side_effect=lambda c, u: self.pr_state)

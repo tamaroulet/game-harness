@@ -14,6 +14,7 @@ import infra_retry, model_pin, proc, progress, size_limits, symbolmap  # noqa: E
 from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args, load_config, must, pinned_models, run_agent, slug, title_of  # noqa: E402,F401
 from hline_gc import sweep  # noqa: E402
 from hline_git import ahead, changed_paths, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, open_pr, pr_state  # noqa: E402,F401
+from hline_hygiene import diff_files, problems  # noqa: E402
 from hline_queue import blocked, by_status, intake, load_state, next_runnable, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
 from hline_report import line_modules, mark as _mark, pr_body, pr_title, self_change, today, write_report  # noqa: E402,F401
 from hline_respec import second_round  # noqa: E402,F401
@@ -65,6 +66,11 @@ def open_integration_pr(cfg, st):
     fresh = [i for i in st["items"].values() if i["status"] == "done" and not i.get("pr") and not i.get("merged")]
     if not fresh or ahead(cfg) == 0:
         return
+    if bad := problems(diff_files(cfg), cfg):   # 汚れた差分では PR を出さない。人間が統合ブランチを直す
+        st["hygiene_halt"] = {"files": bad}
+        save_state(cfg, st)
+        print(f"統合 PR は作りません（差分に不要なファイル: {len(bad)} 件）")
+        return
     url = open_pr(cfg) or create_pr(cfg, pr_title(cfg, st), pr_body(cfg, st))
     for i in st["items"].values():
         if i["status"] == "done" and not i.get("merged"):
@@ -78,6 +84,7 @@ def run_line(cfg):
     sweep(cfg)   # 前の走行の残骸の掃除。例外は出さず、戻り値も使わない（消せないものは次の起動で再び対象になる）
     st = load_state(cfg)
     st["infra_halt"] = None   # 前の走行の停止は、次の走行の自動の再開を妨げない
+    st["hygiene_halt"] = None
     st["self_change"] = None   # 前の走行の区切りも、次の走行を妨げない
     save_state(cfg, st)
     fetch(cfg)
