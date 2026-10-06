@@ -9,8 +9,9 @@ import sys
 import uuid
 from pathlib import Path
 
-from hline_base import ROOT, Infra, must
+from hline_base import ROOT, Fatal, Infra, must
 
+import infra_retry  # noqa: E402
 import proc  # noqa: E402
 import progress  # noqa: E402
 
@@ -75,11 +76,17 @@ def integrate(cfg, wt, name, title, task):
         code, out, err = proc.run([sys.executable, "-m", "harness.progress", "complete", task], wt, t["gate"],
                                   "harness.progress complete", env={**os.environ, progress.ORDER_FREE_ENV: "1"})
         if code != 0:
-            raise Infra(f"harness.progress complete {task} が終了コード {code}: {(out + err)[-800:]}")
+            raise Fatal(f"harness.progress complete {task} が終了コード {code} で、進捗の記録が拒まれました。再試行しません: "
+                        f"{(out + err)[-800:]}")
     must(["git", "add", "-A"], wt, t["git"], "git add")
     must(["git", "commit", "-q", "-m", f"feat(hline): {title}\n\n{TRAILER}: {name}\n{cfg['commit_trailer']}\n"],
          wt, t["git"], "git commit")
-    must(["git", "push", "-q", "origin", f"HEAD:refs/heads/{cfg['integration_branch']}"], wt, t["git"], "git push")
+    code, out, err = proc.run(["git", "push", "-q", "origin", f"HEAD:refs/heads/{cfg['integration_branch']}"], wt,
+                              t["git"], "git push")
+    if code != 0:
+        if reason := infra_retry.fatal_push_reason(code, out + err):
+            raise Fatal(reason)
+        raise Infra(f"git push が失敗しました（終了コード {code}）: {(err or out)[-800:]}")
 
 
 def integrated(cfg, name):

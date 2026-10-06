@@ -24,6 +24,15 @@ class Infra(Exception):
     """環境の異常（git・gh・CLI の起動の失敗、モデルの照合の失敗）。終了コード 2。"""
 
 
+class Fatal(Infra):
+    """待っても直らない異常（進捗の記録の拒否・push の拒否）。呼び直さず、その What を未収束にして止める。"""
+    fatal = True
+
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
+
 def load_config(path=CONFIG):
     cfg = json.loads(Path(path).read_text(encoding="utf-8"))
     model_pin.require(cfg["implementer"], "config/hline.json の implementer")

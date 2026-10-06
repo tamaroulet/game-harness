@@ -12,6 +12,15 @@ TRANSIENT = [
 ]
 
 
+FORWARD_REJECT = r"non-fast-forward|fetch first|behind its remote counterpart"
+FATAL_PUSH = [
+    ("保護されたブランチ", r"protected branch|gh006"),
+    ("pre-receive フックによる拒否", r"pre-receive hook (?:declined|rejected)|hook declined"),
+    ("権限がありません", r"permission denied|permission to .* denied|read-only"),
+    ("リポジトリが見つかりません", r"repository not found"),
+]
+
+
 class InfraExhausted(Exception):
     def __init__(self, records):
         self.records = records
@@ -29,6 +38,17 @@ def classify_exit(code, err):
     return None
 
 
+def fatal_push_reason(code, err):
+    """git push が、待っても直らない理由で拒否されたときの理由（日本語）。non-fast-forward・成功・拒否と読めないときは None。"""
+    low = (err or "").lower()
+    if code == 0 or re.search(FORWARD_REJECT, low):
+        return None
+    for label, pattern in FATAL_PUSH:
+        if re.search(pattern, low):
+            return f"push が拒否されました（{label}）。再試行しません: {err[-200:]}"
+    return None
+
+
 def wait_for(waits, k):
     return waits[min(max(k, 1), len(waits)) - 1] if waits else 0   # 1 始まりの k 回目。尽きたら最後の値、空なら 0
 
@@ -40,6 +60,8 @@ def retry(attempt, fault, limit, waits, sleep=None, log=print):
         try:
             return attempt(n), records
         except fault as e:
+            if getattr(e, "fatal", False):   # 待っても直らない異常は、記録も待ちもせず呼び手へ
+                raise
             records.append(rec := {"attempt": n, "reason": str(e), "wait": None})
             if n > limit:
                 log(f"インフラの例外（{n}/{limit + 1} 回目）: {rec['reason']}。上限に達しました")

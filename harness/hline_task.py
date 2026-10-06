@@ -7,7 +7,7 @@ import fastsuite
 import hline_abort
 import hline_boundary
 import infra_retry
-from hline_base import Infra
+from hline_base import Fatal, Infra
 from hline_budget import attempt_record, with_cutoff
 
 
@@ -63,9 +63,25 @@ def unconverged(item):
             or f"{len(item['tries'])} 回の試行で Gate 1 に通らず、パッチを捨てた")
 
 
+def record_infra(host, cfg, st, item, n, e):
+    if getattr(e, "fatal", False):
+        return
+    item.setdefault("infra_retries", []).append({"attempt": n, "reason": str(e), "wait": None})
+    host.save_state(cfg, st)
+
+
+def stop_fatal(host, cfg, st, name, item, e):
+    """待っても直らない異常：呼び直さず、その What を未収束にして理由を残す（infra_halt は立てない）。"""
+    item.update(status="unconverged", at=host.today(), reason=str(e))
+    print(f"[{item['tid']}] 再試行しません: {item['reason']}")
+    host.mark(cfg, st, name)
+    return False
+
+
 def process(host, cfg, st, name):
     """待ちの What 1 件を、分解 → Gate A → 実装 → Gate 1 → 統合ブランチへ。積めたら True、未収束なら False。
     環境の異常（Infra）は新しい作業ツリーで呼び直す（実装役の試行に数えない）。続けば What を待ちに戻し、infra_halt を立てて False。
+    Fatal（進捗の記録の拒否・push の拒否）は呼び直さず、未収束にして False。
     ライン自身の変更を積んだときは st["self_change"] を置く（run_line が走行を区切る）。"""
     item = st["items"][name]
     what = host.what_path(cfg, name).read_text(encoding="utf-8")
@@ -98,14 +114,15 @@ def process(host, cfg, st, name):
             if own:
                 st["self_change"] = {"name": name, "paths": own}
             return True
-        except Infra as e:   # 呼び直しのたびに記録を残す（待った秒数は retry の記録で置き換わる）
-            item.setdefault("infra_retries", []).append({"attempt": n, "reason": str(e), "wait": None})
-            host.save_state(cfg, st)
+        except Infra as e:   # 呼び直しのたびに記録を残す（待った秒数は retry の記録で置き換わる）。Fatal は記録せずそのまま抜ける
+            record_infra(host, cfg, st, item, n, e)
             raise
 
     ic = cfg["infra_retry"]
     try:
         done, records = infra_retry.retry(attempt, Infra, ic["max_retries"], ic["wait_seconds"], log=print)
+    except Fatal as e:
+        return stop_fatal(host, cfg, st, name, item, e)
     except infra_retry.InfraExhausted as e:
         item.update(status="waiting", infra_retries=e.records)
         st["infra_halt"] = {"name": name, "reason": e.records[-1]["reason"], "attempts": len(e.records), "at": host.today()}
