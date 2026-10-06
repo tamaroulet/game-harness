@@ -1,4 +1,4 @@
-﻿"""H ライン（harness/hline_gc.py）の作業ツリーの掃除の検査（S1-2）。git は一時ディレクトリの小さなリポジトリで本物を使い、
+"""H ライン（harness/hline_gc.py）の作業ツリーの掃除の検査（S1-2）。git は一時ディレクトリの小さなリポジトリで本物を使い、
 worktrees・out・ROOT は必ず一時ディレクトリに差し替える（実物の置き場を対象にしない）。再試行の待ちは 0 秒にする。"""
 import json
 import os
