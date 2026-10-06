@@ -608,7 +608,7 @@ tasks:
   title: 実装役にはシグネチャと Red のテストだけを渡し、Green にする実装だけを受ける（H ラインとゲームのライン）
   group: B7.3
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_tdd_boundary
     expected_exit_code: 0
@@ -645,6 +645,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: S3-2
+  task: S3-3
   exit_code: 0
-  at: '2026-10-06T10:27:47'
+  at: '2026-10-06T10:43:45'
