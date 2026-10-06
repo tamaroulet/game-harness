@@ -66,6 +66,9 @@ def gate_a(schema, spec, command=None):
     problems = validate(schema, spec)
     if not problems and command and spec["test_oracle"].get("verification_command") != command:
         problems.append(f"$.test_oracle.verification_command: 進捗の検証コマンド `{command}` をそのまま入れてください")
+    if not problems:
+        import hline_symbols  # noqa: PLC0415（hline_symbols が matches を使うので、循環を避けてここで読む）
+        problems = hline_symbols.content_problems(spec)
     return problems
 
 

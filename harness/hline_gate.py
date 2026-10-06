@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 import hline_boundary
+import hline_symbols
 
 
 def gate(host, cfg, wt, paths, spec=None, task=None, extended=()):
@@ -17,6 +18,7 @@ def gate(host, cfg, wt, paths, spec=None, task=None, extended=()):
     problems += host.size_limits.scan(wt, paths, host.size_limits.limits(), host.size_limits.head_source(cfg, wt))
     if extended:
         problems += hline_boundary.shrink_problems(wt, extended, host.size_limits.head_source(cfg, wt))
+    problems += hline_symbols.declared_problems(spec, wt) if spec else []
     if problems:
         return False, "\n".join(problems)
     first = host.gate_order.focused(cfg, wt, paths, task, spec)   # 影響テストが先。落ちたら全件テストは走らせない

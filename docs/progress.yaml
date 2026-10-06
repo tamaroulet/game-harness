@@ -592,7 +592,7 @@ tasks:
   title: TaskSpec IR の 5 要素（対象シンボルと型シグネチャ・事前／事後条件と不変量・編集境界・テストオラクル指針）と Gate B（AST のシンボル照合）
   group: B7.3
   target_repo: game-harness
-  status: pending
+  status: completed
   verification:
     command: python -m unittest tests.test_taskspec
     expected_exit_code: 0
@@ -645,6 +645,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: S2-3
+  task: S3-1
   exit_code: 0
-  at: '2026-10-05T09:54:41'
+  at: '2026-10-06T10:07:09'
