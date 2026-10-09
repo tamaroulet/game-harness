@@ -65,18 +65,27 @@ class Digest(unittest.TestCase):
 
 
 class Report(unittest.TestCase):
-    def test_heading_then_digest_then_the_raw_tail(self):
+    def test_heading_then_the_digest_and_no_raw_log(self):
+        """返すのは見出しと digest だけ（生ログは連結しない。C4）。"""
         text = gate_order.report("python -m unittest x", 1, "OUT\n", SAMPLE, 10000, 0)
         heading = "検証コマンド `python -m unittest x` が終了コード 1（期待 0）\n"
-        self.assertTrue(text.startswith(heading + gate_order.failure_digest(SAMPLE) + "\n"))
-        self.assertTrue(text.endswith(SAMPLE + "OUT\n"))
+        self.assertEqual(text, heading + gate_order.failure_digest(SAMPLE))
+        self.assertNotIn("OUT", text)
+        self.assertNotIn("Ran 2 tests", text)
+
+    def test_without_a_digest_the_raw_tail_takes_its_place_within_thirty_lines(self):
+        text = gate_order.report("c", 0, "\n".join(f"line{n}" for n in range(100)), "", 10000)
+        lines = text.splitlines()
+        self.assertEqual(len(lines), gate_order.MAX_LINES)
+        self.assertEqual(lines[-1], "line99")
+        self.assertNotIn("line70", text)
 
     def test_the_length_stays_within_the_limit_and_the_head_survives_a_long_raw_output(self):
         text = gate_order.report("c", 1, "." * 50000, SAMPLE, 800)
-        self.assertEqual(len(text), 800)
+        self.assertLessEqual(len(text), 800)
         self.assertIn("FAIL: test_a", text)
         self.assertIn(TRACE, text)
-        self.assertTrue(text.endswith("." * 100))
+        self.assertNotIn("." * 100, text)
 
     def test_a_head_longer_than_the_limit_is_cut_from_its_start_keeping_the_test_names(self):
         text = gate_order.report("c", 1, "", SAMPLE, 120)
@@ -128,7 +137,8 @@ class GateOrder(unittest.TestCase):
             self.assertFalse(ok)
             self.assertNotIn(CFG["gate_command"], run.commands)
             self.assertEqual(len(run.commands), 1)
-            self.assertIn("FOCUSED-OUT", msg)
+            self.assertIn("FAIL: test_a (tests.test_x.A)", msg)
+            self.assertNotIn("FOCUSED-OUT", msg, "生ログは連結しない（C4）")
 
     def test_the_focused_verification_decides_and_no_full_suite_follows_it(self):
         """影響テストに走らせるものがあれば、それだけで判定する（内側のループで全件テストは走らせない。C3）。"""
@@ -164,11 +174,12 @@ class GateOrder(unittest.TestCase):
 
 class Prompt(unittest.TestCase):
     def test_the_instructions_name_the_focused_verification_and_never_the_full_suite_command(self):
+        """実装役にはテストを走らせないことだけを伝える（C4）。全件テストの命令は入力に現れない。"""
         prompt = hline.build_prompt({"a": 1})
         instructions = prompt.split("---\n", 1)[0]
         self.assertNotIn("discover", instructions)
-        self.assertIn("タスク個別の検証", instructions)
-        self.assertIn("全件テストはハーネスが走らせる", instructions)
+        self.assertIn("テストは走らせない", instructions)
+        self.assertIn("ハーネスが試行の後に影響テストを走らせ", instructions)
 
     def test_hline_stays_within_300_lines_and_the_old_verification_is_gone(self):
         text = (Path(hline.__file__)).read_text(encoding="utf-8")

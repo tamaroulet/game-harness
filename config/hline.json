@@ -52,9 +52,9 @@
     "model_flag": "--model",
     "model": "claude-sonnet-5-5",
     "auxiliary_models": ["claude-haiku-"],
-    "_flags_note": "作業ツリー（cwd）の中の編集と unittest の実行だけを許す。プロンプトは標準入力で渡す（cmd.exe が引数の改行で切るため）",
+    "_flags_note": "作業ツリー（cwd）の中の編集だけを許す。テストの実行は許さない（ハーネスが試行の後に影響テストを走らせ、結果を次の試行に渡す）。プロンプトは標準入力で渡す（cmd.exe が引数の改行で切るため）",
     "extra_flags": ["--permission-mode", "acceptEdits",
-                    "--allowedTools", "Read,Grep,Glob,Edit,Write,Bash(python -m unittest:*)"],
+                    "--allowedTools", "Read,Grep,Glob,Edit,Write"],
     "output_format_args": ["--output-format", "json"],
     "budget": { "max_turns": 15 },
     "_budget_note": "実装役 1 回のターン数の上限（--max-turns）。値はここだけに置く。打ち切られても作業ツリーは捨てず、残った変更をそのまま Gate 1 に渡す。落ちたら、打ち切りの理由を添えて次の試行に渡す。思考の量・時間の上限は掛けない（時間は ttl_seconds.implementer）"
