@@ -45,8 +45,14 @@ class Pure(unittest.TestCase):
         self.assertEqual(hq.resume_at("resets 4:30am (Asia/Tokyo)", at(4, 31)), at(4, 30, day=7))
         self.assertEqual(hq.resume_at("resets 12pm", at(9)), at(12))
 
+    def test_the_weekly_limit_has_a_date(self):
+        weekly = "You've hit your weekly limit · resets Oct 7, 7pm (Asia/Tokyo)"   # 2026-10 の走行の原文
+        self.assertEqual(hq.message(json.dumps({"api_error_status": 429, "result": weekly}), ""), weekly)
+        self.assertEqual(hq.resume_at(weekly, at(21, 9, day=5)), at(19, day=7))
+        self.assertEqual(hq.resume_at(weekly, at(19, 1, day=7)), at(19, day=7).replace(year=2027))
+
     def test_an_unreadable_reset_time_waits_60_minutes(self):
-        for text in ("You've hit your session limit", "resets soon", "resets 13pm", "", None):
+        for text in ("You've hit your session limit", "resets soon", "resets 13pm", "resets Foo 7, 7pm", "resets Feb 30, 7pm", "", None):
             self.assertEqual(hq.resume_at(text, at(21, 9)), at(22, 9), text)
 
 

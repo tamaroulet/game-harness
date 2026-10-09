@@ -10,7 +10,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 FALLBACK = datetime.timedelta(minutes=60)   # リセットの時刻が読めないときの待ち
 HIT = re.compile(r"hit your (?:\w+ )?limit", re.I)
-RESET = re.compile(r"resets\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b(?:\s*\(([^)]+)\))?", re.I)
+RESET = re.compile(r"resets\s+(?:([A-Za-z]{3})\s+(\d{1,2}),?\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b(?:\s*\(([^)]+)\))?", re.I)
+MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 
 
 def message(out, err):
@@ -34,13 +35,20 @@ def _zone(name):
 
 
 def resume_at(text, now):
-    """now（時刻帯つき）より後で、text に書かれたリセットの時刻（例: "resets 10:30pm (Asia/Tokyo)"）。読めなければ now の 60 分後。"""
+    """now（時刻帯つき）より後で、text に書かれたリセットの時刻。読めなければ now の 60 分後。
+    実際の文は 2 通り："resets 10:30pm (Asia/Tokyo)"（セッション）と "resets Oct 7, 7pm (Asia/Tokyo)"（週）。"""
     m = RESET.search(text or "")
-    if not m or not 1 <= int(m[1]) <= 12 or int(m[2] or 0) > 59:
+    if not m or not 1 <= int(m[3]) <= 12 or int(m[4] or 0) > 59 or (m[1] and m[1].lower() not in MONTHS):
         return now + FALLBACK
-    zone = _zone(m[4])
+    zone = _zone(m[6])
     local = now.astimezone(zone) if zone else now
-    at = local.replace(hour=int(m[1]) % 12 + (12 if m[3].lower() == "pm" else 0), minute=int(m[2] or 0), second=0, microsecond=0)
+    try:
+        at = local.replace(hour=int(m[3]) % 12 + (12 if m[5].lower() == "pm" else 0), minute=int(m[4] or 0), second=0, microsecond=0)
+        if m[1]:   # 日付つき（週の枠）。年は書かれないので、過ぎていれば翌年
+            at = at.replace(month=MONTHS.index(m[1].lower()) + 1, day=int(m[2]))
+            return at if at > local else at.replace(year=at.year + 1)
+    except ValueError:   # 2 月 30 日など
+        return now + FALLBACK
     return at if at > local else at + datetime.timedelta(days=1)
 
 
