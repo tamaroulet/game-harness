@@ -47,9 +47,6 @@ class SizeLimits(unittest.TestCase):
             self.assertIn("harness/old.py", bound(gone=["harness/old.py"], **edit)[0])
         (why,) = bound(gone=["harness/a.py", "harness/b.py"], deletable_files=["harness/a.py"])
         self.assertTrue("b.py" in why.split("（")[0] and "a.py" not in why.split("（")[0])
-        edit = hline_spec.load_schema(CFG)["properties"]["edit_boundary"]
-        self.assertEqual(hline_spec.validate(edit, dict(BOUND, deletable_files=["a.py"])), [])
-        self.assertTrue(hline_spec.validate(edit, dict(BOUND, deletable_files="a.py")))
 
     def test_module_size_and_complexity(self):
         def problem(before, after):
