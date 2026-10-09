@@ -1,6 +1,6 @@
 """H ライン：ハーネス自身の改修の自律ループ（段 0・段 1、docs/design/foundation_v3_review.md 改訂 5 §3〜§5）。
 
-    python -m harness.hline poll     受信箱の What をキューに入れ、依存の順に統合ブランチへ積む（タスク スケジューラが 15 分ごとに呼ぶ）
+    python -m harness.hline poll     受信箱の What をキューに入れ、依存の順に統合ブランチへ積む（タスク スケジューラが 10 分ごとに、画面を出さずに呼ぶ。harness/hline_cron.py）
     python -m harness.hline setup    受信箱と総監督の部屋（.claude/settings.json・CLAUDE.md）を書く
 本体は gate が hline_gate、build_prompt・implement が hline_prompt、run_task・process が hline_task。ここの同名の関数は
 このモジュールを host として渡す薄い委譲で、テストの差し替えが効く。終了コード: 0 = 正常、1 = 未収束を記録した、2 = 環境の異常。
