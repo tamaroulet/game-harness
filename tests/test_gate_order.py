@@ -30,6 +30,8 @@ def worktree(d, command=VERIFY):
     (Path(d) / "docs").mkdir()
     state = {"tasks": [{"id": "S1-2", "verification": {"command": command, "expected_exit_code": 0}}, {"id": "S1-3"}]}
     (Path(d) / "docs" / "progress.yaml").write_text(yaml.safe_dump(state), encoding="utf-8")
+    (Path(d) / "tests").mkdir()
+    (Path(d) / "tests" / "test_a.py").write_text("", encoding="utf-8")   # 影響テストは作業ツリーにあるものだけが走る
     return Path(d)
 
 
@@ -125,10 +127,26 @@ class Focused(unittest.TestCase):
         self.assertIsNone(self.focused(["harness/x.py"], None, run))
         self.assertEqual(run.commands, [])
 
+    def test_a_deleted_test_file_in_the_changed_paths_is_never_named(self):
+        """消したテストのファイルを名指しすると ModuleNotFoundError で必ず落ちる。残りが無ければ None（カナリアに回る）。"""
+        run = Run()
+        self.assertTrue(self.focused(["harness/x.py", "tests/test_gone.py", "tests/test_a.py"], None, run)[0])
+        self.assertEqual(run.commands, [hline.base_whitelist.unittest_command(CFG["gate_command"], ["tests.test_a"])])
+        run = Run()
+        self.assertIsNone(self.focused(["harness/x.py", "tests/test_gone.py"], None, run))
+        self.assertEqual(run.commands, [])
+
+    def test_the_remaining_impacted_tests_and_the_progress_verification_still_run(self):
+        """進捗の検証コマンドの名前（tests.test_x はファイルが無い）は外さず、残った影響テストもそのまま流れる。"""
+        run = Run()
+        self.assertTrue(self.focused(["harness/x.py", "tests/test_gone.py", "tests/test_a.py"], "S1-2", run)[0])
+        self.assertEqual(run.commands, [["python", "-m", "unittest", "tests.test_x", "tests.test_a"]])
+
 
 class GateOrder(unittest.TestCase):
     def gate(self, run, task=None, paths=("harness/x.py", "tests/test_a.py")):
-        with tempfile.TemporaryDirectory() as d, mock.patch.object(hline.proc, "run", side_effect=run):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(hline.proc, "run", side_effect=run), \
+                mock.patch.object(hline.size_limits, "head_source", return_value=lambda p: None):   # 規模の検査の git show を数えない
             return hline.gate(CFG, worktree(d), list(paths), None, task)
 
     def test_a_failing_focused_verification_returns_its_output_without_running_the_full_suite(self):

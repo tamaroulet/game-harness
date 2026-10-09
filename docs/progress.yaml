@@ -604,19 +604,15 @@ tasks:
   group: B7.3
   target_repo: game-harness
   status: completed
-  verification:
-    command: python -m unittest tests.test_red_tests
-    expected_exit_code: 0
+  verification: null
 - id: S3-3
   title: 実装役にはシグネチャと Red のテストだけを渡し、Green にする実装だけを受ける（H ラインとゲームのライン）
   group: B7.3
   target_repo: game-harness
   status: completed
-  verification:
-    command: python -m unittest tests.test_tdd_boundary
-    expected_exit_code: 0
+  verification: null
 - id: B8.1-1
-  title: decompose・hline_red・hline_tdd・hline_respec・hline_spec とそれぞれのテストの削除
+  title: H ラインの分解役（hline_spec の分解の部分・hline_respec・hline_red・hline_tdd）と分解役の設定の削除
   group: B8.1
   target_repo: game-harness
   status: in_progress

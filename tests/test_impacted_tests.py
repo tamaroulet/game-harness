@@ -128,6 +128,7 @@ class GateStage(Tree):
     def test_without_a_spec_the_stage_comes_from_the_changed_paths(self):
         """TaskSpec が無くても（C5）、変えた harness/ の .py を確かめているテストを引く。"""
         run = Run(first=(1, "o", ""))
+        (self.wt / "tests" / "test_a.py").write_text("", encoding="utf-8")   # 作業ツリーに無いテストのモジュールは名指ししない（E1）
         with mock.patch.object(gate_order.proc, "run", side_effect=run):
             ok, msg = gate_order.focused(CFG, self.wt, ["harness/x.py", "tests/test_a.py"], "T1")
             self.assertEqual(run.commands[-1][:4], VERIFY.split())   # 進捗の検証コマンドに影響テストを足して 1 回
