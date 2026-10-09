@@ -121,7 +121,12 @@ def write_report(cfg, st):
 
 def write_todo(cfg, st):
     p = Path(cfg["inbox"]) / "TODO.md"
-    keep = [x for x in (p.read_text(encoding="utf-8").splitlines() if p.exists() else []) if MARK not in x]
+    seen, keep = set(), []
+    for x in (p.read_text(encoding="utf-8").splitlines() if p.exists() else []):
+        if MARK in x or (x.strip() and x in seen):
+            continue
+        seen.add(x)
+        keep.append(x)
     rows = [f"- {i.get('at', '')} {n}「{i['title']}」（{i['milestone']}）：{i.get('reason', '')} {MARK}{n} -->"
             for n, i in sorted(st["items"].items()) if i["status"] == "unconverged"]
     p.write_text("\n".join(keep + rows) + ("\n" if keep or rows else ""), encoding="utf-8")
