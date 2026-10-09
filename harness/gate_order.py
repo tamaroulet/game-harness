@@ -5,6 +5,7 @@
 """
 import os
 import re
+from pathlib import Path
 
 import impacted
 import proc
@@ -14,11 +15,21 @@ MAX_LINES = 30   # 実装役に返す出力の行数の上限（見出しと dig
 
 _FAILURE = re.compile(r"^(?:FAIL|ERROR): [^\n]*|^Traceback \(most recent call last\):.*?(?=^[=-]{20,}[ \t\r]*$|\Z)",
                       re.MULTILINE | re.DOTALL)
+_TEST_MODULE = re.compile(r"tests\.(test_\w+)")
 
 
 def test_modules(paths):
     """変えたパスのうち tests/test_*.py に当たるものを tests.test_xxx の形に直す（重複は除き、現れた順）。"""
     return tuple(dict.fromkeys(filter(None, map(impacted.dotted, paths))))
+
+
+def present(wt, modules, keep=()):
+    """tests.test_xxx の形で、作業ツリーに tests/test_xxx.py が無いものを外す（消したテストを名指しして落ちないように）。
+    keep（進捗の検証コマンドの名前）は外さない。tests.test_x.Class.method のような深い名前はファイルの有無で判定できない。"""
+    def exists(m):
+        t = _TEST_MODULE.fullmatch(m)
+        return t is None or (Path(wt) / "tests" / f"{t.group(1)}.py").is_file()
+    return tuple(m for m in modules if m in keep or exists(m))
 
 
 def failure_digest(text):
@@ -47,7 +58,8 @@ def focused(cfg, wt, paths, task, spec=None, warnings=None):
         if not v:
             warn.append(f"進捗のタスク {task} の検証コマンドが見つかりません（影響テストだけで判定しました）")
     changed = test_modules(paths)
-    modules = impacted.test_modules(wt, spec, v, changed, paths)
+    keep = impacted.command_modules(v.get("command")) if isinstance(v, dict) else ()
+    modules = present(wt, impacted.test_modules(wt, spec, v, changed, paths), keep)
     stage = impacted.stage_command(cfg["gate_command"], modules, v)
     if stage is None:
         return None
