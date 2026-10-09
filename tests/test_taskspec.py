@@ -137,7 +137,7 @@ class Content(unittest.TestCase):
 
 
 class GateB(Tree):
-    CFG = {"gate_command": ["x"], "ttl_seconds": {"gate": 1}, "gate_tail_chars": 100}
+    CFG = {"gate_command": ["python", "-m", "x"], "ttl_seconds": {"gate": 1}, "gate_tail_chars": 100, "canary_modules": ["tests.test_c"]}
 
     def run_gate(self, spec, warn=None):
         ns, ran = types.SimpleNamespace, []

@@ -34,7 +34,7 @@ def worktree(d, command=VERIFY):
 
 
 class Run:
-    """proc.run の差し替え。ラベルが "Gate 1" なら全件テスト、それ以外は個別の検証の結果を返す。"""
+    """proc.run の差し替え。ラベルが "Gate 1" ならカナリア（影響テストが無いときだけ走る束）、それ以外は個別の検証の結果を返す。"""
 
     def __init__(self, focused=(0, "", ""), full=(0, "", "")):
         self.focused, self.full, self.commands = focused, full, []
@@ -130,29 +130,32 @@ class GateOrder(unittest.TestCase):
             self.assertEqual(len(run.commands), 1)
             self.assertIn("FOCUSED-OUT", msg)
 
-    def test_a_passing_focused_verification_then_a_failing_full_suite_fails_with_names_and_traceback(self):
-        run = Run(full=(1, "", SAMPLE))
-        ok, msg = self.gate(run, "S1-2")
-        self.assertFalse(ok)
-        self.assertEqual(run.commands[-1], CFG["gate_command"])
-        self.assertIn("FAIL: test_a (tests.test_x.A)", msg)
-        self.assertIn(TRACE, msg)
+    def test_the_focused_verification_decides_and_no_full_suite_follows_it(self):
+        """影響テストに走らせるものがあれば、それだけで判定する（内側のループで全件テストは走らせない。C3）。"""
+        for code, want in ((0, True), (1, False)):
+            run = Run(focused=(code, "", SAMPLE))
+            ok, msg = self.gate(run, "S1-2")
+            self.assertEqual(ok, want)
+            self.assertEqual(len(run.commands), 1)
+            self.assertNotIn(CFG["gate_command"], run.commands)
 
     def test_only_when_both_pass_is_the_gate_true(self):
         for task in (None, "S1-2"):
             run = Run()
             self.assertTrue(self.gate(run, task)[0])
-            self.assertEqual(run.commands[-1], CFG["gate_command"])
+            self.assertEqual(len(run.commands), 1)
 
-    def test_with_nothing_focused_to_run_the_full_suite_decides(self):
+    def test_with_nothing_focused_to_run_the_canary_modules_decide(self):
         for code in (0, 1):
             run = Run(full=(code, "", ""))
             self.assertEqual(self.gate(run, None, ["harness/x.py"])[0], code == 0)
-            self.assertEqual(run.commands, [CFG["gate_command"]])
+            self.assertEqual(run.commands, [hline.base_whitelist.unittest_command(CFG["gate_command"], CFG["canary_modules"])])
 
     def test_a_long_raw_output_does_not_push_out_the_failed_names_and_the_length_is_bounded(self):
-        for run in (Run(focused=(1, SAMPLE + "." * (LIMIT * 3), "")), Run(full=(1, SAMPLE + "." * (LIMIT * 3), ""))):
-            ok, msg = self.gate(run)
+        long_fail = (1, SAMPLE + "." * (LIMIT * 3), "")
+        for run, paths in ((Run(focused=long_fail), ("harness/x.py", "tests/test_a.py")),   # 影響テスト
+                           (Run(full=long_fail), ("harness/x.py",))):                        # カナリア
+            ok, msg = self.gate(run, None, paths)
             self.assertFalse(ok)
             self.assertLessEqual(len(msg), LIMIT)
             self.assertIn("FAIL: test_a (tests.test_x.A)", msg)

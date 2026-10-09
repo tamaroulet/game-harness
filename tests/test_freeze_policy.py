@@ -21,7 +21,6 @@ class Respec(World):
         self.dec_calls, self.gate_n, self.verdicts = [], 0, []
         self.patch(hline, "decompose", side_effect=self.decompose)
         self.patch(hline, "second_round", wraps=hline_respec.second_round)
-        self.patch(hline, "base_check", return_value=(True, ""))
         self.patch(hline, "implement", side_effect=self.implement)
         self.patch(hline, "gate", side_effect=self.gate)
         self.patch(hline, "run_task", wraps=hline.run_task)

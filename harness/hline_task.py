@@ -21,9 +21,6 @@ def run_task(host, cfg, tid, spec, outdir, first=None, task=None, on_stage=None,
     on_stage = on_stage or (lambda stage: None)
     tries = []
     wt, branch = first or host.new_worktree(cfg, tid)
-    ok, out = host.base_check(cfg, wt)
-    if not ok:   # 実装の前から合格済みのテストが落ちている。作業ツリーを替えて呼び直す（試行に数えない）
-        raise Infra(f"base（実装前）で合格済みのタスクのテストが落ちています: {out[-500:]}")
     feedback = prev = None
     extended = ()
     for attempt in range(1, cfg["max_attempts"] + 1):

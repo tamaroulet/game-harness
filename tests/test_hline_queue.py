@@ -131,7 +131,7 @@ class Boundary(unittest.TestCase):
         ok, msg, run = self.gate(["harness/textnorm.py", "tests/test_textnorm.py"])
         self.assertTrue(ok)
         self.assertEqual([c.args[0] for c in run.call_args_list],
-                         [hline.base_whitelist.unittest_command(CFG["gate_command"], ["tests.test_textnorm"]), CFG["gate_command"]])   # 個別 → 全件
+                         [hline.base_whitelist.unittest_command(CFG["gate_command"], ["tests.test_textnorm"])])   # 影響テストだけ（C3）
 
     def test_a_file_outside_the_allowed_files_fails_without_running_the_tests(self):
         """編集境界の外は Gate 1 を不合格にせず、警告として記録される（C2）。"""
@@ -872,7 +872,6 @@ class StageCalls(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as d, \
                 mock.patch.object(hline, "new_worktree", side_effect=lambda c, t: (Path(d), "b")), \
-                mock.patch.object(hline, "base_check", return_value=(True, "")), \
                 mock.patch.object(hline, "implement", side_effect=implement), \
                 mock.patch.object(hline, "changed_paths", return_value=["harness/x.py"]), \
                 mock.patch.object(hline, "gate", side_effect=gate):

@@ -18,6 +18,7 @@ import hline  # noqa: E402
 import hline_base  # noqa: E402
 
 CFG = hline.load_config()
+CANARY = hline.base_whitelist.unittest_command(CFG["gate_command"], CFG["canary_modules"])   # 影響テストが無いときだけ走る束（C3）
 
 
 class Inbox(unittest.TestCase):
@@ -67,7 +68,7 @@ class Gate(unittest.TestCase):
             with self.subTest(code=code), mock.patch.object(hline.proc, "run", return_value=(code, "out", "err")) as run:
                 ok, _ = hline.gate(CFG, Path("."), ["harness/x.py"])
             self.assertEqual(ok, want)
-            self.assertEqual(run.call_args.args[0], CFG["gate_command"])
+            self.assertEqual(run.call_args.args[0], CANARY)
 
 
 class Implementer(unittest.TestCase):

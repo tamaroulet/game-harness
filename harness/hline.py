@@ -2,7 +2,7 @@
 
     python -m harness.hline poll     受信箱の What をキューに入れ、依存の順に統合ブランチへ積む（タスク スケジューラが 15 分ごとに呼ぶ）
     python -m harness.hline setup    受信箱と総監督の部屋（.claude/settings.json・CLAUDE.md）を書く
-本体は gate・base_check が hline_gate、build_prompt・implement が hline_prompt、run_task・process が hline_task。ここの同名の関数は
+本体は gate が hline_gate、build_prompt・implement が hline_prompt、run_task・process が hline_task。ここの同名の関数は
 このモジュールを host として渡す薄い委譲で、テストの差し替えが効く。終了コード: 0 = 正常、1 = 未収束を記録した、2 = 環境の異常。
 """
 import argparse
@@ -29,9 +29,6 @@ def implement(cfg, wt, spec, feedback, log): return hline_prompt.implement(argpa
 
 
 def gate(cfg, wt, paths, spec=None, task=None, extended=(), warnings=None): return hline_gate.gate(sys.modules[__name__], cfg, wt, paths, spec, task, extended, warnings)
-
-
-def base_check(cfg, wt): return hline_gate.base_check(sys.modules[__name__], cfg, wt)
 
 
 def mark(cfg, st, name=None, stage=None):

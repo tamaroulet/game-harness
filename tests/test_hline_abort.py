@@ -127,7 +127,7 @@ class Flow(Repo):
             self.gated.append(paths)
             return False, f"GATE-OUT-{len(self.gated)}"
 
-        return types.SimpleNamespace(new_worktree=mock.Mock(), base_check=lambda c, w: (True, ""), implement=implement, gate=gate,
+        return types.SimpleNamespace(new_worktree=mock.Mock(), implement=implement, gate=gate,
                                      changed_paths=lambda w, c: ["new.py"])
 
     def run_task(self, host):

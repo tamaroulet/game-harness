@@ -123,7 +123,7 @@ def gate_host(head, run_log):
 
 
 class GateWiring(Base):
-    CFG = {"gate_command": ["x"], "ttl_seconds": {"gate": 1}, "gate_tail_chars": 100}
+    CFG = {"gate_command": ["python", "-m", "x"], "ttl_seconds": {"gate": 1}, "gate_tail_chars": 100, "canary_modules": ["tests.test_c"]}
 
     def run_gate(self, *extended, warn=None):
         tree(self.root, tests__test_sample="import x\n")
@@ -155,7 +155,7 @@ class RunTask(Base):
         def gate(*args, **kw):
             calls.append(args)
             return gate_results.pop(0)
-        host = ns(base_check=lambda c, w: (True, ""), changed_paths=lambda w, c: ["harness/x.py"], gate=gate, implement=implement,
+        host = ns(changed_paths=lambda w, c: ["harness/x.py"], gate=gate, implement=implement,
                   new_worktree=boom, create_pr=boom, open_pr=boom, proc=ns(run=boom))
         return host, calls, feedbacks
 

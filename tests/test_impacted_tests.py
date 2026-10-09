@@ -118,10 +118,12 @@ class GateStage(Tree):
         self.assertNotIn("Gate 1", run.labels)
         self.assertNotIn(CFG["gate_command"], run.commands)
 
-    def test_a_passing_first_stage_is_followed_by_one_full_suite(self):
+    def test_a_passing_first_stage_is_the_whole_verdict(self):
+        """影響テストが通れば、そこで合格（全件テストは内側のループで走らせない。C3）。"""
         run = Run()
         self.assertTrue(self.gate(run)[0])
-        self.assertEqual((len(run.commands), run.commands[-1], run.labels[-1]), (2, CFG["gate_command"], "Gate 1"))
+        self.assertEqual((len(run.commands), run.commands[-1]), (1, ["python", "-m", "unittest", *WANT]))
+        self.assertNotIn("Gate 1", run.labels)
 
     def test_without_a_spec_the_stage_is_what_it_was(self):
         run = Run(first=(1, "o", ""))

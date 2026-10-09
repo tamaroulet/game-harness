@@ -23,7 +23,10 @@
   "_infra_retry_note": "インフラの例外（CLI の起動の失敗・タイムアウト・git や gh の一時的な失敗・認証の一時的な失敗）で、新しい作業ツリーで呼び直す回数の上限と、呼び直しの前に待つ秒数。実装役の試行回数（max_attempts）には数えない",
 
   "gate_command": ["python", "-m", "harness.fastsuite", "discover", "-s", "tests"],
-  "_gate_note": "H ラインの Gate 1（段 0）。モジュールごとに別のプロセスで並列に走らせる（harness/fastsuite.py）。判定は終了コードだけ（0 = 全部通った）。LLM は使わない",
+  "_gate_note": "Gate 1 がテストを走らせる土台の命令（モジュール名を足して使う。harness/fastsuite.py がモジュールごとに別のプロセスで並列に走らせる）。判定は終了コードだけ（0 = 全部通った）。LLM は使わない。内側のループで discover（全件）は走らせない",
+
+  "canary_modules": ["tests.test_contract", "tests.test_oracle", "tests.test_propgen", "tests.test_witness"],
+  "_canary_note": "影響テストに走らせるものが無かったときだけ Gate 1 が走らせる、既存のテストの小さな束。決定論の契約（乱数・実時間・待機への依存）・二相判定（F2P/P2P）の再現性・性質から作る参照モデルと反例・証拠の状態の注入を確かめる。新しいテストは書かず、ここに名前を置くだけ",
 
   "ttl_seconds": { "implementer": 1800, "decomposer": 900, "gate": 1800, "git": 300, "gh": 120, "lock_stale": 14400 },
   "gate_tail_chars": 4000,

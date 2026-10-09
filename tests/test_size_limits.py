@@ -89,9 +89,10 @@ class SizeLimits(unittest.TestCase):
                     mock.patch.object(hline, "diff_counts", return_value=counts), \
                     mock.patch.object(hline.proc, "run", return_value=(0, "", "")) as run:
                 return hline.gate(CFG, self.files(files), list(files), spec, None, warnings=warn), run, warn
+        canary = hline.base_whitelist.unittest_command(CFG["gate_command"], CFG["canary_modules"])
         for spec in (None, {"edit_boundary": BOUND}):
             (ok, _), run, warn = gate({"x.py": branchy(2)}, spec)
-            self.assertTrue(ok and run.call_args.args[0] == CFG["gate_command"])
+            self.assertTrue(ok and run.call_args.args[0] == canary)
             self.assertEqual(warn, [])
         (ok, _), run, warn = gate({"x.py": "x = 1\n" * 501}, None)
         self.assertTrue(ok and "x.py" in warn[0] and "501" in warn[0])

@@ -13,6 +13,7 @@ import hline  # noqa: E402
 import hline_report as hr  # noqa: E402
 
 CFG = hline.load_config()
+CANARY = hline.base_whitelist.unittest_command(CFG["gate_command"], CFG["canary_modules"])   # 影響テストが無いときだけ走る束（C3）
 NAME = "test_x (tests.test_agy_pinned.X)"
 TRACE = "Traceback (most recent call last):\n  File \"x.py\", line 1, in test_x\nAssertionError: boom"
 PARALLEL_FAIL = f"FAIL: {NAME}\n{TRACE}\nFAILED (failures=1)"
@@ -132,7 +133,7 @@ class Gate(unittest.TestCase):
     def gate(self, code, body):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(hline.proc, "run", return_value=(code, body, "")) as run:
             ok, out = hline.gate(CFG, Path(tmp), ["docs/x.md"])
-        self.assertEqual([c.args[0] for c in run.call_args_list], [CFG["gate_command"]], "全件テストの呼び出しは 1 回")
+        self.assertEqual([c.args[0] for c in run.call_args_list], [CANARY], "テストの呼び出しは 1 回（影響テストが無いのでカナリア）")
         return ok, out
 
     def bodies(self, second_code):
@@ -143,7 +144,7 @@ class Gate(unittest.TestCase):
 
     def run_task(self, ok, feedback):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(hline, "new_worktree", return_value=(Path(tmp), "br")), \
-                mock.patch.object(hline, "base_check", return_value=(True, "")), mock.patch.object(hline, "changed_paths", return_value=["x"]), \
+                mock.patch.object(hline, "changed_paths", return_value=["x"]), \
                 mock.patch.object(hline, "implement", return_value=(0, ["m"], None, None, 3)), \
                 mock.patch.object(hline, "gate", return_value=(ok, feedback)):
             return hline.run_task(CFG, "t1", {}, Path(tmp))

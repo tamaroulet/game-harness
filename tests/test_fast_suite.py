@@ -14,6 +14,7 @@ import fastsuite as fs  # noqa: E402
 import hline  # noqa: E402
 
 CFG = hline.load_config()
+CANARY = hline.base_whitelist.unittest_command(CFG["gate_command"], CFG["canary_modules"])   # 影響テストが無いときだけ走る束（C3）
 NAMES = [f"tests.test_{c}" for c in "abcd"]
 TRACE = "Traceback (most recent call last):\n  File \"x.py\", line 1, in test_b\nAssertionError: boom"
 
@@ -73,7 +74,7 @@ class Parallel(unittest.TestCase):
         with mock.patch.object(hline.proc, "run", return_value=(0, "", "")) as run:
             ok, _ = hline.gate(CFG, Path("."), ["harness/x.py"])
         self.assertTrue(ok)
-        self.assertEqual(run.call_args.args[0], CFG["gate_command"])
+        self.assertEqual(run.call_args.args[0], CANARY)
 
 
 class Report(unittest.TestCase):

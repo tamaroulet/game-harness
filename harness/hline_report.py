@@ -182,7 +182,8 @@ def pr_body(cfg, st):
         out += ["", f"## 凍結（{len(by_status(st, 'frozen'))} 件）\n"]
         out += [f"- {n}「{st['items'][n]['title']}」：上流の未収束 {', '.join(st['items'][n].get('frozen_by', []))}"
                 for n in by_status(st, "frozen")]
-        out += ["", "- Gate 1：`python -m unittest discover -s tests` の終了コード 0、TaskSpec の編集境界、進捗の検証コマンド",
+        out += ["", "- Gate 1：影響テスト（変えたパスから引いたテスト）と進捗の検証コマンドの終了コード 0。全件テストは内側のループでは"
+                "走らせない（この PR の CI が見る）。差分の量・編集境界・規模の指摘は不合格にせず警告として記録する",
                 "- この PR は H ライン（`harness/hline.py`）が作った統合 PR。タスクごとの PR は作っていない",
                 "", "🤖 Generated with [Claude Code](https://claude.com/claude-code)", ""]
         return "\n".join(out)

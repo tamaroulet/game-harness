@@ -1,6 +1,5 @@
 """base（実装前）の検査を、合格済みのタスクのテストだけに絞る（harness/base_whitelist.py、S2-2）。本物のプロセスは起動しない。"""
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -46,43 +45,8 @@ class Pure(unittest.TestCase):
 
 
 class BaseCheck(unittest.TestCase):
-    def check(self, state, result=(0, "", "")):
-        with tempfile.TemporaryDirectory() as d, mock.patch.object(hline.proc, "run", return_value=result) as run, \
-                mock.patch.object(hline.progress, "load", return_value=state):
-            if state is not None:
-                (Path(d) / "docs").mkdir()
-                (Path(d) / "docs" / "progress.yaml").write_text("x", encoding="utf-8")
-            return hline.base_check(CFG, d), run
-
-    def test_a_failure_of_a_passed_task_stops_and_only_one_unittest_command_runs(self):
-        (ok, out), run = self.check(STATE, (1, "out", "err"))
-        self.assertEqual((ok, out), (False, "errout"))
-        run.assert_called_once()
-        self.assertEqual(run.call_args.args[0], bw.unittest_command(CFG["gate_command"], ["tests.test_a", "tests.test_g"]))
-        self.assertEqual(run.call_args.args[0][-2:], ["tests.test_a", "tests.test_g"])
-        self.assertEqual(run.call_args.args[2:4], (CFG["ttl_seconds"]["gate"], "Base 検査"))
-        self.assertFalse({"git", "gh", "claude", "agy"} & set(run.call_args.args[0]))
-        self.assertTrue(self.check(STATE)[0][0])
-
-    def test_nothing_to_run_starts_no_process(self):
-        for state in ({"tasks": [task("S1-1", "pending")]}, {"tasks": []}, None):
-            (ok, out), run = self.check(state, (1, "x", "y"))
-            self.assertEqual((ok, out), (True, ""))
-            run.assert_not_called()
-
-    def test_base_is_checked_once_before_the_implementer_and_a_failure_is_infra(self):
-        for ok in (True, False):
-            with tempfile.TemporaryDirectory() as d, mock.patch.object(hline, "new_worktree", return_value=(Path(d), "b")), \
-                    mock.patch.object(hline, "base_check", return_value=(ok, "出力")) as bc, \
-                    mock.patch.object(hline, "implement", return_value=(0, ["m"])) as imp, \
-                    mock.patch.object(hline, "changed_paths", return_value=["x"]), \
-                    mock.patch.object(hline, "gate", return_value=(True, "out")):
-                if ok:
-                    hline.run_task(CFG, "t", "# x", Path(d))
-                    self.assertIsNone(imp.call_args.args[3], "base の出力は実装役に渡さない")
-                else:
-                    self.assertRaises(hline.Infra, hline.run_task, CFG, "t", "# x", Path(d))
-                self.assertEqual((bc.call_count, imp.called), (1, ok))
+    """base（実装前）の検査そのものは C3 で外した（内側のループからテストの重複を無くす）。
+    completed_modules・unittest_command は影響テストの命令の組み立て（harness/impacted.py）が使い続ける。"""
 
     def test_an_empty_diff_never_starts_the_gate(self):
         with mock.patch.object(hline.proc, "run") as run:
