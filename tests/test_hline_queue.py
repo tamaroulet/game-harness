@@ -3,7 +3,7 @@
     python -m unittest tests.test_hline_queue -v
 
 **なぜ要るか**: 段 1 で H ラインは「1 件 1 PR」から、「依存の順に人間の操作なしで 1 本の統合ブランチに積み、尽きたら統合 PR を
-1 本だけ出して止まる」ループになる。依存の順・マイルストーンの柵・凍結と BLOCKED・統合 PR の 1 本・強制終了からの復旧が崩れると、
+1 本だけ出して止まる」ループになる。依存の順・マイルストーンの柵・凍結と再開・統合 PR の 1 本・強制終了からの復旧が崩れると、
 ラインが二重に走る・What が失われる・人間が呼ばれ続ける。実際の push・PR・モデルの呼び出しは起こさない
 （World の setUp が proc.run を差し替え、想定外の呼び出しは落ちる）。git の検査は、ローカルの一時リポジトリで fetch と作業ツリーだけを行う。
 """
@@ -364,14 +364,6 @@ class QueueParts(unittest.TestCase):
         st = {"items": {"a": self.item(["ghost"]), "b": self.item(["c"]), "c": self.item(status="processing")}}
         self.assertIsNone(hline_queue.next_runnable(st))
 
-    def test_the_limit_is_counted_per_milestone_over_unconverged_whats_only(self):
-        cfg = {"max_unconverged_per_milestone": 2}
-        st = {"items": {"a": self.item(status="unconverged"), "b": self.item(status="unconverged", milestone="B7.2"),
-                        "c": self.item(["a"], status="frozen")}}
-        self.assertEqual(hline_queue.blocked(cfg, st), {})
-        st["items"]["d"] = self.item(status="unconverged")
-        self.assertEqual(hline_queue.blocked(cfg, st), {"B7.1": ["a", "d"]})
-
 
 # ============================================================ 走行（外部は差し替える）
 
@@ -620,8 +612,10 @@ class Freezing(World):
         self.assertEqual((CFG["max_attempts"], CFG["respecs"]), (3, 1))
 
 
-class Blocked(World):
-    def stop_at_two(self):
+class Resume(World):
+    """未収束が重なってもラインは止まらない（連座を外した）。直した What を同じ名前で置くと記録を差し替えて凍結が解ける。"""
+
+    def two_unconverged(self):
         self.failing = {"T-010-a", "T-020-b"}
         self.put("010-a")
         self.put("020-b")
@@ -629,53 +623,28 @@ class Blocked(World):
         self.put("040-d")
         self.put("050-e", milestone="B7.2")
 
-    def test_two_unconverged_in_one_milestone_stop_the_line_without_a_pr(self):
-        self.stop_at_two()
+    def test_unconverged_whats_do_not_stop_the_independent_ones_or_the_pr(self):
+        self.two_unconverged()
         self.assertEqual(self.poll(), 1)
-        self.assertEqual(self.decomposed, ["T-010-a", "T-020-b"])
-        self.assertEqual(self.created, [])
-        report = self.report()
-        self.assertRegex(report, r"- 人間作業: BLOCKED .*010-a.*020-b.*030-c")
-        self.assertIn("- 状態: BLOCKED", report)
-        self.assertEqual(self.poll(), 0)
-        self.assertEqual(self.decomposed, ["T-010-a", "T-020-b"])   # 止まったまま
-        self.assertEqual(self.created, [])
-
-    def test_unconverged_in_different_milestones_do_not_block(self):
-        self.failing = {"T-010-a", "T-020-b"}
-        self.put("010-a")
-        self.put("020-b", milestone="B7.2")
-        self.put("030-c")
-        self.poll()
-        self.assertEqual(self.decomposed, ["T-010-a", "T-020-b", "T-030-c"])
+        self.assertEqual(self.decomposed, ["T-010-a", "T-020-b", "T-040-d", "T-050-e"])
+        self.assertEqual([self.status(n) for n in ("010-a", "020-b", "030-c", "040-d", "050-e")],
+                         ["unconverged", "unconverged", "frozen", "done", "done"])
+        self.assertEqual(len(self.created), 1)   # 積むものが尽きたので統合 PR は出る
+        self.assertIn("- 状態: 統合 PR 待ち", self.report())
 
     def test_a_fixed_what_with_the_same_name_replaces_the_record_unfreezes_and_resumes(self):
-        self.stop_at_two()
+        self.two_unconverged()
         self.poll()
+        self.pr_state = "MERGED"   # 統合 PR が閉じるまでは受信箱を取らない（その検査は IntegrationPr）
         self.failing = set()
         self.put("010-a", extra="直した版")
-        self.put("060-new")   # BLOCKED の間に置かれた別の What は、解けるまで取らない
+        self.put("060-new")
         self.assertEqual(self.poll(), 0)
-        self.assertEqual(self.decomposed[2:], ["T-010-a", "T-030-c", "T-040-d", "T-050-e", "T-060-new"])
+        self.assertEqual(self.decomposed[4:], ["T-010-a", "T-030-c", "T-060-new"])
         self.assertEqual([self.status(n) for n in ("010-a", "020-b", "030-c")], ["done", "unconverged", "done"])
         self.assertNotIn("010-a", (self.inbox / "TODO.md").read_text(encoding="utf-8"))
         self.assertIn("020-b", (self.inbox / "TODO.md").read_text(encoding="utf-8"))
-        self.assertNotIn("BLOCKED", self.report())
-        self.assertEqual(len(self.created), 1)   # 解けたので、尽きたところで統合 PR
-
-    def test_while_blocked_only_fixes_of_the_unconverged_are_taken(self):
-        self.stop_at_two()
-        self.poll()
-        self.put("070-other")
-        self.poll()   # 直しが無い間は、別の What を取らない
-        self.assertEqual(self.inbox_names(), ["070-other.md"])
-        self.assertEqual(self.decomposed, ["T-010-a", "T-020-b"])
-        self.put("020-b", extra="直した版")
-        self.failing = {"T-020-b"}   # 直しても収束しない
-        self.poll()
-        self.assertEqual(self.decomposed[2:], ["T-020-b"])   # 再び BLOCKED になり、取り込んだ別の What も処理しない
-        self.assertEqual(self.status("070-other"), "waiting")
-        self.assertEqual(self.created, [])
+        self.assertEqual(len(self.created), 2)
 
 
 class Crash(World):
@@ -1209,8 +1178,9 @@ class Config(unittest.TestCase):
     def test_the_director_room_template_documents_the_declarations(self):
         text = hline.director_settings.__module__ and (REPO / "harness" / "templates" / "director_room" / "CLAUDE.md").read_text(
             encoding="utf-8")
-        for word in ("マイルストーン:", "タスク:", "依存:", "統合 PR", "BLOCKED"):
+        for word in ("マイルストーン:", "タスク:", "依存:", "統合 PR"):
             self.assertIn(word, text)
+        self.assertNotIn("BLOCKED", text)   # 連座は外した（C1）
 
     def test_the_tests_of_this_file_make_no_real_external_call(self):
         """World は proc.run・proc.resolve_cli を差し替え、想定外の呼び出しを落とす。この検査はその前提を確かめる。"""

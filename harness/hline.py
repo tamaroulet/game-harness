@@ -15,7 +15,7 @@ from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, i
 from hline_gc import sweep  # noqa: E402
 from hline_git import ahead, changed_paths, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, open_pr, pr_state  # noqa: E402,F401
 from hline_hygiene import diff_files, problems  # noqa: E402
-from hline_queue import blocked, by_status, intake, load_state, next_runnable, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
+from hline_queue import by_status, intake, load_state, next_runnable, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
 from hline_report import line_modules, mark as _mark, pr_body, pr_title, self_change, today, write_report  # noqa: E402,F401
 from hline_respec import second_round  # noqa: E402,F401
 from hline_room import director_settings, setup  # noqa: E402,F401
@@ -94,15 +94,11 @@ def run_line(cfg):
         print(f"統合 PR のレビュー待ちです。受信箱は取りません: {st['awaiting_pr']}")
         return 0
     refresh(st)
-    was_blocked = bool(blocked(cfg, st))
-    intake(cfg, st, replacements_only=was_blocked)   # BLOCKED の間は、未収束の What を直したものだけを取る
+    intake(cfg, st)
     refresh(st)
-    if was_blocked and not blocked(cfg, st):
-        intake(cfg, st)
-        refresh(st)
     mark(cfg, st)
     unconverged = False
-    while not blocked(cfg, st) and (name := next_runnable(st)):
+    while (name := next_runnable(st)):
         ok = process(cfg, st, name)
         refresh(st)
         mark(cfg, st)
@@ -115,10 +111,8 @@ def run_line(cfg):
     if st["infra_halt"]:
         write_report(cfg, st)
         return 2
-    if not blocked(cfg, st) and not by_status(st, "waiting") and not by_status(st, "processing"):
+    if not by_status(st, "waiting") and not by_status(st, "processing"):
         open_integration_pr(cfg, st)
-    elif blocked(cfg, st):
-        print("BLOCKED：同じマイルストーンで未収束が上限に達しました。統合 PR は作りません")
     write_report(cfg, st)
     return 1 if unconverged else 0
 

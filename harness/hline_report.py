@@ -12,7 +12,7 @@ import yaml
 
 from hline_base import ROOT, must
 from hline_git import remote_ref
-from hline_queue import blocked, by_status, save_state
+from hline_queue import by_status, save_state
 
 import proc  # noqa: E402
 import progress  # noqa: E402
@@ -46,7 +46,7 @@ def self_change(paths, modules=None):
 def line_status(cfg, st):
     if st.get("infra_halt"):
         return "インフラ例外で停止"
-    return "BLOCKED" if blocked(cfg, st) else "統合 PR 待ち" if st["awaiting_pr"] else "走行中"
+    return "統合 PR 待ち" if st["awaiting_pr"] else "走行中"
 
 
 def progress_report(cfg):
@@ -93,17 +93,11 @@ def h_section(cfg, st):
 
 
 def human_line(cfg, st):
-    """report の人間作業欄。インフラ例外での停止・BLOCKED・統合 PR のレビューは人間の作業。それ以外は None（進捗の記録のまま）。"""
+    """report の人間作業欄。インフラ例外での停止・統合 PR のレビューは人間の作業。それ以外は None（進捗の記録のまま）。"""
     halt = st.get("infra_halt")
     if halt:
         return (f"- 人間作業: INFRA_HALTED {halt['name']}: {' '.join(str(halt['reason']).split())}（{halt['attempts']} 回の試行）。"
                 "環境を直すと次の走行が取り直します")
-    blk = blocked(cfg, st)
-    if blk:
-        unconverged = [n for ns in blk.values() for n in ns]
-        return (f"- 人間作業: BLOCKED 同じマイルストーンで未収束が {cfg['max_unconverged_per_milestone']} 件に達しました"
-                f"（未収束: {', '.join(unconverged)}／凍結: {', '.join(by_status(st, 'frozen')) or 'なし'}）。"
-                "直した What を同じ名前で受信箱に置くと再開します")
     if hyg := st.get("hygiene_halt"):
         return f"- 人間作業: UNCLEAN_DIFF {'／'.join(hyg['files'])}"
     if st["awaiting_pr"]:
