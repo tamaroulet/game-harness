@@ -11,13 +11,10 @@
   "_integration_note": "Gate 1 を通った変更はこのブランチの先端に積む（作業ツリーもここから作る。無ければ base から）。タスクごとの PR は作らず、積むものが尽きたら main への統合 PR を 1 本だけ出して止まる",
   "milestones": ["B8.1"],
   "_milestones_note": "このラインが取ってよいマイルストーン（進捗のグループの ID）。外のもの・宣言の無いものは受信箱に残す",
-  "taskspec_schema": "config/taskspec.schema.json",
-  "spec_retries": 2,
-  "_spec_retries_note": "Gate A：TaskSpec がスキーマに適合しないとき、違反の内容を分解役に返してやり直す回数の上限。それでも適合しなければ未収束",
 
   "max_attempts": 2,
   "respecs": 0,
-  "_retry_note": "1 つの作業ツリーで実装役を最大 max_attempts 回。収束しなければ、その What を未収束にして次の What へ進む（段は 1 つ。分解役・再分解は呼ばない。respecs は 0）",
+  "_retry_note": "1 つの作業ツリーで実装役を最大 max_attempts 回。収束しなければ、その What を未収束にして次の What へ進む（段は 1 つ。再分解は呼ばない。respecs は 0）",
 
   "infra_retry": { "max_retries": 2, "wait_seconds": [60, 300] },
   "_infra_retry_note": "インフラの例外（CLI の起動の失敗・タイムアウト・git や gh の一時的な失敗・認証の一時的な失敗）で、新しい作業ツリーで呼び直す回数の上限と、呼び直しの前に待つ秒数。実装役の試行回数（max_attempts）には数えない",
@@ -28,23 +25,10 @@
   "canary_modules": ["tests.test_contract", "tests.test_oracle", "tests.test_propgen", "tests.test_witness"],
   "_canary_note": "影響テストに走らせるものが無かったときだけ Gate 1 が走らせる、既存のテストの小さな束。決定論の契約（乱数・実時間・待機への依存）・二相判定（F2P/P2P）の再現性・性質から作る参照モデルと反例・証拠の状態の注入を確かめる。新しいテストは書かず、ここに名前を置くだけ",
 
-  "ttl_seconds": { "implementer": 1800, "decomposer": 900, "gate": 1800, "git": 300, "gh": 120, "lock_stale": 14400 },
+  "ttl_seconds": { "implementer": 1800, "gate": 1800, "git": 300, "gh": 120, "lock_stale": 14400 },
   "gate_tail_chars": 4000,
   "symbol_map": { "max_chars": 30000 },
-  "_symbol_map_note": "分解役・実装役に渡すリポジトリの目次（harness/ のモジュール・クラス・関数・引数・行番号と、import しているテスト）の文字数の上限。作業ツリーから呼び出しのたびに作り直す。超えるときは引数 → メソッド → 末尾の順に省く（harness/symbolmap.py）。実装役には target_symbols のモジュールの節だけを渡す",
-
-  "decomposer": {
-    "cli": "claude",
-    "headless_flag": "-p",
-    "model_flag": "--model",
-    "model": "claude-opus-5",
-    "auxiliary_models": ["claude-haiku-"],
-    "_flags_note": "What を TaskSpec JSON に変える分解役。読み取りだけを許す。検索（Grep・Glob）は目次（symbol_map）と、What が挙げたモジュールの docstring の節で置き換えたので許さず、開くのは目次に無いファイルだけ。JSON を返させる。プロンプトは標準入力で渡す",
-    "extra_flags": ["--allowedTools", "Read"],
-    "output_format_args": ["--output-format", "json"],
-    "budget": { "max_thinking_tokens": 6000, "max_turns": 10, "timeout_seconds": 300 },
-    "_budget_note": "分解役 1 回の思考の量・ターン数・時間の上限。検索を目次で置き換えたので、ターン数は 10 に絞る。上限で打ち切られた出力は Gate A の不適合と同じに扱い（理由を返してやり直す）、モデルの照合はしない"
-  },
+  "_symbol_map_note": "実装役に渡すリポジトリの目次（harness/ のモジュール・クラス・関数・引数・行番号と、import しているテスト）の文字数の上限。作業ツリーから呼び出しのたびに作り直す。超えるときは引数 → メソッド → 末尾の順に省く（harness/symbolmap.py）。実装役には target_symbols のモジュールの節だけを渡す",
 
   "implementer": {
     "cli": "claude",

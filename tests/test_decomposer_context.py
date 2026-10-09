@@ -25,11 +25,6 @@ def make_repo(root):
         (Path(root) / rel).write_text(text, encoding="utf-8")
 
 
-def allowed_tools(agent):
-    flags = agent["extra_flags"]
-    return flags[flags.index("--allowedTools") + 1].split(",")
-
-
 class WithRepo(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -104,18 +99,10 @@ class Docs(WithRepo):
 
 
 class Config(unittest.TestCase):
-    def test_the_decomposer_may_only_read(self):
-        tools = allowed_tools(CFG["decomposer"])
-        self.assertIn("Read", tools)
-        self.assertTrue("Grep" not in tools and "Glob" not in tools)
-        lim = hb.limits(CFG["decomposer"])
-        args = hb.agent_args(CFG["decomposer"], ["claude"], lim)
-        self.assertEqual(args[args.index("--allowedTools") + 1], ",".join(tools))
-
-    def test_the_turn_cap_comes_from_the_config(self):
-        cap = CFG["decomposer"]["budget"]["max_turns"]
-        self.assertEqual(cap, 10)
-        self.assertEqual(hb.agent_args(CFG["decomposer"], ["claude"], hb.limits(CFG["decomposer"]))[-2:], ["--max-turns", str(cap)])
+    def test_the_turn_cap_comes_from_the_implementer_config(self):
+        self.assertNotIn("decomposer", CFG)
+        cap = hb.turn_cap(CFG["implementer"])
+        self.assertEqual(hb.capped_args(CFG["implementer"], ["claude"], cap)[-2:], ["--max-turns", str(cap)])
 
 
 if __name__ == "__main__":

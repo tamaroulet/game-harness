@@ -45,7 +45,6 @@ class Quota(Infra):
 def load_config(path=CONFIG):
     cfg = json.loads(Path(path).read_text(encoding="utf-8"))
     model_pin.require(cfg["implementer"], "config/hline.json の implementer")
-    model_pin.require(cfg["decomposer"], "config/hline.json の decomposer")
     return cfg
 
 

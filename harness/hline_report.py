@@ -23,7 +23,7 @@ MARK = "<!-- hline-queue:"
 BODY_MAX = 60000   # GitHub の PR 本文の上限は 65536 文字
 
 
-SELF_CONFIGS = ("config/hline.json", "config/taskspec.schema.json")
+SELF_CONFIGS = ("config/hline.json",)
 
 
 def line_modules():
@@ -40,7 +40,7 @@ def line_modules():
 
 
 def self_change(paths, modules=None):
-    """paths のうち、走行中のライン自身（読み込み済みのモジュール・2 つの設定ファイル）に当たるもの。正規化して並べ替える。"""
+    """paths のうち、走行中のライン自身（読み込み済みのモジュール・設定ファイル）に当たるもの。正規化して並べ替える。"""
     mods = line_modules() if modules is None else modules
     return sorted({n for n in (p.replace("\\", "/") for p in paths) if n in mods or n in SELF_CONFIGS})
 
@@ -164,43 +164,34 @@ def mark(cfg, st, name=None, stage=None, *, save=None, write=None):
 
 # ============================================================ 統合 PR の本文
 
-def item_section(cfg, name, item, with_spec):
+def item_section(cfg, name, item):
+    """統合 PR の本文の 1 項目。古い queue.json にある分解役の記録（decompose）は読まない。"""
     tries = "\n".join(f"| {t['run']} | {t['attempt']} | {t['cli_exit']} | {', '.join(t['models'])} | "
                       f"{'通過' if t['gate'] else '不合格'} |" for t in item.get("tries", []))
-    dec = item.get("decompose", {}).get("attempts", [])
-    models = sorted({m for a in dec for m in a["models"]} | {m for t in item.get("tries", []) for m in t["models"]})
-    spec_file = Path(cfg["out"]) / item.get("tid", "-") / "taskspec.json"
-    spec = "（走行の記録に taskspec.json がありません）"
-    if not with_spec:
-        spec = "（本文の上限のため省略。走行の記録の taskspec.json にある）"
-    elif spec_file.exists():
-        spec = spec_file.read_text(encoding="utf-8").strip()
+    models = sorted({m for t in item.get("tries", []) for m in t["models"]})
     flaky = flaky_tests(item)
     flaky_line = f"- 揺れたテスト（並列で落ち、単独で通った）: {', '.join(flaky)}\n" if flaky else ""
     added = list(dict.fromkeys(f for t in item.get("tries", []) for f in t.get("boundary_added", [])))
     added_line = f"- 編集境界にハーネスが足したテスト（変えたモジュールを確かめる既存のテスト）: {', '.join(added)}\n" if added else ""
     return (f"### {item['title']}（{name}）\n\n- 進捗のタスク: {item.get('task') or 'なし'}／マイルストーン: {item['milestone']}\n"
-            f"- 分解役: {len(dec)} 回の試行（Gate A）／使われたモデル: {', '.join(models)}\n{flaky_line}{added_line}\n"
+            f"- 使われたモデル: {', '.join(models)}\n{flaky_line}{added_line}\n"
             "| 作業ツリー | 試行 | CLI の終了コード | 使われたモデル | Gate 1 |\n|:--|:--|:--|:--|:--|\n"
-            f"{tries}\n\n<details><summary>TaskSpec</summary>\n\n```json\n{spec}\n```\n\n</details>\n")
+            f"{tries}\n")
 
 
 def pr_body(cfg, st):
-    def build(with_spec):
-        done = [n for n in by_status(st, "done") if not st["items"][n].get("merged")]
-        out = [f"## 積んだタスク（{len(done)} 件）\n"] + [item_section(cfg, n, st["items"][n], with_spec) for n in done]
-        out += [f"## 未収束（{len(by_status(st, 'unconverged'))} 件）\n"]
-        out += [f"- {n}「{st['items'][n]['title']}」：{st['items'][n].get('reason', '')}" for n in by_status(st, "unconverged")]
-        out += ["", f"## 凍結（{len(by_status(st, 'frozen'))} 件）\n"]
-        out += [f"- {n}「{st['items'][n]['title']}」：上流の未収束 {', '.join(st['items'][n].get('frozen_by', []))}"
-                for n in by_status(st, "frozen")]
-        out += ["", "- Gate 1：影響テスト（変えたパスから引いたテスト）と進捗の検証コマンドの終了コード 0。全件テストは内側のループでは"
-                "走らせない（この PR の CI が見る）。差分の量・編集境界・規模の指摘は不合格にせず警告として記録する",
-                "- この PR は H ライン（`harness/hline.py`）が作った統合 PR。タスクごとの PR は作っていない",
-                "", "🤖 Generated with [Claude Code](https://claude.com/claude-code)", ""]
-        return "\n".join(out)
-    body = build(True)
-    return body if len(body) <= BODY_MAX else build(False)
+    done = [n for n in by_status(st, "done") if not st["items"][n].get("merged")]
+    out = [f"## 積んだタスク（{len(done)} 件）\n"] + [item_section(cfg, n, st["items"][n]) for n in done]
+    out += [f"## 未収束（{len(by_status(st, 'unconverged'))} 件）\n"]
+    out += [f"- {n}「{st['items'][n]['title']}」：{st['items'][n].get('reason', '')}" for n in by_status(st, "unconverged")]
+    out += ["", f"## 凍結（{len(by_status(st, 'frozen'))} 件）\n"]
+    out += [f"- {n}「{st['items'][n]['title']}」：上流の未収束 {', '.join(st['items'][n].get('frozen_by', []))}"
+            for n in by_status(st, "frozen")]
+    out += ["", "- Gate 1：影響テスト（変えたパスから引いたテスト）と進捗の検証コマンドの終了コード 0。全件テストは内側のループでは"
+            "走らせない（この PR の CI が見る）。差分の量・編集境界・規模の指摘は不合格にせず警告として記録する",
+            "- この PR は H ライン（`harness/hline.py`）が作った統合 PR。タスクごとの PR は作っていない",
+            "", "🤖 Generated with [Claude Code](https://claude.com/claude-code)", ""]
+    return "\n".join(out)[:BODY_MAX]
 
 
 def pr_title(cfg, st):

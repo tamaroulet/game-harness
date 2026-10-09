@@ -1,6 +1,5 @@
 """分解役の上限・TaskSpec の再利用・利用量の検査（proc.run を差し替え、外部の CLI は呼ばない）。"""
 import json
-import os
 import sys
 import unittest
 from pathlib import Path
@@ -13,7 +12,6 @@ import hline_budget as hb  # noqa: E402
 import test_hline_queue as base  # noqa: E402
 
 CFG = base.CFG
-LIM = hb.limits(CFG["decomposer"])
 USAGE = {"input_tokens": 10, "output_tokens": 20, "cache_read_input_tokens": 30, "cache_creation_input_tokens": 40}
 
 
@@ -23,29 +21,16 @@ def reply(result, model="claude-opus-5", **extra):
 
 
 class Pure(unittest.TestCase):
-    def test_limits_args_env_and_ttl_follow_the_config(self):
-        self.assertEqual(LIM, {"max_thinking_tokens": 6000, "max_turns": LIM["max_turns"], "timeout_seconds": 300})
-        args = hb.agent_args(CFG["decomposer"], ["claude"], LIM)
-        self.assertEqual(args[-2:], ["--max-turns", str(LIM["max_turns"])])
-        self.assertEqual(args[:-2], hline.implementer_args(CFG["decomposer"], ["claude"]))
-        given, before = {"A": "1"}, dict(os.environ)
-        self.assertEqual(hb.agent_env(LIM, given), {"A": "1", "MAX_THINKING_TOKENS": "6000"})
-        self.assertEqual((given, dict(os.environ)), ({"A": "1"}, before))
-        self.assertEqual((hb.ttl(CFG["ttl_seconds"]["decomposer"], LIM), hb.ttl(100, LIM)), (300, 100))
+    def test_the_decomposer_budget_is_gone(self):
+        self.assertNotIn("decomposer", CFG)
+        self.assertNotIn("decomposer", CFG["ttl_seconds"])
+        for name in ("limits", "agent_args", "agent_env", "ttl", "cutoff_reason"):
+            self.assertFalse(hasattr(hb, name), name)
 
-    def test_a_missing_or_bad_budget_is_an_environment_fault(self):
-        for bad in (None, {}, {"max_turns": 1}, {**LIM, "max_turns": 0}, {**LIM, "max_turns": True}, {**LIM, "max_turns": "5"}):
+    def test_a_missing_or_bad_turn_cap_is_an_environment_fault(self):
+        for bad in (None, {}, {"max_turns": 0}, {"max_turns": True}, {"max_turns": "5"}):
             with self.subTest(bad=bad), self.assertRaises(hline.Infra):
-                hb.limits({} if bad is None else {"budget": bad})
-
-    def test_cutoff_reason(self):
-        self.assertIn("300", hb.cutoff_reason(124, "", LIM))
-        for out in (json.dumps({"subtype": "error_max_turns"}), json.dumps({"num_turns": LIM["max_turns"]}),
-                    json.dumps({"is_error": True, "subtype": "x_max_turns"})):
-            self.assertIn(str(LIM["max_turns"]), hb.cutoff_reason(0, out, LIM))
-        for out in (json.dumps({"result": "x"}), json.dumps({"num_turns": LIM["max_turns"] - 1}), json.dumps({"num_turns": "99"}),
-                    "not json", "[1]", ""):
-            self.assertIsNone(hb.cutoff_reason(0, out, LIM), out)
+                hb.turn_cap({} if bad is None else {"budget": bad})
 
     def test_read_files_collects_read_grep_glob_targets(self):
         def use(name, **inp):

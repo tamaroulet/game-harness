@@ -36,7 +36,6 @@ import yaml  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 CFG = hline.load_config()
-SCHEMA = json.loads((REPO / CFG["taskspec_schema"]).read_text(encoding="utf-8"))
 SPEC = {
     "target_symbols": [{"module": "harness/textnorm.py", "kind": "function", "name": "normalize_newlines"}],
     "signatures": [{"symbol": "normalize_newlines", "params": [{"name": "text", "type": "str"}], "returns": "str"}],
@@ -62,14 +61,6 @@ def spec_with(**edit):
     for k, v in edit.items():
         spec["edit_boundary"][k] = v
     return spec
-
-
-# ============================================================ スキーマ
-
-class Schema(unittest.TestCase):
-    def test_each_of_the_five_required_elements_is_required(self):
-        self.assertEqual(sorted(SCHEMA["required"]),
-                         sorted(["target_symbols", "signatures", "contracts", "edit_boundary", "test_oracle"]))
 
 
 # ============================================================ 編集境界（Gate 1）
@@ -1043,29 +1034,25 @@ class AgentFlow(World):
 # ============================================================ 設定・規模・書式
 
 class Config(unittest.TestCase):
-    def test_the_decomposer_is_pinned_to_an_exact_model_id(self):
-        dec = CFG["decomposer"]
-        self.assertEqual((dec["model_flag"], dec["model"]), ("--model", "claude-opus-5"))
-        args = hline.implementer_args(dec, ["claude"])
-        self.assertEqual(args[args.index("--model") + 1], "claude-opus-5")
-        self.assertEqual(model_pin.require(dec, "decomposer"), "claude-opus-5")
-        self.assertIn("config/hline.json の decomposer", [w for w, _, _ in model_pin.agent_configs()])
+    def test_the_decomposer_config_and_the_taskspec_schema_are_gone(self):
+        self.assertTrue(all(k not in CFG for k in ("decomposer", "taskspec_schema", "spec_retries")))
+        self.assertEqual(sorted(w for w, _, _ in model_pin.agent_configs() if "hline" in w), ["config/hline.json の implementer"])
         self.assertEqual([p for p in model_pin.problems() if "hline" in p], [])
 
-    def test_a_decomposer_without_a_model_does_not_load(self):
+    def test_an_implementer_without_a_model_does_not_load(self):
         with tempfile.TemporaryDirectory() as d:
             bad = json.loads(json.dumps(CFG))
-            del bad["decomposer"]["model"]
+            del bad["implementer"]["model"]
             p = Path(d) / "hline.json"
             p.write_text(json.dumps(bad), encoding="utf-8")
             with self.assertRaises(model_pin.ModelPinError):
                 hline.load_config(p)
 
-    def test_the_decomposer_pin_is_inspected_with_the_other_agents(self):
+    def test_the_implementer_pin_is_inspected_with_the_other_agents(self):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / "config").mkdir()
             bad = json.loads(json.dumps(CFG))
-            del bad["decomposer"]["model_flag"]
+            del bad["implementer"]["model_flag"]
             (Path(d) / "config" / "hline.json").write_text(json.dumps(bad), encoding="utf-8")
             found = model_pin.problems(d)
         self.assertEqual(len(found), 1)
