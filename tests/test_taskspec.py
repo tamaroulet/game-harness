@@ -8,7 +8,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 import hline_gate  # noqa: E402
-import hline_spec  # noqa: E402
 import hline_symbols as hs  # noqa: E402
 
 IMPL = ("class K:\n    def m(self, a: int) -> str:\n        return ''\n\n\n"
@@ -125,15 +124,6 @@ class Content(unittest.TestCase):
         out = hs.content_problems(make(edit_boundary=dict(SPEC["edit_boundary"], max_diff_lines=301)))
         self.assertEqual(len(out), 1)
         self.assertIn("max_diff_lines", out[0])
-
-    def test_gate_a_adds_content_problems_only_after_the_schema_passes(self):
-        schema = hline_spec.load_schema({"taskspec_schema": "config/taskspec.schema.json"})
-        self.assertEqual(hline_spec.gate_a(schema, SPEC, None), [])
-        bad = make(target_symbols=[{"module": "harness/z.py", "kind": "function", "name": "f"}])
-        self.assertEqual(hline_spec.validate(schema, bad), [])
-        self.assertEqual(len(hline_spec.gate_a(schema, bad, None)), 1)
-        broken = {k: v for k, v in bad.items() if k != "signatures"}
-        self.assertTrue(all("allowed_files" not in x for x in hline_spec.gate_a(schema, broken, None)))
 
 
 class GateB(Tree):

@@ -36,7 +36,6 @@ import yaml  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 CFG = hline.load_config()
-SCHEMA = hline_spec.load_schema(CFG)
 SPEC = {
     "target_symbols": [{"module": "harness/textnorm.py", "kind": "function", "name": "normalize_newlines"}],
     "signatures": [{"symbol": "normalize_newlines", "params": [{"name": "text", "type": "str"}], "returns": "str"}],
@@ -62,59 +61,6 @@ def spec_with(**edit):
     for k, v in edit.items():
         spec["edit_boundary"][k] = v
     return spec
-
-
-# ============================================================ スキーマと Gate A
-
-class Schema(unittest.TestCase):
-    def test_a_conforming_taskspec_has_no_violation(self):
-        self.assertEqual(hline_spec.gate_a(SCHEMA, SPEC), [])
-
-    def test_each_of_the_five_required_elements_is_required(self):
-        self.assertEqual(sorted(SCHEMA["required"]),
-                         sorted(["target_symbols", "signatures", "contracts", "edit_boundary", "test_oracle"]))
-        for key in SCHEMA["required"]:
-            with self.subTest(key=key):
-                spec = {k: v for k, v in SPEC.items() if k != key}
-                problems = hline_spec.gate_a(SCHEMA, spec)
-                self.assertTrue(any(key in p for p in problems), problems)
-
-    def test_the_contract_needs_pre_post_and_invariants(self):
-        for key in ("preconditions", "postconditions", "invariants"):
-            with self.subTest(key=key):
-                spec = json.loads(json.dumps(SPEC))
-                del spec["contracts"][key]
-                self.assertTrue(hline_spec.gate_a(SCHEMA, spec))
-
-    def test_the_diff_limit_cannot_exceed_300(self):
-        self.assertEqual(hline_spec.gate_a(SCHEMA, spec_with(max_diff_lines=300)), [])
-        for bad in (301, 0, "300", True):
-            with self.subTest(limit=bad):
-                self.assertTrue(hline_spec.gate_a(SCHEMA, spec_with(max_diff_lines=bad)))
-
-    def test_wrong_types_unknown_keys_and_empty_lists_are_violations(self):
-        for edit in ({"allowed_files": []}, {"allowed_files": "harness/x.py"}, {"forbidden_files": [""]}):
-            with self.subTest(edit=edit):
-                self.assertTrue(hline_spec.gate_a(SCHEMA, spec_with(**edit)))
-        extra = dict(SPEC, note="何か")
-        self.assertTrue(hline_spec.gate_a(SCHEMA, extra))
-        bad_kind = json.loads(json.dumps(SPEC))
-        bad_kind["target_symbols"][0]["kind"] = "variable"
-        self.assertTrue(hline_spec.gate_a(SCHEMA, bad_kind))
-        self.assertTrue(hline_spec.gate_a(SCHEMA, None))
-
-    def test_a_task_declaring_what_must_carry_the_progress_verification_command(self):
-        spec = json.loads(json.dumps(SPEC))
-        self.assertTrue(hline_spec.gate_a(SCHEMA, spec, VERIFY))
-        spec["test_oracle"]["verification_command"] = "python -m unittest tests.other"
-        self.assertTrue(hline_spec.gate_a(SCHEMA, spec, VERIFY))
-        spec["test_oracle"]["verification_command"] = VERIFY
-        self.assertEqual(hline_spec.gate_a(SCHEMA, spec, VERIFY), [])
-
-    def test_json_is_taken_out_of_a_fenced_reply(self):
-        self.assertEqual(hline_spec.extract_json("```json\n{\"a\": 1}\n```")[0], {"a": 1})
-        self.assertEqual(hline_spec.extract_json("前置き {\"a\": 1} 後書き")[0], {"a": 1})
-        self.assertIsNone(hline_spec.extract_json("JSON ではない")[0])
 
 
 # ============================================================ 編集境界（Gate 1）
@@ -1088,29 +1034,25 @@ class AgentFlow(World):
 # ============================================================ 設定・規模・書式
 
 class Config(unittest.TestCase):
-    def test_the_decomposer_is_pinned_to_an_exact_model_id(self):
-        dec = CFG["decomposer"]
-        self.assertEqual((dec["model_flag"], dec["model"]), ("--model", "claude-opus-5"))
-        args = hline.implementer_args(dec, ["claude"])
-        self.assertEqual(args[args.index("--model") + 1], "claude-opus-5")
-        self.assertEqual(model_pin.require(dec, "decomposer"), "claude-opus-5")
-        self.assertIn("config/hline.json の decomposer", [w for w, _, _ in model_pin.agent_configs()])
+    def test_the_decomposer_config_and_the_taskspec_schema_are_gone(self):
+        self.assertTrue(all(k not in CFG for k in ("decomposer", "taskspec_schema", "spec_retries")))
+        self.assertEqual(sorted(w for w, _, _ in model_pin.agent_configs() if "hline" in w), ["config/hline.json の implementer"])
         self.assertEqual([p for p in model_pin.problems() if "hline" in p], [])
 
-    def test_a_decomposer_without_a_model_does_not_load(self):
+    def test_an_implementer_without_a_model_does_not_load(self):
         with tempfile.TemporaryDirectory() as d:
             bad = json.loads(json.dumps(CFG))
-            del bad["decomposer"]["model"]
+            del bad["implementer"]["model"]
             p = Path(d) / "hline.json"
             p.write_text(json.dumps(bad), encoding="utf-8")
             with self.assertRaises(model_pin.ModelPinError):
                 hline.load_config(p)
 
-    def test_the_decomposer_pin_is_inspected_with_the_other_agents(self):
+    def test_the_implementer_pin_is_inspected_with_the_other_agents(self):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / "config").mkdir()
             bad = json.loads(json.dumps(CFG))
-            del bad["decomposer"]["model_flag"]
+            del bad["implementer"]["model_flag"]
             (Path(d) / "config" / "hline.json").write_text(json.dumps(bad), encoding="utf-8")
             found = model_pin.problems(d)
         self.assertEqual(len(found), 1)

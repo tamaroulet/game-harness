@@ -180,8 +180,8 @@ class RunTask(Base):
         item = {"title": "t", "milestone": "m", "task": None, "decompose": {"attempts": []}}
         tries = [{"run": 0, "attempt": 1, "cli_exit": 0, "models": ["m"], "gate": False, "boundary_added": ["tests/test_sample.py"]}]
         cfg = {"out": str(self.root)}
-        self.assertIn("tests/test_sample.py", hline_report.item_section(cfg, "n", {**item, "tries": tries}, False).split("| 作業")[0])
-        self.assertNotIn("ハーネスが足した", hline_report.item_section(cfg, "n", {**item, "tries": []}, False))
+        self.assertIn("tests/test_sample.py", hline_report.item_section(cfg, "n", {**item, "tries": tries}).split("| 作業")[0])
+        self.assertNotIn("ハーネスが足した", hline_report.item_section(cfg, "n", {**item, "tries": []}))
 
 
 if __name__ == "__main__":

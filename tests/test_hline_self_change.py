@@ -16,8 +16,8 @@ class SelfChangeFunction(unittest.TestCase):
     MODS = frozenset({"harness/hline.py", "harness/hline_git.py"})
 
     def test_modules_configs_and_backslash_paths_match(self):
-        got = hline.self_change(["harness\\hline.py", "config/hline.json", "config\\taskspec.schema.json"], self.MODS)
-        self.assertEqual(got, ["config/hline.json", "config/taskspec.schema.json", "harness/hline.py"])
+        got = hline.self_change(["harness\\hline.py", "config\\hline.json", "config/other.json"], self.MODS)
+        self.assertEqual(got, ["config/hline.json", "harness/hline.py"])
 
     def test_tests_docs_and_other_files_do_not_match(self):
         paths = ["tests/test_hline.py", "docs/design/foo.md", "harness/textnorm.py", "config/other.json"]

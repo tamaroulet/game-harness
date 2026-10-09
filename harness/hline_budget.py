@@ -1,39 +1,9 @@
-"""分解役 1 回の上限（思考の量・ターン数・時間）と、呼び出しごとの利用量。上限の値は config/hline.json の decomposer.budget だけに置く。"""
+"""実装役 1 回のターン数の上限と、呼び出しごとの利用量。上限の値は config/hline.json の implementer.budget だけに置く。"""
 import json
-import os
-from pathlib import Path
 
 from hline_base import Infra, implementer_args, pinned_models  # isort: skip（harness/ を import の道に足す）
 
-import proc  # noqa: E402
 import telemetry  # noqa: E402
-
-KEYS = ("max_thinking_tokens", "max_turns", "timeout_seconds")
-
-
-def limits(agent):
-    b = agent.get("budget")
-    if not isinstance(b, dict) or any(isinstance(b.get(k), bool) or not isinstance(b.get(k), int) or b[k] < 1 for k in KEYS):
-        raise Infra(f"config/hline.json の budget（{', '.join(KEYS)} は 1 以上の整数）が足りないか不正です: {b!r}")
-    return {k: b[k] for k in KEYS}
-
-
-def agent_args(agent, cli, lim):
-    return implementer_args(agent, cli) + ["--max-turns", str(lim["max_turns"])]
-
-
-def agent_env(lim, env=None):
-    return dict(os.environ if env is None else env, MAX_THINKING_TOKENS=str(lim["max_thinking_tokens"]))
-
-
-def ttl(ttl_seconds, lim):
-    return min(ttl_seconds, lim["timeout_seconds"])
-
-
-def cutoff_reason(code, out, lim):
-    if code == 124:
-        return f"時間の上限 {lim['timeout_seconds']} 秒で打ち切られました"
-    return turn_cutoff(out, lim["max_turns"])
 
 
 # ============================================================ 実装役：ターン数の上限だけ（思考の量・時間は掛けない）

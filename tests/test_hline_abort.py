@@ -14,7 +14,6 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 import hline_abort  # noqa: E402
 import hline_prompt  # noqa: E402
-import hline_respec  # noqa: E402
 import hline_task  # noqa: E402
 
 MARKER, WHY = hline_abort.MARKER, "編集境界の外の harness/hline.py を変えないと実装できない"
@@ -102,6 +101,16 @@ class Pure(unittest.TestCase):
         self.assertIsNone(hline_abort.unconverged_reason([{"abort": "古い"}, {"gate": False}]))
         self.assertEqual(hline_abort.unconverged_reason([{"gate": False}, {"abort": WHY}]), WHY)
 
+    def test_the_instructions_describe_the_current_hline(self):
+        text = hline_abort.instructions()
+        self.assertNotIn("TaskSpec", text)
+        self.assertNotIn("分解役", text)
+        self.assertIn("config/protected_paths.json", text)
+        self.assertIn("矛盾", text)
+        self.assertIn("すぐ宣言", text)
+        self.assertIn("TODO.md", text)
+        self.assertIn(f"{MARKER} 理由", text)
+
     def test_the_instructions_are_in_the_prompt_before_the_what_body(self):
         text = hline_abort.instructions()
         self.assertIn(MARKER, text)
@@ -152,14 +161,6 @@ class Flow(Repo):
         wt, branch, tries = self.run_task(self.host(["a\n"], {0: f"諦めます\n{MARKER} {WHY}\n"}))
         self.assertEqual((wt, branch, self.gated, len(tries)), (None, None, [], 1))
         self.assertEqual((tries[0]["abort"], tries[0]["gate"]), (WHY, False))
-        summary = hline_respec.failure_summary(CFG, self.out, tries)
-        self.assertIn(WHY, summary)
-        for part in ("## Gate 1 の出力", "## 実装役の終了コード", "## 実装役のログの末尾", "諦めます"):
-            self.assertIn(part, summary)
-
-    def test_a_summary_without_an_abort_has_no_abort_section(self):
-        _, _, tries = self.run_task(self.host(["a\n", "b\n", "c\n"]))
-        self.assertNotIn("打ち切り・断念", hline_respec.failure_summary(CFG, self.out, tries))
 
     def test_a_worktree_that_is_not_a_git_one_is_not_compared(self):
         with tempfile.TemporaryDirectory() as d:

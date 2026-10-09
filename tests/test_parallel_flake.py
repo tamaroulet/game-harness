@@ -196,8 +196,8 @@ class Report(unittest.TestCase):
     def test_the_pr_body_item_section_gets_one_line_with_the_names(self):
         with tempfile.TemporaryDirectory() as tmp:
             cfg = dict(CFG, out=tmp)
-            with_flaky = hr.item_section(cfg, "020-b", self.item(), True)
-            quiet = hr.item_section(cfg, "010-a", self.item(tries=[{"run": 0, "attempt": 1, "cli_exit": 0, "models": ["m"], "gate": True}]), True)
+            with_flaky = hr.item_section(cfg, "020-b", self.item())
+            quiet = hr.item_section(cfg, "010-a", self.item(tries=[{"run": 0, "attempt": 1, "cli_exit": 0, "models": ["m"], "gate": True}]))
         lines = [x for x in with_flaky.splitlines() if "揺れたテスト" in x]
         self.assertEqual(lines, ["- 揺れたテスト（並列で落ち、単独で通った）: a (m.X), b (m.Y)"])
         self.assertNotIn("揺れ", quiet)
