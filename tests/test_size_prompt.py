@@ -122,22 +122,24 @@ class Implement(Base):
 class GateSize(Base):
     def gate(self, files, before=None):
         wt = self.tree(files)
-        ok = (0, "", "")
+        ok, warn = (0, "", ""), []
         with mock.patch.object(sl, "head_source", return_value=lambda path: before), \
                 mock.patch.object(hline, "diff_counts", return_value={"added": 1, "deleted": 0, "deleted_files": ()}), \
                 mock.patch.object(hline.proc, "run", return_value=ok):
-            return hline.gate(CFG, wt, list(files))
+            return (*hline.gate(CFG, wt, list(files), warnings=warn), warn)
 
     def test_oversized_modules_and_complexity_still_fail_and_small_ones_pass(self):
-        ok, why = self.gate({"harness/x.py": lines(LIM["new_module_max_lines"])})
+        """規模の制約は Gate 1 を不合格にせず、警告として記録される（C2）。"""
+        ok, why, warn = self.gate({"harness/x.py": lines(LIM["new_module_max_lines"])})
         self.assertTrue(ok, why)
-        ok, why = self.gate({"harness/x.py": lines(LIM["new_module_max_lines"] + 1)})
-        self.assertFalse(ok)
-        self.assertIn(str(LIM["new_module_max_lines"] + 1), why)
+        self.assertEqual(warn, [])
+        ok, why, warn = self.gate({"harness/x.py": lines(LIM["new_module_max_lines"] + 1)})
+        self.assertTrue(ok)
+        self.assertIn(str(LIM["new_module_max_lines"] + 1), "\n".join(warn))
         branchy = "def f(x):\n" + "    if x:\n        x += 1\n" * LIM["max_complexity"] + "    return x\n"
-        ok, why = self.gate({"harness/x.py": branchy})
-        self.assertFalse(ok)
-        self.assertIn("循環的複雑度", why)
+        ok, why, warn = self.gate({"harness/x.py": branchy})
+        self.assertTrue(ok)
+        self.assertIn("循環的複雑度", "\n".join(warn))
 
 
 if __name__ == "__main__":

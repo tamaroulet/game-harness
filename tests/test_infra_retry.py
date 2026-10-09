@@ -85,7 +85,7 @@ class Implementer(base.World):
         self.patch(hline.proc, "run", side_effect=fake_run)
         self.patch(hline.proc, "resolve_cli", return_value=["claude"])
         self.patch(hline, "changed_paths", return_value=["harness/textnorm.py"])
-        self.patch(hline, "gate", side_effect=lambda c, w, p, spec=None, task=None: (True, "ok"))
+        self.patch(hline, "gate", side_effect=lambda c, w, p, spec=None, task=None, **kw: (True, "ok"))
 
     def test_a_timeout_is_retried_and_does_not_count_as_a_try(self):
         self.codes = [124]

@@ -35,7 +35,7 @@ class Respec(World):
         Path(log).write_text(f"IMPL-LOG-{Path(log).name}", encoding="utf-8")
         return 0, ["claude-sonnet-5-5"], None
 
-    def gate(self, cfg, wt, paths, spec=None, task=None):
+    def gate(self, cfg, wt, paths, spec=None, task=None, **kw):
         self.gate_n += 1
         return (self.verdicts[self.gate_n - 1] if self.gate_n <= len(self.verdicts) else False), f"GATE-OUT-{self.gate_n}"
 

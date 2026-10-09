@@ -70,7 +70,7 @@ class Flow(base.World):
             o = self.impl_outs.pop(0) if self.impl_outs else out()
             return o if isinstance(o, tuple) else (0, o, "")
 
-        def fake_gate(c, w, p, spec=None, task=None):
+        def fake_gate(c, w, p, spec=None, task=None, **kw):
             self.gated_in.append(w)
             return self.gates.pop(0) if self.gates else (True, "ok")
         self.patch(hline.proc, "run", side_effect=fake_run)

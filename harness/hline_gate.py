@@ -7,20 +7,22 @@ import hline_boundary
 import hline_symbols
 
 
-def gate(host, cfg, wt, paths, spec=None, task=None, extended=()):
-    """H ラインの Gate 1。(通ったか, 実装役に返す出力)。TaskSpec があれば編集境界も、タスクがあれば進捗の検証コマンドも見る。
-    extended はハーネスが編集境界に足したテストのファイルで、あれば件数の減少・skip の増加も見る。"""
+def gate(host, cfg, wt, paths, spec=None, task=None, extended=(), warnings=None):
+    """H ラインの Gate 1。(通ったか, 実装役に返す出力)。不合格にするのは、変えてはならないパス（hline_protect）と「変更なし」だけ。
+
+    差分の量・編集境界・規模・宣言したシンボルの食い違いは、不合格にせず warnings に積む（実装役には返さない。
+    試行の記録に残し、統合 PR を人間が見るときの手がかりにする）。warnings は呼び手が渡す list で、その場で足す。
+    extended はハーネスが編集境界に足したテストのファイルで、あれば件数の減少・skip の増加も warnings に入る。"""
+    warn = [] if warnings is None else warnings
     if not paths:
         return False, "作業ツリーに変更がありません。TaskSpec を満たす変更を加えてください。"
     if bad := host.hline_protect.violations(paths):
         return False, host.hline_protect.reason(bad)
-    problems = host.boundary_problems(spec, paths, host.diff_counts(cfg, wt)) if spec else []
-    problems += host.size_limits.scan(wt, paths, host.size_limits.limits(), host.size_limits.head_source(cfg, wt))
+    warn += host.boundary_problems(spec, paths, host.diff_counts(cfg, wt)) if spec else []
+    warn += host.size_limits.scan(wt, paths, host.size_limits.limits(), host.size_limits.head_source(cfg, wt))
     if extended:
-        problems += hline_boundary.shrink_problems(wt, extended, host.size_limits.head_source(cfg, wt))
-    problems += hline_symbols.declared_problems(spec, wt) if spec else []
-    if problems:
-        return False, "\n".join(problems)
+        warn += hline_boundary.shrink_problems(wt, extended, host.size_limits.head_source(cfg, wt))
+    warn += hline_symbols.declared_problems(spec, wt) if spec else []
     first = host.gate_order.focused(cfg, wt, paths, task, spec)   # 影響テストが先。落ちたら全件テストは走らせない
     if first and not first[0]:
         return first

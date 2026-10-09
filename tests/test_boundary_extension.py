@@ -125,17 +125,19 @@ def gate_host(head, run_log):
 class GateWiring(Base):
     CFG = {"gate_command": ["x"], "ttl_seconds": {"gate": 1}, "gate_tail_chars": 100}
 
-    def run_gate(self, *extended):
+    def run_gate(self, *extended, warn=None):
         tree(self.root, tests__test_sample="import x\n")
         ran = []
-        out = hline_gate.gate(gate_host(TESTS, ran), self.CFG, self.root, ["harness/x.py"], SPEC, None, *extended)
+        out = hline_gate.gate(gate_host(TESTS, ran), self.CFG, self.root, ["harness/x.py"], SPEC, None, *extended, warnings=warn)
         return out, ran
 
     def test_extended_files_that_lost_tests_stop_the_gate_before_running(self):
-        (ok, why), ran = self.run_gate(["tests/test_sample.py"])
-        self.assertFalse(ok)
-        self.assertIn("tests/test_sample.py", why)
-        self.assertEqual(ran, [])
+        """件数の減少・skip の増加は Gate 1 を不合格にせず、警告として記録される（C2）。"""
+        warn = []
+        (ok, _), ran = self.run_gate(["tests/test_sample.py"], warn=warn)
+        self.assertTrue(ok)
+        self.assertIn("tests/test_sample.py", "\n".join(warn))
+        self.assertEqual(len(ran), 1)
 
     def test_without_extended_the_gate_goes_on_as_before(self):
         self.assertEqual(self.run_gate()[0], (True, "ran"))
@@ -150,7 +152,7 @@ class RunTask(Base):
             Path(log).write_text("done\n", encoding="utf-8")
             return 0, ["m"]
 
-        def gate(*args):
+        def gate(*args, **kw):
             calls.append(args)
             return gate_results.pop(0)
         host = ns(base_check=lambda c, w: (True, ""), changed_paths=lambda w, c: ["harness/x.py"], gate=gate, implement=implement,

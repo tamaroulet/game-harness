@@ -88,7 +88,7 @@ class Flow(base.World):
         self.patch(hline.proc, "run", side_effect=fake_run)
         self.patch(hline.proc, "resolve_cli", return_value=["claude"])
         self.patch(hline, "changed_paths", return_value=["harness/textnorm.py"])
-        self.patch(hline, "gate", side_effect=lambda c, w, p, spec=None, task=None: (True, "ok"))
+        self.patch(hline, "gate", side_effect=lambda c, w, p, spec=None, task=None, **kw: (True, "ok"))
 
     def decompose(self, what="# 題\n本文", cfg=None, n=0):
         outdir = self.tmp / f"o{n}"

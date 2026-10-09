@@ -69,6 +69,11 @@ def flaky_tests(item):
     return list(dict.fromkeys(n for t in item.get("tries", []) for n in t.get("flaky") or []))
 
 
+def warning_count(item):
+    """項目の試行の記録に残った警告（Gate 1 が不合格にしなかった指摘）の件数。古い記録には無い。"""
+    return sum(len(t.get("warnings") or []) for t in item.get("tries", []))
+
+
 def h_section(cfg, st):
     items = st["items"]
 
@@ -76,11 +81,12 @@ def h_section(cfg, st):
         names = by_status(st, status)
         return f"- {label}（{len(names)} 件）: " + (", ".join(f"{n}{note(items[n])}" for n in names) or "なし")
 
+    done = lambda i: f"（警告 {warning_count(i)} 件）" if warning_count(i) else ""   # noqa: E731
     waiting = lambda i: f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else ""   # noqa: E731
     frozen = lambda i: f"（上流の未収束: {', '.join(i.get('frozen_by', []))}）"   # noqa: E731
     lines = ["## H ライン", f"- 状態: {line_status(cfg, st)}", f"- 統合ブランチ: {cfg['integration_branch']}",
              f"- 統合 PR: {st['awaiting_pr'] or 'なし'}", "", "## キュー",
-             row("済み", "done"), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
+             row("済み", "done", done), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
              row("未収束", "unconverged", lambda i: f"（{i.get('reason', '')}）"), row("凍結", "frozen", frozen)]
     flaky = [f"- {n}: {', '.join(flaky_tests(i))}" for n, i in sorted(items.items()) if flaky_tests(i)]
     if flaky:

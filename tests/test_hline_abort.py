@@ -123,7 +123,7 @@ class Flow(Repo):
             Path(log).write_text((logs or {}).get(n, "ふつうのログ\n"), encoding="utf-8")
             return 0, ["claude-sonnet-5-5"], None, None, 3
 
-        def gate(cfg, wt, paths, spec=None, task=None):
+        def gate(cfg, wt, paths, spec=None, task=None, **kw):
             self.gated.append(paths)
             return False, f"GATE-OUT-{len(self.gated)}"
 
@@ -145,7 +145,8 @@ class Flow(Repo):
         wt, branch, tries = self.run_task(self.host(["a\n", "b\n", "c\n"]))
         self.assertEqual((wt, len(self.gated), len(tries)), (None, 3, 3))
         for t in tries:
-            self.assertEqual(sorted(t), sorted(["run", "attempt", "cli_exit", "models", "gate", "usage", "cutoff", "turns", "flaky"]))
+            self.assertEqual(sorted(t), sorted(["run", "attempt", "cli_exit", "models", "gate", "usage", "cutoff", "turns",
+                                                "flaky", "warnings"]))
 
     def test_a_declaration_stops_the_first_try_without_gate_1(self):
         wt, branch, tries = self.run_task(self.host(["a\n"], {0: f"諦めます\n{MARKER} {WHY}\n"}))

@@ -34,13 +34,15 @@ def run_task(host, cfg, tid, spec, outdir, first=None, task=None, on_stage=None,
         why = hline_abort.abort_reason(log, digest, prev)   # 断念・同じ差分の繰り返しは Gate 1 を呼ばずに打ち切る
         prev = digest
         if why is not None:
-            tries.append({**attempt_record(run, attempt, code, models, False, rest), "flaky": [], "abort": why})
+            tries.append({**attempt_record(run, attempt, code, models, False, rest), "flaky": [], "warnings": [], "abort": why})
             (outdir / f"gate-{run}-{attempt}.log").write_text(f"Gate 1 は呼ばず、試行を打ち切りました: {why}\n", encoding="utf-8")
             return None, None, tries
         on_stage(f"Gate 1 {run + 1}-{attempt}")
         changed = host.changed_paths(wt, cfg)
-        ok, feedback = host.gate(cfg, wt, changed, spec, task, *([extended] if extended else []))
-        tries.append(rec := {**attempt_record(run, attempt, code, models, ok, rest), "flaky": list(fastsuite.flaky_names(feedback))})
+        warnings = []   # 不合格にしない指摘（差分の量・編集境界・規模・進捗の不整合）。実装役には返さず、試行の記録に残す
+        ok, feedback = host.gate(cfg, wt, changed, spec, task, *([extended] if extended else []), warnings=warnings)
+        tries.append(rec := {**attempt_record(run, attempt, code, models, ok, rest), "flaky": list(fastsuite.flaky_names(feedback)),
+                             "warnings": warnings})
         (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
         if ok:
             return wt, branch, tries

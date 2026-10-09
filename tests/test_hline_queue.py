@@ -120,11 +120,11 @@ class Schema(unittest.TestCase):
 # ============================================================ 編集境界（Gate 1）
 
 class Boundary(unittest.TestCase):
-    def gate(self, paths, lines=10, spec=None, tests=(0, "", "")):
+    def gate(self, paths, lines=10, spec=None, tests=(0, "", ""), warn=None):
         with mock.patch.object(hline, "diff_counts", return_value={"added": lines, "deleted": 0, "deleted_files": ()}), \
                 mock.patch.object(hline.size_limits, "head_source", return_value=lambda p: None), mock.patch.object(hline.proc, "run", return_value=tests) as run:
             ok, msg = hline.gate(CFG, Path("."), paths, spec or spec_with(
-                allowed_files=["harness/", "tests/*.py"], forbidden_files=["harness/hline.py"], max_diff_lines=100))
+                allowed_files=["harness/", "tests/*.py"], forbidden_files=["harness/hline.py"], max_diff_lines=100), warnings=warn)
         return ok, msg, run
 
     def test_changes_inside_the_boundary_run_the_tests(self):
@@ -134,23 +134,28 @@ class Boundary(unittest.TestCase):
                          [hline.base_whitelist.unittest_command(CFG["gate_command"], ["tests.test_textnorm"]), CFG["gate_command"]])   # 個別 → 全件
 
     def test_a_file_outside_the_allowed_files_fails_without_running_the_tests(self):
-        ok, msg, run = self.gate(["harness/textnorm.py", "README.md"])
-        self.assertFalse(ok)
-        self.assertIn("README.md", msg)
-        run.assert_not_called()
+        """編集境界の外は Gate 1 を不合格にせず、警告として記録される（C2）。"""
+        warn = []
+        ok, msg, run = self.gate(["harness/textnorm.py", "README.md"], warn=warn)
+        self.assertTrue(ok)
+        self.assertIn("README.md", "\n".join(warn))
+        run.assert_called()
 
     def test_a_forbidden_file_fails_even_when_it_is_allowed_by_a_wider_pattern(self):
-        ok, msg, run = self.gate(["harness/hline.py"])
-        self.assertFalse(ok)
-        self.assertIn("変えてはならない", msg)
-        run.assert_not_called()
+        """TaskSpec の forbidden_files も警告だけ（変えてはならないパスは hline_protect が不合格にする）。"""
+        warn = []
+        ok, msg, run = self.gate(["harness/hline.py"], warn=warn)
+        self.assertTrue(ok)
+        self.assertIn("変えてはならない", "\n".join(warn))
 
     def test_exceeding_the_diff_limit_fails(self):
+        """差分の行数は Gate 1 を不合格にせず、警告として記録される（C2）。"""
         self.assertTrue(self.gate(["harness/x.py"], lines=100)[0])
-        ok, msg, run = self.gate(["harness/x.py"], lines=101)
-        self.assertFalse(ok)
-        self.assertIn("101", msg)
-        run.assert_not_called()
+        warn = []
+        ok, msg, run = self.gate(["harness/x.py"], lines=101, warn=warn)
+        self.assertTrue(ok)
+        self.assertIn("101", "\n".join(warn))
+        run.assert_called()
 
     def test_failing_tests_still_fail_inside_the_boundary(self):
         self.assertFalse(self.gate(["harness/x.py"], tests=(1, "out", "err"))[0])
@@ -383,6 +388,7 @@ class World(unittest.TestCase):
             {"tasks": [{"id": "S1-2", "verification": {"command": VERIFY, "expected_exit_code": 0}}]}), encoding="utf-8")
         self.decomposed, self.implemented, self.integrated, self.created, self.dropped = [], [], [], [], []
         self.failing, self.pr_state, self.open_pr, self.ahead_n, self.current = set(), "OPEN", None, 0, None; self.diff_list = []
+        self.warnings = []   # Gate 1 が不合格にしない指摘（C2）。試行の記録に入り、report の済みの行に件数が出る
 
         def forbidden(*a, **kw):
             raise AssertionError(f"実際の外部呼び出しが起きました: {a[:1]}")
@@ -422,7 +428,8 @@ class World(unittest.TestCase):
     def fake_run_task(self, cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
         self.implemented.append(self.current)
         ok = self.current not in self.failing
-        tries = [{"run": 0, "attempt": 1, "cli_exit": 0, "models": ["claude-sonnet-5-5"], "gate": ok}]
+        tries = [{"run": 0, "attempt": 1, "cli_exit": 0, "models": ["claude-sonnet-5-5"], "gate": ok,
+                  "warnings": list(self.warnings)}]
         return (self.wt, "b", tries) if ok else (None, None, tries)
 
     def fake_integrate(self, cfg, wt, name, title, task):
@@ -739,12 +746,13 @@ class ReportEachStep(World):
     def test_the_report_during_the_run_shows_the_done_ones_and_the_one_in_progress(self):
         self.put("010-a")
         self.put("020-b")
+        self.warnings = ["harness/x.py が 501 行です"]   # 不合格にしない指摘は件数だけが済みの行に出る（C2）
         snaps = self.run_with_snapshots()
         first, second = snaps["分解 T-010-a"], snaps["分解 T-020-b"]
         self.assertIn("- 済み（0 件）: なし", first)
         self.assertIn("- 待ち（1 件）: 020-b", first)
         self.assertRegex(first, rf"- 処理中（1 件）: 010-a（段階: 分解／開始: {STAMP}）")
-        self.assertIn("- 済み（1 件）: 010-a", second)
+        self.assertIn("- 済み（1 件）: 010-a（警告 1 件）", second)
         self.assertRegex(second, rf"- 処理中（1 件）: 020-b（段階: 分解／開始: {STAMP}）")
 
     def test_the_stage_follows_the_implementation_and_gate_1_and_keeps_the_start_time(self):
@@ -858,7 +866,7 @@ class StageCalls(unittest.TestCase):
             events.append("implement")
             return 0, ["m"], {}
 
-        def gate(*a):
+        def gate(*a, **kw):
             events.append("gate")
             return next(verdicts), "out"
 
@@ -1054,7 +1062,7 @@ class AgentFlow(World):
         self.patch(hline.proc, "run", side_effect=fake_run)
         self.patch(hline.proc, "resolve_cli", return_value=["claude"])
         self.patch(hline, "changed_paths", return_value=["harness/textnorm.py"])
-        self.patch(hline, "gate", side_effect=lambda c, w, p, spec=None, task=None: (True, "ok"))
+        self.patch(hline, "gate", side_effect=lambda c, w, p, spec=None, task=None, **kw: (True, "ok"))
 
     def test_a_taskspec_that_does_not_conform_never_reaches_the_implementer(self):
         self.dec_replies = ["これは JSON ではない", json.dumps({"x": 1}), json.dumps(spec_with(max_diff_lines=999))]
