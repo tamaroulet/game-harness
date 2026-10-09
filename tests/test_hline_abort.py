@@ -101,6 +101,16 @@ class Pure(unittest.TestCase):
         self.assertIsNone(hline_abort.unconverged_reason([{"abort": "古い"}, {"gate": False}]))
         self.assertEqual(hline_abort.unconverged_reason([{"gate": False}, {"abort": WHY}]), WHY)
 
+    def test_the_instructions_describe_the_current_hline(self):
+        text = hline_abort.instructions()
+        self.assertNotIn("TaskSpec", text)
+        self.assertNotIn("分解役", text)
+        self.assertIn("config/protected_paths.json", text)
+        self.assertIn("矛盾", text)
+        self.assertIn("すぐ宣言", text)
+        self.assertIn("TODO.md", text)
+        self.assertIn(f"{MARKER} 理由", text)
+
     def test_the_instructions_are_in_the_prompt_before_the_what_body(self):
         text = hline_abort.instructions()
         self.assertIn(MARKER, text)
