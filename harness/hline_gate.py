@@ -23,7 +23,7 @@ def gate(host, cfg, wt, paths, spec=None, task=None, extended=(), warnings=None)
     if extended:
         warn += hline_boundary.shrink_problems(wt, extended, host.size_limits.head_source(cfg, wt))
     warn += hline_symbols.declared_problems(spec, wt) if spec else []
-    first = host.gate_order.focused(cfg, wt, paths, task, spec)   # 影響テストだけで判定する（全件テストは統合 PR の CI が見る）
+    first = host.gate_order.focused(cfg, wt, paths, task, spec, warn)   # 影響テストだけで判定する（全件テストは統合 PR の CI が見る）
     if first is not None:
         return first
     return canary(host, cfg, wt)

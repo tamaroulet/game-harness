@@ -32,7 +32,7 @@ def quiet(fn, *a, **kw):
 
 
 class IntegrateFatal(unittest.TestCase):
-    def run_integrate(self, complete=(0, "", ""), push=(0, "", "")):
+    def run_integrate(self, complete=(0, "", ""), push=(0, "", ""), warn=None):
         runs, musts = [], []
 
         def fake_run(args, cwd, ttl, label, env=None, input=None):
@@ -45,22 +45,22 @@ class IntegrateFatal(unittest.TestCase):
 
         with mock.patch.object(hline_git.proc, "run", side_effect=fake_run), mock.patch.object(hline_git, "must", side_effect=fake_must):
             try:
-                hline_git.integrate(GIT_CFG, Path("."), "120-x", "題", "S9-1")
+                hline_git.integrate(GIT_CFG, Path("."), "120-x", "題", "S9-1", warnings=warn)
             except hline_base.Infra as e:
                 return e, runs, musts
         return None, runs, musts
 
-    def test_a_refused_record_is_fatal_with_the_id_and_the_tail_and_runs_no_git(self):
-        e, runs, musts = self.run_integrate(complete=(1, "x" * 900 + "OUT", "ERR"))
-        self.assertIsInstance(e, hline_base.Fatal)
-        self.assertTrue(e.fatal)
-        self.assertIn("S9-1", str(e))
-        self.assertIn(REASON, str(e))
-        self.assertIn("再試行しません", str(e))
-        self.assertTrue(str(e).endswith("OUTERR"))
-        self.assertLessEqual(len(str(e).split(": ", 1)[1]), 800)
-        self.assertEqual(musts, [])
-        self.assertFalse([r for r in runs if r[:1] == ["git"]])
+    def test_a_refused_record_is_a_warning_with_the_id_and_the_tail_and_the_code_is_still_committed(self):
+        """進捗の記録の拒否は Fatal ではなく警告（C6）。コードのコミットと push は行う。"""
+        warn = []
+        e, runs, musts = self.run_integrate(complete=(1, "x" * 900 + "OUT", "ERR"), warn=warn)
+        self.assertIsNone(e)
+        self.assertEqual(len(warn), 1)
+        self.assertIn("S9-1", warn[0])
+        self.assertIn(REASON, warn[0])
+        self.assertTrue(warn[0].endswith("OUTERR"))
+        self.assertLessEqual(len(warn[0].split(": ", 1)[-1]), 400)
+        self.assertEqual([m[1] for m in musts], ["add", "commit"])
 
     def test_a_push_refused_for_good_is_fatal(self):
         e, _, musts = self.run_integrate(push=(1, "", "remote: error: GH006: Protected branch update failed"))
@@ -99,7 +99,7 @@ class Host:
     def build(self):
         ns = types.SimpleNamespace
 
-        def integrate(*a):
+        def integrate(*a, **kw):
             raise self.integrate_error
 
         return ns(what_path=lambda cfg, n: self.tmp / "w.md", slug=lambda n: "w", mark=lambda *a, **kw: self.marks.append(a),

@@ -208,17 +208,21 @@ class TaskVerification(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             self.assertTrue(self.gate(self.worktree(d), 0)[0])
 
-    def test_a_task_without_a_verification_command_is_not_accepted(self):
+    def test_a_task_without_a_verification_command_is_a_warning(self):
+        """検証コマンドが無くても不合格にせず、警告を記録して影響テストだけで判定する（C6）。"""
+        warn = []
         with tempfile.TemporaryDirectory() as d:
             wt = self.worktree(d)
-            with mock.patch.object(hline.proc, "run", return_value=(0, "", "")):
-                ok, msg = hline.gate(CFG, wt, ["harness/x.py"], None, "S1-3")
-        self.assertFalse(ok)
-        self.assertIn("S1-3", msg)
+            with mock.patch.object(hline.proc, "run", return_value=(0, "", "")) as run:
+                ok, msg = hline.gate(CFG, wt, ["harness/x.py"], None, "S1-3", warnings=warn)
+        self.assertTrue(ok)
+        self.assertIn("S1-3", "\n".join(warn))
+        self.assertEqual(run.call_args.args[0], hline.base_whitelist.unittest_command(
+            CFG["gate_command"], CFG["canary_modules"]))   # 走らせるものが無いのでカナリア
 
 
 class Integrate(unittest.TestCase):
-    def run_integrate(self, task, complete_code=0):
+    def run_integrate(self, task, complete_code=0, warn=None):
         calls = []
 
         def fake_run(args, cwd, ttl, label, env=None, input=None):
@@ -227,7 +231,7 @@ class Integrate(unittest.TestCase):
 
         with mock.patch.object(hline.proc, "run", side_effect=fake_run):
             try:
-                hline.integrate(CFG, Path("."), "120-x", "題", task)
+                hline.integrate(CFG, Path("."), "120-x", "題", task, warnings=warn)
             except hline.Infra:
                 return calls, True
         return calls, False
@@ -247,10 +251,13 @@ class Integrate(unittest.TestCase):
         self.assertFalse([c for c in calls if "harness.progress" in c])
         self.assertEqual([c[1] for c in calls], ["add", "commit", "push"])
 
-    def test_a_failing_complete_stops_before_anything_is_committed_or_pushed(self):
-        calls, failed = self.run_integrate("S1-2", complete_code=1)
-        self.assertTrue(failed)
-        self.assertEqual(len(calls), 1)
+    def test_a_failing_complete_is_a_warning_and_the_commit_and_push_go_on(self):
+        """進捗の記録が拒まれても、コードは積む（C6）。"""
+        warn = []
+        calls, failed = self.run_integrate("S1-2", complete_code=1, warn=warn)
+        self.assertFalse(failed)
+        self.assertEqual([c[1] for c in calls[1:]], ["add", "commit", "push"])
+        self.assertEqual(len(warn), 1)
 
     def test_the_report_mirrors_the_progress_of_the_integration_branch(self):
         served = progress.load(REPO / "docs" / "progress.yaml")
@@ -425,7 +432,7 @@ class World(unittest.TestCase):
                   "warnings": list(self.warnings)}]
         return (self.wt, "b", tries) if ok else (None, None, tries)
 
-    def fake_integrate(self, cfg, wt, name, title, task):
+    def fake_integrate(self, cfg, wt, name, title, task, warnings=None):
         self.integrated.append(name)
         self.ahead_n += 1
 

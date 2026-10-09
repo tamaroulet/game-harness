@@ -35,14 +35,17 @@ def report(command, code, out, err, limit, expected=0):
     return "\n".join(f"{head}\n{digest}".splitlines()[:MAX_LINES])[:limit]
 
 
-def focused(cfg, wt, paths, task, spec=None):
+def focused(cfg, wt, paths, task, spec=None, warnings=None):
     """影響テスト（変えたパスから引いたテスト）と、タスクがあれば進捗の検証コマンドを走らせる。
-    (通ったか, 出力)。走らせるものが無ければ None。"""
-    v = None
+    (通ったか, 出力)。走らせるものが無ければ None。
+
+    検証コマンドが見つからないときは、不合格にせず warnings に積み、影響テストだけで判定する
+    （進捗はコードの付随情報で、パッチを捨てる理由にしない）。"""
+    v, warn = None, [] if warnings is None else warnings
     if task:
         v = verification_of(wt, task)
         if not v:
-            return False, f"進捗のタスク {task} の検証コマンドが見つかりません"
+            warn.append(f"進捗のタスク {task} の検証コマンドが見つかりません（影響テストだけで判定しました）")
     changed = test_modules(paths)
     modules = impacted.test_modules(wt, spec, v, changed, paths)
     stage = impacted.stage_command(cfg["gate_command"], modules, v)

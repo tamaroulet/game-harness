@@ -104,7 +104,8 @@ def process(host, cfg, st, name):
             wt, branch, item["tries"] = host.run_task(cfg, tid, what, outdir, (wt, branch), item["task"], on_stage=stage)
             if wt is None: return False
             own = host.self_change(host.changed_paths(wt, cfg))
-            host.integrate(cfg, wt, name, item["title"], item["task"])
+            warnings = item["tries"][-1].setdefault("warnings", []) if item["tries"] else []   # 進捗の不整合もここに積む
+            host.integrate(cfg, wt, name, item["title"], item["task"], warnings=warnings)
             if own:
                 st["self_change"] = {"name": name, "paths": own}
             return True

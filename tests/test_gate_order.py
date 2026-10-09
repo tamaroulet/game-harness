@@ -107,12 +107,13 @@ class Focused(unittest.TestCase):
             self.assertEqual(run.commands, [["python", "-m", "unittest", "tests.test_x"]])
             self.assertIn(f"`{VERIFY}` が終了コード {code}（期待 0）", msg)
 
-    def test_a_task_without_a_verification_fails_without_running_anything(self):
-        run = Run()
-        ok, msg = self.focused(["harness/x.py"], "S1-3", run)
-        self.assertFalse(ok)
-        self.assertIn("S1-3", msg)
+    def test_a_task_without_a_verification_is_a_warning_and_the_impacted_tests_decide(self):
+        """検証コマンドが無くても不合格にせず、警告を記録する（C6）。走らせるものが無ければ None。"""
+        run, warn = Run(), []
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(gate_order.proc, "run", side_effect=run):
+            self.assertIsNone(gate_order.focused(CFG, worktree(d), ["harness/x.py"], "S1-3", None, warn))
         self.assertEqual(run.commands, [])
+        self.assertIn("S1-3", "\n".join(warn))
 
     def test_without_a_task_the_changed_test_modules_run_and_nothing_to_run_returns_none(self):
         run = Run(focused=(1, "", SAMPLE))
