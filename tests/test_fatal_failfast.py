@@ -32,7 +32,7 @@ def quiet(fn, *a, **kw):
 
 
 class IntegrateFatal(unittest.TestCase):
-    def run_integrate(self, complete=(0, "", ""), push=(0, "", "")):
+    def run_integrate(self, complete=(0, "", ""), push=(0, "", ""), warn=None):
         runs, musts = [], []
 
         def fake_run(args, cwd, ttl, label, env=None, input=None):
@@ -45,22 +45,22 @@ class IntegrateFatal(unittest.TestCase):
 
         with mock.patch.object(hline_git.proc, "run", side_effect=fake_run), mock.patch.object(hline_git, "must", side_effect=fake_must):
             try:
-                hline_git.integrate(GIT_CFG, Path("."), "120-x", "題", "S9-1")
+                hline_git.integrate(GIT_CFG, Path("."), "120-x", "題", "S9-1", warnings=warn)
             except hline_base.Infra as e:
                 return e, runs, musts
         return None, runs, musts
 
-    def test_a_refused_record_is_fatal_with_the_id_and_the_tail_and_runs_no_git(self):
-        e, runs, musts = self.run_integrate(complete=(1, "x" * 900 + "OUT", "ERR"))
-        self.assertIsInstance(e, hline_base.Fatal)
-        self.assertTrue(e.fatal)
-        self.assertIn("S9-1", str(e))
-        self.assertIn(REASON, str(e))
-        self.assertIn("再試行しません", str(e))
-        self.assertTrue(str(e).endswith("OUTERR"))
-        self.assertLessEqual(len(str(e).split(": ", 1)[1]), 800)
-        self.assertEqual(musts, [])
-        self.assertFalse([r for r in runs if r[:1] == ["git"]])
+    def test_a_refused_record_is_a_warning_with_the_id_and_the_tail_and_the_code_is_still_committed(self):
+        """進捗の記録の拒否は Fatal ではなく警告（C6）。コードのコミットと push は行う。"""
+        warn = []
+        e, runs, musts = self.run_integrate(complete=(1, "x" * 900 + "OUT", "ERR"), warn=warn)
+        self.assertIsNone(e)
+        self.assertEqual(len(warn), 1)
+        self.assertIn("S9-1", warn[0])
+        self.assertIn(REASON, warn[0])
+        self.assertTrue(warn[0].endswith("OUTERR"))
+        self.assertLessEqual(len(warn[0].split(": ", 1)[-1]), 400)
+        self.assertEqual([m[1] for m in musts], ["add", "commit"])
 
     def test_a_push_refused_for_good_is_fatal(self):
         e, _, musts = self.run_integrate(push=(1, "", "remote: error: GH006: Protected branch update failed"))
@@ -86,7 +86,7 @@ class IntegrateFatal(unittest.TestCase):
 class Host:
     def __init__(self, tmp, integrate_error):
         self.tmp = Path(tmp)
-        self.calls = {k: 0 for k in ("decompose", "run_task", "second_round", "new_worktree")}
+        self.calls = {k: 0 for k in ("run_task", "new_worktree")}
         self.marks, self.integrate_error = [], integrate_error
         (self.tmp / "w.md").write_text("# T\n", encoding="utf-8")
 
@@ -99,15 +99,13 @@ class Host:
     def build(self):
         ns = types.SimpleNamespace
 
-        def integrate(*a):
+        def integrate(*a, **kw):
             raise self.integrate_error
 
         return ns(what_path=lambda cfg, n: self.tmp / "w.md", slug=lambda n: "w", mark=lambda *a, **kw: self.marks.append(a),
-                  decompose=self.counted("decompose", ({"spec": 1}, {"reason": None})),
                   run_task=self.counted("run_task", (Path("."), "b", [])), changed_paths=lambda wt, cfg: ["harness/x.py"],
                   self_change=lambda paths: None, integrate=integrate, save_state=lambda cfg, st: None,
-                  today=lambda: "2026-10-06", second_round=self.counted("second_round", (None, None, [])),
-                  new_worktree=self.counted("new_worktree", (Path("."), "b")))
+                  today=lambda: "2026-10-06", new_worktree=self.counted("new_worktree", (Path("."), "b")))
 
 
 class ProcessFatal(unittest.TestCase):
@@ -115,7 +113,7 @@ class ProcessFatal(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.tmp = Path(self._tmp.name)
-        self.cfg = {"out": str(self.tmp / "out"), "inbox": str(self.tmp), "respecs": True,
+        self.cfg = {"out": str(self.tmp / "out"), "inbox": str(self.tmp), "respecs": 0,
                     "infra_retry": {"max_retries": 2, "wait_seconds": [5]}}
         self.st = {"items": {"w.md": {"title": "題", "task": "S9-1", "milestone": "M", "status": "waiting"}}}
         self.sleep = mock.Mock()
@@ -136,8 +134,7 @@ class ProcessFatal(unittest.TestCase):
         self.assertIn(REASON, item["reason"])
         self.assertNotIn("infra_halt", self.st)
         self.assertNotIn("infra_retries", item)
-        self.assertEqual((host.calls["decompose"], host.calls["run_task"]), (1, 1))
-        self.assertEqual((host.calls["second_round"], host.calls["new_worktree"]), (0, 1))
+        self.assertEqual((host.calls["run_task"], host.calls["new_worktree"]), (1, 1))
         self.sleep.assert_not_called()
         self.assertTrue(host.marks)
 
@@ -149,7 +146,7 @@ class ProcessFatal(unittest.TestCase):
     def test_a_plain_infra_waits_and_retries_then_halts_the_line(self):
         done, host = self.process(hline_base.Infra("git push が失敗しました（終了コード 124）: TTL 超過"))
         self.assertIs(done, False)
-        self.assertEqual(host.calls["decompose"], 3)
+        self.assertEqual(host.calls["run_task"], 3)
         self.assertEqual(self.sleep.call_count, 2)
         self.assertEqual(self.st["infra_halt"]["name"], "w.md")
         self.assertEqual(self.st["items"]["w.md"]["status"], "waiting")

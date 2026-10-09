@@ -177,7 +177,7 @@ class OpenPr(base.World):
 
 
 class HumanLine(base.World):
-    def test_priority_is_infra_then_blocked_then_hygiene_then_awaiting(self):
+    def test_priority_is_infra_then_hygiene_then_awaiting(self):
         halt = {"name": "n", "reason": "r", "attempts": 3}
         st = {"items": {}, "awaiting_pr": "https://x/pull/1", "skipped": [], "infra_halt": None,
               "hygiene_halt": {"files": ["a.log: x"]}}
@@ -185,10 +185,8 @@ class HumanLine(base.World):
         st["hygiene_halt"] = None
         self.assertEqual(hline_report.human_line(self.cfg, st), "- 人間作業: REVIEW_REQUIRED https://x/pull/1")
         st["hygiene_halt"] = {"files": ["a.log: x"]}
-        with mock.patch.object(hline_report, "blocked", return_value={"B7.1": ["u1", "u2"]}):
-            self.assertTrue(hline_report.human_line(self.cfg, st).startswith("- 人間作業: BLOCKED"))
-            st["infra_halt"] = halt
-            self.assertTrue(hline_report.human_line(self.cfg, st).startswith("- 人間作業: INFRA_HALTED"))
+        st["infra_halt"] = halt
+        self.assertTrue(hline_report.human_line(self.cfg, st).startswith("- 人間作業: INFRA_HALTED"))
 
 
 class RunLine(base.World):

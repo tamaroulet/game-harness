@@ -82,19 +82,23 @@ class SizeLimits(unittest.TestCase):
         self.assertTrue(len(found) == 2 and "b.py" in found[0] and "c.py" in found[1])
 
     def test_hline_gate(self):
+        """規模の制約は Gate 1 を不合格にせず、警告として記録される（C2）。"""
         def gate(files, spec, counts=FEW):
+            warn = []
             with mock.patch.object(hline.size_limits, "head_source", return_value=lambda p: None), \
                     mock.patch.object(hline, "diff_counts", return_value=counts), \
                     mock.patch.object(hline.proc, "run", return_value=(0, "", "")) as run:
-                return hline.gate(CFG, self.files(files), list(files), spec, None), run
+                return hline.gate(CFG, self.files(files), list(files), spec, None, warnings=warn), run, warn
+        canary = hline.base_whitelist.unittest_command(CFG["gate_command"], CFG["canary_modules"])
         for spec in (None, {"edit_boundary": BOUND}):
-            (ok, _), run = gate({"x.py": branchy(2)}, spec)
-            self.assertTrue(ok and run.call_args.args[0] == CFG["gate_command"])
-        (ok, msg), run = gate({"x.py": "x = 1\n" * 501}, None)
-        self.assertTrue(not ok and "x.py" in msg and "501" in msg)
-        (ok, msg), run = gate({"x.py": branchy(16)}, {"edit_boundary": BOUND}, dict(FEW, added=301))
-        self.assertTrue(not ok and "301" in msg and "循環的複雑度" in msg)
-        run.assert_not_called()
+            (ok, _), run, warn = gate({"x.py": branchy(2)}, spec)
+            self.assertTrue(ok and run.call_args.args[0] == canary)
+            self.assertEqual(warn, [])
+        (ok, _), run, warn = gate({"x.py": "x = 1\n" * 501}, None)
+        self.assertTrue(ok and "x.py" in warn[0] and "501" in warn[0])
+        (ok, _), run, warn = gate({"x.py": branchy(16)}, {"edit_boundary": BOUND}, dict(FEW, added=301))
+        self.assertTrue(ok and any("301" in w for w in warn) and any("循環的複雑度" in w for w in warn))
+        run.assert_called()
 
     def test_game_line_budget_and_scan(self):
         def gate(text, max_lines=250):

@@ -19,6 +19,7 @@ SPEC = {"target_symbols": [{"module": "harness/target.py", "kind": "function", "
         "edit_boundary": {"allowed_files": ["harness/target.py", "tests/test_new.py"], "forbidden_files": [], "max_diff_lines": 300},
         "test_oracle": {"verification_command": VERIFY}}
 WANT = ("tests.test_new", "tests.test_imp", "tests.test_cli")
+WHAT = "# T-010-a\n\n## What\nharness/target.py の f を直す"
 FILES = {"harness/target.py": "def f():\n    pass\n", "harness/other.py": "def g():\n    pass\n",
          "tests/test_imp.py": "import target\n", "tests/test_cli.py": "CMD = ['python', '-m', 'harness.target', 'x']\n",
          "tests/test_other.py": "import other\nCMD = 'python -m harness.other'\n", "tests/helper.py": "import target\n",
@@ -51,11 +52,10 @@ class Pure(unittest.TestCase):
             self.assertEqual(impacted.from_spec(bad), ())
 
     def test_allowed_tools_note_and_stage_command(self):
-        self.assertEqual(impacted.allowed_tools(["tests.test_a", "tests.test_b"]),
-                         ("Bash(python -m unittest tests.test_a:*)", "Bash(python -m unittest tests.test_b:*)"))
-        self.assertEqual((impacted.allowed_tools([]), impacted.prompt_note([])), ((), ""))
-        for want in ("tests.test_a", "tests.test_b", "python -m unittest <モジュール>"):
-            self.assertIn(want, impacted.prompt_note(["tests.test_a", "tests.test_b"]))
+        """実装役はテストを走らせない（C4）。許可の一覧には unittest が無く、入れる注記は 1 行だけ。"""
+        self.assertFalse(hasattr(impacted, "allowed_tools"))
+        self.assertNotIn("unittest", impacted.prompt_note())
+        self.assertIn("ハーネスが試行の後に影響テストを走らせ", impacted.prompt_note())
         v = {"command": VERIFY, "expected_exit_code": 0}
         self.assertEqual(impacted.stage_command(CFG["gate_command"], ["tests.test_new"], v), (VERIFY, VERIFY.split(), 0))
         text, args, code = impacted.stage_command(CFG["gate_command"], ["tests.test_new", "tests.test_imp"], dict(v, expected_exit_code=2))
@@ -67,14 +67,14 @@ class Pure(unittest.TestCase):
         self.assertIsNone(impacted.stage_command(CFG["gate_command"], []))
 
     def test_scoped_agent_replaces_only_the_unittest_item_and_leaves_the_config_alone(self):
-        agent = CFG["implementer"]
+        agent = dict(CFG["implementer"], extra_flags=[*CFG["implementer"]["extra_flags"]])
+        agent["extra_flags"][-1] += ",Bash(python -m unittest tests.test_a:*)"   # 設定に残っていても落とす
         before = json.dumps(agent, sort_keys=True)
-        flags = impacted.scoped_agent(agent, ["tests.test_a"])["extra_flags"]
+        flags = impacted.scoped_agent(agent)["extra_flags"]
         self.assertEqual(json.dumps(agent, sort_keys=True), before)
-        self.assertEqual(flags[flags.index("--allowedTools") + 1], "Read,Grep,Glob,Edit,Write,Bash(python -m unittest tests.test_a:*)")
-        flags = impacted.scoped_agent(agent, [])["extra_flags"]
         self.assertEqual(flags[flags.index("--allowedTools") + 1], "Read,Grep,Glob,Edit,Write")
-        self.assertEqual(impacted.scoped_agent(plain := {"extra_flags": ["--x"], "model": "m"}, ["tests.test_a"]), plain)
+        self.assertEqual(impacted.scoped_agent(plain := {"extra_flags": ["--x"], "model": "m"}), plain)
+        self.assertNotIn("unittest", " ".join(CFG["implementer"]["extra_flags"]), "設定の元の値にも残っていない")
 
 
 class Modules(Tree):
@@ -118,41 +118,43 @@ class GateStage(Tree):
         self.assertNotIn("Gate 1", run.labels)
         self.assertNotIn(CFG["gate_command"], run.commands)
 
-    def test_a_passing_first_stage_is_followed_by_one_full_suite(self):
+    def test_a_passing_first_stage_is_the_whole_verdict(self):
+        """影響テストが通れば、そこで合格（全件テストは内側のループで走らせない。C3）。"""
         run = Run()
         self.assertTrue(self.gate(run)[0])
-        self.assertEqual((len(run.commands), run.commands[-1], run.labels[-1]), (2, CFG["gate_command"], "Gate 1"))
+        self.assertEqual((len(run.commands), run.commands[-1]), (1, ["python", "-m", "unittest", *WANT]))
+        self.assertNotIn("Gate 1", run.labels)
 
-    def test_without_a_spec_the_stage_is_what_it_was(self):
+    def test_without_a_spec_the_stage_comes_from_the_changed_paths(self):
+        """TaskSpec が無くても（C5）、変えた harness/ の .py を確かめているテストを引く。"""
         run = Run(first=(1, "o", ""))
         with mock.patch.object(gate_order.proc, "run", side_effect=run):
             ok, msg = gate_order.focused(CFG, self.wt, ["harness/x.py", "tests/test_a.py"], "T1")
-            self.assertEqual(run.commands[-1], VERIFY.split())
-            self.assertIn(f"`{VERIFY}` が終了コード 1（期待 0）", msg)
-            gate_order.focused(CFG, self.wt, ["harness/x.py", "tests/test_a.py"], None)
-            self.assertEqual(run.commands[-1], hline.base_whitelist.unittest_command(CFG["gate_command"], ["tests.test_a"]))
-            self.assertIsNone(gate_order.focused(CFG, self.wt, ["harness/x.py"], None))
+            self.assertEqual(run.commands[-1][:4], VERIFY.split())   # 進捗の検証コマンドに影響テストを足して 1 回
+            self.assertIn(f"`{VERIFY} tests.test_a` が終了コード 1（期待 0）", msg)
+            gate_order.focused(CFG, self.wt, ["harness/target.py", "tests/test_a.py"], None)
+            self.assertEqual(run.commands[-1], hline.base_whitelist.unittest_command(
+                CFG["gate_command"], ["tests.test_a", "tests.test_imp", "tests.test_cli"]))
+            self.assertIsNone(gate_order.focused(CFG, self.wt, ["docs/x.md"], None))
 
 
 class Implement(Tree):
     def test_the_permission_and_the_input_name_the_impacted_tests_and_nothing_else(self):
+        """実装役にはテストを走らせる許可を渡さない（C4）。"""
         run = Run(first=(0, json.dumps({"result": "x", "modelUsage": {CFG["implementer"]["model"]: {}}, "num_turns": 1}), ""))
         before = json.dumps(CFG["implementer"], sort_keys=True)
         with mock.patch.object(hline.proc, "run", side_effect=run), mock.patch.object(hline.proc, "resolve_cli", return_value=["claude"]):
-            hline.implement(CFG, str(self.wt), SPEC, "FB", self.wt / "log")
+            hline.implement(CFG, str(self.wt), WHAT, "FB", self.wt / "log")
         self.assertEqual(json.dumps(CFG["implementer"], sort_keys=True), before)
         args = run.commands[0]
         tools = args[args.index("--allowedTools") + 1].split(",")
-        self.assertEqual([t for t in tools if t.startswith("Bash")], list(impacted.allowed_tools(WANT)))
-        self.assertNotIn("Bash(python -m unittest:*)", tools)
+        self.assertEqual([t for t in tools if t.startswith("Bash")], [])
+        self.assertNotIn("unittest", " ".join(tools))
         self.assertNotIn(" ".join(CFG["gate_command"]), " ".join(tools))
         self.assertEqual(args[args.index("--max-turns") + 1], str(CFG["implementer"]["budget"]["max_turns"]))
         head, rest = run.inputs[0].split("\n---\n", 1)
-        for name in WANT:
-            self.assertIn(name, head)
-        self.assertIn(impacted.prompt_note(WANT), head)
-        self.assertEqual(json.loads(rest.split("\n---\n")[0]), SPEC)
-        self.assertNotIn("tests.test_other", run.inputs[0])
+        self.assertIn(impacted.prompt_note(), head)
+        self.assertEqual(rest.split("\n---\n")[0].strip(), WHAT.strip())
 
 
 if __name__ == "__main__":

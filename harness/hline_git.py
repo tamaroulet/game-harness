@@ -69,15 +69,18 @@ def changed_paths(wt, cfg):
 
 # ============================================================ 統合ブランチに積む
 
-def integrate(cfg, wt, name, title, task):
-    """Gate 1 を通った変更を統合ブランチに積む。タスクを宣言した What は、harness.progress で完了として記録してから積む。"""
-    t = cfg["ttl_seconds"]
+def integrate(cfg, wt, name, title, task, warnings=None):
+    """Gate 1 を通った変更を統合ブランチに積む。タスクを宣言した What は、harness.progress で完了として記録してから積む。
+
+    進捗の記録が拒まれても、コードのコミットと push は行う（進捗はコードの付随情報で、パッチを捨てる理由にしない）。
+    拒まれた理由は warnings に積み、report と統合 PR のレビューに回す。"""
+    t, warn = cfg["ttl_seconds"], [] if warnings is None else warnings
     if task:
         code, out, err = proc.run([sys.executable, "-m", "harness.progress", "complete", task], wt, t["gate"],
                                   "harness.progress complete", env={**os.environ, progress.ORDER_FREE_ENV: "1"})
         if code != 0:
-            raise Fatal(f"harness.progress complete {task} が終了コード {code} で、進捗の記録が拒まれました。再試行しません: "
-                        f"{(out + err)[-800:]}")
+            warn.append(f"harness.progress complete {task} が終了コード {code} で、進捗の記録が拒まれました"
+                        f"（コードはそのまま積みました。進捗は人間が直す）: {(out + err)[-400:]}")
     must(["git", "add", "-A"], wt, t["git"], "git add")
     must(["git", "commit", "-q", "-m", f"feat(hline): {title}\n\n{TRAILER}: {name}\n{cfg['commit_trailer']}\n"],
          wt, t["git"], "git commit")

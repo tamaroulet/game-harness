@@ -34,7 +34,7 @@ def worktree(d, command=VERIFY):
 
 
 class Run:
-    """proc.run の差し替え。ラベルが "Gate 1" なら全件テスト、それ以外は個別の検証の結果を返す。"""
+    """proc.run の差し替え。ラベルが "Gate 1" ならカナリア（影響テストが無いときだけ走る束）、それ以外は個別の検証の結果を返す。"""
 
     def __init__(self, focused=(0, "", ""), full=(0, "", "")):
         self.focused, self.full, self.commands = focused, full, []
@@ -65,18 +65,27 @@ class Digest(unittest.TestCase):
 
 
 class Report(unittest.TestCase):
-    def test_heading_then_digest_then_the_raw_tail(self):
+    def test_heading_then_the_digest_and_no_raw_log(self):
+        """返すのは見出しと digest だけ（生ログは連結しない。C4）。"""
         text = gate_order.report("python -m unittest x", 1, "OUT\n", SAMPLE, 10000, 0)
         heading = "検証コマンド `python -m unittest x` が終了コード 1（期待 0）\n"
-        self.assertTrue(text.startswith(heading + gate_order.failure_digest(SAMPLE) + "\n"))
-        self.assertTrue(text.endswith(SAMPLE + "OUT\n"))
+        self.assertEqual(text, heading + gate_order.failure_digest(SAMPLE))
+        self.assertNotIn("OUT", text)
+        self.assertNotIn("Ran 2 tests", text)
+
+    def test_without_a_digest_the_raw_tail_takes_its_place_within_thirty_lines(self):
+        text = gate_order.report("c", 0, "\n".join(f"line{n}" for n in range(100)), "", 10000)
+        lines = text.splitlines()
+        self.assertEqual(len(lines), gate_order.MAX_LINES)
+        self.assertEqual(lines[-1], "line99")
+        self.assertNotIn("line70", text)
 
     def test_the_length_stays_within_the_limit_and_the_head_survives_a_long_raw_output(self):
         text = gate_order.report("c", 1, "." * 50000, SAMPLE, 800)
-        self.assertEqual(len(text), 800)
+        self.assertLessEqual(len(text), 800)
         self.assertIn("FAIL: test_a", text)
         self.assertIn(TRACE, text)
-        self.assertTrue(text.endswith("." * 100))
+        self.assertNotIn("." * 100, text)
 
     def test_a_head_longer_than_the_limit_is_cut_from_its_start_keeping_the_test_names(self):
         text = gate_order.report("c", 1, "", SAMPLE, 120)
@@ -98,12 +107,13 @@ class Focused(unittest.TestCase):
             self.assertEqual(run.commands, [["python", "-m", "unittest", "tests.test_x"]])
             self.assertIn(f"`{VERIFY}` が終了コード {code}（期待 0）", msg)
 
-    def test_a_task_without_a_verification_fails_without_running_anything(self):
-        run = Run()
-        ok, msg = self.focused(["harness/x.py"], "S1-3", run)
-        self.assertFalse(ok)
-        self.assertIn("S1-3", msg)
+    def test_a_task_without_a_verification_is_a_warning_and_the_impacted_tests_decide(self):
+        """検証コマンドが無くても不合格にせず、警告を記録する（C6）。走らせるものが無ければ None。"""
+        run, warn = Run(), []
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(gate_order.proc, "run", side_effect=run):
+            self.assertIsNone(gate_order.focused(CFG, worktree(d), ["harness/x.py"], "S1-3", None, warn))
         self.assertEqual(run.commands, [])
+        self.assertIn("S1-3", "\n".join(warn))
 
     def test_without_a_task_the_changed_test_modules_run_and_nothing_to_run_returns_none(self):
         run = Run(focused=(1, "", SAMPLE))
@@ -128,31 +138,35 @@ class GateOrder(unittest.TestCase):
             self.assertFalse(ok)
             self.assertNotIn(CFG["gate_command"], run.commands)
             self.assertEqual(len(run.commands), 1)
-            self.assertIn("FOCUSED-OUT", msg)
+            self.assertIn("FAIL: test_a (tests.test_x.A)", msg)
+            self.assertNotIn("FOCUSED-OUT", msg, "生ログは連結しない（C4）")
 
-    def test_a_passing_focused_verification_then_a_failing_full_suite_fails_with_names_and_traceback(self):
-        run = Run(full=(1, "", SAMPLE))
-        ok, msg = self.gate(run, "S1-2")
-        self.assertFalse(ok)
-        self.assertEqual(run.commands[-1], CFG["gate_command"])
-        self.assertIn("FAIL: test_a (tests.test_x.A)", msg)
-        self.assertIn(TRACE, msg)
+    def test_the_focused_verification_decides_and_no_full_suite_follows_it(self):
+        """影響テストに走らせるものがあれば、それだけで判定する（内側のループで全件テストは走らせない。C3）。"""
+        for code, want in ((0, True), (1, False)):
+            run = Run(focused=(code, "", SAMPLE))
+            ok, msg = self.gate(run, "S1-2")
+            self.assertEqual(ok, want)
+            self.assertEqual(len(run.commands), 1)
+            self.assertNotIn(CFG["gate_command"], run.commands)
 
     def test_only_when_both_pass_is_the_gate_true(self):
         for task in (None, "S1-2"):
             run = Run()
             self.assertTrue(self.gate(run, task)[0])
-            self.assertEqual(run.commands[-1], CFG["gate_command"])
+            self.assertEqual(len(run.commands), 1)
 
-    def test_with_nothing_focused_to_run_the_full_suite_decides(self):
+    def test_with_nothing_focused_to_run_the_canary_modules_decide(self):
         for code in (0, 1):
             run = Run(full=(code, "", ""))
             self.assertEqual(self.gate(run, None, ["harness/x.py"])[0], code == 0)
-            self.assertEqual(run.commands, [CFG["gate_command"]])
+            self.assertEqual(run.commands, [hline.base_whitelist.unittest_command(CFG["gate_command"], CFG["canary_modules"])])
 
     def test_a_long_raw_output_does_not_push_out_the_failed_names_and_the_length_is_bounded(self):
-        for run in (Run(focused=(1, SAMPLE + "." * (LIMIT * 3), "")), Run(full=(1, SAMPLE + "." * (LIMIT * 3), ""))):
-            ok, msg = self.gate(run)
+        long_fail = (1, SAMPLE + "." * (LIMIT * 3), "")
+        for run, paths in ((Run(focused=long_fail), ("harness/x.py", "tests/test_a.py")),   # 影響テスト
+                           (Run(full=long_fail), ("harness/x.py",))):                        # カナリア
+            ok, msg = self.gate(run, None, paths)
             self.assertFalse(ok)
             self.assertLessEqual(len(msg), LIMIT)
             self.assertIn("FAIL: test_a (tests.test_x.A)", msg)
@@ -161,11 +175,12 @@ class GateOrder(unittest.TestCase):
 
 class Prompt(unittest.TestCase):
     def test_the_instructions_name_the_focused_verification_and_never_the_full_suite_command(self):
-        prompt = hline.build_prompt({"a": 1})
+        """実装役にはテストを走らせないことだけを伝える（C4）。全件テストの命令は入力に現れない。"""
+        prompt = hline.build_prompt("# 題")
         instructions = prompt.split("---\n", 1)[0]
         self.assertNotIn("discover", instructions)
-        self.assertIn("タスク個別の検証", instructions)
-        self.assertIn("全件テストはハーネスが走らせる", instructions)
+        self.assertIn("テストは走らせない", instructions)
+        self.assertIn("ハーネスが試行の後に影響テストを走らせ", instructions)
 
     def test_hline_stays_within_300_lines_and_the_old_verification_is_gone(self):
         text = (Path(hline.__file__)).read_text(encoding="utf-8")

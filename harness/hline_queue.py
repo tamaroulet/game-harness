@@ -67,9 +67,9 @@ def by_status(st, status):
 
 # ============================================================ 取り込み
 
-def intake(cfg, st, replacements_only=False):
+def intake(cfg, st):
     """受信箱の What をキューに入れ、受信箱から消す。許されないマイルストーンの What・宣言の無い What は受信箱に残す。
-    未収束の What と同じ名前の What は、その記録を差し替える（再開）。BLOCKED の間は、その差し替えだけを取る。"""
+    未収束の What と同じ名前の What は、その記録を差し替える（再開）。"""
     skipped, taken = [], []
     for src in candidates(cfg["inbox"]):
         name, text = src.stem, src.read_text(encoding="utf-8")
@@ -80,8 +80,6 @@ def intake(cfg, st, replacements_only=False):
             why = f"マイルストーン {meta['milestone']} はこのラインに許されていません（許可: {', '.join(cfg['milestones'])}）"
         elif old and old["status"] in ("processing", "done"):
             why = f"同名の What が{'処理中' if old['status'] == 'processing' else '済み'}です"
-        elif replacements_only and not (old and old["status"] == "unconverged"):
-            why = "BLOCKED の間は、未収束の What を直したものだけを取ります"
         else:
             why = None
         if why:
@@ -97,7 +95,7 @@ def intake(cfg, st, replacements_only=False):
     return taken
 
 
-# ============================================================ 取り出し・凍結・停止
+# ============================================================ 取り出し・凍結・復旧
 
 def refresh(st):
     """未収束に（推移的に）依存する項目を凍結し、上流が直れば凍結を解く。凍結した項目は処理しない。"""
@@ -126,14 +124,6 @@ def next_runnable(st):
         if i["status"] == "waiting" and all(st["items"].get(d, {}).get("status") == "done" for d in i["deps"]):
             return name
     return None
-
-
-def blocked(cfg, st):
-    """同じマイルストーンで未収束が上限に達したものの {マイルストーン: [未収束の What]}。空でなければ BLOCKED。"""
-    by = {}
-    for n in by_status(st, "unconverged"):
-        by.setdefault(st["items"][n]["milestone"], []).append(n)
-    return {m: ns for m, ns in sorted(by.items()) if len(ns) >= cfg["max_unconverged_per_milestone"]}
 
 
 def recover(cfg, st, integrated):

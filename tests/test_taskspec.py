@@ -137,24 +137,26 @@ class Content(unittest.TestCase):
 
 
 class GateB(Tree):
-    CFG = {"gate_command": ["x"], "ttl_seconds": {"gate": 1}, "gate_tail_chars": 100}
+    CFG = {"gate_command": ["python", "-m", "x"], "ttl_seconds": {"gate": 1}, "gate_tail_chars": 100, "canary_modules": ["tests.test_c"]}
 
-    def run_gate(self, spec):
+    def run_gate(self, spec, warn=None):
         ns, ran = types.SimpleNamespace, []
 
         host = ns(hline_protect=ns(violations=lambda p: [], reason=str), boundary_problems=lambda s, p, c: [], diff_counts=lambda c, w: {},
                   size_limits=ns(scan=lambda *a: [], limits=lambda: {}, head_source=lambda c, w: lambda p: None),
                   gate_order=ns(focused=lambda *a: ran.append("focused"), report=lambda *a: "ran"),
                   proc=ns(run=lambda *a, **kw: ran.append("run") or (0, "", "")))
-        return hline_gate.gate(host, self.CFG, self.root, ["harness/x.py"], spec), ran
+        return hline_gate.gate(host, self.CFG, self.root, ["harness/x.py"], spec, warnings=warn), ran
 
     def test_a_mismatch_or_missing_symbol_stops_the_gate_before_any_test_runs(self):
+        """宣言したシンボルの食い違いは Gate 1 を不合格にせず、警告として記録される（C2）。"""
         missing = [{"module": "harness/x.py", "kind": "function", "name": "nothing"}]
         for spec, word in ((make(signatures=sig(("a", "int"), returns="int")), "int"), (make(target_symbols=missing), "nothing")):
-            (ok, why), ran = self.run_gate(spec)
-            self.assertFalse(ok)
-            self.assertTrue("f" in why and word in why)
-            self.assertEqual(ran, [])
+            warn = []
+            (ok, _), ran = self.run_gate(spec, warn)
+            self.assertTrue(ok)
+            self.assertTrue("f" in "\n".join(warn) and word in "\n".join(warn))
+            self.assertEqual(ran, ["focused", "run"])
 
     def test_a_faithful_spec_or_no_spec_goes_on_to_the_tests(self):
         for spec in (SPEC, None):

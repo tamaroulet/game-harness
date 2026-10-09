@@ -180,7 +180,7 @@ class Cli(unittest.TestCase):
 
 
 class IntegrateRecords(unittest.TestCase):
-    def run_integrate(self, task, complete_code=0):
+    def run_integrate(self, task, complete_code=0, warn=None):
         calls = []
 
         def fake_run(args, cwd, ttl, label, env=None, input=None):
@@ -189,7 +189,7 @@ class IntegrateRecords(unittest.TestCase):
 
         with mock.patch.object(hline_git.proc, "run", side_effect=fake_run):
             try:
-                hline_git.integrate(CFG, Path("."), "120-x", "題", task)
+                hline_git.integrate(CFG, Path("."), "120-x", "題", task, warnings=warn)
             except hline_git.Infra:
                 return calls, True
         return calls, False
@@ -212,10 +212,15 @@ class IntegrateRecords(unittest.TestCase):
         self.run_integrate("S2-4")
         self.assertEqual(os.environ.get(progress.ORDER_FREE_ENV), before)
 
-    def test_a_failing_record_raises_infra_and_stops_before_git(self):
-        calls, failed = self.run_integrate("S2-4", complete_code=1)
-        self.assertTrue(failed)
-        self.assertEqual(len(calls), 1)
+    def test_a_failing_record_is_a_warning_and_the_code_is_still_committed_and_pushed(self):
+        """進捗の記録が拒まれても、コードは積む（C6）。理由は警告に残す。"""
+        warn = []
+        calls, failed = self.run_integrate("S2-4", complete_code=1, warn=warn)
+        self.assertFalse(failed)
+        self.assertEqual([c[0][1] for c in calls[1:]], ["add", "commit", "push"])
+        self.assertEqual(len(warn), 1)
+        self.assertIn("S2-4", warn[0])
+        self.assertIn("拒まれました", warn[0])
 
     def test_what_without_a_task_does_not_touch_the_progress(self):
         calls, failed = self.run_integrate(None)

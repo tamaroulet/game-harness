@@ -20,6 +20,7 @@ import hline  # noqa: E402
 import scheduler  # noqa: E402
 
 CFG = hline.load_config()
+CANARY = hline.base_whitelist.unittest_command(CFG["gate_command"], CFG["canary_modules"])   # 影響テストが無いときだけ走る束（C3）
 
 REMOVED_FILES = ("harness/audit.py", "config/audit.json", "tests/test_audit_verdict.py")
 
@@ -106,7 +107,7 @@ class NoInlineReview(unittest.TestCase):
         for m in (sub_run, popen, urlopen):
             m.assert_not_called()
         self.assertEqual(run.call_count, 1)
-        self.assertEqual(run.call_args.args[0], CFG["gate_command"], "走らせたのはテストだけ")
+        self.assertEqual(run.call_args.args[0], CANARY, "走らせたのはテストだけ")
         for word in ("push", "gh", "claude", "agy"):
             self.assertNotIn(word, run.call_args.args[0])
         self.assertIn("Gate-Result: PASSED", message)

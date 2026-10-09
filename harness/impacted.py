@@ -75,34 +75,32 @@ def _callers(root, targets):
     return tuple(filter(None, found))
 
 
-def test_modules(root, spec=None, verification=None, changed=()):
-    targets = [t for t in symbolmap.spec_modules(spec) if t.endswith(".py")]
+def changed_modules(paths):
+    """変えたパスのうち harness/ の .py（/ 区切り・重複なし・現れた順）。TaskSpec が無い段では、ここが影響テストの起点。"""
+    found = (p.replace("\\", "/").removeprefix("./") for p in paths if isinstance(p, str))
+    return tuple(dict.fromkeys(p for p in found if p.startswith("harness/") and p.endswith(".py")))
+
+
+def test_modules(root, spec=None, verification=None, changed=(), paths=()):
+    """影響テストのモジュール。起点は TaskSpec の target_symbols、無ければ変えた harness/ の .py（importer と caller を引く）。"""
+    targets = [t for t in symbolmap.spec_modules(spec) if t.endswith(".py")] or list(changed_modules(paths))
     command = _get(verification, "command", str)
     found = [*(c for c in changed if isinstance(c, str)), *command_modules(command), *from_spec(spec),
              *(_importers(root, targets) + _callers(root, targets) if targets else ())]
     return tuple(dict.fromkeys(found))
 
 
-def allowed_tools(modules):
-    return tuple(f"{_BASH} {m}:*)" for m in modules)
+def _scoped(value):
+    """--allowedTools から unittest の実行の許可を落とす（実装役はテストを走らせない）。"""
+    return ",".join(item for item in value.split(",") if not item.strip().startswith(_BASH))
 
 
-def _scoped(value, tools):
-    out, put = [], False
-    for item in value.split(","):
-        if not item.strip().startswith(_BASH):
-            out.append(item)
-        elif not put:
-            out, put = out + list(tools), True
-    return ",".join(out)
-
-
-def scoped_agent(agent, modules):
-    out, tools = copy.deepcopy(agent), allowed_tools(modules)
+def scoped_agent(agent):
+    out = copy.deepcopy(agent)
     flags = out.get("extra_flags")
     for i in range(len(flags) - 1 if isinstance(flags, list) else 0):
         if flags[i] == "--allowedTools" and isinstance(flags[i + 1], str):
-            flags[i + 1] = _scoped(flags[i + 1], tools)
+            flags[i + 1] = _scoped(flags[i + 1])
     return out
 
 
@@ -116,6 +114,5 @@ def stage_command(gate_command, modules, verification=None):
     return text, args, verification.get("expected_exit_code", 0)
 
 
-def prompt_note(modules):
-    return "" if not modules else (f"- 手元で走らせてよいテストは、次のモジュールだけ: {', '.join(modules)}。走らせ方は `python -m unittest <モジュール>`"
-            f"（例: `python -m unittest {modules[0]}`）。これら以外と全件テストは走らせない")
+def prompt_note():
+    return "- テストは走らせない。ハーネスが試行の後に影響テストを走らせ、結果を次の試行に渡す"

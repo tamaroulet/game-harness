@@ -12,7 +12,7 @@ import yaml
 
 from hline_base import ROOT, must
 from hline_git import remote_ref
-from hline_queue import blocked, by_status, save_state
+from hline_queue import by_status, save_state
 
 import proc  # noqa: E402
 import progress  # noqa: E402
@@ -46,7 +46,7 @@ def self_change(paths, modules=None):
 def line_status(cfg, st):
     if st.get("infra_halt"):
         return "インフラ例外で停止"
-    return "BLOCKED" if blocked(cfg, st) else "統合 PR 待ち" if st["awaiting_pr"] else "走行中"
+    return "統合 PR 待ち" if st["awaiting_pr"] else "走行中"
 
 
 def progress_report(cfg):
@@ -69,6 +69,11 @@ def flaky_tests(item):
     return list(dict.fromkeys(n for t in item.get("tries", []) for n in t.get("flaky") or []))
 
 
+def warning_count(item):
+    """項目の試行の記録に残った警告（Gate 1 が不合格にしなかった指摘）の件数。古い記録には無い。"""
+    return sum(len(t.get("warnings") or []) for t in item.get("tries", []))
+
+
 def h_section(cfg, st):
     items = st["items"]
 
@@ -76,11 +81,12 @@ def h_section(cfg, st):
         names = by_status(st, status)
         return f"- {label}（{len(names)} 件）: " + (", ".join(f"{n}{note(items[n])}" for n in names) or "なし")
 
+    done = lambda i: f"（警告 {warning_count(i)} 件）" if warning_count(i) else ""   # noqa: E731
     waiting = lambda i: f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else ""   # noqa: E731
     frozen = lambda i: f"（上流の未収束: {', '.join(i.get('frozen_by', []))}）"   # noqa: E731
     lines = ["## H ライン", f"- 状態: {line_status(cfg, st)}", f"- 統合ブランチ: {cfg['integration_branch']}",
              f"- 統合 PR: {st['awaiting_pr'] or 'なし'}", "", "## キュー",
-             row("済み", "done"), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
+             row("済み", "done", done), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
              row("未収束", "unconverged", lambda i: f"（{i.get('reason', '')}）"), row("凍結", "frozen", frozen)]
     flaky = [f"- {n}: {', '.join(flaky_tests(i))}" for n, i in sorted(items.items()) if flaky_tests(i)]
     if flaky:
@@ -93,17 +99,11 @@ def h_section(cfg, st):
 
 
 def human_line(cfg, st):
-    """report の人間作業欄。インフラ例外での停止・BLOCKED・統合 PR のレビューは人間の作業。それ以外は None（進捗の記録のまま）。"""
+    """report の人間作業欄。インフラ例外での停止・統合 PR のレビューは人間の作業。それ以外は None（進捗の記録のまま）。"""
     halt = st.get("infra_halt")
     if halt:
         return (f"- 人間作業: INFRA_HALTED {halt['name']}: {' '.join(str(halt['reason']).split())}（{halt['attempts']} 回の試行）。"
                 "環境を直すと次の走行が取り直します")
-    blk = blocked(cfg, st)
-    if blk:
-        unconverged = [n for ns in blk.values() for n in ns]
-        return (f"- 人間作業: BLOCKED 同じマイルストーンで未収束が {cfg['max_unconverged_per_milestone']} 件に達しました"
-                f"（未収束: {', '.join(unconverged)}／凍結: {', '.join(by_status(st, 'frozen')) or 'なし'}）。"
-                "直した What を同じ名前で受信箱に置くと再開します")
     if hyg := st.get("hygiene_halt"):
         return f"- 人間作業: UNCLEAN_DIFF {'／'.join(hyg['files'])}"
     if st["awaiting_pr"]:
@@ -182,7 +182,8 @@ def pr_body(cfg, st):
         out += ["", f"## 凍結（{len(by_status(st, 'frozen'))} 件）\n"]
         out += [f"- {n}「{st['items'][n]['title']}」：上流の未収束 {', '.join(st['items'][n].get('frozen_by', []))}"
                 for n in by_status(st, "frozen")]
-        out += ["", "- Gate 1：`python -m unittest discover -s tests` の終了コード 0、TaskSpec の編集境界、進捗の検証コマンド",
+        out += ["", "- Gate 1：影響テスト（変えたパスから引いたテスト）と進捗の検証コマンドの終了コード 0。全件テストは内側のループでは"
+                "走らせない（この PR の CI が見る）。差分の量・編集境界・規模の指摘は不合格にせず警告として記録する",
                 "- この PR は H ライン（`harness/hline.py`）が作った統合 PR。タスクごとの PR は作っていない",
                 "", "🤖 Generated with [Claude Code](https://claude.com/claude-code)", ""]
         return "\n".join(out)

@@ -93,8 +93,8 @@ class Unit(unittest.TestCase):
         plain, with_map = hline_spec.decompose_prompt(*args), hline_spec.decompose_prompt(*args, symbol_map="# 目次X")
         self.assertTrue(plain == hline_spec.decompose_prompt(*args, symbol_map="") and "目次X" not in plain)
         self.assertTrue("# 目次X" in with_map and "ここに無いモジュール" in with_map)
-        plain, mapped = hline.build_prompt({"a": 1}), hline.build_prompt({"a": 1}, None, "# 目次X")
-        self.assertEqual((plain, mapped.replace("\n# 目次X\n", "", 1)), (hline.build_prompt({"a": 1}, None, ""), plain))
+        plain, mapped = hline.build_prompt("# 題"), hline.build_prompt("# 題", None, "# 目次X")
+        self.assertEqual((plain, mapped.replace("\n# 目次X\n", "", 1)), (hline.build_prompt("# 題", None, ""), plain))
 
 
 class Wiring(unittest.TestCase):
@@ -123,18 +123,17 @@ class Wiring(unittest.TestCase):
         self.assertTrue(symbolmap.HEAD in prompts[0] and "harness/alpha.py" in prompts[0] and "gamma_fn" not in prompts[0])
         self.assertTrue(all("gamma_fn" in p for p in prompts[1:]))
 
-    def test_the_implementer_gets_only_the_modules_of_the_target_symbols(self):
-        spec = {"target_symbols": [{"module": "harness/alpha.py", "kind": "function", "name": "run"}]}
-        self.assertEqual(hline.implement(self.cfg, self.wt, spec, None, self.log)[0], 0)
-        hline.implement(self.cfg, self.wt, {"a": 1}, None, self.log)
-        (label, prompt), (_, bare) = self.inputs
-        self.assertTrue(label == "実装役" and symbolmap.HEAD in prompt and "## harness/alpha.py" in prompt and "class Box" in prompt)
-        self.assertFalse(any(o in prompt for o in ("harness/beta.py", "beta_fn", "harness/ab/deep.py")))
-        self.assertNotIn("## harness/", bare)
+    def test_the_implementer_gets_the_whole_map_and_the_modules_the_what_names(self):
+        """段を 1 つにしたので（C5）、実装役は TaskSpec の対象ではなく、What が挙げたモジュールと目次の全体を受け取る。"""
+        what = "# 題\n\n## What\nharness/alpha.py の run を直す"
+        self.assertEqual(hline.implement(self.cfg, self.wt, what, None, self.log)[0], 0)
+        ((label, prompt),) = self.inputs
+        self.assertTrue(label == "実装役" and symbolmap.HEAD in prompt and "harness/alpha.py" in prompt)
+        self.assertIn("harness/beta.py", prompt)
 
     def test_a_failing_map_does_not_stop_either_agent(self):
         with mock.patch.object(symbolmap, "build", side_effect=UnicodeDecodeError("utf-8", b"x", 0, 1, "bad")):
-            hline.implement(self.cfg, self.wt, {"a": 1}, None, self.log)
+            hline.implement(self.cfg, self.wt, "# 題\n本文", None, self.log)
             hline_spec.decompose(self.cfg, self.wt, "# 題\n本文", {"task": None}, self.tmp)
         self.assertEqual(len(self.inputs), 2 + self.cfg["spec_retries"])
         self.assertTrue(all(symbolmap.HEAD not in text for _, text in self.inputs))

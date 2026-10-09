@@ -2,7 +2,7 @@
 
     python -m harness.hline poll     受信箱の What をキューに入れ、依存の順に統合ブランチへ積む（タスク スケジューラが 15 分ごとに呼ぶ）
     python -m harness.hline setup    受信箱と総監督の部屋（.claude/settings.json・CLAUDE.md）を書く
-本体は gate・base_check が hline_gate、build_prompt・implement が hline_prompt、run_task・process が hline_task。ここの同名の関数は
+本体は gate が hline_gate、build_prompt・implement が hline_prompt、run_task・process が hline_task。ここの同名の関数は
 このモジュールを host として渡す薄い委譲で、テストの差し替えが効く。終了コード: 0 = 正常、1 = 未収束を記録した、2 = 環境の異常。
 """
 import argparse
@@ -15,23 +15,19 @@ from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, i
 from hline_gc import sweep  # noqa: E402
 from hline_git import ahead, changed_paths, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, open_pr, pr_state  # noqa: E402,F401
 from hline_hygiene import diff_files, problems  # noqa: E402
-from hline_queue import blocked, by_status, intake, load_state, next_runnable, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
+from hline_queue import by_status, intake, load_state, next_runnable, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
 from hline_report import line_modules, mark as _mark, pr_body, pr_title, self_change, today, write_report  # noqa: E402,F401
-from hline_respec import second_round  # noqa: E402,F401
 from hline_room import director_settings, setup  # noqa: E402,F401
-from hline_spec import boundary_problems, decompose, diff_counts  # noqa: E402,F401
+from hline_spec import boundary_problems, diff_counts  # noqa: E402,F401
 
 
-def build_prompt(spec, feedback=None, symbol_map=None, size_note=None): return hline_prompt.build_prompt(spec, feedback, "\n\n".join(filter(None, (symbol_map, size_note))) or None)   # 規模の節も目次と同じ、最初の区切りの前に入る
+def build_prompt(what, feedback=None, symbol_map=None, size_note=None): return hline_prompt.build_prompt(what, feedback, "\n\n".join(filter(None, (symbol_map, size_note))) or None)   # 規模の節も目次と同じ、最初の区切りの前に入る
 
 
-def implement(cfg, wt, spec, feedback, log): return hline_prompt.implement(argparse.Namespace(**{**vars(sys.modules[__name__]), "build_prompt": lambda s, f, m: build_prompt(s, f, m, size_limits.prompt_text(s, wt))}), cfg, wt, spec, feedback, log)
+def implement(cfg, wt, what, feedback, log): return hline_prompt.implement(argparse.Namespace(**{**vars(sys.modules[__name__]), "build_prompt": lambda s, f, m: build_prompt(s, f, m, size_limits.prompt_text(s, wt))}), cfg, wt, what, feedback, log)
 
 
-def gate(cfg, wt, paths, spec=None, task=None, extended=()): return hline_gate.gate(sys.modules[__name__], cfg, wt, paths, spec, task, extended)
-
-
-def base_check(cfg, wt): return hline_gate.base_check(sys.modules[__name__], cfg, wt)
+def gate(cfg, wt, paths, spec=None, task=None, extended=(), warnings=None): return hline_gate.gate(sys.modules[__name__], cfg, wt, paths, spec, task, extended, warnings)
 
 
 def mark(cfg, st, name=None, stage=None):
@@ -94,15 +90,11 @@ def run_line(cfg):
         print(f"統合 PR のレビュー待ちです。受信箱は取りません: {st['awaiting_pr']}")
         return 0
     refresh(st)
-    was_blocked = bool(blocked(cfg, st))
-    intake(cfg, st, replacements_only=was_blocked)   # BLOCKED の間は、未収束の What を直したものだけを取る
+    intake(cfg, st)
     refresh(st)
-    if was_blocked and not blocked(cfg, st):
-        intake(cfg, st)
-        refresh(st)
     mark(cfg, st)
     unconverged = False
-    while not blocked(cfg, st) and (name := next_runnable(st)):
+    while (name := next_runnable(st)):
         ok = process(cfg, st, name)
         refresh(st)
         mark(cfg, st)
@@ -115,10 +107,8 @@ def run_line(cfg):
     if st["infra_halt"]:
         write_report(cfg, st)
         return 2
-    if not blocked(cfg, st) and not by_status(st, "waiting") and not by_status(st, "processing"):
+    if not by_status(st, "waiting") and not by_status(st, "processing"):
         open_integration_pr(cfg, st)
-    elif blocked(cfg, st):
-        print("BLOCKED：同じマイルストーンで未収束が上限に達しました。統合 PR は作りません")
     write_report(cfg, st)
     return 1 if unconverged else 0
 
