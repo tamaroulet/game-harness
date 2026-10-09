@@ -1,17 +1,13 @@
 """分解役の文脈（What が挙げたモジュールの docstring の節・読む道具・ターン数の上限）の検査。proc.run を差し替え、外の CLI・git・gh は呼ばない。"""
-import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE.parent / "harness")]
 import hline  # noqa: E402
 import hline_budget as hb  # noqa: E402
-import hline_spec  # noqa: E402
-import proc  # noqa: E402
 import symbolmap  # noqa: E402
 
 CFG = hline.load_config()
@@ -120,31 +116,6 @@ class Config(unittest.TestCase):
         cap = CFG["decomposer"]["budget"]["max_turns"]
         self.assertEqual(cap, 10)
         self.assertEqual(hb.agent_args(CFG["decomposer"], ["claude"], hb.limits(CFG["decomposer"]))[-2:], ["--max-turns", str(cap)])
-
-
-class Wiring(WithRepo):
-    def setUp(self):
-        super().setUp()
-        self.inputs, self.cfg = [], dict(CFG, out=str(self.tmp / "out"))
-
-        def fake_run(args, cwd, ttl, label, env=None, input=None):
-            self.inputs.append(input)
-            return 0, json.dumps({"result": "JSON ではない", "modelUsage": {"claude-opus-5": {}}, "num_turns": 2}), ""
-        for p in (mock.patch.object(proc, "run", side_effect=fake_run), mock.patch.object(proc, "resolve_cli", return_value=["claude"])):
-            p.start()
-            self.addCleanup(p.stop)
-
-    def test_every_decomposer_call_carries_the_docstrings_of_the_named_modules(self):
-        hline_spec.decompose(self.cfg, self.wt, "# 題\nharness/a.py を直す", {"task": None}, self.tmp)
-        self.assertEqual(len(self.inputs), 1 + self.cfg["spec_retries"])
-        for text in self.inputs:
-            self.assertTrue(symbolmap.DOC_HEAD in text and "ALPHA_DOC" in text and "GAMMA_DOC" not in text)
-
-    def test_a_failing_map_does_not_stop_the_decomposer(self):
-        with mock.patch.object(symbolmap, "build", side_effect=UnicodeDecodeError("utf-8", b"x", 0, 1, "bad")):
-            hline_spec.decompose(self.cfg, self.wt, "# 題\nharness/a.py を直す", {"task": None}, self.tmp)
-        self.assertEqual(len(self.inputs), 1 + self.cfg["spec_retries"])
-        self.assertTrue(all(symbolmap.DOC_HEAD not in t and symbolmap.HEAD not in t for t in self.inputs))
 
 
 if __name__ == "__main__":

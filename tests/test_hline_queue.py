@@ -36,7 +36,7 @@ import yaml  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 CFG = hline.load_config()
-SCHEMA = hline_spec.load_schema(CFG)
+SCHEMA = json.loads((REPO / CFG["taskspec_schema"]).read_text(encoding="utf-8"))
 SPEC = {
     "target_symbols": [{"module": "harness/textnorm.py", "kind": "function", "name": "normalize_newlines"}],
     "signatures": [{"symbol": "normalize_newlines", "params": [{"name": "text", "type": "str"}], "returns": "str"}],
@@ -64,57 +64,12 @@ def spec_with(**edit):
     return spec
 
 
-# ============================================================ スキーマと Gate A
+# ============================================================ スキーマ
 
 class Schema(unittest.TestCase):
-    def test_a_conforming_taskspec_has_no_violation(self):
-        self.assertEqual(hline_spec.gate_a(SCHEMA, SPEC), [])
-
     def test_each_of_the_five_required_elements_is_required(self):
         self.assertEqual(sorted(SCHEMA["required"]),
                          sorted(["target_symbols", "signatures", "contracts", "edit_boundary", "test_oracle"]))
-        for key in SCHEMA["required"]:
-            with self.subTest(key=key):
-                spec = {k: v for k, v in SPEC.items() if k != key}
-                problems = hline_spec.gate_a(SCHEMA, spec)
-                self.assertTrue(any(key in p for p in problems), problems)
-
-    def test_the_contract_needs_pre_post_and_invariants(self):
-        for key in ("preconditions", "postconditions", "invariants"):
-            with self.subTest(key=key):
-                spec = json.loads(json.dumps(SPEC))
-                del spec["contracts"][key]
-                self.assertTrue(hline_spec.gate_a(SCHEMA, spec))
-
-    def test_the_diff_limit_cannot_exceed_300(self):
-        self.assertEqual(hline_spec.gate_a(SCHEMA, spec_with(max_diff_lines=300)), [])
-        for bad in (301, 0, "300", True):
-            with self.subTest(limit=bad):
-                self.assertTrue(hline_spec.gate_a(SCHEMA, spec_with(max_diff_lines=bad)))
-
-    def test_wrong_types_unknown_keys_and_empty_lists_are_violations(self):
-        for edit in ({"allowed_files": []}, {"allowed_files": "harness/x.py"}, {"forbidden_files": [""]}):
-            with self.subTest(edit=edit):
-                self.assertTrue(hline_spec.gate_a(SCHEMA, spec_with(**edit)))
-        extra = dict(SPEC, note="何か")
-        self.assertTrue(hline_spec.gate_a(SCHEMA, extra))
-        bad_kind = json.loads(json.dumps(SPEC))
-        bad_kind["target_symbols"][0]["kind"] = "variable"
-        self.assertTrue(hline_spec.gate_a(SCHEMA, bad_kind))
-        self.assertTrue(hline_spec.gate_a(SCHEMA, None))
-
-    def test_a_task_declaring_what_must_carry_the_progress_verification_command(self):
-        spec = json.loads(json.dumps(SPEC))
-        self.assertTrue(hline_spec.gate_a(SCHEMA, spec, VERIFY))
-        spec["test_oracle"]["verification_command"] = "python -m unittest tests.other"
-        self.assertTrue(hline_spec.gate_a(SCHEMA, spec, VERIFY))
-        spec["test_oracle"]["verification_command"] = VERIFY
-        self.assertEqual(hline_spec.gate_a(SCHEMA, spec, VERIFY), [])
-
-    def test_json_is_taken_out_of_a_fenced_reply(self):
-        self.assertEqual(hline_spec.extract_json("```json\n{\"a\": 1}\n```")[0], {"a": 1})
-        self.assertEqual(hline_spec.extract_json("前置き {\"a\": 1} 後書き")[0], {"a": 1})
-        self.assertIsNone(hline_spec.extract_json("JSON ではない")[0])
 
 
 # ============================================================ 編集境界（Gate 1）

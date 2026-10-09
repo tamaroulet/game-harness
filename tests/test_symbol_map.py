@@ -9,7 +9,6 @@ from unittest import mock
 HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE.parent / "harness")]
 import hline  # noqa: E402
-import hline_spec  # noqa: E402
 import proc  # noqa: E402
 import symbolmap  # noqa: E402
 
@@ -89,10 +88,6 @@ class Unit(unittest.TestCase):
                 symbolmap.limit(bad)
 
     def test_prompts_change_only_with_a_non_empty_map(self):
-        args = ("何か", {"task": None}, {"type": "object"}, None, None)
-        plain, with_map = hline_spec.decompose_prompt(*args), hline_spec.decompose_prompt(*args, symbol_map="# 目次X")
-        self.assertTrue(plain == hline_spec.decompose_prompt(*args, symbol_map="") and "目次X" not in plain)
-        self.assertTrue("# 目次X" in with_map and "ここに無いモジュール" in with_map)
         plain, mapped = hline.build_prompt("# 題"), hline.build_prompt("# 題", None, "# 目次X")
         self.assertEqual((plain, mapped.replace("\n# 目次X\n", "", 1)), (hline.build_prompt("# 題", None, ""), plain))
 
@@ -115,14 +110,6 @@ class Wiring(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
 
-    def test_every_decomposer_call_rebuilds_the_map_from_the_worktree(self):
-        self.after_first = lambda: make_repo(self.wt, {"harness/gamma.py": "def gamma_fn():\n    pass\n"})
-        self.assertIsNone(hline_spec.decompose(self.cfg, self.wt, "# 題\n本文", {"task": None}, self.tmp)[0])
-        prompts = [text for _, text in self.inputs]
-        self.assertEqual(len(prompts), 1 + self.cfg["spec_retries"])
-        self.assertTrue(symbolmap.HEAD in prompts[0] and "harness/alpha.py" in prompts[0] and "gamma_fn" not in prompts[0])
-        self.assertTrue(all("gamma_fn" in p for p in prompts[1:]))
-
     def test_the_implementer_gets_the_whole_map_and_the_modules_the_what_names(self):
         """段を 1 つにしたので（C5）、実装役は TaskSpec の対象ではなく、What が挙げたモジュールと目次の全体を受け取る。"""
         what = "# 題\n\n## What\nharness/alpha.py の run を直す"
@@ -131,11 +118,10 @@ class Wiring(unittest.TestCase):
         self.assertTrue(label == "実装役" and symbolmap.HEAD in prompt and "harness/alpha.py" in prompt)
         self.assertIn("harness/beta.py", prompt)
 
-    def test_a_failing_map_does_not_stop_either_agent(self):
+    def test_a_failing_map_does_not_stop_the_implementer(self):
         with mock.patch.object(symbolmap, "build", side_effect=UnicodeDecodeError("utf-8", b"x", 0, 1, "bad")):
             hline.implement(self.cfg, self.wt, "# 題\n本文", None, self.log)
-            hline_spec.decompose(self.cfg, self.wt, "# 題\n本文", {"task": None}, self.tmp)
-        self.assertEqual(len(self.inputs), 2 + self.cfg["spec_retries"])
+        self.assertEqual(len(self.inputs), 1)
         self.assertTrue(all(symbolmap.HEAD not in text for _, text in self.inputs))
 
 
