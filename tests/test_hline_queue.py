@@ -445,7 +445,7 @@ class World(unittest.TestCase):
         self.ahead_n = 0
 
     # --- 道具
-    def put(self, name, milestone="B7.1", task=None, deps=(), extra=""):
+    def put(self, name, milestone="B8.1", task=None, deps=(), extra=""):
         lines = [f"# T-{name}"] + ([f"マイルストーン: {milestone}"] if milestone else [])
         lines += [f"タスク: {task}"] if task else []
         lines += ["依存: " + ", ".join(deps)] if deps else []
@@ -585,19 +585,19 @@ class IntegrationPr(World):
 
 class Fence(World):
     def test_whats_with_a_forbidden_or_missing_milestone_stay_in_the_inbox_with_a_reason(self):
-        self.put("010-a", milestone="B8.1")
+        self.put("010-a", milestone="B7.4")
         self.put("020-b", milestone=None)
-        self.put("030-c", milestone="B7.4")
+        self.put("030-c", milestone="B8.1")
         self.poll()
         self.assertEqual(self.inbox_names(), ["010-a.md", "020-b.md"])
         self.assertEqual(self.implemented, ["T-030-c"])
         report = self.report()
         self.assertIn("010-a.md", report)
-        self.assertIn("B8.1", report)
+        self.assertIn("B7.4", report)
         self.assertIn("020-b.md: マイルストーンの宣言がありません", report)
 
-    def test_the_configured_milestones_are_b7_1_to_b7_5(self):
-        self.assertEqual(CFG["milestones"], ["B7.1", "B7.2", "B7.3", "B7.4", "B7.5"])
+    def test_the_configured_milestones_are_b8_1(self):
+        self.assertEqual(CFG["milestones"], ["B8.1"])
 
 
 class Freezing(World):
@@ -628,7 +628,7 @@ class Resume(World):
         self.put("020-b")
         self.put("030-c", deps=["010-a"])
         self.put("040-d")
-        self.put("050-e", milestone="B7.2")
+        self.put("050-e")
 
     def test_unconverged_whats_do_not_stop_the_independent_ones_or_the_pr(self):
         self.two_unconverged()
