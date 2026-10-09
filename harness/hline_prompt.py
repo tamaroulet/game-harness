@@ -3,9 +3,10 @@ harness.hline を import しない（循環を作らない）。依存は第 1 �
 from pathlib import Path
 
 import hline_abort
+import hline_quota
 import impacted
 import infra_retry
-from hline_base import Infra
+from hline_base import Infra, Quota
 from hline_budget import capped_args, outcome, turn_cap
 
 
@@ -33,6 +34,8 @@ def implement(host, cfg, wt, what, feedback, log):
     code, out, err = host.proc.run(capped_args(impacted.scoped_agent(agent), host.proc.resolve_cli(agent["cli"]), cap := turn_cap(agent)),
                                    wt, cfg["ttl_seconds"]["implementer"], "実装役", input=host.build_prompt(what, feedback, shown))
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
+    if hit := hline_quota.message(out, err):   # モデルの照合・打ち切りの判定より先に見る（試行に数えない）
+        raise Quota(f"実装役の利用枠が尽きました（終了コード {code}）: {hit}")
     if code in infra_retry.INFRA_EXIT_CODES:
         raise Infra(f"実装役の CLI が終了コード {code}: {infra_retry.classify_exit(code, err)}")
     return (code, *outcome(agent, out, cap))

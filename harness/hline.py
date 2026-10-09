@@ -1,6 +1,6 @@
 """H ライン：ハーネス自身の改修の自律ループ（段 0・段 1、docs/design/foundation_v3_review.md 改訂 5 §3〜§5）。
 
-    python -m harness.hline poll     受信箱の What をキューに入れ、依存の順に統合ブランチへ積む（タスク スケジューラが 15 分ごとに呼ぶ）
+    python -m harness.hline poll     受信箱の What をキューに入れ、依存の順に統合ブランチへ積む（タスク スケジューラが 10 分ごとに、画面を出さずに呼ぶ。harness/hline_cron.py）
     python -m harness.hline setup    受信箱と総監督の部屋（.claude/settings.json・CLAUDE.md）を書く
 本体は gate が hline_gate、build_prompt・implement が hline_prompt、run_task・process が hline_task。ここの同名の関数は
 このモジュールを host として渡す薄い委譲で、テストの差し替えが効く。終了コード: 0 = 正常、1 = 未収束を記録した、2 = 環境の異常。
@@ -9,7 +9,7 @@ import argparse
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import base_whitelist, exitcode, fastsuite, gate_order, hline_gate, hline_prompt, hline_protect, hline_task  # noqa: E402,F401
+import base_whitelist, exitcode, fastsuite, gate_order, hline_gate, hline_prompt, hline_protect, hline_quota, hline_task  # noqa: E402,F401
 import infra_retry, model_pin, proc, progress, size_limits, symbolmap  # noqa: E402,F401  テストが hline.proc などを差し替える
 from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args, load_config, must, pinned_models, run_agent, slug, title_of  # noqa: E402,F401
 from hline_gc import sweep  # noqa: E402
@@ -77,8 +77,12 @@ def open_integration_pr(cfg, st):
 
 
 def run_line(cfg):
-    sweep(cfg)   # 前の走行の残骸の掃除。例外は出さず、戻り値も使わない（消せないものは次の起動で再び対象になる）
     st = load_state(cfg)
+    if hline_quota.waiting(st):   # 利用枠の回復待ち。時刻を過ぎた記録は waiting が消し、下の save_state で残る
+        write_report(cfg, st)
+        print(f"利用枠の回復待ちです。{hline_quota.shown(st)} まで何もしません")
+        return 0
+    sweep(cfg)   # 前の走行の残骸の掃除。例外は出さず、戻り値も使わない（消せないものは次の起動で再び対象になる）
     st["infra_halt"] = None   # 前の走行の停止は、次の走行の自動の再開を妨げない
     st["hygiene_halt"] = None
     st["self_change"] = None   # 前の走行の区切りも、次の走行を妨げない
@@ -98,7 +102,7 @@ def run_line(cfg):
         ok = process(cfg, st, name)
         refresh(st)
         mark(cfg, st)
-        if st["infra_halt"]:
+        if st["infra_halt"] or st.get("quota_wait"):
             break
         unconverged |= not ok
         if st.get("self_change"):   # 読み込み済みのコードは古い。次の What は、積んだ変更を読み込んだ次の走行に任せる
@@ -107,6 +111,9 @@ def run_line(cfg):
     if st["infra_halt"]:
         write_report(cfg, st)
         return 2
+    if st.get("quota_wait"):   # 待ちに戻した What が残るので統合 PR は出さない。定期起動が再開の時刻の後に続きを取る
+        write_report(cfg, st)
+        return 0
     if not by_status(st, "waiting") and not by_status(st, "processing"):
         open_integration_pr(cfg, st)
     write_report(cfg, st)

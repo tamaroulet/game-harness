@@ -6,8 +6,9 @@ from pathlib import Path
 import fastsuite
 import hline_abort
 import hline_boundary
+import hline_quota
 import infra_retry
-from hline_base import Fatal, Infra
+from hline_base import Fatal, Infra, Quota
 from hline_budget import attempt_record, with_cutoff
 
 
@@ -79,10 +80,20 @@ def stop_fatal(host, cfg, st, name, item, e):
     return False
 
 
+def wait_quota(host, cfg, st, name, item, e):
+    """利用枠切れ：その試行を数えず、What を待ちに戻す。再開してよい時刻を st["quota_wait"] に残す（run_line が走行を終える）。"""
+    item.update(status="waiting", tries=[])
+    item.pop("infra_retries", None)
+    hline_quota.record(st, name, e.reason)
+    print(f"[{item['tid']}] {e.reason}。試行に数えず待ちに戻します（再開: {hline_quota.shown(st)} 以降）")
+    host.mark(cfg, st, name)
+    return False
+
+
 def process(host, cfg, st, name):
     """待ちの What 1 件を、実装 → Gate 1 → 統合ブランチへ（段は 1 つ。分解役・再分解は呼ばない）。積めたら True、未収束なら False。
     環境の異常（Infra）は新しい作業ツリーで呼び直す（実装役の試行に数えない）。続けば What を待ちに戻し、infra_halt を立てて False。
-    Fatal（進捗の記録の拒否・push の拒否）は呼び直さず、未収束にして False。
+    Fatal（進捗の記録の拒否・push の拒否）は呼び直さず、未収束にして False。利用枠切れ（Quota）は待ちに戻して False（wait_quota）。
     ライン自身の変更を積んだときは st["self_change"] を置く（run_line が走行を区切る）。"""
     item = st["items"][name]
     what = host.what_path(cfg, name).read_text(encoding="utf-8")
@@ -116,6 +127,8 @@ def process(host, cfg, st, name):
     ic = cfg["infra_retry"]
     try:
         done, records = infra_retry.retry(attempt, Infra, ic["max_retries"], ic["wait_seconds"], log=print)
+    except Quota as e:
+        return wait_quota(host, cfg, st, name, item, e)
     except Fatal as e:
         return stop_fatal(host, cfg, st, name, item, e)
     except infra_retry.InfraExhausted as e:
