@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yaml
 
+import hline_quota
 import hline_usage
 from hline_base import ROOT, must
 from hline_git import remote_ref
@@ -47,6 +48,8 @@ def self_change(paths, modules=None):
 def line_status(cfg, st):
     if st.get("infra_halt"):
         return "インフラ例外で停止"
+    if st.get("quota_wait"):
+        return f"利用枠の回復待ち（再開: {hline_quota.shown(st)} 以降）"
     return "統合 PR 待ち" if st["awaiting_pr"] else "走行中"
 
 
@@ -100,13 +103,16 @@ def h_section(cfg, st):
 
 
 def human_line(cfg, st):
-    """report の人間作業欄。インフラ例外での停止・統合 PR のレビューは人間の作業。それ以外は None（進捗の記録のまま）。"""
+    """report の人間作業欄。インフラ例外での停止・統合 PR のレビューは人間の作業。利用枠の回復待ちは人間の作業ではなく、待ちの表示。
+    それ以外は None（進捗の記録のまま）。"""
     halt = st.get("infra_halt")
     if halt:
         return (f"- 人間作業: INFRA_HALTED {halt['name']}: {' '.join(str(halt['reason']).split())}（{halt['attempts']} 回の試行）。"
                 "環境を直すと次の走行が取り直します")
     if hyg := st.get("hygiene_halt"):
         return f"- 人間作業: UNCLEAN_DIFF {'／'.join(hyg['files'])}"
+    if st.get("quota_wait"):   # 人間の作業ではない。待ちの表示で、定期起動が再開の時刻の後に続きを取る
+        return f"- 人間作業: NONE（利用枠の回復待ち（再開 {hline_quota.shown(st)} 以降））"
     if st["awaiting_pr"]:
         return f"- 人間作業: REVIEW_REQUIRED {st['awaiting_pr']}"
     return None

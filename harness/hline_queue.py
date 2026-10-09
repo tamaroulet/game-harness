@@ -53,7 +53,7 @@ def load_state(cfg):
     p = state_path(cfg)
     st = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
     return {"items": st.get("items", {}), "awaiting_pr": st.get("awaiting_pr"), "skipped": st.get("skipped", []),
-            "infra_halt": st.get("infra_halt")}
+            "infra_halt": st.get("infra_halt"), "quota_wait": st.get("quota_wait")}
 
 
 def save_state(cfg, st):

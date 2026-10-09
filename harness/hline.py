@@ -9,7 +9,7 @@ import argparse
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import base_whitelist, exitcode, fastsuite, gate_order, hline_gate, hline_prompt, hline_protect, hline_task  # noqa: E402,F401
+import base_whitelist, exitcode, fastsuite, gate_order, hline_gate, hline_prompt, hline_protect, hline_quota, hline_task  # noqa: E402,F401
 import infra_retry, model_pin, proc, progress, size_limits, symbolmap  # noqa: E402,F401  テストが hline.proc などを差し替える
 from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args, load_config, must, pinned_models, run_agent, slug, title_of  # noqa: E402,F401
 from hline_gc import sweep  # noqa: E402
@@ -77,8 +77,12 @@ def open_integration_pr(cfg, st):
 
 
 def run_line(cfg):
-    sweep(cfg)   # 前の走行の残骸の掃除。例外は出さず、戻り値も使わない（消せないものは次の起動で再び対象になる）
     st = load_state(cfg)
+    if hline_quota.waiting(st):   # 利用枠の回復待ち。時刻を過ぎた記録は waiting が消し、下の save_state で残る
+        write_report(cfg, st)
+        print(f"利用枠の回復待ちです。{hline_quota.shown(st)} まで何もしません")
+        return 0
+    sweep(cfg)   # 前の走行の残骸の掃除。例外は出さず、戻り値も使わない（消せないものは次の起動で再び対象になる）
     st["infra_halt"] = None   # 前の走行の停止は、次の走行の自動の再開を妨げない
     st["hygiene_halt"] = None
     st["self_change"] = None   # 前の走行の区切りも、次の走行を妨げない
@@ -98,7 +102,7 @@ def run_line(cfg):
         ok = process(cfg, st, name)
         refresh(st)
         mark(cfg, st)
-        if st["infra_halt"]:
+        if st["infra_halt"] or st.get("quota_wait"):
             break
         unconverged |= not ok
         if st.get("self_change"):   # 読み込み済みのコードは古い。次の What は、積んだ変更を読み込んだ次の走行に任せる
@@ -107,6 +111,9 @@ def run_line(cfg):
     if st["infra_halt"]:
         write_report(cfg, st)
         return 2
+    if st.get("quota_wait"):   # 待ちに戻した What が残るので統合 PR は出さない。定期起動が再開の時刻の後に続きを取る
+        write_report(cfg, st)
+        return 0
     if not by_status(st, "waiting") and not by_status(st, "processing"):
         open_integration_pr(cfg, st)
     write_report(cfg, st)

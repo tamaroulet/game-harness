@@ -33,6 +33,15 @@ class Fatal(Infra):
         self.reason = reason
 
 
+class Quota(Infra):
+    """利用枠切れ（429）。待てば直るが、プロセスの中では待たない：試行に数えず What を待ちに戻し、走行を終える（hline_quota）。"""
+    fatal = True   # infra_retry.retry に眠らせない
+
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
+
 def load_config(path=CONFIG):
     cfg = json.loads(Path(path).read_text(encoding="utf-8"))
     model_pin.require(cfg["implementer"], "config/hline.json の implementer")
