@@ -120,6 +120,7 @@ class Flow(base.World):
 
     def test_the_implementer_carries_only_the_turn_cap_and_the_decomposer_the_whole_budget(self):
         self.dec_replies = [good()]
+        self.decompose()   # 分解役はラインの経路から外したので（C5）、ここで直に呼んで上限を確かめる
         self.put("010-a")
         self.poll()
         dec, impl = [next(r for r in self.runs if r["label"] == label) for label in ("分解役", "実装役")]
@@ -137,20 +138,6 @@ class Flow(base.World):
             self.decompose(cfg=cfg)
         self.assertEqual(self.runs, [])
 
-    def test_a_cutoff_is_retried_like_a_gate_a_violation_and_never_reaches_the_implementer(self):
-        self.dec_replies = [(124, "", ""), (0, reply("", subtype="error_max_turns"), ""), (0, reply("{}", num_turns=LIM["max_turns"]), "")]
-        self.put("010-a")
-        self.assertEqual(self.poll(), 1)
-        item = self.state()["items"]["010-a"]
-        agents = [r for r in self.runs if "役" in r["label"]]
-        self.assertEqual([r["label"] for r in agents], ["分解役"] * (1 + CFG["spec_retries"]))
-        self.assertEqual((item["status"], item["tries"]), ("unconverged", []))
-        self.assertIn("打ち切", item["reason"])
-        for a in item["decompose"]["attempts"]:
-            self.assertEqual((a["models"], a["valid"]), ([], False))
-            self.assertIn("打ち切", a["cutoff"])
-        self.assertIn(item["decompose"]["attempts"][0]["cutoff"], agents[1]["input"])
-
     def test_a_cutoff_retry_names_the_files_read_and_a_plain_violation_forgets_them(self):
         tool = [{"type": "tool_use", "name": "Read", "input": {"file_path": "harness\\hline_spec.py"}}]
         self.dec_replies = [(0, reply("", subtype="error_max_turns", messages=tool), ""), (0, reply("{}"), ""),
@@ -167,20 +154,18 @@ class Flow(base.World):
             self.assertNotIn("打ち切", r["input"])
 
     def test_every_call_leaves_its_usage_in_the_queue_state(self):
-        self.dec_replies = [(0, reply("これは JSON ではない"), ""), good()]
         self.put("010-a")
         self.assertEqual(self.poll(), 0)
         item = self.state()["items"]["010-a"]
-        for u in [a["usage"] for a in item["decompose"]["attempts"]] + [t["usage"] for t in item["tries"]]:
+        for u in [t["usage"] for t in item["tries"]]:
             self.assertEqual((u["input_tokens"], u["output_tokens"], u["cache_read_tokens"], u["cost_usd"]), (10, 20, 30, 0.5))
 
     def test_an_output_without_usage_is_none_with_a_reason(self):
-        self.dec_replies = [(0, base.claude_json(json.dumps(SPEC), "claude-opus-5"), "")]
         self.impl_out = base.claude_json("できた", "claude-sonnet-5-5")
         self.put("010-a")
         self.poll()
         item = self.state()["items"]["010-a"]
-        for u in (item["decompose"]["attempts"][0]["usage"], item["tries"][0]["usage"]):
+        for u in (item["tries"][0]["usage"],):
             self.assertIsNone(u["input_tokens"])
             self.assertIn("input_tokens_null_reason", u)
 

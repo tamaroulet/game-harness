@@ -386,7 +386,7 @@ class World(unittest.TestCase):
         (self.wt / "docs").mkdir()
         (self.wt / "docs" / "progress.yaml").write_text(yaml.safe_dump(
             {"tasks": [{"id": "S1-2", "verification": {"command": VERIFY, "expected_exit_code": 0}}]}), encoding="utf-8")
-        self.decomposed, self.implemented, self.integrated, self.created, self.dropped = [], [], [], [], []
+        self.implemented, self.integrated, self.created, self.dropped = [], [], [], []
         self.failing, self.pr_state, self.open_pr, self.ahead_n, self.current = set(), "OPEN", None, 0, None; self.diff_list = []
         self.warnings = []   # Gate 1 が不合格にしない指摘（C2）。試行の記録に入り、report の済みの行に件数が出る
 
@@ -407,7 +407,6 @@ class World(unittest.TestCase):
         self.patch(hline, "pr_state", side_effect=lambda c, u: self.pr_state)
         self.patch(hline, "drop_merged_branch", side_effect=self.fake_drop)
         self.patch(hline_report, "progress_report", return_value="## 進捗ツリー\n- 人間作業: NONE\n")
-        self.patch(hline, "second_round", return_value=(None, None, None))   # 再分解は tests/test_freeze_policy.py が本物を通す
         self.patch_agents()
 
     def patch(self, target, name, **kw):
@@ -416,16 +415,10 @@ class World(unittest.TestCase):
         self.addCleanup(p.stop)
 
     def patch_agents(self):
-        self.patch(hline, "decompose", side_effect=self.fake_decompose)
         self.patch(hline, "run_task", side_effect=self.fake_run_task)
 
-    def fake_decompose(self, cfg, wt, what, item, outdir):
-        self.decomposed.append(item["title"])
-        self.current = item["title"]
-        return SPEC, {"attempts": [{"attempt": 1, "cli_exit": 0, "models": ["claude-opus-5"], "valid": True}],
-                      "reason": None}
-
-    def fake_run_task(self, cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
+    def fake_run_task(self, cfg, tid, what, outdir, first=None, task=None, on_stage=None):
+        self.current = hline.title_of(what)   # 段は 1 つ。処理中の What は実装役に渡る本文から分かる
         self.implemented.append(self.current)
         ok = self.current not in self.failing
         tries = [{"run": 0, "attempt": 1, "cli_exit": 0, "models": ["claude-sonnet-5-5"], "gate": ok,
@@ -472,24 +465,24 @@ class Ordering(World):
         self.put("010-b", deps=["020-a"])
         self.put("020-a")
         self.assertEqual(self.poll(), 0)
-        self.assertEqual(self.decomposed, ["T-020-a", "T-010-b"])
+        self.assertEqual(self.implemented, ["T-020-a", "T-010-b"])
 
     def test_it_is_not_processed_until_the_dependency_is_done_and_then_continues_without_a_human(self):
         self.put("010-b", deps=["020-a"])
         self.poll()
-        self.assertEqual(self.decomposed, [])
+        self.assertEqual(self.implemented, [])
         self.assertEqual(self.status("010-b"), "waiting")
         self.assertEqual(self.inbox_names(), [])   # 取り込んだ What は受信箱から消える（二度取らない）
         self.put("020-a")
         self.poll()
-        self.assertEqual(self.decomposed, ["T-020-a", "T-010-b"])
+        self.assertEqual(self.implemented, ["T-020-a", "T-010-b"])
         self.assertEqual((self.status("020-a"), self.status("010-b")), ("done", "done"))
 
     def test_independent_whats_are_processed_by_name_and_all_in_one_run(self):
         for n in ("030-c", "010-a", "020-b"):
             self.put(n)
         self.poll()
-        self.assertEqual(self.decomposed, ["T-010-a", "T-020-b", "T-030-c"])
+        self.assertEqual(self.implemented, ["T-010-a", "T-020-b", "T-030-c"])
 
     def test_the_queue_survives_between_runs(self):
         self.put("010-b", deps=["020-a"])
@@ -506,7 +499,7 @@ class IntegrationPr(World):
         self.assertEqual(self.integrated, ["010-a", "020-b", "030-c"])
         self.assertEqual(len(self.created), 1)
         title, body = self.created[0]
-        for n in ("T-010-a", "T-020-b", "T-030-c", "claude-opus-5", "claude-sonnet-5-5"):
+        for n in ("T-010-a", "T-020-b", "T-030-c", "claude-sonnet-5-5"):
             self.assertIn(n, body)
         self.assertEqual(self.state()["awaiting_pr"], "https://github.com/o/r/pull/1")
         self.assertIn("統合 PR 待ち", self.report())
@@ -544,7 +537,7 @@ class IntegrationPr(World):
         self.put("020-b")
         self.poll()
         self.assertEqual(self.inbox_names(), ["020-b.md"])
-        self.assertEqual(self.decomposed, ["T-010-a"])
+        self.assertEqual(self.implemented, ["T-010-a"])
         self.assertEqual(len(self.created), 1)
 
     def test_a_closed_pr_releases_the_line_and_the_next_whats_make_the_next_pr(self):
@@ -553,7 +546,7 @@ class IntegrationPr(World):
         self.pr_state = "CLOSED"
         self.put("020-b")
         self.poll()
-        self.assertEqual(self.decomposed, ["T-010-a", "T-020-b"])
+        self.assertEqual(self.implemented, ["T-010-a", "T-020-b"])
         self.assertEqual(len(self.created), 2)
         self.assertEqual(self.dropped, [])   # マージされていないブランチは消さない
 
@@ -567,7 +560,7 @@ class IntegrationPr(World):
         self.assertEqual(len(self.created), 1)   # 新しい What が無いので、2 本目は作らない
         self.put("020-b", deps=["010-a"])   # 前の周期で済んだ What への依存は満たされている
         self.poll()
-        self.assertEqual(self.decomposed, ["T-010-a", "T-020-b"])
+        self.assertEqual(self.implemented, ["T-010-a", "T-020-b"])
         self.assertEqual(len(self.created), 2)
         self.assertNotIn("T-010-a", self.created[1][1])   # マージ済みは次の PR に載らない
 
@@ -590,7 +583,7 @@ class Fence(World):
         self.put("030-c", milestone="B7.4")
         self.poll()
         self.assertEqual(self.inbox_names(), ["010-a.md", "020-b.md"])
-        self.assertEqual(self.decomposed, ["T-030-c"])
+        self.assertEqual(self.implemented, ["T-030-c"])
         report = self.report()
         self.assertIn("010-a.md", report)
         self.assertIn("B8.1", report)
@@ -608,15 +601,15 @@ class Freezing(World):
         self.put("040-c", deps=["030-b"])
         self.put("050-d")
         self.assertEqual(self.poll(), 1)
-        self.assertEqual(self.decomposed, ["T-020-a", "T-050-d"])
         self.assertEqual(self.implemented, ["T-020-a", "T-050-d"])
         self.assertEqual([self.status(n) for n in ("020-a", "030-b", "040-c", "050-d")],
                          ["unconverged", "frozen", "frozen", "done"])
         self.assertIn("020-a", (self.inbox / "TODO.md").read_text(encoding="utf-8"))
         self.assertIn("凍結（2 件）: 030-b", self.report())
 
-    def test_the_counts_of_the_attempts_are_the_same_as_before(self):
-        self.assertEqual((CFG["max_attempts"], CFG["respecs"]), (3, 1))
+    def test_the_counts_of_the_attempts_are_two_tries_and_no_respec(self):
+        """段を 1 つにしたので、1 つの作業ツリーで 2 回まで。作り直し（再分解）は無い（C5）。"""
+        self.assertEqual((CFG["max_attempts"], CFG["respecs"]), (2, 0))
 
 
 class Resume(World):
@@ -633,7 +626,7 @@ class Resume(World):
     def test_unconverged_whats_do_not_stop_the_independent_ones_or_the_pr(self):
         self.two_unconverged()
         self.assertEqual(self.poll(), 1)
-        self.assertEqual(self.decomposed, ["T-010-a", "T-020-b", "T-040-d", "T-050-e"])
+        self.assertEqual(self.implemented, ["T-010-a", "T-020-b", "T-040-d", "T-050-e"])
         self.assertEqual([self.status(n) for n in ("010-a", "020-b", "030-c", "040-d", "050-e")],
                          ["unconverged", "unconverged", "frozen", "done", "done"])
         self.assertEqual(len(self.created), 1)   # 積むものが尽きたので統合 PR は出る
@@ -647,7 +640,7 @@ class Resume(World):
         self.put("010-a", extra="直した版")
         self.put("060-new")
         self.assertEqual(self.poll(), 0)
-        self.assertEqual(self.decomposed[4:], ["T-010-a", "T-030-c", "T-060-new"])
+        self.assertEqual(self.implemented[4:], ["T-010-a", "T-030-c", "T-060-new"])
         self.assertEqual([self.status(n) for n in ("010-a", "020-b", "030-c")], ["done", "unconverged", "done"])
         self.assertNotIn("010-a", (self.inbox / "TODO.md").read_text(encoding="utf-8"))
         self.assertIn("020-b", (self.inbox / "TODO.md").read_text(encoding="utf-8"))
@@ -661,10 +654,10 @@ class Crash(World):
         self.put("030-c")
         original = self.fake_run_task
 
-        def die_on_b(cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
-            if self.current == "T-020-b":
+        def die_on_b(cfg, tid, what, outdir, first=None, task=None, on_stage=None):
+            if hline.title_of(what) == "T-020-b":
                 raise KeyboardInterrupt   # 強制終了の代わり（finally が走らない kill でも、状態の記録は同じ）
-            return original(cfg, tid, spec, outdir, first, task)
+            return original(cfg, tid, what, outdir, first, task)
 
         with mock.patch.object(hline, "run_task", side_effect=die_on_b), self.assertRaises(KeyboardInterrupt):
             self.poll()
@@ -673,7 +666,7 @@ class Crash(World):
                          ["done", "processing", "waiting"])
         self.assertTrue((self.out / "queue" / "020-b.md").exists())
         self.poll()
-        self.assertEqual(self.decomposed, ["T-010-a", "T-020-b", "T-020-b", "T-030-c"])
+        self.assertEqual(self.implemented, ["T-010-a", "T-020-b", "T-030-c"])   # 010-a は二度実装されず、020-b は取り直される
         self.assertEqual(self.integrated, ["010-a", "020-b", "030-c"])   # 010-a は二度積まれない
 
     def test_the_one_already_on_the_integration_branch_is_not_processed_again(self):
@@ -688,7 +681,7 @@ class Crash(World):
         hline_queue.save_state(self.cfg, st)
         self.poll()
         self.assertEqual(self.status("020-b"), "done")
-        self.assertEqual(self.decomposed, ["T-010-a", "T-020-b"])
+        self.assertEqual(self.implemented, ["T-010-a", "T-020-b"])
 
     def test_a_leftover_lock_from_a_killed_run_is_taken_over_after_the_expiry(self):
         lock = self.inbox / ".hline.lock"
@@ -698,19 +691,19 @@ class Crash(World):
         os.utime(lock, (old, old))
         self.put("010-a")
         self.poll()
-        self.assertEqual(self.decomposed, ["T-010-a"])
+        self.assertEqual(self.implemented, ["T-010-a"])
         self.assertFalse(lock.exists())
 
     def test_an_environment_fault_keeps_the_what_and_the_next_run_takes_it_again(self):
         self.put("010-a")
-        with mock.patch.object(hline, "decompose", side_effect=hline.Infra("gh が落ちた")) as dec:
+        with mock.patch.object(hline, "run_task", side_effect=hline.Infra("gh が落ちた")) as task:
             self.assertEqual(self.poll(), 2)
-        self.assertEqual(dec.call_count, 1 + CFG["infra_retry"]["max_retries"])   # 呼び直しの後に止まる
+        self.assertEqual(task.call_count, 1 + CFG["infra_retry"]["max_retries"])   # 呼び直しの後に止まる
         self.assertTrue((self.out / "queue" / "010-a.md").exists())
         self.assertEqual(self.status("010-a"), "waiting")
         self.assertFalse((self.inbox / ".hline.lock").exists())
         self.poll()
-        self.assertEqual(self.decomposed, ["T-010-a"])
+        self.assertEqual(self.implemented, ["T-010-a"])
         self.assertEqual(self.status("010-a"), "done")
 
     def test_the_exit_code_of_an_environment_fault_is_2(self):
@@ -723,23 +716,19 @@ STAMP = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
 
 
 class ReportEachStep(World):
-    """走行の途中でも report.md が今の状態を映す。途中の中身は、差し替えた分解役・run_task の中で控える。"""
+    """走行の途中でも report.md が今の状態を映す。途中の中身は、差し替えた run_task の中で控える。"""
 
     def run_with_snapshots(self):
         snaps = []
 
-        def snoop_decompose(cfg, wt, what, item, outdir):
-            snaps.append((f"分解 {item['title']}", self.report()))
-            return self.fake_decompose(cfg, wt, what, item, outdir)
-
-        def staged_run_task(cfg, tid, spec, outdir, first=None, task=None, on_stage=None):
+        def staged_run_task(cfg, tid, what, outdir, first=None, task=None, on_stage=None):
+            title = hline.title_of(what)
             for stage in ("実装 1-1", "Gate 1 1-1"):
                 on_stage(stage)
-                snaps.append((stage, self.report()))
-            return self.fake_run_task(cfg, tid, spec, outdir, first, task)
+                snaps.extend([(stage, self.report()), (f"{stage} {title}", self.report())])
+            return self.fake_run_task(cfg, tid, what, outdir, first, task)
 
-        with mock.patch.object(hline, "decompose", side_effect=snoop_decompose), \
-                mock.patch.object(hline, "run_task", side_effect=staged_run_task):
+        with mock.patch.object(hline, "run_task", side_effect=staged_run_task):
             self.assertEqual(self.poll(), 0)
         return dict(snaps)
 
@@ -748,12 +737,12 @@ class ReportEachStep(World):
         self.put("020-b")
         self.warnings = ["harness/x.py が 501 行です"]   # 不合格にしない指摘は件数だけが済みの行に出る（C2）
         snaps = self.run_with_snapshots()
-        first, second = snaps["分解 T-010-a"], snaps["分解 T-020-b"]
+        first, second = snaps["実装 1-1 T-010-a"], snaps["実装 1-1 T-020-b"]
         self.assertIn("- 済み（0 件）: なし", first)
         self.assertIn("- 待ち（1 件）: 020-b", first)
-        self.assertRegex(first, rf"- 処理中（1 件）: 010-a（段階: 分解／開始: {STAMP}）")
+        self.assertRegex(first, rf"- 処理中（1 件）: 010-a（段階: 実装 1-1／開始: {STAMP}）")
         self.assertIn("- 済み（1 件）: 010-a（警告 1 件）", second)
-        self.assertRegex(second, rf"- 処理中（1 件）: 020-b（段階: 分解／開始: {STAMP}）")
+        self.assertRegex(second, rf"- 処理中（1 件）: 020-b（段階: 実装 1-1／開始: {STAMP}）")
 
     def test_the_stage_follows_the_implementation_and_gate_1_and_keeps_the_start_time(self):
         self.put("010-a")
@@ -781,14 +770,14 @@ class ReportEachStep(World):
     def test_the_report_starts_with_the_progress_report_and_the_h_section_follows(self):
         self.put("010-a")
         snaps = self.run_with_snapshots()
-        self.assertTrue(snaps["分解 T-010-a"].startswith("## 進捗ツリー\n- 人間作業: NONE\n"))
+        self.assertTrue(snaps["実装 1-1 T-010-a"].startswith("## 進捗ツリー\n- 人間作業: NONE\n"))
         report = self.report()   # 走行の終わりは統合 PR の待ち。人間作業の行だけが置き換わる
         self.assertTrue(report.startswith("## 進捗ツリー\n- 人間作業: REVIEW_REQUIRED "))
         self.assertLess(report.index("## 進捗ツリー"), report.index("## H ライン"))
 
     def test_an_environment_fault_stops_the_run_and_the_report_says_so(self):
         self.put("010-a")
-        with mock.patch.object(hline, "decompose", side_effect=hline.Infra("gh が落ちた")):
+        with mock.patch.object(hline, "run_task", side_effect=hline.Infra("gh が落ちた")):
             self.assertEqual(self.poll(), 2)
         report = self.report()
         self.assertIn("- 状態: インフラ例外で停止", report)
@@ -1041,18 +1030,15 @@ class Lock(unittest.TestCase):
             self.assertFalse((inbox / ".hline.lock").exists())
 
 
-# ============================================================ 分解役・Gate A・実装役の入力
+# ============================================================ 実装役の入力（段は 1 つ。分解役は呼ばない）
 
 class AgentFlow(World):
-    """分解役と実装役は本物の呼び出しの経路を通し、CLI の起動（proc.run）だけを差し替える。"""
+    """実装役は本物の呼び出しの経路を通し、CLI の起動（proc.run）だけを差し替える。"""
 
     def patch_agents(self):
-        self.dec_replies, self.dec_inputs, self.impl_inputs, self.impl_model = [], [], [], "claude-sonnet-5-5"
+        self.impl_inputs, self.impl_model = [], "claude-sonnet-5-5"
 
         def fake_run(args, cwd, ttl, label, env=None, input=None):
-            if label == "分解役":
-                self.dec_inputs.append(input)
-                return 0, claude_json(self.dec_replies.pop(0), "claude-opus-5"), ""
             if label == "実装役":
                 self.impl_inputs.append(input)
                 return 0, claude_json("できた", self.impl_model), ""
@@ -1063,79 +1049,33 @@ class AgentFlow(World):
         self.patch(hline, "changed_paths", return_value=["harness/textnorm.py"])
         self.patch(hline, "gate", side_effect=lambda c, w, p, spec=None, task=None, **kw: (True, "ok"))
 
-    def test_a_taskspec_that_does_not_conform_never_reaches_the_implementer(self):
-        self.dec_replies = ["これは JSON ではない", json.dumps({"x": 1}), json.dumps(spec_with(max_diff_lines=999))]
-        self.put("010-a")
-        self.assertEqual(self.poll(), 1)
-        self.assertEqual(len(self.dec_inputs), 1 + CFG["spec_retries"])   # 上限つきでやり直した
-        self.assertEqual(self.impl_inputs, [])
-        self.assertEqual(self.status("010-a"), "unconverged")
-        self.assertIn("スキーマに適合しません", self.state()["items"]["010-a"]["reason"])
-        self.assertEqual(self.integrated, [])
-
-    def test_the_violations_are_returned_to_the_decomposer_and_a_corrected_one_goes_on(self):
-        self.dec_replies = [json.dumps(spec_with(max_diff_lines=999)), json.dumps(SPEC)]
-        self.put("010-a")
+    def test_the_implementer_gets_the_body_of_the_what(self):
+        self.put("010-a", extra="背景：BACKGROUND-TEXT")
         self.assertEqual(self.poll(), 0)
-        self.assertIn("999", self.dec_inputs[1])
-        self.assertIn("300", self.dec_inputs[1])
         self.assertEqual(len(self.impl_inputs), 1)
+        body = self.impl_inputs[0].split("---\n", 1)[1]
+        self.assertIn("BACKGROUND-TEXT", body)
+        self.assertIn("T-010-a", body)
         self.assertEqual(self.status("010-a"), "done")
-        self.assertEqual([a["valid"] for a in self.state()["items"]["010-a"]["decompose"]["attempts"]], [False, True])
-
-    def test_the_implementer_gets_the_taskspec_and_not_the_body_of_the_what(self):
-        self.dec_replies = ["```json\n" + json.dumps(SPEC, ensure_ascii=False) + "\n```"]
-        self.put("010-a", extra="秘密の背景：SECRET-BACKGROUND-TEXT")
-        self.poll()
-        self.assertIn("SECRET-BACKGROUND-TEXT", self.dec_inputs[0])   # 分解役は What を読む
-        prompt = self.impl_inputs[0]
-        self.assertNotIn("SECRET-BACKGROUND-TEXT", prompt)
-        self.assertNotIn("T-010-a", prompt)
-        given = json.loads(prompt.split("---\n", 1)[1])
-        self.assertEqual(given, SPEC)
-        self.assertEqual(hline_spec.gate_a(SCHEMA, given), [])
         self.assertIn(self.state()["items"]["010-a"]["tid"], str(list(self.out.iterdir())))
-        tid = self.state()["items"]["010-a"]["tid"]
-        self.assertEqual(json.loads((self.out / tid / "taskspec.json").read_text(encoding="utf-8")), SPEC)   # 走行の記録に残る
 
-    def test_feedback_goes_to_the_implementer_after_the_taskspec_not_the_what(self):
-        prompt = hline.build_prompt(SPEC, "Gate 1 の出力")
+    def test_feedback_goes_to_the_implementer_after_the_what(self):
+        prompt = hline.build_prompt("# 題名\n\n## What\n本文", "Gate 1 の出力")
         self.assertIn("Gate 1 の出力", prompt)
-        self.assertEqual(json.loads(prompt.split("---\n")[1]), SPEC)
+        self.assertIn("## What", prompt.split("---\n")[1])
+        self.assertLess(prompt.index("## What"), prompt.index("Gate 1 の出力"))
 
-    def test_a_what_with_a_task_gets_the_progress_verification_command_in_the_oracle(self):
-        spec = json.loads(json.dumps(SPEC))
-        spec["test_oracle"]["verification_command"] = VERIFY
-        self.dec_replies = [json.dumps(SPEC), json.dumps(spec)]   # 1 回目は検証コマンドが無く、Gate A に落ちる
-        self.put("010-a", task="S1-2")
-        self.poll()
-        self.assertIn(VERIFY, self.dec_inputs[0])
-        self.assertEqual(len(self.dec_inputs), 2)
-        self.assertEqual(json.loads(self.impl_inputs[0].split("---\n", 1)[1])["test_oracle"]["verification_command"], VERIFY)
-        self.assertIn("S1-2", self.created[0][1])
-
-    def test_a_task_that_progress_does_not_know_is_unconverged_without_calling_any_agent(self):
-        self.put("010-a", task="S9-9")
-        self.poll()
-        self.assertEqual((self.dec_inputs, self.impl_inputs), ([], []))
-        self.assertIn("S9-9", self.state()["items"]["010-a"]["reason"])
-
-    def test_the_decomposer_model_is_checked_and_recorded(self):
-        self.dec_replies = [json.dumps(SPEC)]
+    def test_the_implementer_model_is_checked_and_recorded(self):
         self.put("010-a")
         self.poll()
-        self.assertEqual(self.state()["items"]["010-a"]["decompose"]["attempts"][0]["models"], ["claude-opus-5"])
         self.assertEqual(self.state()["items"]["010-a"]["tries"][0]["models"], ["claude-sonnet-5-5"])
 
-    def test_a_decomposer_run_on_another_model_stops_as_an_environment_fault_and_keeps_the_what(self):
-        def other_model(args, cwd, ttl, label, env=None, input=None):
-            return 0, claude_json(json.dumps(SPEC), "claude-sonnet-5-5"), ""
-
+    def test_a_run_on_another_model_stops_as_an_environment_fault_and_keeps_the_what(self):
+        self.impl_model = "claude-opus-5"
         self.put("010-a")
-        with mock.patch.object(hline.proc, "run", side_effect=other_model):
-            self.assertEqual(self.poll(), 2)
+        self.assertEqual(self.poll(), 2)
         self.assertTrue((self.out / "queue" / "010-a.md").exists())
-        self.assertEqual(self.impl_inputs, [])
+        self.assertEqual(self.status("010-a"), "waiting")
 
 
 # ============================================================ 設定・規模・書式

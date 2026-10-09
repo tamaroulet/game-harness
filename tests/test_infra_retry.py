@@ -74,8 +74,6 @@ class Implementer(base.World):
         self.codes, self.calls = [], []
 
         def fake_run(args, cwd, ttl, label, env=None, input=None):
-            if label == "分解役":
-                return 0, base.claude_json(json.dumps(base.SPEC), "claude-opus-5"), ""
             if label != "実装役":
                 return 0, "", ""   # 前の走行の残骸の掃除（git worktree prune など）
             self.calls.append(label)
@@ -98,30 +96,31 @@ class Implementer(base.World):
 
 
 class Line(base.World):
-    def failing_decompose(self, times):
+    def failing_run_task(self, times):
+        """実装の試行に入るところで Infra を上げる偽物。使われた作業ツリーを控える（段は 1 つ。C5）。"""
         used = []
 
-        def fake(cfg, wt, what, item, outdir):
-            used.append(wt)
+        def fake(cfg, tid, what, outdir, first=None, task=None, on_stage=None):
+            used.append(first[0] if first else None)
             if len(used) <= times:
                 raise hline.Infra(f"gh が落ちた{len(used)}")
-            return self.fake_decompose(cfg, wt, what, item, outdir)
+            return self.fake_run_task(cfg, tid, what, outdir, first, task)
 
         return used, fake
 
     def test_every_retry_uses_a_different_new_worktree(self):
-        used, fake = self.failing_decompose(2)
+        used, fake = self.failing_run_task(2)
         count = itertools.count(1)
         self.put("010-a")
-        with mock.patch.object(hline, "decompose", side_effect=fake), mock.patch.object(
+        with mock.patch.object(hline, "run_task", side_effect=fake), mock.patch.object(
                 hline, "new_worktree", side_effect=lambda c, t: (self.wt / f"w{next(count)}", "b")) as nw:
             self.assertEqual(self.poll(), 0)
         self.assertEqual((nw.call_count, len(set(used)), self.slept), (3, 3, [60, 300]))
 
     def test_faults_beyond_the_limit_halt_the_line_and_the_next_run_takes_the_same_what(self):
-        used, fake = self.failing_decompose(99)
+        used, fake = self.failing_run_task(99)
         self.put("010-a")
-        with mock.patch.object(hline, "decompose", side_effect=fake):
+        with mock.patch.object(hline, "run_task", side_effect=fake):
             self.assertEqual(self.poll(), 2)
         self.assertEqual((len(used), self.status("010-a")), (1 + LIMIT, "waiting"))
         self.assertTrue((self.out / "queue" / "010-a.md").exists())
@@ -132,7 +131,7 @@ class Line(base.World):
         self.assertIn("- 状態: インフラ例外で停止", self.report())
         self.assertEqual(self.poll(), 0)
         self.assertIsNone(self.state()["infra_halt"])
-        self.assertEqual((self.decomposed, self.status("010-a")), (["T-010-a"], "done"))
+        self.assertEqual((self.implemented, self.status("010-a")), (["T-010-a"], "done"))
 
     def test_a_gate_1_failure_is_not_retried(self):
         self.failing = {"T-010-a"}

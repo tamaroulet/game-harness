@@ -175,7 +175,7 @@ class GateOrder(unittest.TestCase):
 class Prompt(unittest.TestCase):
     def test_the_instructions_name_the_focused_verification_and_never_the_full_suite_command(self):
         """実装役にはテストを走らせないことだけを伝える（C4）。全件テストの命令は入力に現れない。"""
-        prompt = hline.build_prompt({"a": 1})
+        prompt = hline.build_prompt("# 題")
         instructions = prompt.split("---\n", 1)[0]
         self.assertNotIn("discover", instructions)
         self.assertIn("テストは走らせない", instructions)

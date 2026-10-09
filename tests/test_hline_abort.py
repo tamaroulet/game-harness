@@ -18,7 +18,7 @@ import hline_respec  # noqa: E402
 import hline_task  # noqa: E402
 
 MARKER, WHY = hline_abort.MARKER, "編集境界の外の harness/hline.py を変えないと実装できない"
-SPEC = {"target_symbols": [], "edit_boundary": {"allowed_files": ["a.py"], "forbidden_files": [], "max_diff_lines": 10}}
+WHAT = "# T-010-a\n\n## What\n本文の合格条件\n"
 CFG = {"max_attempts": 3, "ttl_seconds": {"git": 60}, "gate_tail_chars": 2000}
 
 
@@ -102,21 +102,21 @@ class Pure(unittest.TestCase):
         self.assertIsNone(hline_abort.unconverged_reason([{"abort": "古い"}, {"gate": False}]))
         self.assertEqual(hline_abort.unconverged_reason([{"gate": False}, {"abort": WHY}]), WHY)
 
-    def test_the_instructions_are_in_the_prompt_before_the_taskspec_and_not_the_what(self):
+    def test_the_instructions_are_in_the_prompt_before_the_what_body(self):
         text = hline_abort.instructions()
         self.assertIn(MARKER, text)
-        prompt = hline_prompt.build_prompt(SPEC, "前回の出力", "# 目次X")
+        prompt = hline_prompt.build_prompt(WHAT, "前回の出力", "# 目次X")
         head, tail = prompt.split("\n---\n", 1)
         self.assertIn(text, head)
         self.assertNotIn(MARKER, tail)
-        self.assertEqual(json.loads(tail.split("\n---\n")[0]), SPEC)
+        self.assertEqual(tail.split("\n---\n")[0].strip(), WHAT.strip())
 
 
 class Flow(Repo):
     def host(self, writes, logs=None):
         self.implemented, self.gated = [], []
 
-        def implement(cfg, wt, spec, feedback, log):
+        def implement(cfg, wt, what, feedback, log):
             n = len(self.implemented)
             self.implemented.append(feedback)
             self.write("new.py", writes[min(n, len(writes) - 1)])
@@ -131,7 +131,7 @@ class Flow(Repo):
                                      changed_paths=lambda w, c: ["new.py"])
 
     def run_task(self, host):
-        return quiet(hline_task.run_task, host, CFG, "t", SPEC, self.out, (self.wt, "b"))
+        return quiet(hline_task.run_task, host, CFG, "t", WHAT, self.out, (self.wt, "b"))
 
     def test_the_same_diff_twice_stops_before_the_second_gate(self):
         wt, branch, tries = self.run_task(self.host(["same\n"]))
@@ -175,9 +175,7 @@ class Process(unittest.TestCase):
         what.write_text("# T\n本文\n", encoding="utf-8")
         self.st = {"items": {"010-a": {"title": "T", "task": None}}}
         self.host = mock.Mock(what_path=lambda c, n: what, slug=lambda n: "a", today=lambda: "2026-10-06",
-                              decompose=mock.Mock(return_value=(SPEC, {"reason": None})),
-                              new_worktree=mock.Mock(return_value=(Path(tmp.name), "b")),
-                              second_round=mock.Mock(return_value=(None, None, None)))
+                              new_worktree=mock.Mock(return_value=(Path(tmp.name), "b")))
 
     def run_process(self, tries):
         self.host.run_task = mock.Mock(return_value=(None, None, tries))
@@ -186,13 +184,7 @@ class Process(unittest.TestCase):
     def test_an_abandon_with_no_respecs_left_is_unconverged_with_the_reason(self):
         done, item = self.run_process([{"run": 0, "attempt": 1, "gate": False, "abort": WHY}])
         self.assertEqual((done, item["status"], item["reason"]), (False, "unconverged", WHY))
-        self.host.second_round.assert_not_called()
-
-    def test_an_abandon_with_a_respec_left_decomposes_again_and_keeps_the_reason_when_that_fails(self):
-        self.cfg["respecs"] = 1
-        done, item = self.run_process([{"run": 0, "attempt": 1, "gate": False, "abort": WHY}])
-        self.host.second_round.assert_called_once()
-        self.assertEqual((done, item["status"], item["reason"]), (False, "unconverged", WHY))
+        self.host.run_task.assert_called_once()   # 作り直し（再分解）は無い（C5）
 
     def test_without_an_abort_the_reason_is_the_old_sentence(self):
         _, item = self.run_process([{"run": 0, "attempt": 1, "gate": False}])

@@ -19,6 +19,7 @@ SPEC = {"target_symbols": [{"module": "harness/target.py", "kind": "function", "
         "edit_boundary": {"allowed_files": ["harness/target.py", "tests/test_new.py"], "forbidden_files": [], "max_diff_lines": 300},
         "test_oracle": {"verification_command": VERIFY}}
 WANT = ("tests.test_new", "tests.test_imp", "tests.test_cli")
+WHAT = "# T-010-a\n\n## What\nharness/target.py の f を直す"
 FILES = {"harness/target.py": "def f():\n    pass\n", "harness/other.py": "def g():\n    pass\n",
          "tests/test_imp.py": "import target\n", "tests/test_cli.py": "CMD = ['python', '-m', 'harness.target', 'x']\n",
          "tests/test_other.py": "import other\nCMD = 'python -m harness.other'\n", "tests/helper.py": "import target\n",
@@ -124,15 +125,17 @@ class GateStage(Tree):
         self.assertEqual((len(run.commands), run.commands[-1]), (1, ["python", "-m", "unittest", *WANT]))
         self.assertNotIn("Gate 1", run.labels)
 
-    def test_without_a_spec_the_stage_is_what_it_was(self):
+    def test_without_a_spec_the_stage_comes_from_the_changed_paths(self):
+        """TaskSpec が無くても（C5）、変えた harness/ の .py を確かめているテストを引く。"""
         run = Run(first=(1, "o", ""))
         with mock.patch.object(gate_order.proc, "run", side_effect=run):
             ok, msg = gate_order.focused(CFG, self.wt, ["harness/x.py", "tests/test_a.py"], "T1")
-            self.assertEqual(run.commands[-1], VERIFY.split())
-            self.assertIn(f"`{VERIFY}` が終了コード 1（期待 0）", msg)
-            gate_order.focused(CFG, self.wt, ["harness/x.py", "tests/test_a.py"], None)
-            self.assertEqual(run.commands[-1], hline.base_whitelist.unittest_command(CFG["gate_command"], ["tests.test_a"]))
-            self.assertIsNone(gate_order.focused(CFG, self.wt, ["harness/x.py"], None))
+            self.assertEqual(run.commands[-1][:4], VERIFY.split())   # 進捗の検証コマンドに影響テストを足して 1 回
+            self.assertIn(f"`{VERIFY} tests.test_a` が終了コード 1（期待 0）", msg)
+            gate_order.focused(CFG, self.wt, ["harness/target.py", "tests/test_a.py"], None)
+            self.assertEqual(run.commands[-1], hline.base_whitelist.unittest_command(
+                CFG["gate_command"], ["tests.test_a", "tests.test_imp", "tests.test_cli"]))
+            self.assertIsNone(gate_order.focused(CFG, self.wt, ["docs/x.md"], None))
 
 
 class Implement(Tree):
@@ -141,7 +144,7 @@ class Implement(Tree):
         run = Run(first=(0, json.dumps({"result": "x", "modelUsage": {CFG["implementer"]["model"]: {}}, "num_turns": 1}), ""))
         before = json.dumps(CFG["implementer"], sort_keys=True)
         with mock.patch.object(hline.proc, "run", side_effect=run), mock.patch.object(hline.proc, "resolve_cli", return_value=["claude"]):
-            hline.implement(CFG, str(self.wt), SPEC, "FB", self.wt / "log")
+            hline.implement(CFG, str(self.wt), WHAT, "FB", self.wt / "log")
         self.assertEqual(json.dumps(CFG["implementer"], sort_keys=True), before)
         args = run.commands[0]
         tools = args[args.index("--allowedTools") + 1].split(",")
@@ -151,8 +154,7 @@ class Implement(Tree):
         self.assertEqual(args[args.index("--max-turns") + 1], str(CFG["implementer"]["budget"]["max_turns"]))
         head, rest = run.inputs[0].split("\n---\n", 1)
         self.assertIn(impacted.prompt_note(), head)
-        self.assertEqual(json.loads(rest.split("\n---\n")[0]), SPEC)
-        self.assertNotIn("tests.test_other", run.inputs[0])
+        self.assertEqual(rest.split("\n---\n")[0].strip(), WHAT.strip())
 
 
 if __name__ == "__main__":

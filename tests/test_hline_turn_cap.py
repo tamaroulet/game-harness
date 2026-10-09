@@ -11,7 +11,7 @@ import hline  # noqa: E402
 import hline_budget as hb  # noqa: E402
 import test_hline_queue as base  # noqa: E402
 
-CFG, SPEC = base.CFG, base.SPEC
+CFG, WHAT = base.CFG, "# T-010-a\n\n## What\n本文"
 CAP = CFG["implementer"]["budget"]["max_turns"]
 USAGE = {"input_tokens": 10, "output_tokens": 20, "cache_read_input_tokens": 30, "cache_creation_input_tokens": 40}
 
@@ -65,7 +65,7 @@ class Flow(base.World):
 
         def fake_run(args, cwd, ttl, label, env=None, input=None):
             self.runs.append({"args": args, "ttl": ttl, "env": env, "label": label, "input": input})
-            if label != "実装役":   # Base 検査など
+            if label != "実装役":   # 残骸の掃除（git worktree prune）など
                 return 0, "", ""
             o = self.impl_outs.pop(0) if self.impl_outs else out()
             return o if isinstance(o, tuple) else (0, o, "")
@@ -75,16 +75,15 @@ class Flow(base.World):
             return self.gates.pop(0) if self.gates else (True, "ok")
         self.patch(hline.proc, "run", side_effect=fake_run)
         self.patch(hline.proc, "resolve_cli", return_value=["claude"])
-        self.patch(hline, "decompose", side_effect=self.fake_decompose)
         self.patch(hline, "changed_paths", return_value=["harness/textnorm.py"])
         self.patch(hline, "gate", side_effect=fake_gate)
         self.patch(hline, "new_worktree", side_effect=lambda c, t: (self.made.append(t), (self.wt, "b"))[1])
 
     def implement(self, cfg=None):
-        return hline.implement(cfg or self.cfg, self.wt, SPEC, None, self.out / "log")
+        return hline.implement(cfg or self.cfg, self.wt, WHAT, None, self.out / "log")
 
     def run_task(self):
-        return hline.run_task(self.cfg, "t", SPEC, self.out)
+        return hline.run_task(self.cfg, "t", WHAT, self.out)
 
     def test_the_implementer_call_carries_the_turn_cap_and_nothing_else(self):
         self.implement()
@@ -118,15 +117,14 @@ class Flow(base.World):
         self.assertRaises(hline.Infra, self.implement)
 
     def test_a_cut_off_attempt_goes_to_gate_1_in_the_same_worktree_and_a_failure_carries_the_reason(self):
-        self.impl_outs = [(1, CUTOFFS["error_max_turns"], ""), (0, out(), ""), (0, out(), "")]
-        self.gates = [(False, "Gate 1 の出力\n全文 1"), (False, "Gate 1 の出力\n全文 2"), (True, "ok")]
+        self.impl_outs = [(1, CUTOFFS["error_max_turns"], ""), (0, out(), "")]
+        self.gates = [(False, "Gate 1 の出力\n全文 1"), (True, "ok")]
         wt, branch, tries = self.run_task()
-        self.assertEqual((wt, self.made, self.gated_in), (self.wt, ["t"], [self.wt] * 3))   # 作業ツリーを作るのは最初の 1 回だけ
-        first, second, third = (r["input"] for r in self.runs)
+        self.assertEqual((wt, self.made, self.gated_in), (self.wt, ["t"], [self.wt] * 2))   # 作業ツリーを作るのは最初の 1 回だけ
+        first, second = (r["input"] for r in self.runs)
         for word in ("打ち切", str(CAP), "Gate 1 の出力\n全文 1"):
             self.assertIn(word, second)
-        self.assertIn("Gate 1 の出力\n全文 2", third)
-        self.assertEqual(("打ち切" in first, "打ち切" in third), (False, False))
+        self.assertNotIn("打ち切", first)
         self.assertEqual((self.out / "gate-0-1.log").read_text(encoding="utf-8"), "Gate 1 の出力\n全文 1")
 
     def test_attempt_records_carry_turns_and_cutoff_including_the_passing_one(self):

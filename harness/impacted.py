@@ -75,8 +75,15 @@ def _callers(root, targets):
     return tuple(filter(None, found))
 
 
-def test_modules(root, spec=None, verification=None, changed=()):
-    targets = [t for t in symbolmap.spec_modules(spec) if t.endswith(".py")]
+def changed_modules(paths):
+    """変えたパスのうち harness/ の .py（/ 区切り・重複なし・現れた順）。TaskSpec が無い段では、ここが影響テストの起点。"""
+    found = (p.replace("\\", "/").removeprefix("./") for p in paths if isinstance(p, str))
+    return tuple(dict.fromkeys(p for p in found if p.startswith("harness/") and p.endswith(".py")))
+
+
+def test_modules(root, spec=None, verification=None, changed=(), paths=()):
+    """影響テストのモジュール。起点は TaskSpec の target_symbols、無ければ変えた harness/ の .py（importer と caller を引く）。"""
+    targets = [t for t in symbolmap.spec_modules(spec) if t.endswith(".py")] or list(changed_modules(paths))
     command = _get(verification, "command", str)
     found = [*(c for c in changed if isinstance(c, str)), *command_modules(command), *from_spec(spec),
              *(_importers(root, targets) + _callers(root, targets) if targets else ())]

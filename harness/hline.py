@@ -17,15 +17,14 @@ from hline_git import ahead, changed_paths, create_pr, drop_merged_branch, fetch
 from hline_hygiene import diff_files, problems  # noqa: E402
 from hline_queue import by_status, intake, load_state, next_runnable, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
 from hline_report import line_modules, mark as _mark, pr_body, pr_title, self_change, today, write_report  # noqa: E402,F401
-from hline_respec import second_round  # noqa: E402,F401
 from hline_room import director_settings, setup  # noqa: E402,F401
-from hline_spec import boundary_problems, decompose, diff_counts  # noqa: E402,F401
+from hline_spec import boundary_problems, diff_counts  # noqa: E402,F401
 
 
-def build_prompt(spec, feedback=None, symbol_map=None, size_note=None): return hline_prompt.build_prompt(spec, feedback, "\n\n".join(filter(None, (symbol_map, size_note))) or None)   # 規模の節も目次と同じ、最初の区切りの前に入る
+def build_prompt(what, feedback=None, symbol_map=None, size_note=None): return hline_prompt.build_prompt(what, feedback, "\n\n".join(filter(None, (symbol_map, size_note))) or None)   # 規模の節も目次と同じ、最初の区切りの前に入る
 
 
-def implement(cfg, wt, spec, feedback, log): return hline_prompt.implement(argparse.Namespace(**{**vars(sys.modules[__name__]), "build_prompt": lambda s, f, m: build_prompt(s, f, m, size_limits.prompt_text(s, wt))}), cfg, wt, spec, feedback, log)
+def implement(cfg, wt, what, feedback, log): return hline_prompt.implement(argparse.Namespace(**{**vars(sys.modules[__name__]), "build_prompt": lambda s, f, m: build_prompt(s, f, m, size_limits.prompt_text(s, wt))}), cfg, wt, what, feedback, log)
 
 
 def gate(cfg, wt, paths, spec=None, task=None, extended=(), warnings=None): return hline_gate.gate(sys.modules[__name__], cfg, wt, paths, spec, task, extended, warnings)

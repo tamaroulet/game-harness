@@ -86,7 +86,7 @@ class IntegrateFatal(unittest.TestCase):
 class Host:
     def __init__(self, tmp, integrate_error):
         self.tmp = Path(tmp)
-        self.calls = {k: 0 for k in ("decompose", "run_task", "second_round", "new_worktree")}
+        self.calls = {k: 0 for k in ("run_task", "new_worktree")}
         self.marks, self.integrate_error = [], integrate_error
         (self.tmp / "w.md").write_text("# T\n", encoding="utf-8")
 
@@ -103,11 +103,9 @@ class Host:
             raise self.integrate_error
 
         return ns(what_path=lambda cfg, n: self.tmp / "w.md", slug=lambda n: "w", mark=lambda *a, **kw: self.marks.append(a),
-                  decompose=self.counted("decompose", ({"spec": 1}, {"reason": None})),
                   run_task=self.counted("run_task", (Path("."), "b", [])), changed_paths=lambda wt, cfg: ["harness/x.py"],
                   self_change=lambda paths: None, integrate=integrate, save_state=lambda cfg, st: None,
-                  today=lambda: "2026-10-06", second_round=self.counted("second_round", (None, None, [])),
-                  new_worktree=self.counted("new_worktree", (Path("."), "b")))
+                  today=lambda: "2026-10-06", new_worktree=self.counted("new_worktree", (Path("."), "b")))
 
 
 class ProcessFatal(unittest.TestCase):
@@ -115,7 +113,7 @@ class ProcessFatal(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.tmp = Path(self._tmp.name)
-        self.cfg = {"out": str(self.tmp / "out"), "inbox": str(self.tmp), "respecs": True,
+        self.cfg = {"out": str(self.tmp / "out"), "inbox": str(self.tmp), "respecs": 0,
                     "infra_retry": {"max_retries": 2, "wait_seconds": [5]}}
         self.st = {"items": {"w.md": {"title": "題", "task": "S9-1", "milestone": "M", "status": "waiting"}}}
         self.sleep = mock.Mock()
@@ -136,8 +134,7 @@ class ProcessFatal(unittest.TestCase):
         self.assertIn(REASON, item["reason"])
         self.assertNotIn("infra_halt", self.st)
         self.assertNotIn("infra_retries", item)
-        self.assertEqual((host.calls["decompose"], host.calls["run_task"]), (1, 1))
-        self.assertEqual((host.calls["second_round"], host.calls["new_worktree"]), (0, 1))
+        self.assertEqual((host.calls["run_task"], host.calls["new_worktree"]), (1, 1))
         self.sleep.assert_not_called()
         self.assertTrue(host.marks)
 
@@ -149,7 +146,7 @@ class ProcessFatal(unittest.TestCase):
     def test_a_plain_infra_waits_and_retries_then_halts_the_line(self):
         done, host = self.process(hline_base.Infra("git push が失敗しました（終了コード 124）: TTL 超過"))
         self.assertIs(done, False)
-        self.assertEqual(host.calls["decompose"], 3)
+        self.assertEqual(host.calls["run_task"], 3)
         self.assertEqual(self.sleep.call_count, 2)
         self.assertEqual(self.st["infra_halt"]["name"], "w.md")
         self.assertEqual(self.st["items"]["w.md"]["status"], "waiting")

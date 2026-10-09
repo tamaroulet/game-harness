@@ -15,6 +15,7 @@ CFG, LIM = hline.load_config(), sl.limits()
 SPEC = {"target_symbols": [], "edit_boundary": {"allowed_files": ["harness/x.py"], "forbidden_files": [],
                                                 "max_diff_lines": 123, "deletable_files": ["harness/old_a.py", "harness/old_b.py"]}}
 SMALL = {"new_module_max_lines": 10, "max_complexity": 4, "max_added_lines": 77}
+WHAT = "# T-010-a\n\n## What\n本文"   # 実装役に渡すのは What の本文（C5）
 
 
 def lines(n):
@@ -81,18 +82,18 @@ class PromptText(Base):
 
 class BuildPrompt(unittest.TestCase):
     def test_without_a_note_the_prompt_is_unchanged(self):
-        spec = {"a": 1}
+        spec = WHAT
         for note in (None, ""):
             self.assertEqual(hline.build_prompt(spec, None, None, note), hline.build_prompt(spec))
         self.assertEqual(hline.build_prompt(spec, "FB", "# 目次X", None), hline.build_prompt(spec, "FB", "# 目次X"))
 
-    def test_the_note_goes_before_the_first_separator_and_after_it_only_the_spec_json(self):
-        spec = {"a": 1}
+    def test_the_note_goes_before_the_first_separator_and_after_it_only_the_what_body(self):
+        spec = WHAT
         prompt = hline.build_prompt(spec, None, None, "NOTE-BODY")
         head, tail = prompt.split("\n---\n", 1)
         self.assertIn("NOTE-BODY", head)
         self.assertNotIn("NOTE-BODY", tail)
-        self.assertEqual(json.loads(tail), spec)
+        self.assertEqual(tail.strip(), spec.strip())
         both = hline.build_prompt(spec, "FB", "# 目次X", "NOTE-BODY")
         self.assertTrue(both.index("# 目次X") < both.index("NOTE-BODY") < both.index("\n---\n"))
         self.assertIn("FB", both.split("\n---\n")[2])
@@ -106,16 +107,16 @@ class Implement(Base):
             inputs.append(input)
             return 0, json.dumps({"result": "x", "modelUsage": {"claude-sonnet-5-5": {}}, "num_turns": 1}), ""
         with mock.patch.object(hline.proc, "run", side_effect=fake_run), mock.patch.object(hline.proc, "resolve_cli", return_value=["claude"]):
-            hline.implement(CFG, wt, SPEC, feedback, Path(wt) / "log")
+            hline.implement(CFG, wt, WHAT, feedback, Path(wt) / "log")
         return inputs[0]
 
     def test_the_first_attempt_and_a_retry_both_carry_the_size_section(self):
         wt = self.tree({"harness/big.py": lines(LIM["new_module_max_lines"] + 3)})
         for feedback in (None, "前回の出力"):
             sent = self.run_implement(wt, feedback)
-            for want in ("規模の制約", "123", str(LIM["new_module_max_lines"]), str(LIM["max_complexity"]), "harness/big.py", "新しいテストのファイル"):
+            for want in ("規模の制約", str(LIM["new_module_max_lines"]), str(LIM["max_complexity"]), "harness/big.py", "新しいテストのファイル"):
                 self.assertIn(want, sent)
-            self.assertEqual(json.loads(sent.split("\n---\n")[1]), SPEC)
+            self.assertEqual(sent.split("\n---\n")[1].strip(), WHAT.strip())
             self.assertEqual("前回の出力" in sent, bool(feedback))
 
 

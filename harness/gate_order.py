@@ -36,15 +36,15 @@ def report(command, code, out, err, limit, expected=0):
 
 
 def focused(cfg, wt, paths, task, spec=None):
-    """タスク個別の検証（task があれば進捗の検証コマンド、無ければ変えた tests/ のテスト）を走らせる。
-    spec があれば、影響テスト（impacted.test_modules）だけを第 1 段で走らせる。(通ったか, 出力)。走らせるものが無ければ None。"""
+    """影響テスト（変えたパスから引いたテスト）と、タスクがあれば進捗の検証コマンドを走らせる。
+    (通ったか, 出力)。走らせるものが無ければ None。"""
     v = None
     if task:
         v = verification_of(wt, task)
         if not v:
             return False, f"進捗のタスク {task} の検証コマンドが見つかりません"
     changed = test_modules(paths)
-    modules = impacted.test_modules(wt, spec, v, changed) if spec else (() if task else changed)
+    modules = impacted.test_modules(wt, spec, v, changed, paths)
     stage = impacted.stage_command(cfg["gate_command"], modules, v)
     if stage is None:
         return None

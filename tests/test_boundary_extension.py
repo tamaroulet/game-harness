@@ -164,22 +164,17 @@ class RunTask(Base):
         host, calls, feedbacks = self.host(results)
         cfg = {"max_attempts": 2, "ttl_seconds": {"git": 1}}
         with contextlib.redirect_stdout(io.StringIO()):
-            out = hline_task.run_task(host, cfg, "t", SPEC, self.root, (self.root, "b"))
+            out = hline_task.run_task(host, cfg, "t", "# T\n\n## What\n本文", self.root, (self.root, "b"))
         return out, calls, feedbacks
 
-    def test_an_outside_test_that_fails_is_added_for_the_next_attempt(self):
+    def test_the_boundary_is_not_widened_without_a_taskspec(self):
+        """段を 1 つにしたので（C5）編集境界そのものが無く、ハーネスは何も足さない（hline_boundary は Phase 2 まで残す）。"""
         (wt, _, tries), calls, feedbacks = self.run_two([(False, FAIL), (True, "ok")])
         self.assertEqual(wt, self.root)
-        self.assertEqual(len(calls[0]), 5)
-        self.assertEqual(calls[1][3]["edit_boundary"]["allowed_files"], ["harness/x.py", "tests/test_sample.py"])
-        self.assertEqual(calls[1][5], ("tests/test_sample.py",))
-        self.assertTrue(feedbacks[1].endswith(hb.note(["tests/test_sample.py"])))
-        self.assertEqual(tries[0]["boundary_added"], ["tests/test_sample.py"])
-        self.assertNotIn("boundary_added", tries[1])
-
-    def test_nothing_is_added_when_the_failing_test_is_unrelated(self):
-        _, calls, _ = self.run_two([(False, "FAIL: t (tests.test_other.T.t)"), (True, "ok")])
-        self.assertEqual((len(calls[1]), calls[1][3]), (5, SPEC))
+        self.assertEqual([len(c) for c in calls], [5, 5])
+        self.assertEqual([c[3] for c in calls], [None, None])   # Gate 1 に渡す TaskSpec は常に None
+        self.assertEqual(feedbacks, [None, FAIL])   # 足したことを知らせる 1 文も付かない
+        self.assertNotIn("boundary_added", tries[0])
 
     def test_the_report_names_the_added_files_only_when_there_are_some(self):
         item = {"title": "t", "milestone": "m", "task": None, "decompose": {"attempts": []}}
