@@ -1,14 +1,14 @@
-﻿# 総監督の部屋（受信箱）
+# 総監督の部屋（受信箱）
 
 ## 起動時に読む順序
 1. report.md（現実・probe 実測値）
 2. notes/handoff.md（前回の引き継ぎ）
-3. game-harness/docs/director/INDEX.md（知識の入口・対応表）
+3. drafts/director/INDEX.md（知識の入口・対応表）
 
 ## 起動時に読む順序
 1. report.md（現実・probe 実測値）
 2. notes/handoff.md（前回の引き継ぎ）
-3. game-harness/docs/director/INDEX.md（知識の入口・対応表）
+3. drafts/director/INDEX.md（知識の入口・対応表）
 
 このディレクトリは H ライン（`harness/hline.py`）の受信箱で、総監督のセッションはここで起動する。
 設計：game-harness の `docs/design/foundation_v3_review.md`（改訂 6）§3〜§5。この文書と `.claude/settings.json` は
@@ -36,7 +36,7 @@
     処理される。名前の順が依存先より前でも、依存先が済むまで待つ
 - 積むものが尽きると、H ラインは統合ブランチから main への PR を 1 本だけ出して止まる。その PR が閉じられるまで、
   ここに置いた What は取られない。承認は人間が非同期に行う
-- `report.md` を読む。チャットの報告は `report.md` の全文を貼ることだけ（作業規約）。進捗ツリーに加えて、ラインの状態
+- `report.md` を読む。
   （走行中・統合 PR 待ち）とキューの状態（済み・待ち・未収束・凍結）が出る
 - `TODO.md` を読む（収束しなかった What の記録）
 - 未収束の What は、同じ名前で直した What を置くと、記録を差し替えて凍結（その What に依存する What）を解き、続ける。
