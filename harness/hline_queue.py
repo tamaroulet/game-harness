@@ -15,7 +15,11 @@ import json
 import re
 from pathlib import Path
 
-from hline_base import RESERVED, title_of, write_json
+from hline_base import RESERVED, ROOT, title_of, write_json
+
+import proc  # noqa: E402
+import progress  # noqa: E402
+import yaml  # noqa: E402
 
 HEADER = re.compile(r"^\s*(?:[-*]\s*)?(マイルストーン|タスク|依存)\s*[:：]\s*(.*?)\s*$")
 
@@ -88,12 +92,58 @@ def intake(cfg, st):
             continue
         what_path(cfg, name).parent.mkdir(parents=True, exist_ok=True)
         what_path(cfg, name).write_text(text, encoding="utf-8")
-        st["items"][name] = {"status": "waiting", "title": title_of(text), "replaced": bool(old), **meta}
+        st["items"][name] = {"status": "waiting", "title": title_of(text), "replaced": bool(old),
+                             "header_deps": list(meta["deps"]), **meta}
         save_state(cfg, st)    # 状態に入れてから受信箱を消す（途中で落ちても What は失われず、取り直しは同じ結果になる）
         src.unlink()
         taken.append(name)
     st["skipped"] = skipped
+    apply_ledger(cfg, st)
     return taken
+
+
+# ============================================================ 台帳の依存
+
+def read_ledger(cfg):
+    """base の台帳（docs/progress.yaml）を読み、{タスク ID: {"deps": [...], "done": bool}} を返す。読めなければ ValueError。"""
+    code, out, err = proc.run(["git", "show", f"{cfg['base']}:{progress.REL_PATH}"], ROOT, cfg["ttl_seconds"]["git"], "git show (ledger)")
+    if code != 0:
+        raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を読めません: {' '.join((err or out or '').split())[:200]}")
+    try:
+        tasks = yaml.safe_load(out)["tasks"]
+        return {t["id"]: {"deps": list(t.get("depends_on") or []), "done": t.get("status") == "completed"} for t in tasks}
+    except Exception as e:   # noqa: BLE001
+        raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を解釈できません: {type(e).__name__}") from e
+
+
+def apply_ledger(cfg, st):
+    """タスクを宣言した待ち・凍結の What の依存を、`依存:` と base の台帳の depends_on の和にする。
+    台帳で完了している依存先は met に残す（キューに無くても満たされたものとして扱う）。台帳が読めない What は ledger_error を立てて待たせる。
+    タスクを宣言した What が無ければ git を呼ばない。"""
+    todo = [i for i in st["items"].values() if i["status"] in ("waiting", "frozen") and i.get("task")]
+    if not todo:
+        return
+    try:
+        ledger = read_ledger(cfg)
+        error = None
+    except Exception as e:   # noqa: BLE001
+        ledger, error = {}, str(e)
+    for i in todo:
+        if error:
+            i["ledger_error"] = error
+            continue
+        i.pop("ledger_error", None)
+        own = ledger.get(i["task"], {}).get("deps", [])
+        head = i.get("header_deps", i["deps"])
+        i["deps"] = list(dict.fromkeys([*head, *own]))
+        i["met"] = [d for d in i["deps"] if ledger.get(d, {}).get("done")]
+
+
+def dep_done(st, item, d):
+    """依存先 d（What の名前か、タスクの ID）が済んでいるか。"""
+    if d in item.get("met", ()) or st["items"].get(d, {}).get("status") == "done":
+        return True
+    return any(j.get("task") == d and j["status"] == "done" for j in st["items"].values())
 
 
 # ============================================================ 取り出し・凍結・復旧
@@ -102,17 +152,19 @@ def refresh(st):
     """未収束に（推移的に）依存する項目を凍結し、上流が直れば凍結を解く。凍結した項目は処理しない。"""
     items = st["items"]
     stuck = {n for n, i in items.items() if i["status"] == "unconverged"}
+    ids = lambda n: {n, items[n].get("task")} - {None}   # noqa: E731  台帳の依存はタスクの ID で書かれる
     grew = True
     while grew:
         grew = False
         for n, i in items.items():
-            if i["status"] in ("waiting", "frozen") and n not in stuck and stuck & set(i["deps"]):
+            if i["status"] in ("waiting", "frozen") and n not in stuck and {x for s in stuck for x in ids(s)} & set(i["deps"]):
                 stuck.add(n)
                 grew = True
     for n, i in items.items():
         if i["status"] in ("waiting", "frozen"):
             if n in stuck:
-                i["status"], i["frozen_by"] = "frozen", sorted(stuck & set(i["deps"]))
+                held = {x for s in stuck for x in ids(s)}
+                i["status"], i["frozen_by"] = "frozen", sorted(held & set(i["deps"]))
             else:
                 i["status"] = "waiting"
                 i.pop("frozen_by", None)
@@ -122,7 +174,7 @@ def next_runnable(st):
     """依存がすべて済んだ待ちの What のうち、名前の順で最初のもの。"""
     for name in sorted(st["items"]):
         i = st["items"][name]
-        if i["status"] == "waiting" and all(st["items"].get(d, {}).get("status") == "done" for d in i["deps"]):
+        if i["status"] == "waiting" and not i.get("ledger_error") and all(dep_done(st, i, d) for d in i["deps"]):
             return name
     return None
 
