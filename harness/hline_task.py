@@ -7,6 +7,7 @@ import fastsuite
 import hline_abort
 import hline_boundary
 import hline_quota
+import hline_queue
 import infra_retry
 from hline_base import Fatal, Infra, Quota
 from hline_budget import attempt_record, with_cutoff
@@ -139,7 +140,7 @@ def process(host, cfg, st, name):
     if records:
         item["infra_retries"] = records
     if done:
-        item["status"] = "done"
+        hline_queue.mark_done(item)
     else:
         item.update(status="unconverged", at=host.today(), reason=unconverged(item))
         print(f"[{tid}] 収束しませんでした: {item['reason']}")

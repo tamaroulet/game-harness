@@ -10,6 +10,7 @@ What は本文の行で次を宣言できる（書式は総監督の部屋の CL
 
 項目の状態: waiting（待ち）→ processing → done（済み）／unconverged（未収束）。未収束に依存する項目は frozen（凍結）。
 """
+import datetime
 import json
 import re
 from pathlib import Path
@@ -126,8 +127,21 @@ def next_runnable(st):
     return None
 
 
+def now():
+    return datetime.datetime.now().astimezone()
+
+
+def mark_done(item):
+    """項目を済みにし、その時刻（ISO 8601、秒まで、UTC からの差つき）を done_at に残す。すでにある done_at は書き換えない。"""
+    item["status"] = "done"
+    item.setdefault("done_at", now().isoformat(timespec="seconds"))
+
+
 def recover(cfg, st, integrated):
     """強制終了で残った processing を戻す。統合ブランチに積み終えていたら済み、でなければ待ちに戻す（What は失わない）。"""
     for n in by_status(st, "processing"):
-        st["items"][n]["status"] = "done" if integrated(n) else "waiting"
+        if integrated(n):
+            mark_done(st["items"][n])
+        else:
+            st["items"][n]["status"] = "waiting"
     save_state(cfg, st)
