@@ -1,4 +1,4 @@
-project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
+﻿project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
 active_task_id: H0-1
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).

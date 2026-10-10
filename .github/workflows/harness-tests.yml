@@ -1,9 +1,6 @@
 name: harness-tests
 
-# スケジューラの状態遷移テスト。git は本物、GitHub は偽物、子プロセスはスタブ。
-# taskkill と Windows のパスを使うので windows-latest（GitHub-hosted）で走らせる。
-# self-hosted runner は使わない（PC が止まっていてもチェックが回るように）。
-
+# スケジューラの状態�E移チE��ト。git は本物、GitHub は偽物、子�Eロセスはスタブ、E# taskkill と Windows のパスを使ぁE�Eで windows-latest�E�EitHub-hosted�E�で走らせる、E# self-hosted runner は使わなぁE��EC が止まってぁE��もチェチE��が回るよぁE���E�、E
 on:
   push:
   pull_request:
@@ -20,12 +17,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      # harness/progress.py が docs/progress.yaml を読む（ADR-003 §4）。手元と同じ版に固定する
-      - name: dependencies
+      # harness/progress.py ぁEdocs/progress.yaml を読む�E�EDR-003 §4�E�。手允E��同じ版に固定すめE      - name: dependencies
         run: python -m pip install pyyaml==6.0.3 mujoco==3.15.0
 
-      # runner コンテキストはジョブ単位の env では使えない（ワークフローごと起動しなかった。実測）
-      - name: unittest
+      # runner コンチE��スト�Eジョブ単位�E env では使えなぁE��ワークフローごと起動しなかった。実測�E�E      - name: unittest
         env:
           HARNESS_SELFTEST_DIR: ${{ runner.temp }}\harness-selftest
         run: python -m unittest discover -s tests -v
