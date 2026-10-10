@@ -711,7 +711,7 @@ tasks:
   title: 影響テストの起点を harness/ の外のモジュールに広げる
   group: G0
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: impact-tests-outside-harness'
   depends_on: []
   verification:
@@ -788,6 +788,6 @@ tasks:
   - G0-2
   verification: null
 last_verification:
-  task: W-1
+  task: W-10
   exit_code: 0
-  at: '2026-10-11T01:55:24'
+  at: '2026-10-11T01:58:55'
