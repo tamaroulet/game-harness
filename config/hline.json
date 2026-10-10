@@ -1,4 +1,4 @@
-﻿{
+{
   "_comment": "H ライン（ハーネス自身の改修の自律ループ、段 0）の設定。docs/design/foundation_v3_review.md（改訂 5）§3。harness/hline.py が読む。",
   "inbox": "C:\\src\\.local\\inbox",
   "_inbox_note": "Git の外の受信箱。総監督が What を 1 件 1 ファイル（*.md）で置く。名前の順に 1 回 1 件だけ取る。report.md・TODO.md・CLAUDE.md は H ラインが書くので取らない",

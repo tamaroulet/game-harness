@@ -40,8 +40,12 @@ class TestProbe(unittest.TestCase):
         info = get_progress_info(self.repo_dir)
         self.assertIn("active_task_id", info)
         self.assertIn("uncompleted_count", info)
-        self.assertEqual(info["active_task_id"], "G1-1")
-        self.assertEqual(info["active_group"], "G1")
+        from harness import progress as p
+        expected_id = p.load(self.repo_dir / p.REL_PATH).get("active_task_id")
+        self.assertEqual(info["active_task_id"], expected_id)
+        from harness import progress as p
+        expected_group = next((t["group"] for t in p.load(self.repo_dir / p.REL_PATH).get("tasks", []) if t["id"] == info["active_task_id"]), "")
+        self.assertEqual(info["active_group"], expected_group)
         self.assertGreater(info["uncompleted_count"], 0)
 
     def test_get_modules_summary_counts_correctly(self):
@@ -55,7 +59,9 @@ class TestProbe(unittest.TestCase):
         self.assertIn("[ENVIRONMENT]", output)
         self.assertIn("[CODEBASE STRUCTURE]", output)
         self.assertIn("[PROGRESS STATUS]", output)
-        self.assertIn("G1-1", output)
+        from harness import progress as p
+        expected_id = p.load(self.repo_dir / p.REL_PATH).get("active_task_id")
+        self.assertIn(expected_id, output)
         self.assertIn("[OPERATIONAL BOUNDARIES & CONSTRAINTS]", output)
 
     def test_format_probe_output_with_on_demand_args(self):
