@@ -1,5 +1,5 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: G1-3
+active_task_id: G0-5
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -662,7 +662,7 @@ tasks:
   title: 機能の What が自走して積み切られる（C2 の合格条件）
   group: G1
   target_repo: game-harness
-  status: in_progress
+  status: completed
   verification:
     command: python -c "import testbed" && python -m harness.reqcov --spec docs/testbed/spec.md --tests "tests/test_testbed_*.py" && python -m unittest discover -s tests -p "test_testbed_*.py"
     expected_exit_code: 0
@@ -670,7 +670,7 @@ tasks:
   title: 北極星計器・ダッシュボード（日次評価の可視化）
   group: G0
   target_repo: game-harness
-  status: pending
+  status: in_progress
   verification: null
 - id: G0-4
   title: 失敗分類の機械化（未収束原因の自動タグ付け）
@@ -715,6 +715,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: G1-2
+  task: G1-3
   exit_code: 0
-  at: '2026-10-10T22:44:18'
+  at: '2026-10-10T22:44:48'
