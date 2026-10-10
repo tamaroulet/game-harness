@@ -1,6 +1,5 @@
 {
   "_comment": "H ライン（ハーネス自身の改修の自律ループ、段 0）の設定。docs/design/foundation_v3_review.md（改訂 5）§3。harness/hline.py が読む。",
-
   "inbox": "C:\\src\\.local\\inbox",
   "_inbox_note": "Git の外の受信箱。総監督が What を 1 件 1 ファイル（*.md）で置く。名前の順に 1 回 1 件だけ取る。report.md・TODO.md・CLAUDE.md は H ラインが書くので取らない",
   "worktrees": "C:\\src\\.local\\wt",
@@ -9,46 +8,87 @@
   "base": "origin/main",
   "integration_branch": "hline/integration",
   "_integration_note": "Gate 1 を通った変更はこのブランチの先端に積む（作業ツリーもここから作る。無ければ base から）。タスクごとの PR は作らず、積むものが尽きたら main への統合 PR を 1 本だけ出して止まる",
-  "milestones": ["B8.1"],
+  "milestones": [
+    "B8.1",
+    "G1"
+  ],
   "_milestones_note": "このラインが取ってよいマイルストーン（進捗のグループの ID）。外のもの・宣言の無いものは受信箱に残す",
-
   "max_attempts": 2,
   "respecs": 0,
   "_retry_note": "1 つの作業ツリーで実装役を最大 max_attempts 回。収束しなければ、その What を未収束にして次の What へ進む（段は 1 つ。再分解は呼ばない。respecs は 0）",
-
-  "infra_retry": { "max_retries": 2, "wait_seconds": [60, 300] },
+  "infra_retry": {
+    "max_retries": 2,
+    "wait_seconds": [
+      60,
+      300
+    ]
+  },
   "_infra_retry_note": "インフラの例外（CLI の起動の失敗・タイムアウト・git や gh の一時的な失敗・認証の一時的な失敗）で、新しい作業ツリーで呼び直す回数の上限と、呼び直しの前に待つ秒数。実装役の試行回数（max_attempts）には数えない",
-
-  "gate_command": ["python", "-m", "harness.fastsuite", "discover", "-s", "tests"],
+  "gate_command": [
+    "python",
+    "-m",
+    "harness.fastsuite",
+    "discover",
+    "-s",
+    "tests"
+  ],
   "_gate_note": "Gate 1 がテストを走らせる土台の命令（モジュール名を足して使う。harness/fastsuite.py がモジュールごとに別のプロセスで並列に走らせる）。判定は終了コードだけ（0 = 全部通った）。LLM は使わない。内側のループで discover（全件）は走らせない",
-
-  "canary_modules": ["tests.test_contract", "tests.test_oracle", "tests.test_propgen", "tests.test_witness"],
+  "canary_modules": [
+    "tests.test_contract",
+    "tests.test_oracle",
+    "tests.test_propgen",
+    "tests.test_witness"
+  ],
   "_canary_note": "影響テストに走らせるものが無かったときだけ Gate 1 が走らせる、既存のテストの小さな束。決定論の契約（乱数・実時間・待機への依存）・二相判定（F2P/P2P）の再現性・性質から作る参照モデルと反例・証拠の状態の注入を確かめる。新しいテストは書かず、ここに名前を置くだけ",
-
-  "ttl_seconds": { "implementer": 1800, "gate": 1800, "git": 300, "gh": 120, "lock_stale": 14400 },
+  "ttl_seconds": {
+    "implementer": 1800,
+    "gate": 1800,
+    "git": 300,
+    "gh": 120,
+    "lock_stale": 14400
+  },
   "gate_tail_chars": 4000,
-  "symbol_map": { "max_chars": 30000 },
+  "symbol_map": {
+    "max_chars": 30000
+  },
   "_symbol_map_note": "実装役に渡すリポジトリの目次（harness/ のモジュール・クラス・関数・引数・行番号と、import しているテスト）の文字数の上限。作業ツリーから呼び出しのたびに作り直す。超えるときは引数 → メソッド → 末尾の順に省く（harness/symbolmap.py）。実装役には target_symbols のモジュールの節だけを渡す",
-
   "implementer": {
     "cli": "claude",
     "headless_flag": "-p",
     "model_flag": "--model",
     "model": "claude-sonnet-5-5",
-    "auxiliary_models": ["claude-haiku-"],
+    "auxiliary_models": [
+      "claude-haiku-"
+    ],
     "_flags_note": "作業ツリー（cwd）の中の編集だけを許す。テストの実行は許さない（ハーネスが試行の後に影響テストを走らせ、結果を次の試行に渡す）。プロンプトは標準入力で渡す（cmd.exe が引数の改行で切るため）",
-    "extra_flags": ["--permission-mode", "acceptEdits",
-                    "--allowedTools", "Read,Grep,Glob,Edit,Write"],
-    "output_format_args": ["--output-format", "json"],
-    "budget": { "max_turns": 15 },
+    "extra_flags": [
+      "--permission-mode",
+      "acceptEdits",
+      "--allowedTools",
+      "Read,Grep,Glob,Edit,Write"
+    ],
+    "output_format_args": [
+      "--output-format",
+      "json"
+    ],
+    "budget": {
+      "max_turns": 15
+    },
     "_budget_note": "実装役 1 回のターン数の上限（--max-turns）。値はここだけに置く。打ち切られても作業ツリーは捨てず、残った変更をそのまま Gate 1 に渡す。落ちたら、打ち切りの理由を添えて次の試行に渡す。思考の量・時間の上限は掛けない（時間は ttl_seconds.implementer）"
   },
-
   "pr_hygiene": {
-    "forbidden_globs": ["*.log", "*.tmp", "*.bak", "__pycache__/", "queue.json", "report.md", "TODO.md", "integration-pr.md"],
+    "forbidden_globs": [
+      "*.log",
+      "*.tmp",
+      "*.bak",
+      "__pycache__/",
+      "queue.json",
+      "report.md",
+      "TODO.md",
+      "integration-pr.md"
+    ],
     "max_file_bytes": 1048576
   },
   "_pr_hygiene_note": "統合 PR を出す前の差分の検査。生ログ・実装役や分解役の出力・キューの状態・一時ファイル（forbidden_globs）と、上限を超える大きさのファイル（max_file_bytes）が混ざっていたら PR を出さず、UNCLEAN_DIFF で止まる。受信箱・作業ツリー・生ログの置き場の末尾のディレクトリ名も禁止に足す（harness/hline_hygiene.py）",
-
   "commit_trailer": "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 }

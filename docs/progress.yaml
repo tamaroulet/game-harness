@@ -1,5 +1,5 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: B8.1-1
+active_task_id: G1-1
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -65,6 +65,12 @@ nodes:
 - id: B8.1
   title: 配線を外したモジュール本体の削除
   parent: B8
+- id: G0
+  title: 決定論的基盤と測定器
+  parent: A
+- id: G1
+  title: G1 盾取り物理ゲームの最小疎通確認
+  parent: A
 - id: Phase 4
   title: 段 5：3D 物理・推論・知覚（Phase 4）
   parent: A
@@ -615,7 +621,67 @@ tasks:
   title: H ラインの分解役（hline_spec の分解の部分・hline_respec・hline_red・hline_tdd）と分解役の設定の削除
   group: B8.1
   target_repo: game-harness
+  status: completed
+  verification: null
+- id: G0-1
+  title: 撤去記録の整備（進捗台帳と実態の乖離防止）
+  group: G0
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: G0-2
+  title: WhatごとのL1全件テストと自動revert（破損コミットの蓄積防止）
+  group: G0
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: G0-3
+  title: 要件網羅率チェッカー（仕様のサイレント省略検知）
+  group: G0
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: G0-4
+  title: 失敗分類の機械化（未収束原因の自動タグ付け）
+  group: G0
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: G0-5
+  title: 北極星計器・ダッシュボード（日次評価の可視化）
+  group: G0
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: G0-6
+  title: 後退台帳の防壁（保護パス・門緩和の強制リジェクト）
+  group: G0
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: G1-1
+  title: 盾取りの純粋なルールのGDD（要件IDと不変条件つき）
+  group: G1
+  target_repo: game-harness
   status: in_progress
+  verification: null
+- id: G1-2
+  title: 計画役の最小版（プロンプト1本と1回の呼び出し）
+  group: G1
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: G1-3
+  title: 判定役What（性質テスト・浸漬試験）の統合と保護パス隔離
+  group: G1
+  target_repo: game-harness
+  status: pending
+  verification: null
+- id: G1-4
+  title: 機能What自走と受け入れ（要件網羅率100%・浸漬試験合格）
+  group: G1
+  target_repo: game-harness
+  status: pending
   verification: null
 - id: Phase 4-1
   title: 3D 物理・メタモルフィックテスト
