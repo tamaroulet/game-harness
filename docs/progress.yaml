@@ -1,5 +1,5 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: G1-1
+active_task_id: H0-1
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -74,7 +74,16 @@ nodes:
 - id: Phase 4
   title: 段 5：3D 物理・推論・知覚（Phase 4）
   parent: A
+- id: H0
+  title: 総監督知覚健全化
+  parent: A
 tasks:
+- id: H0-1
+  title: 総監督知覚健全化の基盤・正本配備
+  group: H0
+  target_repo: game-harness
+  status: in_progress
+  verification: null
 - id: B3.1-PREP
   title: migrate 実装・v2 保全・進捗機械化（障害 1・2 の解消）
   group: B3.1
@@ -663,7 +672,7 @@ tasks:
   title: 盾取りの純粋なルールのGDD（要件IDと不変条件つき）
   group: G1
   target_repo: game-harness
-  status: in_progress
+  status: pending
   verification: null
 - id: G1-2
   title: 計画役の最小版（プロンプト1本と1回の呼び出し）

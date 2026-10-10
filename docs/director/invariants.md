@@ -29,7 +29,7 @@
 | U-03 | 判定は内部状態の証跡で行う（標準出力の照合では行わない） | 未強制 | G1-3（decisions.md D-011） |
 | U-04 | What ごとに積む前に L1 全件テスト | 未強制 | G0-2 |
 | U-05 | 要件 ID の網羅率 | 未強制 | G0-3 |
-| U-06 | CI の依存の版の固定（mujoco） | `.github/workflows/harness-tests.yml:25` で未固定 | H0 Step 1（`mujoco==3.15.0`） |
+| U-06 | CI の依存の版の固定（mujoco） | 固定済み（`.github/workflows/harness-tests.yml:25`、`mujoco==3.15.0`）。CI の外（ローカル）の版の照合は無い | 強制欄へ移すかは次の docs PR で |
 | U-07 | G0 の各タスクに検証コマンドがある | `docs/progress.yaml:626-661` で全件 `verification: null` | 大局ロードマップで設計 |
 
 ## 運用
