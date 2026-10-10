@@ -721,7 +721,7 @@ tasks:
   title: 北極星計器・ダッシュボード（日次評価の可視化）
   group: G0
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'metrics: add-north-star'
   depends_on:
   - W-4
@@ -788,6 +788,6 @@ tasks:
   - G0-2
   verification: null
 last_verification:
-  task: W-4
+  task: G0-5
   exit_code: 0
-  at: '2026-10-11T02:09:48'
+  at: '2026-10-11T02:18:08'

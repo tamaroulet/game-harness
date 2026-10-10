@@ -79,6 +79,15 @@ def warning_count(item):
     return sum(len(t.get("warnings") or []) for t in item.get("tries", []))
 
 
+def northstar_section(items):
+    """「## 計器」の節。計器の読み込み・計算が例外で止まっても、節を 1 行の理由に替えて、report.md の書き出しを止めない。"""
+    try:
+        import northstar
+        return northstar.safe_section(items)
+    except Exception as e:   # noqa: BLE001
+        return f"## 計器\n- 計器を出せませんでした: {' '.join(f'{type(e).__name__}: {e}'.split())}\n"
+
+
 def h_section(cfg, st):
     items = st["items"]
 
@@ -93,6 +102,7 @@ def h_section(cfg, st):
              f"- 統合 PR: {st['awaiting_pr'] or 'なし'}", "", "## キュー",
              row("済み", "done", done), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
              row("未収束", "unconverged", lambda i: f"（{i.get('reason', '')}）" + hline_usage.note(i)), row("凍結", "frozen", frozen)]
+    lines += ["", northstar_section(items).rstrip("\n")]
     flaky = [f"- {n}: {', '.join(flaky_tests(i))}" for n, i in sorted(items.items()) if flaky_tests(i)]
     if flaky:
         lines += ["", "## 揺れたテスト（並列で落ち、単独で通った）"] + flaky
