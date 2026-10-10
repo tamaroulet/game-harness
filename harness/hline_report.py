@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yaml
 
+import hline_probe
 import hline_quota
 import hline_usage
 from hline_base import ROOT, must
@@ -122,7 +123,8 @@ def write_report(cfg, st):
     text, human = progress_report(cfg), human_line(cfg, st)
     if human:
         text = re.sub(r"^- 人間作業:.*$", lambda _: human, text, flags=re.M)
-    (Path(cfg["inbox"]) / "report.md").write_text(text + "\n" + h_section(cfg, st), encoding="utf-8")
+    body = text + "\n" + h_section(cfg, st) + "\n" + hline_probe.safe_section(cfg)
+    (Path(cfg["inbox"]) / "report.md").write_text(body, encoding="utf-8")
     write_todo(cfg, st)
 
 
