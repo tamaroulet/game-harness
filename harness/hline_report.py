@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yaml
 
+import hline_checks
 import hline_probe
 import hline_quota
 import hline_usage
@@ -79,6 +80,15 @@ def warning_count(item):
     return sum(len(t.get("warnings") or []) for t in item.get("tries", []))
 
 
+def northstar_section(items):
+    """「## 計器」の節。計器の読み込み・計算が例外で止まっても、節を 1 行の理由に替えて、report.md の書き出しを止めない。"""
+    try:
+        import northstar
+        return northstar.safe_section(items)
+    except Exception as e:   # noqa: BLE001
+        return f"## 計器\n- 計器を出せませんでした: {' '.join(f'{type(e).__name__}: {e}'.split())}\n"
+
+
 def h_section(cfg, st):
     items = st["items"]
 
@@ -87,12 +97,13 @@ def h_section(cfg, st):
         return f"- {label}（{len(names)} 件）: " + (", ".join(f"{n}{note(items[n])}" for n in names) or "なし")
 
     done = lambda i: (f"（警告 {warning_count(i)} 件）" if warning_count(i) else "") + hline_usage.note(i)   # noqa: E731
-    waiting = lambda i: f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else ""   # noqa: E731
+    waiting = lambda i: (f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else "") + (f"（台帳を読めず待ち: {i['ledger_error']}）" if i.get("ledger_error") else "")   # noqa: E731
     frozen = lambda i: f"（上流の未収束: {', '.join(i.get('frozen_by', []))}）"   # noqa: E731
     lines = ["## H ライン", f"- 状態: {line_status(cfg, st)}", f"- 統合ブランチ: {cfg['integration_branch']}",
              f"- 統合 PR: {st['awaiting_pr'] or 'なし'}", "", "## キュー",
              row("済み", "done", done), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
              row("未収束", "unconverged", lambda i: f"（{i.get('reason', '')}）" + hline_usage.note(i)), row("凍結", "frozen", frozen)]
+    lines += ["", northstar_section(items).rstrip("\n")]
     flaky = [f"- {n}: {', '.join(flaky_tests(i))}" for n, i in sorted(items.items()) if flaky_tests(i)]
     if flaky:
         lines += ["", "## 揺れたテスト（並列で落ち、単独で通った）"] + flaky
@@ -123,7 +134,7 @@ def write_report(cfg, st):
     text, human = progress_report(cfg), human_line(cfg, st)
     if human:
         text = re.sub(r"^- 人間作業:.*$", lambda _: human, text, flags=re.M)
-    body = text + "\n" + h_section(cfg, st) + "\n" + hline_probe.safe_section(cfg)
+    body = text + "\n" + h_section(cfg, st) + "\n" + hline_probe.safe_section(cfg) + "\n" + hline_checks.safe_section(cfg)
     (Path(cfg["inbox"]) / "report.md").write_text(body, encoding="utf-8")
     write_todo(cfg, st)
 

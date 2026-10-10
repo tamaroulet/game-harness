@@ -1,5 +1,5 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: W-1
+active_task_id: G0-4
 next_id: 11
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
@@ -671,7 +671,7 @@ tasks:
   title: 実行の順を依存の DAG で決める（depends_on の検査・現在地の選び方・完了の拒否）
   group: G0
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'progress: order-by-dependencies'
   depends_on: []
   verification:
@@ -681,7 +681,7 @@ tasks:
   title: 済みにした時刻をキューに残す
   group: G0
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: record-done-time'
   depends_on: []
   verification:
@@ -691,7 +691,7 @@ tasks:
   title: 宣言した照合を H ラインが走らせ、report.md に出す
   group: G0
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'probe: run-declared-checks'
   depends_on: []
   verification:
@@ -701,7 +701,7 @@ tasks:
   title: What の依存を台帳の depends_on から引く
   group: G0
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: take-deps-from-ledger'
   depends_on: []
   verification:
@@ -711,7 +711,7 @@ tasks:
   title: 影響テストの起点を harness/ の外のモジュールに広げる
   group: G0
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: impact-tests-outside-harness'
   depends_on: []
   verification:
@@ -721,7 +721,7 @@ tasks:
   title: 北極星計器・ダッシュボード（日次評価の可視化）
   group: G0
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'metrics: add-north-star'
   depends_on:
   - W-4
@@ -732,7 +732,7 @@ tasks:
   title: 失敗分類の機械化（未収束原因の自動タグ付け）
   group: G0
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'metrics: classify-failures'
   depends_on: []
   verification: null
@@ -788,6 +788,6 @@ tasks:
   - G0-2
   verification: null
 last_verification:
-  task: G1-3
+  task: W-8
   exit_code: 0
-  at: '2026-10-10T22:44:48'
+  at: '2026-10-11T02:33:08'

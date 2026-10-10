@@ -81,12 +81,41 @@ def changed_modules(paths):
     return tuple(dict.fromkeys(p for p in found if p.startswith("harness/") and p.endswith(".py")))
 
 
+def outside_modules(root, paths):
+    """変えたパスのうち、根の直下のパッケージ（__init__.py を持つ。tests/・harness/ を除く）の .py（/ 区切り・重複なし・現れた順）。"""
+    found = (p.replace("\\", "/").removeprefix("./") for p in paths if isinstance(p, str))
+    return tuple(dict.fromkeys(
+        p for p in found if p.endswith(".py") and p.count("/") >= 1 and p.split("/", 1)[0] not in ("tests", "harness")
+        and (Path(root) / p.split("/", 1)[0] / "__init__.py").is_file()))
+
+
+def _outside_importers(root, targets):
+    """targets のモジュールかそのパッケージを import している tests/test_*.py。"""
+    wanted = {}
+    for t in targets:
+        name = _module_name(t)
+        wanted[name] = {name} if t.endswith("/__init__.py") else {name, t.split("/", 1)[0]}
+    found = []
+    for file in sorted(Path(root).glob("tests/test_*.py")):
+        try:
+            tree = symbolmap._tree(file.read_text(encoding="utf-8-sig", errors="replace"))
+        except OSError:
+            continue
+        names = set(symbolmap._imported(tree)) if tree is not None else set()
+        if any(names & accepted for accepted in wanted.values()):
+            found.append(dotted(file.relative_to(root).as_posix()))
+    return tuple(filter(None, found))
+
+
 def test_modules(root, spec=None, verification=None, changed=(), paths=()):
-    """影響テストのモジュール。起点は TaskSpec の target_symbols、無ければ変えた harness/ の .py（importer と caller を引く）。"""
+    """影響テストのモジュール。起点は TaskSpec の target_symbols、無ければ変えた harness/ の .py（importer と caller を引く）。
+    根の直下のパッケージの .py を変えたときは、それを（かそのパッケージを）import しているテストと呼んでいるテストも足す。"""
     targets = [t for t in symbolmap.spec_modules(spec) if t.endswith(".py")] or list(changed_modules(paths))
+    outside = outside_modules(root, paths)
     command = _get(verification, "command", str)
     found = [*(c for c in changed if isinstance(c, str)), *command_modules(command), *from_spec(spec),
-             *(_importers(root, targets) + _callers(root, targets) if targets else ())]
+             *(_importers(root, targets) + _callers(root, targets) if targets else ()),
+             *(_outside_importers(root, outside) + _callers(root, outside) if outside else ())]
     return tuple(dict.fromkeys(found))
 
 
