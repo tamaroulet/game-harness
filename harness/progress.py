@@ -60,6 +60,53 @@ def save(state, path):
     Path(path).write_text(dump(state), encoding="utf-8", newline="\n")
 
 
+def _deps(t):
+    return t.get("depends_on") or []
+
+
+def dependency_problems(tasks):
+    """depends_on の問題（依存先が無い・循環・完了したのに依存先が未完了）。"""
+    problems = []
+    by_id = {t.get("id"): t for t in tasks}
+    for t in tasks:
+        deps = _deps(t)
+        if not isinstance(deps, list):
+            problems.append(f"task {t.get('id')} の depends_on はタスク ID の列です")
+            continue
+        for d in deps:
+            if d not in by_id:
+                problems.append(f"task {t.get('id')} の depends_on {d} が tasks にありません")
+            elif t.get("status") == "completed" and by_id[d].get("status") != "completed":
+                problems.append(f"task {t.get('id')} は完了ですが、依存先 {d} が完了ではありません")
+    # 循環（色塗りの深さ優先。自分自身への依存も含む）
+    state_of = {}
+    cyclic = set()
+
+    def visit(tid, trail):
+        if state_of.get(tid) == 2 or tid not in by_id:
+            return
+        if state_of.get(tid) == 1:
+            cyclic.update(trail[trail.index(tid):])
+            return
+        state_of[tid] = 1
+        deps = _deps(by_id[tid])
+        for d in deps if isinstance(deps, list) else []:
+            visit(d, trail + [tid])
+        state_of[tid] = 2
+
+    for t in tasks:
+        visit(t.get("id"), [])
+    for tid in sorted(cyclic, key=str):
+        problems.append(f"task {tid} の depends_on が循環しています")
+    return problems
+
+
+def unmet_dependencies(state, t):
+    """t の依存先のうち、完了でないものの ID。"""
+    done = {x["id"] for x in state["tasks"] if x["status"] == "completed"}
+    return [d for d in _deps(t) if d not in done]
+
+
 def validate(state):
     """問題の一覧（空なら合格）。"""
     problems = []
@@ -96,6 +143,7 @@ def validate(state):
         if v is not None and (not isinstance(v, dict) or not isinstance(v.get("command"), str)
                               or not isinstance(v.get("expected_exit_code"), int)):
             problems.append(f"task {tid} の verification は command（文字列）と expected_exit_code（整数）を持ちます")
+    problems += dependency_problems(state["tasks"])
     active = [t["id"] for t in state["tasks"] if t.get("status") == "in_progress"]
     if len(active) > 1:
         problems.append(f"in_progress が {len(active)} 件あります（1 件まで）")
@@ -273,8 +321,8 @@ def main_version(repo_root, ref, fetch=True):
 
 
 def advance_active(state):
-    """進捗の順で最初の未完了のタスクを現在のタスクにする（ほかの in_progress は pending に戻す）。新しい id（無ければ None）を返す。"""
-    nxt = next((x for x in state["tasks"] if x["status"] != "completed"), None)
+    """依存先がすべて完了した未完了のタスクのうち、進捗の順で最初のものを現在のタスクにする（ほかの in_progress は pending に戻す）。新しい id（無ければ None）を返す。"""
+    nxt = next((x for x in state["tasks"] if x["status"] != "completed" and not unmet_dependencies(state, x)), None)
     for x in state["tasks"]:
         if x["status"] == "in_progress" and x is not nxt:
             x["status"] = "pending"
@@ -295,6 +343,9 @@ def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, 
     if require_active and state.get("active_task_id") != task_id:
         raise ProgressError(f"{task_id} は現在のタスクではありません（現在：{state.get('active_task_id')}）")
     t = task(state, task_id)
+    unmet = unmet_dependencies(state, t)
+    if unmet:
+        raise ProgressError(f"{task_id} の依存先 {', '.join(unmet)} が完了していません。完了にできません")
     v = t.get("verification")
     if not v:
         raise ProgressError(f"{task_id} には検証コマンドがありません。main への PR で定義してください")
