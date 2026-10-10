@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yaml
 
+import hline_checks
 import hline_probe
 import hline_quota
 import hline_usage
@@ -133,7 +134,7 @@ def write_report(cfg, st):
     text, human = progress_report(cfg), human_line(cfg, st)
     if human:
         text = re.sub(r"^- 人間作業:.*$", lambda _: human, text, flags=re.M)
-    body = text + "\n" + h_section(cfg, st) + "\n" + hline_probe.safe_section(cfg)
+    body = text + "\n" + h_section(cfg, st) + "\n" + hline_probe.safe_section(cfg) + "\n" + hline_checks.safe_section(cfg)
     (Path(cfg["inbox"]) / "report.md").write_text(body, encoding="utf-8")
     write_todo(cfg, st)
 

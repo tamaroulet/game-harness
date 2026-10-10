@@ -1,5 +1,5 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: W-5
+active_task_id: W-8
 next_id: 11
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
@@ -691,7 +691,7 @@ tasks:
   title: 宣言した照合を H ラインが走らせ、report.md に出す
   group: G0
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'probe: run-declared-checks'
   depends_on: []
   verification:
@@ -701,7 +701,7 @@ tasks:
   title: What の依存を台帳の depends_on から引く
   group: G0
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'hline: take-deps-from-ledger'
   depends_on: []
   verification:
@@ -788,6 +788,6 @@ tasks:
   - G0-2
   verification: null
 last_verification:
-  task: G0-5
+  task: W-5
   exit_code: 0
-  at: '2026-10-11T02:18:08'
+  at: '2026-10-11T02:30:58'
