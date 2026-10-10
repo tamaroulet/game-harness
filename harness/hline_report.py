@@ -110,8 +110,6 @@ def human_line(cfg, st):
     if halt:
         return (f"- 人間作業: INFRA_HALTED {halt['name']}: {' '.join(str(halt['reason']).split())}（{halt['attempts']} 回の試行）。"
                 "環境を直すと次の走行が取り直します")
-    if conflict := st.get("sync_conflict"):
-        return f"- 人間作業: SYNC_CONFLICT {'／'.join(conflict['paths'])}"
     if hyg := st.get("hygiene_halt"):
         return f"- 人間作業: UNCLEAN_DIFF {'／'.join(hyg['files'])}"
     if st.get("quota_wait"):   # 人間の作業ではない。待ちの表示で、定期起動が再開の時刻の後に続きを取る

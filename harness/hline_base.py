@@ -42,15 +42,6 @@ class Quota(Infra):
         self.reason = reason
 
 
-class SyncConflict(Infra):
-    """統合ブランチに base（main）を取り込むとき衝突した。人間が直す。呼び直さず、What は待ちに戻して走行を終える。"""
-    fatal = True   # infra_retry.retry に眠らせない
-
-    def __init__(self, paths):
-        super().__init__(f"統合ブランチへ main を取り込めません（衝突: {', '.join(paths)}）")
-        self.paths = list(paths)
-
-
 def load_config(path=CONFIG):
     cfg = json.loads(Path(path).read_text(encoding="utf-8"))
     model_pin.require(cfg["implementer"], "config/hline.json の implementer")

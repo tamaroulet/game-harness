@@ -8,7 +8,7 @@ import hline_abort
 import hline_boundary
 import hline_quota
 import infra_retry
-from hline_base import Fatal, Infra, Quota, SyncConflict
+from hline_base import Fatal, Infra, Quota
 from hline_budget import attempt_record, with_cutoff
 
 
@@ -129,13 +129,6 @@ def process(host, cfg, st, name):
         done, records = infra_retry.retry(attempt, Infra, ic["max_retries"], ic["wait_seconds"], log=print)
     except Quota as e:
         return wait_quota(host, cfg, st, name, item, e)
-    except SyncConflict as e:   # 統合ブランチに main を取り込めない。What は待ちに戻し、人間が直すまで走行を終える
-        item.update(status="waiting", tries=[])
-        item.pop("infra_retries", None)
-        st["sync_conflict"] = {"name": name, "paths": e.paths}
-        print(f"[{tid}] {e}")
-        host.mark(cfg, st, name)
-        return False
     except Fatal as e:
         return stop_fatal(host, cfg, st, name, item, e)
     except infra_retry.InfraExhausted as e:

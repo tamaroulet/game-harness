@@ -11,9 +11,8 @@ from pathlib import Path
 
 from hline_base import ROOT, Fatal, Infra, must
 
-import hline_sync  # noqa: E402
 import infra_retry  # noqa: E402
-import proc # noqa: E402
+import proc  # noqa: E402
 import progress  # noqa: E402
 
 TRAILER = "H-Line-Item"
@@ -37,7 +36,6 @@ def new_worktree(cfg, tid):
     """統合ブランチの先端から UUID の新しい作業ツリーを作る。統合ブランチがまだ無ければ base（main）から作る。"""
     t = cfg["ttl_seconds"]["git"]
     fetch(cfg)
-    hline_sync.sync(cfg, ROOT)   # 統合ブランチが main に遅れていたら追いつかせる（衝突は SyncConflict）
     start = remote_ref(cfg) if integration_exists(cfg) else cfg["base"]
     for _ in range(5):   # 前の走行の残骸（同じ名前のディレクトリ・ブランチ）と重ならない名前を選ぶ
         branch = f"hline/{tid}-{uuid.uuid4().hex[:8]}"
