@@ -85,6 +85,7 @@ def run_line(cfg):
     sweep(cfg)   # 前の走行の残骸の掃除。例外は出さず、戻り値も使わない（消せないものは次の起動で再び対象になる）
     st["infra_halt"] = None   # 前の走行の停止は、次の走行の自動の再開を妨げない
     st["hygiene_halt"] = None
+    st["sync_conflict"] = None   # 衝突は毎回、作業ツリーを作るときに取り直す
     st["self_change"] = None   # 前の走行の区切りも、次の走行を妨げない
     save_state(cfg, st)
     fetch(cfg)
@@ -102,13 +103,16 @@ def run_line(cfg):
         ok = process(cfg, st, name)
         refresh(st)
         mark(cfg, st)
-        if st["infra_halt"] or st.get("quota_wait"):
+        if st["infra_halt"] or st.get("quota_wait") or st.get("sync_conflict"):
             break
         unconverged |= not ok
         if st.get("self_change"):   # 読み込み済みのコードは古い。次の What は、積んだ変更を読み込んだ次の走行に任せる
             print("ライン自身の変更を積んだので走行を区切った（次の走行で読み込み直す）")
             break
     if st["infra_halt"]:
+        write_report(cfg, st)
+        return 2
+    if st.get("sync_conflict"):   # 待ちに戻した What が残るので統合 PR は出さない。人間が衝突を直すと次の走行が取り直す
         write_report(cfg, st)
         return 2
     if st.get("quota_wait"):   # 待ちに戻した What が残るので統合 PR は出さない。定期起動が再開の時刻の後に続きを取る
