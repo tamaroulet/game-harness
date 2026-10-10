@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 """Unit tests for harness.probe module."""
+import sys
 import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(ROOT))
 import argparse
 from pathlib import Path
 from harness.probe import (

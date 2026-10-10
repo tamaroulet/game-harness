@@ -5,31 +5,35 @@ import sys
 import argparse
 import subprocess
 from pathlib import Path
+_HARNESS_DIR = Path(__file__).resolve().parent
+if str(_HARNESS_DIR) not in sys.path:
+    sys.path.insert(0, str(_HARNESS_DIR))
+import exitcode
 
 def get_git_info(repo_dir: Path, log_count: int = 1) -> dict:
     info = {"branch": "unknown", "head": "unknown", "commit_msg": "", "dirty": False, "recent_logs": []}
     try:
         info["branch"] = subprocess.check_output(
             ["git", "-C", str(repo_dir), "rev-parse", "--abbrev-ref", "HEAD"],
-            encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL
+            timeout=10, encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL
         ).strip()
         info["head"] = subprocess.check_output(
             ["git", "-C", str(repo_dir), "rev-parse", "--short", "HEAD"],
-            encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL
+            timeout=10, encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL
         ).strip()
         info["commit_msg"] = subprocess.check_output(
             ["git", "-C", str(repo_dir), "log", "-1", "--pretty=%s"],
-            encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL
+            timeout=10, encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL
         ).strip()
         status = subprocess.check_output(
             ["git", "-C", str(repo_dir), "status", "--porcelain"],
-            encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL
+            timeout=10, encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL
         ).strip()
         info["dirty"] = bool(status)
         if log_count > 1:
             logs = subprocess.check_output(
                 ["git", "-C", str(repo_dir), "log", f"-{log_count}", "--oneline"],
-                encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL
+                timeout=10, encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL
             ).strip().splitlines()
             info["recent_logs"] = logs
     except Exception:
@@ -132,4 +136,4 @@ def main():
         print(output)
 
 if __name__ == "__main__":
-    main()
+    sys.exit(exitcode.normalized(main))
