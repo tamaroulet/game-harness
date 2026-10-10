@@ -1,5 +1,6 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: G0-5
+active_task_id: W-1
+next_id: 11
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -666,53 +667,125 @@ tasks:
   verification:
     command: python -c "import testbed" && python -m harness.reqcov --spec docs/testbed/spec.md --tests "tests/test_testbed_*.py" && python -m unittest discover -s tests -p "test_testbed_*.py"
     expected_exit_code: 0
+- id: W-1
+  title: 実行の順を依存の DAG で決める（depends_on の検査・現在地の選び方・完了の拒否）
+  group: G0
+  target_repo: game-harness
+  status: in_progress
+  slug: 'progress: order-by-dependencies'
+  depends_on: []
+  verification:
+    command: python -m unittest tests.test_progress_deps && python -m harness.progress check
+    expected_exit_code: 0
+- id: W-4
+  title: 済みにした時刻をキューに残す
+  group: G0
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: record-done-time'
+  depends_on: []
+  verification:
+    command: python -m unittest tests.test_hline_done_time
+    expected_exit_code: 0
+- id: W-5
+  title: 宣言した照合を H ラインが走らせ、report.md に出す
+  group: G0
+  target_repo: game-harness
+  status: pending
+  slug: 'probe: run-declared-checks'
+  depends_on: []
+  verification:
+    command: python -m unittest tests.test_hline_checks
+    expected_exit_code: 0
+- id: W-8
+  title: What の依存を台帳の depends_on から引く
+  group: G0
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: take-deps-from-ledger'
+  depends_on: []
+  verification:
+    command: python -m unittest tests.test_hline_ledger_deps
+    expected_exit_code: 0
+- id: W-10
+  title: 影響テストの起点を harness/ の外のモジュールに広げる
+  group: G0
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: impact-tests-outside-harness'
+  depends_on: []
+  verification:
+    command: python -m unittest tests.test_impacted_outside
+    expected_exit_code: 0
 - id: G0-5
   title: 北極星計器・ダッシュボード（日次評価の可視化）
   group: G0
   target_repo: game-harness
-  status: in_progress
-  verification: null
+  status: pending
+  slug: 'metrics: add-north-star'
+  depends_on:
+  - W-4
+  verification:
+    command: python -m unittest tests.test_northstar
+    expected_exit_code: 0
 - id: G0-4
   title: 失敗分類の機械化（未収束原因の自動タグ付け）
   group: G0
   target_repo: game-harness
   status: pending
+  slug: 'metrics: classify-failures'
+  depends_on: []
   verification: null
 - id: G0-2
   title: WhatごとのL1全件テストと自動revert（破損コミットの蓄積防止）
   group: G0
   target_repo: game-harness
   status: pending
+  slug: 'hline: run-full-suite-before-stacking'
+  depends_on: []
   verification: null
 - id: G0-1
   title: 撤去記録の整備（進捗台帳と実態の乖離防止）
   group: G0
   target_repo: game-harness
   status: pending
+  slug: 'progress: record-removals'
+  depends_on: []
   verification: null
 - id: G0-6
   title: 後退台帳の防壁（保護パス・門緩和の強制リジェクト）
   group: G0
   target_repo: game-harness
   status: pending
+  slug: 'hline: reject-guard-relaxation'
+  depends_on: []
   verification: null
 - id: Phase 4-1
   title: 3D 物理・メタモルフィックテスト
   group: Phase 4
   target_repo: game-harness
   status: pending
+  slug: 'testbed: add-metamorphic-tests'
+  depends_on:
+  - G0-2
   verification: null
 - id: Phase 4-2
   title: 推論モデル・信号時相論理（STL）
   group: Phase 4
   target_repo: game-harness
   status: pending
+  slug: 'testbed: add-stl-checks'
+  depends_on:
+  - G0-2
   verification: null
 - id: Phase 4-3
   title: VLM による知覚の判定・差分テスト
   group: Phase 4
   target_repo: game-harness
   status: pending
+  slug: 'testbed: add-vlm-judge'
+  depends_on:
+  - G0-2
   verification: null
 last_verification:
   task: G1-3
