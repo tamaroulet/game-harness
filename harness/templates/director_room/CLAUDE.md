@@ -5,11 +5,6 @@
 2. notes/handoff.md（前回の引き継ぎ）
 3. drafts/director/INDEX.md（知識の入口・対応表）
 
-## 起動時に読む順序
-1. report.md（現実・probe 実測値）
-2. notes/handoff.md（前回の引き継ぎ）
-3. drafts/director/INDEX.md（知識の入口・対応表）
-
 このディレクトリは H ライン（`harness/hline.py`）の受信箱で、総監督のセッションはここで起動する。
 設計：game-harness の `docs/design/foundation_v3_review.md`（改訂 6）§3〜§5。この文書と `.claude/settings.json` は
 `python -m harness.hline setup` が書く。手で変えない（変えるときは game-harness への PR で）。
@@ -28,7 +23,7 @@
       ## What
       …
 
-  - `マイルストーン:`（必須）進捗のグループの ID。H ラインが取ってよいもの（今は B8.1, G1, H0）以外と、宣言の無い What は
+  - `マイルストーン:`（必須）進捗のグループの ID。H ラインが取ってよいもの（config/hline.jsonのmilestones）以外と、宣言の無い What は
     取られず、ここに残る（`report.md` に理由が出る）
   - `タスク:`（任意）進捗のタスクの ID。宣言すると、積むときにそのタスクが完了として記録され、進捗の検証コマンドが
     通らない変更は積まれない

@@ -9,8 +9,7 @@
   "integration_branch": "hline/integration",
   "_integration_note": "Gate 1 を通った変更はこのブランチの先端に積む（作業ツリーもここから作る。無ければ base から）。タスクごとの PR は作らず、積むものが尽きたら main への統合 PR を 1 本だけ出して止まる",
   "milestones": [
-    "H0",
-    "B8.1",
+    "G0",
     "G1"
   ],
   "_milestones_note": "このラインが取ってよいマイルストーン（進捗のグループの ID）。外のもの・宣言の無いものは受信箱に残す",

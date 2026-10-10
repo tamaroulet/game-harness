@@ -333,7 +333,7 @@ class World(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.cfg = json.loads(json.dumps(CFG))
         self.inbox, self.out, self.wt = self.tmp / "inbox", self.tmp / "out", self.tmp / "wt"
-        self.cfg.update(inbox=str(self.inbox), out=str(self.out), worktrees=str(self.wt))
+        self.cfg.update(inbox=str(self.inbox), out=str(self.out), worktrees=str(self.wt), milestones=["B8.1"])
         for p in (self.inbox, self.out, self.wt):
             p.mkdir()
         (self.wt / "docs").mkdir()
@@ -542,8 +542,8 @@ class Fence(World):
         self.assertIn("B7.4", report)
         self.assertIn("020-b.md: マイルストーンの宣言がありません", report)
 
-    def test_the_configured_milestones_are_b8_1(self):
-        self.assertEqual(CFG["milestones"], ["H0", "B8.1", "G1"])
+    def test_the_configured_milestones_are_g0_and_g1(self):
+        self.assertEqual(CFG["milestones"], ["G0", "G1"])
 
 
 class Freezing(World):
