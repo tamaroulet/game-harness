@@ -1,7 +1,12 @@
-# 総監督の部屋（受信箱）
+﻿# 総監督の部屋（受信箱）
+
+## 起動時に読む順序
+1. report.md（現実・probe 実測値）
+2. notes/handoff.md（前回の引き継ぎ）
+3. game-harness/docs/director/INDEX.md（知識の入口・対応表）
 
 このディレクトリは H ライン（`harness/hline.py`）の受信箱で、総監督のセッションはここで起動する。
-設計：game-harness の `docs/design/foundation_v3_review.md`（改訂 5）§3〜§5。この文書と `.claude/settings.json` は
+設計：game-harness の `docs/design/foundation_v3_review.md`（改訂 6）§3〜§5。この文書と `.claude/settings.json` は
 `python -m harness.hline setup` が書く。手で変えない（変えるときは game-harness への PR で）。
 
 ## 総監督にできること
