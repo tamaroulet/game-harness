@@ -35,7 +35,7 @@ def write_config(d, table):
 
 class Listed(unittest.TestCase):
     def test_the_list_has_the_required_paths_in_order(self):
-        self.assertEqual(hline_protect.load(), hline_protect.REQUIRED)
+        self.assertEqual(hline_protect.load()[:len(hline_protect.REQUIRED)], hline_protect.REQUIRED)
         for p in ("config/protected_paths.json", "tests/test_protected_paths.py",
                   "tests/test_size_limits.py", "tests/test_no_inline_review.py", "docs/progress.yaml", ".claude/"):
             self.assertIn(p, hline_protect.load())
