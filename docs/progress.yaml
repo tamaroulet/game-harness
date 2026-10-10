@@ -1,5 +1,5 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: G0-3
+active_task_id: G1-1
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -638,7 +638,7 @@ tasks:
   title: 要件網羅率チェッカー（仕様のサイレント省略検知）
   group: G0
   target_repo: game-harness
-  status: in_progress
+  status: completed
   verification:
     command: python -m unittest tests.test_reqcov
     expected_exit_code: 0
@@ -646,7 +646,7 @@ tasks:
   title: 試験台の仕様（要件 ID つき）を main に置く
   group: G1
   target_repo: game-harness
-  status: pending
+  status: in_progress
   verification:
     command: python -m harness.reqcov --spec docs/testbed/spec.md --list
     expected_exit_code: 0
@@ -715,6 +715,6 @@ tasks:
   status: pending
   verification: null
 last_verification:
-  task: H0-1
+  task: G0-3
   exit_code: 0
-  at: '2026-10-10T21:18:47'
+  at: '2026-10-10T21:45:09'
