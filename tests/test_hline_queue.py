@@ -543,7 +543,7 @@ class Fence(World):
         self.assertIn("020-b.md: マイルストーンの宣言がありません", report)
 
     def test_the_configured_milestones_are_b8_1(self):
-        self.assertEqual(CFG["milestones"], ["B8.1", "G1"])
+        self.assertEqual(CFG["milestones"], ["H0", "B8.1", "G1"])
 
 
 class Freezing(World):
