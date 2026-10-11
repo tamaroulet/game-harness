@@ -23,6 +23,8 @@ HEX_RE = re.compile(r"^[0-9a-fA-F]{7,40}$")
 MODULE_RE = re.compile(r"^tests\.[A-Za-z0-9_]+$")
 REFS = ("origin/main", "origin/hline/integration")
 KINDS = ("reqcov", "git_log", "progress_check", "unittest")
+TREE_FIELDS = ("overlay", "repeat", "expect")
+MAX_REPEAT = 20
 HEAD_LINES = 5
 CACHE_NAME = "checks_cache.json"
 
@@ -89,7 +91,47 @@ def validate(decl):
         for m in str_list(decl.get("modules"), "modules"):
             if not isinstance(m, str) or not MODULE_RE.match(m):
                 raise Invalid(f"modules に許されない値: {m!r}（tests.<英数字と _> のみ）")
+    tree_fields = [k for k in TREE_FIELDS if k in decl]
+    if kind == "git_log" and tree_fields:
+        raise Invalid(f"git_log に使えない欄: {', '.join(tree_fields)}")
+    if "overlay" in decl:
+        overlay = decl["overlay"]
+        if not isinstance(overlay, dict) or not overlay:
+            raise Invalid("overlay が空でない object でない")
+        for dest, src in overlay.items():
+            rel_path(dest, "overlay の写し先")
+            rel_path(src, "overlay の写し元")
+    if "repeat" in decl:
+        n = decl["repeat"]
+        if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= MAX_REPEAT:
+            raise Invalid(f"repeat が 1〜{MAX_REPEAT} の整数でない: {n!r}")
+    if decl.get("expect", "pass") not in ("pass", "fail"):
+        raise Invalid(f"expect に許されない値: {decl['expect']!r}（pass か fail）")
     return kind, ref
+
+
+def overlay_sources(cfg, decl):
+    """overlay の写し先（木の中の相対パス）→ 写し元の絶対パス。drafts/ の外・無いファイルは Invalid。"""
+    drafts = (Path(cfg["inbox"]) / "drafts").resolve()
+    found = {}
+    for dest, src in decl.get("overlay", {}).items():
+        path = (Path(cfg["inbox"]) / src).resolve()
+        if drafts not in path.parents:
+            raise Invalid(f"overlay の写し元が drafts/ の外: {src!r}")
+        if not path.is_file():
+            raise Invalid(f"overlay の写し元が無い: {src!r}")
+        found[dest] = path
+    return found
+
+
+def apply_overlay(tree, sources):
+    root = tree.resolve()
+    for dest, src in sources.items():
+        target = (tree / dest).resolve()
+        if root not in target.parents:
+            raise Invalid(f"overlay の写し先が木の外: {dest!r}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, target)
 
 
 def command(cfg, decl):
@@ -134,8 +176,9 @@ def run_git_log(cfg, decl, sha, runner):
     return (0 if len(shas) == want else 1), "\n".join([head, *shas])
 
 
-def run_in_tree(cfg, decl, sha, runner):
-    """ref の作業ツリーを detach して作り、その中でコマンドを走らせる。(終了コード, 出力)。作れなければ (None, 理由)。"""
+def run_in_tree(cfg, decl, sha, runner, sources=None):
+    """ref の作業ツリーを detach して作り、overlay を重ねて、その中でコマンドを repeat 回走らせる。
+    (終了コード, 出力)。作れなければ (None, 理由)。repeat を宣言したときは出力の先頭に期待どおりだった回数を付ける。"""
     base = Path(cfg["out"]) / "checks_wt"
     base.mkdir(parents=True, exist_ok=True)
     tree = Path(tempfile.mkdtemp(prefix="chk-", dir=base))
@@ -144,8 +187,24 @@ def run_in_tree(cfg, decl, sha, runner):
         code, out, err = runner(["git", "worktree", "add", "--detach", str(tree), sha], ROOT, ttl_git, "git worktree add")
         if code != 0:
             return None, f"作業ツリーを作れない（終了コード {code}）：{(err or out).strip()}"
-        code, out, err = runner(command(cfg, decl), tree, cfg["ttl_seconds"].get("gate", 1800), f"check {decl['kind']}")
-        return code, out + ("\n" + err if err.strip() else "")
+        if sources:
+            apply_overlay(tree, sources)
+        want_pass = decl.get("expect", "pass") == "pass"
+        times = decl.get("repeat", 1)
+        good, bad = 0, None
+        for _ in range(times):
+            code, out, err = runner(command(cfg, decl), tree, cfg["ttl_seconds"].get("gate", 1800), f"check {decl['kind']}")
+            text = out + ("\n" + err if err.strip() else "")
+            if (code == 0) == want_pass:
+                good += 1
+                last = (code, text)
+            elif bad is None:
+                bad = (code, text)
+        # 終了コードは合否の正規化：全回が期待どおりなら 0、外れた回があれば 0 以外（expect: fail で 0 だった回は 1）
+        code, text = (0, last[1]) if bad is None else (bad[0] or 1, bad[1])
+        if "repeat" in decl:
+            text = f"期待どおり {good}／{times} 回\n{text}"
+        return code, text
     finally:
         try:
             runner(["git", "worktree", "remove", "--force", str(tree)], ROOT, ttl_git, "git worktree remove")
@@ -158,13 +217,13 @@ def head(text):
     return [x.rstrip() for x in str(text).splitlines() if x.strip()][:HEAD_LINES]
 
 
-def execute(cfg, decl, sha, runner):
+def execute(cfg, decl, sha, runner, sources=None):
     """{"status", "code", "head"}。"""
     try:
         if decl["kind"] == "git_log":
             code, out = run_git_log(cfg, decl, sha, runner)
         else:
-            code, out = run_in_tree(cfg, decl, sha, runner)
+            code, out = run_in_tree(cfg, decl, sha, runner, sources)
     except Exception as e:   # noqa: BLE001 - 照合の例外で止めない
         return {"status": "取得失敗", "code": None, "head": [f"{type(e).__name__}: {e}"]}
     if code is None:
@@ -172,8 +231,11 @@ def execute(cfg, decl, sha, runner):
     return {"status": "合格" if code == 0 else "不合格", "code": code, "head": head(out)}
 
 
-def key_of(decl, sha):
+def key_of(decl, sha, sources=None):
+    """sources（写し先 → 写し元）があれば、写し元の中身も鍵に入れる。"""
     blob = json.dumps(decl, sort_keys=True, ensure_ascii=False) + "\0" + sha
+    for dest, src in sorted((sources or {}).items()):
+        blob += "\0" + dest + "\0" + hashlib.sha256(src.read_bytes()).hexdigest()
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
@@ -202,6 +264,7 @@ def one(cfg, file, runner, clock, cache):
         except (OSError, ValueError) as e:
             raise Invalid(f"JSON として読めない: {type(e).__name__}") from e
         kind, ref = validate(decl)
+        sources = overlay_sources(cfg, decl)
     except Invalid as e:
         res = {"status": "宣言の誤り", "code": None, "head": [f"宣言の誤り：{e}"]}
         return line_of(name, "-", "-", res, clock)
@@ -209,11 +272,11 @@ def one(cfg, file, runner, clock, cache):
     if sha is None:
         res = {"status": "取得失敗", "code": None, "head": [hline_probe.failure(why)]}
         return line_of(name, kind, "-", res, clock)
-    key = key_of(decl, sha)
+    key = key_of(decl, sha, sources)
     old = cache.get(name)
     if isinstance(old, dict) and old.get("key") == key and isinstance(old.get("res"), dict) and "at" in old:
         return line_of(name, kind, sha[:7], old["res"], old["at"])
-    res = execute(cfg, decl, sha, runner)
+    res = execute(cfg, decl, sha, runner, sources)
     if res["status"] in ("合格", "不合格"):
         cache[name] = {"key": key, "res": res, "at": clock}
     return line_of(name, kind, sha[:7], res, clock)
