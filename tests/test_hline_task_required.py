@@ -28,7 +28,7 @@ LEDGER = yaml.safe_dump({"tasks": [
 
 
 def what(*lines):
-    return "\n".join(["# 題", "マイルストーン: B8.1", *lines, "", "本文"])
+    return "\n".join(["# 題", "マイルストーン: B8.1", *lines, "", "## What", "本文", "", "## 合格条件", "1. 満たす"])
 
 
 class TaskRequired(unittest.TestCase):

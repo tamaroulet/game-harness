@@ -39,7 +39,7 @@ class LedgerDeps(unittest.TestCase):
     def put(self, name, task=None, deps=()):
         lines = [f"# T-{name}", "マイルストーン: B8.1", f"タスク: {task or name}"]
         lines += ["依存: " + ", ".join(deps)] if deps else []
-        (self.inbox / f"{name}.md").write_text("\n".join(lines + ["", "本文"]), encoding="utf-8")
+        (self.inbox / f"{name}.md").write_text("\n".join(lines + ["", "## What", "本文", "", "## 合格条件", "1. 満たす"]), encoding="utf-8")
 
     def take(self):
         st = hline_queue.load_state(self.cfg)
