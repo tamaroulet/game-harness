@@ -1,6 +1,6 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
 active_task_id: G0-4
-next_id: 11
+next_id: 13
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -735,15 +735,41 @@ tasks:
   status: in_progress
   slug: 'metrics: classify-failures'
   depends_on: []
-  verification: null
+  verification:
+    command: python -m unittest tests.test_failure_classes
+    expected_exit_code: 0
 - id: G0-2
-  title: WhatごとのL1全件テストと自動revert（破損コミットの蓄積防止）
+  title: 積む前に、変えたパッケージの全件テスト（破損コミットの蓄積防止）
   group: G0
   target_repo: game-harness
   status: pending
   slug: 'hline: run-full-suite-before-stacking'
+  depends_on:
+  - W-11
+  verification:
+    command: python -m unittest tests.test_hline_full_before_stack
+    expected_exit_code: 0
+- id: W-11
+  title: CI の所要と統合 PR の待ちの時間を report.md に出す
+  group: G0
+  target_repo: game-harness
+  status: pending
+  slug: 'probe: report-ci-duration'
   depends_on: []
-  verification: null
+  verification:
+    command: python -m unittest tests.test_probe_ci_duration
+    expected_exit_code: 0
+- id: W-12
+  title: 統合 PR が承認済みで CI が緑なら H ラインがマージする
+  group: G0
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: merge-when-approved-and-green'
+  depends_on:
+  - W-11
+  verification:
+    command: python -m unittest tests.test_hline_auto_merge
+    expected_exit_code: 0
 - id: G0-1
   title: 撤去記録の整備（進捗台帳と実態の乖離防止）
   group: G0
