@@ -13,6 +13,7 @@ from pathlib import Path
 
 import yaml
 
+import hline_merge
 import probe
 import proc
 from hline_base import ROOT
@@ -128,10 +129,10 @@ def duration_fetch(cfg, runner):
 
 
 def _check(rollup, workflow, job):
-    found = [c for c in rollup if isinstance(c, dict) and c.get("workflowName") == workflow]
-    if not found:
+    latest = hline_merge._runs(rollup, workflow)   # ワークフローごとに最新の走行だけ
+    if not latest:
         return f"{workflow}: チェックなし"
-    c = next((c for c in found if c.get("name") == job), found[0])
+    c = latest[0]
     took = _elapsed(c) if str(c.get("status")).upper() == "COMPLETED" else None   # 未完了の completedAt は 0001-01-01 で入る
     return (f"{workflow}（{job}）: 状態 {c.get('status') or '不明'}／結論 {c.get('conclusion') or 'なし'}"
             f"／所要 {span(took) if took is not None else '-'}")

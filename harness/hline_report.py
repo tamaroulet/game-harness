@@ -90,6 +90,15 @@ def northstar_section(items):
         return f"## 計器\n- 計器を出せませんでした: {' '.join(f'{type(e).__name__}: {e}'.split())}\n"
 
 
+def failure_section(items):
+    """計器の節に続く失敗の分類の表。読み込み・計算が例外で止まっても、表を 1 行の理由に替えて、report.md の書き出しを止めない。"""
+    try:
+        import failure_classes
+        return failure_classes.safe_section(items)
+    except Exception as e:   # noqa: BLE001
+        return f"### 失敗の分類\n- 失敗の分類を出せませんでした: {' '.join(f'{type(e).__name__}: {e}'.split())}\n"
+
+
 def pr_wait_line(times, at=None):
     """「直近の統合 PR の待ち」の行（記録が無ければ行なし）。出した時刻 → 閉じた時刻とその長さ。開いている間は経過の長さ。"""
     try:
@@ -117,7 +126,7 @@ def h_section(cfg, st):
              f"- 統合 PR: {st['awaiting_pr'] or 'なし'}"] + pr_wait_line(st.get("pr_times")) + ["", "## キュー",
              row("済み", "done", done), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
              row("未収束", "unconverged", lambda i: f"（{i.get('reason', '')}）" + hline_usage.note(i)), row("凍結", "frozen", frozen)]
-    lines += ["", northstar_section(items).rstrip("\n")]
+    lines += ["", northstar_section(items).rstrip("\n"), "", failure_section(items).rstrip("\n")]
     flaky = [f"- {n}: {', '.join(flaky_tests(i))}" for n, i in sorted(items.items()) if flaky_tests(i)]
     if flaky:
         lines += ["", "## 揺れたテスト（並列で落ち、単独で通った）"] + flaky
