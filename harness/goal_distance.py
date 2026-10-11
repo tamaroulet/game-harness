@@ -5,6 +5,7 @@
 台帳（docs/progress.yaml）と bench/records は、進捗ツリーと同じ ref（統合ブランチ、無ければ config/hline.json の base）の中身から読む。
 読み取りに失敗した量は、その行に `取得失敗` と理由を出し、ほかの行を止めない。
 """
+import datetime
 import json
 import re
 import sys
@@ -187,25 +188,143 @@ def quantity(cfg, ref, tasks, rung):
     return {"R3-c": lambda: r3c(cfg, ref), "R3": lambda: r3(cfg, ref), "R4": lambda: r4(cfg, tasks)}[rung]()
 
 
-def render(cfg):
+def measure(cfg):
+    """(台帳のタスク, {横木: 量の文}、前提タスクの注記は含まない)。"""
     ref, state = load_ledger(cfg)
     tasks = (state or {}).get("tasks") or []
-    lines = [TITLE]
+    bodies = {}
     for rung in RUNGS:
         try:
-            body = quantity(cfg, ref, tasks, rung)
+            bodies[rung] = quantity(cfg, ref, tasks, rung)
         except Exception as e:   # noqa: BLE001 - 1 つの量の失敗でほかの行を止めない
-            body = hline_probe.failure(f"{type(e).__name__}: {e}" if not isinstance(e, Unreadable) else e)
-        lines.append(f"- {rung}: {body}{prerequisite_note(tasks, rung)}")
-    return "\n".join(lines) + "\n"
+            bodies[rung] = hline_probe.failure(f"{type(e).__name__}: {e}" if not isinstance(e, Unreadable) else e)
+    return tasks, bodies
+
+
+def lines_of(tasks, bodies):
+    return [TITLE] + [f"- {rung}: {bodies[rung]}{prerequisite_note(tasks, rung)}" for rung in RUNGS]
+
+
+def render(cfg):
+    return "\n".join(lines_of(*measure(cfg))) + "\n"
+
+
+# ============================================================ 完了と距離の履歴
+
+HISTORY = "goal_history.jsonl"
+HISTORY_TITLE = "### 直近の完了と距離の変化"
+HISTORY_SHOWN = 5
+REGRESSION = "後退"
+AMOUNT_RES = {
+    "R3-a": (("課題", r"課題 (\d+)／"),),
+    "R3-b": (("課題", r"課題 (\d+)／"),),
+    "R3-c": (("床", r"床の検査が合格の課題 (\d+)／"), ("両条件", r"両条件の記録がそろう課題 (\d+)／"),
+             ("凍結", r"凍結 (あり|なし)")),
+    "R3": (("記録", r"凍結の後の記録 (\d+)／"), ("判定", r"判定 (あり|なし)")),
+    "R4": (("周期", r"続いた週次の周期 (\d+)／"),),
+}
+
+
+def amounts(bodies):
+    """{"R3-a 課題": 数, ...}。前提タスクの数は含めない。取得失敗の量は入れない（比べない）。"""
+    found = {}
+    for rung, specs in AMOUNT_RES.items():
+        body = bodies.get(rung) or ""
+        if "取得失敗" in body:
+            continue
+        for label, pattern in specs:
+            m = re.search(pattern, body)
+            if m:
+                found[f"{rung} {label}"] = {"あり": 1, "なし": 0}.get(m.group(1)) if not m.group(1).isdigit() else int(m.group(1))
+    return found
+
+
+def history_path(cfg):
+    return Path(cfg["out"]) / HISTORY
+
+
+def read_history(cfg):
+    p = history_path(cfg)
+    if not p.is_file():
+        return []
+    rows = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            rows.append(json.loads(line))
+    return rows
+
+
+def append_history(cfg, row):
+    p = history_path(cfg)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def completed_ids(tasks):
+    return sorted((str(t.get("id")) for t in tasks if t.get("status") == "completed"))
+
+
+def now_text():
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
+def record_history(cfg, tasks, now):
+    """(履歴の行を足したあとの履歴, 比べる相手の行)。足すのは、履歴が無いとき・完了が最後の行の集合より増えたとき。"""
+    rows = read_history(cfg)
+    last = rows[-1] if rows else None
+    done = completed_ids(tasks)
+    added = sorted(set(done) - set(last.get("done") or [])) if last else []
+    if last is None or added:
+        row = {"time": now_text(), "added": added, "before": last.get("after") if last else None,
+               "after": now, "done": done}
+        append_history(cfg, row)
+        rows.append(row)
+    return rows, last
+
+
+def regression_lines(last, now, added):
+    if not last:
+        return []
+    out = []
+    for key, was in (last.get("after") or {}).items():
+        cur = now.get(key)
+        if isinstance(was, int) and isinstance(cur, int) and cur < was:
+            out.append(f"{REGRESSION} {key} {was} → {cur}（直前に完了したタスク: {', '.join(added) or 'なし'}）")
+    return out
+
+
+def change_text(row):
+    before, after = row.get("before") or {}, row.get("after") or {}
+    changes = [f"{k} {before[k]} → {v}" for k, v in after.items() if k in before and before[k] != v]
+    ids = ", ".join(row.get("added") or [])
+    if row.get("before") is None:
+        return f"{row.get('time')} 最初の記録（{'、'.join(f'{k} {v}' for k, v in after.items())}）"
+    return f"{row.get('time')} 増えたタスク {ids}：{'、'.join(changes) or '量の変化なし'}"
+
+
+def history_lines(cfg, tasks, now):
+    rows, last = record_history(cfg, tasks, now)
+    new_row = rows[-1] if last is not None and rows and rows[-1] is not last else None
+    added = (new_row or last or {}).get("added") or []
+    out = regression_lines(last, now, added)
+    out.append(HISTORY_TITLE)
+    out += [f"- {change_text(r)}" for r in reversed(rows[-HISTORY_SHOWN:])]
+    return out
 
 
 def section(cfg):
     """report.md 用。台帳を読めないなど、節ごと失敗しても、1 行の理由に替えて書き出しを止めない。"""
     try:
-        return render(cfg)
+        tasks, bodies = measure(cfg)
+        lines = lines_of(tasks, bodies)
     except Exception as e:   # noqa: BLE001
         return f"{TITLE}\n- {hline_probe.failure(f'{type(e).__name__}: {e}')}\n"
+    try:
+        lines += history_lines(cfg, tasks, amounts(bodies))
+    except Exception as e:   # noqa: BLE001 - 履歴の読み書きの失敗で report.md の書き出しを止めない
+        lines += [HISTORY_TITLE, f"- {hline_probe.failure(f'{type(e).__name__}: {e}')}"]
+    return "\n".join(lines) + "\n"
 
 
 def main(argv=None):
