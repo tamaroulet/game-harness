@@ -3,6 +3,7 @@ harness.hline を import しない（循環を作らない）。依存は第 1 �
 import datetime
 from pathlib import Path
 
+import failure_classes
 import fastsuite
 import hline_abort
 import hline_boundary
@@ -36,6 +37,7 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
         prev = digest
         if why is not None:
             tries.append({**attempt_record(run, attempt, code, models, False, rest), "flaky": [], "warnings": [], "abort": why})
+            tries[-1]["failure"] = failure_classes.describe(tries[-1], None)
             (outdir / f"gate-{run}-{attempt}.log").write_text(f"Gate 1 は呼ばず、試行を打ち切りました: {why}\n", encoding="utf-8")
             return None, None, tries
         on_stage(f"Gate 1 {run + 1}-{attempt}")
@@ -49,6 +51,8 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
             ok, text, rec["suite"] = suite
             feedback = f"{feedback}\n\n{text}"
             rec["gate"] = ok
+        if not ok:
+            rec["failure"] = failure_classes.describe(rec, feedback)
         (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
         if ok:
             return wt, branch, tries
@@ -81,7 +85,7 @@ def record_infra(host, cfg, st, item, n, e):
 
 def stop_fatal(host, cfg, st, name, item, e):
     """待っても直らない異常：呼び直さず、その What を未収束にして理由を残す（infra_halt は立てない）。"""
-    item.update(status="unconverged", at=host.today(), reason=str(e))
+    item.update(status="unconverged", at=host.today(), reason=str(e), failure_class=failure_classes.last_class(item))
     print(f"[{item['tid']}] 再試行しません: {item['reason']}")
     host.mark(cfg, st, name)
     return False
@@ -109,6 +113,7 @@ def process(host, cfg, st, name):
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / "what.md").write_text(what, encoding="utf-8")
     item.pop("infra_retries", None)
+    item.pop("failure_class", None)
     item.pop("started_at", None)   # 前の走行の途中で落ちた項目の開始の時刻を引き継がない
     item.update(status="processing", tid=tid)
     host.mark(cfg, st, name, "実装 1-1")
@@ -139,7 +144,7 @@ def process(host, cfg, st, name):
     except Fatal as e:
         return stop_fatal(host, cfg, st, name, item, e)
     except infra_retry.InfraExhausted as e:
-        item.update(status="waiting", infra_retries=e.records)
+        item.update(status="waiting", infra_retries=e.records, failure_class=failure_classes.INFRA)
         st["infra_halt"] = {"name": name, "reason": e.records[-1]["reason"], "attempts": len(e.records), "at": host.today()}
         host.mark(cfg, st, name)
         return False
@@ -148,7 +153,7 @@ def process(host, cfg, st, name):
     if done:
         hline_queue.mark_done(item)
     else:
-        item.update(status="unconverged", at=host.today(), reason=unconverged(item))
+        item.update(status="unconverged", at=host.today(), reason=unconverged(item), failure_class=failure_classes.last_class(item))
         print(f"[{tid}] 収束しませんでした: {item['reason']}")
     host.mark(cfg, st, name)
     return done

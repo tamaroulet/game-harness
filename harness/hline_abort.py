@@ -8,6 +8,7 @@ from hline_base import must
 
 MARKER = "H-LINE-ABANDON:"
 NO_REASON = "理由の記載なし"
+REPEAT = "前の試行と同じ差分でした"
 
 
 def patch_digest(wt, ttl):
@@ -55,7 +56,7 @@ def abort_reason(log, digest, prev):
     if why is not None:
         return why or NO_REASON
     if prev is not None and digest == prev:
-        return "前の試行と同じ差分でした。直す手がかりが無いまま同じ変更を繰り返したので、残りの試行を行わずに打ち切りました"
+        return REPEAT + "。直す手がかりが無いまま同じ変更を繰り返したので、残りの試行を行わずに打ち切りました"
     return None
 
 
