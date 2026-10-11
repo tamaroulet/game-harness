@@ -3,10 +3,19 @@ name: harness-tests
 # スケジューラの状態遷移テスト。git は本物、GitHub は偽物、子プロセスはスタブ。
 # taskkill と Windows のパスを使うので windows-latest（GitHub-hosted）で走らせる。
 # self-hosted runner は使わない（PC が止まっていてもチェックが回るように）。
+#
+# 全件は harness.fastsuite でモジュールごとに別のプロセスで並列に走らせる（Gate 1 と同じ道具）。
+# 並列で落ちたモジュールは単独で 1 回走らせ直し、通れば flaky として本文に出す（終了コードには効かない）。
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+# 同じ PR・同じブランチの古い走行は、新しい push で取り消す（承認も push で失効するので、古い結果は使われない）
+concurrency:
+  group: harness-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -19,6 +28,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: .github/workflows/harness-tests.yml
 
       # harness/progress.py が docs/progress.yaml を読む（ADR-003 §4）。手元と同じ版に固定する
       - name: dependencies
@@ -28,4 +39,4 @@ jobs:
       - name: unittest
         env:
           HARNESS_SELFTEST_DIR: ${{ runner.temp }}\harness-selftest
-        run: python -m unittest discover -s tests -v
+        run: python -m harness.fastsuite discover -s tests
