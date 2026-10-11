@@ -41,6 +41,15 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
         log = outdir / f"implementer-{run}-{attempt}.log"
         on_stage(f"実装 {run + 1}-{attempt}")
         code, models, *rest = host.implement(cfg, wt, what, with_cutoff(tries and tries[-1]["cutoff"], feedback), log)   # rest は利用量・打ち切りの理由・ターン数
+        if code == 124:   # 実装役の時間切れ：Gate 1 も残りの試行も行わず、未収束にする（呼び直さない）
+            secs = getattr(host, "implement_seconds", None)
+            secs = secs if isinstance(secs, (int, float)) and not isinstance(secs, bool) else cfg["ttl_seconds"]["implementer"]
+            why = f"実装役が時間切れになりました（終了コード 124、経過 {secs:g} 秒）。残りの試行を行わずに打ち切りました"
+            tries.append({**attempt_record(run, attempt, code, models, False, rest), "flaky": [], "warnings": [], "timeout": why, **map_size(host)})
+            tries[-1]["failure"] = failure_classes.describe(tries[-1], None)
+            (outdir / f"gate-{run}-{attempt}.log").write_text(f"Gate 1 は呼ばず、試行を打ち切りました: {why}\n", encoding="utf-8")
+            hline_resume.keep(cfg, wt, outdir, f"試行を打ち切りました: {why}")
+            return None, None, tries
         digest = digest_of(cfg, wt)
         why = hline_abort.abort_reason(log, digest, prev)   # 断念・同じ差分の繰り返しは Gate 1 を呼ばずに打ち切る
         prev = digest

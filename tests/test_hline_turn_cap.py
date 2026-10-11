@@ -112,9 +112,15 @@ class Flow(base.World):
         code, models, usage, cutoff, n = self.implement()
         self.assertEqual((models, cutoff, n, usage["input_tokens"]), (["claude-sonnet-5-5"], None, 4, 10))
 
-    def test_the_time_limit_is_still_an_environment_fault(self):
+    def test_the_time_limit_is_returned_not_raised_and_run_task_stops_at_once(self):
         self.impl_outs = [(124, "", "")]
-        self.assertRaises(hline.Infra, self.implement)
+        code, models, *_ = self.implement()
+        self.assertEqual((code, models), (124, []))
+        self.impl_outs = [(124, "", "")]
+        wt, branch, tries = self.run_task()
+        self.assertEqual((wt, branch, len(tries), self.gated_in), (None, None, 1, []))   # Gate 1 も残りの試行も無い
+        self.assertIn("時間切れ", tries[0]["timeout"])
+        self.assertEqual(tries[0]["failure"]["class"], "timeout")
 
     def test_a_cut_off_attempt_goes_to_gate_1_in_the_same_worktree_and_a_failure_carries_the_reason(self):
         self.impl_outs = [(1, CUTOFFS["error_max_turns"], ""), (0, out(), "")]

@@ -61,5 +61,5 @@ def abort_reason(log, digest, prev):
 
 
 def unconverged_reason(tries):
-    """最後の試行の abort の理由。無ければ None。"""
-    return (tries[-1].get("abort") or None) if tries else None
+    """最後の試行の abort（断念・繰り返し）か timeout（実装役の時間切れ）の理由。無ければ None。"""
+    return (tries[-1].get("abort") or tries[-1].get("timeout") or None) if tries else None

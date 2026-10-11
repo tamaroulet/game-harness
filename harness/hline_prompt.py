@@ -1,5 +1,6 @@
 """H ライン（harness/hline.py）の実装役：入力の組み立てと 1 回の呼び出し。
 harness.hline を import しない（循環を作らない）。依存は第 1 引数 host（harness.hline 自身）の属性として読むので、テストの差し替えが効く。"""
+import time
 from pathlib import Path
 
 import hline_abort
@@ -9,6 +10,9 @@ import infra_retry
 import oracle_deny
 from hline_base import Infra, Quota
 from hline_budget import capped_args, outcome, turn_cap
+
+
+TIMEOUT_EXIT = 124   # ttl_seconds.implementer の時間切れ（proc.run が返す）
 
 
 def build_prompt(what, feedback=None, symbol_map=None):
@@ -29,16 +33,20 @@ def build_prompt(what, feedback=None, symbol_map=None):
 
 
 def implement(host, cfg, wt, what, feedback, log):
-    """実装役を 1 回呼ぶ。使ったモデルを照合し記録する（model_pin）。TTL 超過・起動の失敗は Infra。ターン数の上限の打ち切りは例外にせず、照合しない（hline_budget.outcome）。"""
+    """実装役を 1 回呼ぶ。使ったモデルを照合し記録する（model_pin）。起動の失敗は Infra。TTL 超過（124）は例外にせず、そのまま返す。ターン数の上限の打ち切りは例外にせず、照合しない（hline_budget.outcome）。"""
     agent = cfg["implementer"]
     shown = host.symbolmap.prompt_text(cfg, wt, None, what, scope=True)
     host.map_chars = len(shown)   # 試行の記録に入れる（hline_task.run_task が読む）。implement の戻り値の形は変えない
     shown = "\n\n".join(filter(None, (shown, impacted.prompt_note())))
+    began = time.monotonic()
     code, out, err = host.proc.run(capped_args(oracle_deny.with_deny(impacted.scoped_agent(agent), cfg), host.proc.resolve_cli(agent["cli"]), cap := turn_cap(agent)),
                                    wt, cfg["ttl_seconds"]["implementer"], "実装役", input=host.build_prompt(what, feedback, shown))
+    host.implement_seconds = round(time.monotonic() - began)   # 時間切れの理由に出す（hline_task.run_task が読む）
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
     if hit := hline_quota.message(out, err):   # モデルの照合・打ち切りの判定より先に見る（試行に数えない）
         raise Quota(f"実装役の利用枠が尽きました（終了コード {code}）: {hit}")
+    if code == TIMEOUT_EXIT:   # 環境の異常にしない。呼び直さず、run_task が試行を記録して未収束にする
+        return (code, [], None, None, None)
     if code in infra_retry.INFRA_EXIT_CODES:
         raise Infra(f"実装役の CLI が終了コード {code}: {infra_retry.classify_exit(code, err)}")
     return (code, *outcome(agent, out, cap))

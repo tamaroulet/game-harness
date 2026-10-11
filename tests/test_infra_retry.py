@@ -85,14 +85,23 @@ class Implementer(base.World):
         self.patch(hline, "changed_paths", return_value=["harness/textnorm.py"])
         self.patch(hline, "gate", side_effect=lambda c, w, p, spec=None, task=None, **kw: (True, "ok"))
 
-    def test_a_timeout_is_retried_and_does_not_count_as_a_try(self):
+    def test_a_timeout_is_not_retried_and_leaves_the_what_unconverged(self):
         self.codes = [124]
+        self.put("010-a")
+        self.poll()
+        item = self.state()["items"]["010-a"]
+        self.assertEqual((item["status"], self.integrated, len(self.calls), len(item["tries"]), hline.gate.call_count),
+                         ("unconverged", [], 1, 1, 0))   # 呼び直さない・Gate 1 を呼ばない
+        self.assertNotIn("infra_retries", item)
+        self.assertEqual(item["failure_class"], "timeout")
+        self.assertIn("時間切れ", item["reason"])
+
+    def test_the_other_exit_code_127_is_still_retried(self):
+        self.codes = [127]
         self.put("010-a")
         self.assertEqual(self.poll(), 0)
         item = self.state()["items"]["010-a"]
-        self.assertEqual((item["status"], self.integrated, len(self.calls), len(item["tries"]), hline.gate.call_count,
-                          len(item["infra_retries"])), ("done", ["010-a"], 2, 1, 1, 1))   # 試行・Gate 1 は 1 回だけ
-        self.assertIn("タイムアウト", item["infra_retries"][0]["reason"])
+        self.assertEqual((item["status"], len(self.calls), len(item["infra_retries"])), ("done", 2, 1))
 
 
 class Line(base.World):
