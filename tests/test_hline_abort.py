@@ -155,7 +155,7 @@ class Flow(Repo):
         self.assertEqual((wt, len(self.gated), len(tries)), (None, 3, 3))
         for t in tries:
             self.assertEqual(sorted(t), sorted(["run", "attempt", "cli_exit", "models", "gate", "usage", "cutoff", "turns",
-                                                "flaky", "warnings", "failure"]))
+                                                "flaky", "warnings", "failure", "tests_complete", "tests_passed", "tests_failed"]))
 
     def test_a_declaration_stops_the_first_try_without_gate_1(self):
         wt, branch, tries = self.run_task(self.host(["a\n"], {0: f"諦めます\n{MARKER} {WHY}\n"}))

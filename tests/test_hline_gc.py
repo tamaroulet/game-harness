@@ -167,7 +167,7 @@ class RemovalFailure(Repo):
 class RunLine(Repo):
     def run_line(self, sweep):
         calls = []
-        fakes = dict(fetch=lambda c: calls.append("fetch"), recover=lambda *a: None, intake=lambda *a, **k: None,
+        fakes = dict(fetch=lambda c: calls.append("fetch"), code_shas=lambda c: ("a" * 40, "a" * 40), recover=lambda *a: None, intake=lambda *a, **k: None,
                      save_state=lambda *a: None, write_report=lambda *a: None,
                      load_state=lambda c: {"awaiting_pr": None, "items": {}}, sweep=lambda c: calls.append("sweep") or sweep(c))
         with mock.patch.multiple(hline, **{k: mock.Mock(side_effect=v) for k, v in fakes.items()}):

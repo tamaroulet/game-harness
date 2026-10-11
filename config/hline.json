@@ -5,6 +5,8 @@
   "worktrees": "C:\\src\\.local\\wt",
   "out": "C:\\src\\.local\\out\\hline",
   "_out_note": "生ログ・取り込んだ What の控え。総監督の部屋からは読めない（setup の deny）",
+  "oracles": "C:\\src\\.local\\oracles",
+  "_oracles_note": "非公開オラクルの置き場。実装役の呼び出しの禁止の列（harness/oracle_deny.py）が inbox・out とともに、この下への Read・Grep・Glob と Bash を拒む",
   "base": "origin/main",
   "integration_branch": "hline/integration",
   "_integration_note": "Gate 1 を通った変更はこのブランチの先端に積む（作業ツリーもここから作る。無ければ base から）。タスクごとの PR は作らず、積むものが尽きたら main への統合 PR を 1 本だけ出して止まる",

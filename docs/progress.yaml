@@ -4,9 +4,9 @@ constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-29
+  task: W-72
   exit_code: 0
-  at: '2026-10-11T21:28:54'
+  at: '2026-10-12T01:13:52'
 next_id: 65
 nodes:
 - id: A
@@ -1133,7 +1133,7 @@ tasks:
   title: 実装役に、受信箱（総監督の下書き）・非公開オラクル・生ログを読ませない（道具の設定）
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: deny-drafts-and-oracles'
   serves: R3-b
   purpose: 工廠が仕様だけから作ったと言えるように、総監督の下書き・参照実装・非公開オラクルを実装役の道具から外す（R3-a の B06 の参照実装は受信箱にあり、読まれ得た）
@@ -1765,7 +1765,7 @@ tasks:
   title: H ラインは、走っているコードが統合ブランチの先端（無ければ base）と違うとき、What を取り込まず処理もしない
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: refuse-stale-code'
   serves: R3-c
   purpose: 積んだ自分の変更（再開・監修）を読み込まないまま古いコードで走る穴を塞ぎ、その状態を report.md に出す（10-11、W-28 の再開が一度も働かなかった。病理 ④）
@@ -1785,7 +1785,7 @@ tasks:
   title: 未収束の What の再開の材料を report.md に出し、試験が最後まで走って通った数が増えていれば 1 回だけ自動で続ける
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: resume-visible-and-extend'
   serves: R3-c
   purpose: 再開の材料の有無を総監督が見られるようにし、前進が確かな What だけを人の置き直しなしに続けさせる。前進の無い試行（構文の誤り・途中の落ち）には続けない（要綱 4）
@@ -1846,7 +1846,7 @@ tasks:
   title: 実装役に渡す目次を、What が名指すモジュールとその import 先の節に絞る
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: narrow-symbol-map'
   serves: R3-c
   purpose: 呼び出しのたびに渡す目次（上限 30,000 字）を What に要る範囲に絞り、入力のトークンを減らす（燃費。効き目は W-67 の内訳で測る）
@@ -1865,7 +1865,7 @@ tasks:
   title: 照合で、受信箱の下書きを base の木に重ねて走らせる（重ねるファイル・繰り返しの回数・期待する合否）
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'checks: overlay-drafts'
   serves: R3-c
   purpose: シェルを持たない総監督の下書き（仕様・判定役・参照実装・隠しテスト）を、操縦士の手を使わずに PR の前に機械で確かめ、検証の負荷を操縦士に集めない
@@ -1906,7 +1906,7 @@ tasks:
   title: 台帳の after（弱い依存）を H ラインが守り、上流が未収束でも後続を止めない。未収束ごとに、凍結した下流と本線への影響を出す
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: soft-dependencies-and-triage'
   serves: R3-c
   purpose: 副次の道具の未収束が本線を道連れに凍結させない仕組みを持ち、凍結の影響を総監督がすぐ選り分けられるようにする（一本鎖の脆さ）
@@ -1965,7 +1965,7 @@ tasks:
   title: Gate 1 の入口で、変えた Python の構文を試験より先に確かめ、時間切れの試行の後は再試行しない
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'gate: syntax-first-and-timeout-triage'
   serves: R3-c
   purpose: 構文の誤りに試験の全件の時間を使わず、時間切れの繰り返しに 30 分ずつ使わない（実時間と歩留まり。旧 501・507 の残り）

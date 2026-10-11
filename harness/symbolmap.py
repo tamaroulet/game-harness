@@ -172,11 +172,24 @@ def limit(cfg):
     return v
 
 
-def prompt_text(cfg, wt, modules=None, what=None):
+def scoped_modules(text, root, index):
+    """text がパス・ファイル名・モジュールの名前（x.py の x）で名指すモジュールと、その import 先（1 段）。名指しが無ければ空。"""
+    text = text.replace("\\", "/")
+    named = tuple(p for p in index.get("modules", {}) if p.endswith(".py") and not p.endswith("/__init__.py")
+                  and re.search(r"(?<![A-Za-z0-9_])" + re.escape(p.rsplit("/", 1)[-1][:-3]) + r"(?![A-Za-z0-9_])", text))
+    named = tuple(dict.fromkeys(mentioned_modules(text, index) + named))
+    want = set(named) | set(imported_modules(root, named, index))
+    return tuple(p for p in index.get("modules", {}) if p in want)
+
+
+def prompt_text(cfg, wt, modules=None, what=None, scope=False):
     """作業ツリー wt からその場で作った目次の文字列（modules があればそれだけ）。what があれば、それが挙げたモジュール
-    （と import 先）の docstring の節（上限の 3 分の 1 まで）を前に添える。作れなければ空文字列で、呼び手は止まらない。"""
+    （と import 先）の docstring の節（上限の 3 分の 1 まで）を前に添える。scope が真で modules が無く、what が名指すモジュールが
+    あるときは、目次もそのモジュールと import 先だけにする。作れなければ空文字列で、呼び手は止まらない。"""
     try:
         index, size = build(wt), limit(cfg)
+        if modules is None and scope and what:
+            modules = scoped_modules(what, wt, index) or None
         shown = index if modules is None else for_modules(index, modules)
         docs = docs_text(index, candidate_modules(what, wt, index), size // 3) if what else ""
         return docs + "\n\n" + render(shown, size - len(docs) - 2) if docs else render(shown, size)

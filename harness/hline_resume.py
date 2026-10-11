@@ -47,6 +47,15 @@ def store(cfg, name, outdir):
             shutil.copyfile(Path(outdir, n), dest / n)
 
 
+def material(cfg, name):
+    """What の名前の置き場に、再開の材料（差分と失敗の出力）が残っているか。{"kept": bool, "lines": 差分の行数}。"""
+    src = resume_dir(cfg, name)
+    patch = src / PATCH
+    if not (src / FAILURE).exists() or not patch.exists() or patch.stat().st_size == 0:
+        return {"kept": False, "lines": 0}
+    return {"kept": True, "lines": len(patch.read_text(encoding="utf-8", errors="replace").splitlines())}
+
+
 def begin(host, cfg, name, wt, outdir):
     """置き直した What の最初の試行の前に、残した変更を作業ツリーに載せる。試行の記録に残す辞書
     {"applied": bool, "reason": 当たらなかった理由}。前の失敗の出力は outdir の PREVIOUS に置く（run_task が読む）。"""

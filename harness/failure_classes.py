@@ -22,7 +22,8 @@ UNKNOWN = "不明"
 COLUMNS = CLASSES + (INFRA, UNKNOWN)
 PROTECTED_HEAD = "変えてはならないパスを変えています"
 TIMEOUT_MARKS = ("TTL超過", "時間切れ")
-TEST_HEAD = "検証コマンド `"
+SYNTAX_HEAD = "構文の誤りがあります"   # hline_gate.SYNTAX_HEAD と同じ（hline_gate は host を引くので import しない）
+TEST_HEAD ="検証コマンド `"
 _MODULES = re.compile(r"^落ちたモジュール: (.*?)[ \t\r]*$", re.MULTILINE)
 
 
@@ -37,7 +38,11 @@ def classify(rec, text):
     abort = rec.get("abort")
     if abort:
         return "repeat" if str(abort).startswith(hline_abort.REPEAT) else "abandon"
+    if rec.get("timeout"):
+        return "timeout"
     text = text or ""
+    if text.startswith(SYNTAX_HEAD):
+        return "test"
     if text.startswith(PROTECTED_HEAD):
         return "protected"
     if any(m in text for m in TIMEOUT_MARKS):

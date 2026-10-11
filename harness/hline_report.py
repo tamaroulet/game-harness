@@ -12,12 +12,13 @@ from pathlib import Path
 import yaml
 
 import hline_checks
+import hline_extend
 import hline_probe
 import hline_quota
 import hline_usage
 from hline_base import ROOT, must
 from hline_git import remote_ref
-from hline_queue import by_status, save_state
+from hline_queue import by_status, downstream_impact, save_state
 
 import proc  # noqa: E402
 import progress  # noqa: E402
@@ -81,6 +82,14 @@ def warning_count(item):
     return sum(len(t.get("warnings") or []) for t in item.get("tries", []))
 
 
+def material_note(item):
+    """未収束の行の、再開の材料（差分と失敗の出力）の注記。古い記録には材料の記録が無い。"""
+    m = item.get("material")
+    if not isinstance(m, dict):
+        return "（再開の材料: 記録なし）"
+    return f"（再開の材料: あり・差分 {m.get('lines', 0)} 行）" if m.get("kept") else "（再開の材料: なし）"
+
+
 def goal_section(cfg):
     """「## 目的までの距離」の節（report.md の先頭）。読み込みが例外で止まっても、節を 1 行の理由に替えて、書き出しを止めない。"""
     try:
@@ -128,13 +137,25 @@ def h_section(cfg, st):
         names = by_status(st, status)
         return f"- {label}（{len(names)} 件）: " + (", ".join(f"{n}{note(items[n])}" for n in names) or "なし")
 
-    done = lambda i: (f"（警告 {warning_count(i)} 件）" if warning_count(i) else "") + hline_usage.note(i)   # noqa: E731
-    waiting = lambda i: (f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else "") + (f"（台帳を読めず待ち: {i['ledger_error']}）" if i.get("ledger_error") else "")   # noqa: E731
+    def unconverged_row():
+        names = by_status(st, "unconverged")
+        note = lambda n, i: (f"（{i.get('reason', '')}）{material_note(i)}" + triage(n) + after_note(i)   # noqa: E731
+                             + hline_usage.note(i) + hline_extend.note(i))
+        return f"- 未収束（{len(names)} 件）: " + (", ".join(f"{n}{note(n, items[n])}" for n in names) or "なし")
+
+    after_note = lambda i: (f"（警告: after の上流 {', '.join(i['after_unconverged'])} が未収束のまま処理）" if i.get("after_unconverged") else "")   # noqa: E731
+
+    def triage(n):
+        hit, mainline = downstream_impact(st, n)
+        return f"（凍結した下流 {len(hit)} 件・本線への影響 {'あり' if mainline else 'なし'}）"
+
+    done = lambda i: (f"（警告 {warning_count(i)} 件）" if warning_count(i) else "") + after_note(i) + hline_usage.note(i) + hline_extend.note(i)   # noqa: E731
+    waiting = lambda i: (f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else "") + (f"（台帳を読めず待ち: {i['ledger_error']}）" if i.get("ledger_error") else "") + hline_extend.note(i)   # noqa: E731
     frozen = lambda i: f"（上流の未収束: {', '.join(i.get('frozen_by', []))}）"   # noqa: E731
     lines = ["## H ライン", f"- 状態: {line_status(cfg, st)}", f"- 統合ブランチ: {cfg['integration_branch']}",
-             f"- 統合 PR: {st['awaiting_pr'] or 'なし'}"] + pr_wait_line(st.get("pr_times")) + ["", "## キュー",
+             f"- 統合 PR: {st['awaiting_pr'] or 'なし'}"] + ([f"- コード: {st['code']}"] if st.get("code") else []) + pr_wait_line(st.get("pr_times")) + ["", "## キュー",
              row("済み", "done", done), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
-             row("未収束", "unconverged", lambda i: f"（{i.get('reason', '')}）" + hline_usage.note(i)), row("凍結", "frozen", frozen)]
+             unconverged_row(), row("凍結", "frozen", frozen)]
     lines += ["", northstar_section(items).rstrip("\n"), "", failure_section(items).rstrip("\n")]
     flaky = [f"- {n}: {', '.join(flaky_tests(i))}" for n, i in sorted(items.items()) if flaky_tests(i)]
     if flaky:
@@ -149,6 +170,8 @@ def h_section(cfg, st):
 def human_line(cfg, st):
     """report の人間作業欄。インフラ例外での停止・統合 PR のレビューは人間の作業。利用枠の回復待ちは人間の作業ではなく、待ちの表示。
     それ以外は None（進捗の記録のまま）。"""
+    if stale := st.get("stale_code"):
+        return f"- 人間作業: STALE_CODE 走っている {stale['running']} ／ 先端 {stale['tip']}"
     halt = st.get("infra_halt")
     if halt:
         return (f"- 人間作業: INFRA_HALTED {halt['name']}: {' '.join(str(halt['reason']).split())}（{halt['attempts']} 回の試行）。"

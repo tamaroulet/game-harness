@@ -32,6 +32,19 @@ def integration_exists(cfg):
     return code == 0
 
 
+def code_shas(cfg):
+    """(走っているハーネスの木の HEAD, 統合ブランチの先端) の完全な SHA。先端は統合ブランチが無ければ base。確かめられなければ Infra。"""
+    t = cfg["ttl_seconds"]["git"]
+    tip = remote_ref(cfg) if integration_exists(cfg) else cfg["base"]
+
+    def sha(ref):
+        code, out, err = proc.run(["git", "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"], ROOT, t, "git rev-parse")
+        if code != 0 or not out.strip():
+            raise Infra(f"git rev-parse {ref} が失敗しました: {(err or out).strip()}")
+        return out.strip()
+    return sha("HEAD"), sha(tip)
+
+
 def new_worktree(cfg, tid):
     """統合ブランチの先端から UUID の新しい作業ツリーを作る。統合ブランチがまだ無ければ base（main）から作る。"""
     t = cfg["ttl_seconds"]["git"]

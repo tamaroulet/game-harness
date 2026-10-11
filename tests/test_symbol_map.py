@@ -116,7 +116,7 @@ class Wiring(unittest.TestCase):
         self.assertEqual(hline.implement(self.cfg, self.wt, what, None, self.log)[0], 0)
         ((label, prompt),) = self.inputs
         self.assertTrue(label == "実装役" and symbolmap.HEAD in prompt and "harness/alpha.py" in prompt)
-        self.assertIn("harness/beta.py", prompt)
+        self.assertNotIn("harness/beta.py", prompt)   # W-69: alpha は beta を import しないので、名指しがあれば目次に入らない
 
     def test_a_failing_map_does_not_stop_the_implementer(self):
         with mock.patch.object(symbolmap, "build", side_effect=UnicodeDecodeError("utf-8", b"x", 0, 1, "bad")):
