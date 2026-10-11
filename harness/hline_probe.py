@@ -120,7 +120,8 @@ def duration_fetch(cfg, runner):
         return failure(why)
     try:
         runs = json.loads(out)
-        spans = [d for r in runs if str(r.get("status")).lower() == "completed" and (d := _elapsed(r)) is not None]
+        spans = [d for r in runs if str(r.get("status")).lower() == "completed"
+                 and str(r.get("conclusion")).lower() in ("success", "failure") and (d := _elapsed(r)) is not None]
     except Exception:   # noqa: BLE001
         return failure("gh の出力を読めない")
     if not spans:
