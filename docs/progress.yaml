@@ -787,7 +787,7 @@ tasks:
   title: 執行者の欄を、ツリー・report.md・H ラインの取り込みに反映する
   group: G0
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'progress: show-executor'
   depends_on: []
   verification:
@@ -837,6 +837,6 @@ tasks:
   - G0-2
   verification: null
 last_verification:
-  task: G0-2
+  task: W-14
   exit_code: 0
-  at: '2026-10-11T12:31:59'
+  at: '2026-10-11T12:43:46'

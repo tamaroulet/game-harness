@@ -75,7 +75,17 @@ def by_status(st, status):
 def intake(cfg, st):
     """受信箱の What をキューに入れ、受信箱から消す。許されないマイルストーンの What・宣言の無い What は受信箱に残す。
     未収束の What と同じ名前の What は、その記録を差し替える（再開）。"""
-    skipped, taken = [], []
+    skipped, taken, ledger = [], [], None
+
+    def pilot_task(task):
+        nonlocal ledger
+        if ledger is None:
+            try:
+                ledger = read_ledger(cfg)
+            except Exception:   # noqa: BLE001  読めない台帳は apply_ledger が待ちにする
+                ledger = {}
+        return ledger.get(task, {}).get("by") == "pilot"
+
     for src in candidates(cfg["inbox"]):
         name, text = src.stem, src.read_text(encoding="utf-8")
         meta, old = parse_header(text), st["items"].get(src.stem)
@@ -83,6 +93,8 @@ def intake(cfg, st):
             why = "マイルストーンの宣言がありません"
         elif meta["milestone"] not in cfg["milestones"]:
             why = f"マイルストーン {meta['milestone']} はこのラインに許されていません（許可: {', '.join(cfg['milestones'])}）"
+        elif meta["task"] and pilot_task(meta["task"]):
+            why = f"タスク {meta['task']} は操縦士の作業（by: pilot）で、H ラインは取りません"
         elif old and old["status"] in ("processing", "done"):
             why = f"同名の What が{'処理中' if old['status'] == 'processing' else '済み'}です"
         else:
@@ -111,7 +123,8 @@ def read_ledger(cfg):
         raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を読めません: {' '.join((err or out or '').split())[:200]}")
     try:
         tasks = yaml.safe_load(out)["tasks"]
-        return {t["id"]: {"deps": list(t.get("depends_on") or []), "done": t.get("status") == "completed"} for t in tasks}
+        return {t["id"]: {"deps": list(t.get("depends_on") or []), "done": t.get("status") == "completed",
+                          "by": t.get("by") or "hline"} for t in tasks}
     except Exception as e:   # noqa: BLE001
         raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を解釈できません: {type(e).__name__}") from e
 
