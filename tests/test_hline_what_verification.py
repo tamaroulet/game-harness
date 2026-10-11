@@ -57,13 +57,13 @@ class Intake(unittest.TestCase):
         self.assertEqual(hline_queue.parse_header(what(f"- 検証： `{VERIFY}`"))["verify"], VERIFY)
         self.assertIsNone(hline_queue.parse_header(what())["verify"])
 
-    def test_a_what_without_a_task_and_without_a_verification_is_left_in_the_inbox_with_a_reason(self):
-        st, taken = self.take("a", what())
+    def test_a_what_with_only_a_verification_is_left_in_the_inbox_with_a_reason(self):
+        st, taken = self.take("a", what(f"検証: {VERIFY}"))
         self.assertEqual(taken, [])
         self.assertTrue((self.inbox / "a.md").exists())
         self.assertEqual(st["items"], {})
         self.assertEqual([s["file"] for s in st["skipped"]], ["a.md"])
-        self.assertIn("検証:", st["skipped"][0]["reason"])
+        self.assertIn("タスク:", st["skipped"][0]["reason"])
 
     def test_a_what_with_both_a_task_and_a_verification_is_left_in_the_inbox_with_a_reason(self):
         st, taken = self.take("a", what("タスク: T1", f"検証: {VERIFY}"))
@@ -72,13 +72,11 @@ class Intake(unittest.TestCase):
         self.assertIn("T1", st["skipped"][0]["reason"])
         self.assertIn("検証:", st["skipped"][0]["reason"])
 
-    def test_a_what_with_only_a_verification_or_only_a_task_is_taken(self):
-        st, taken = self.take("a", what(f"検証: {VERIFY}"))
-        self.assertEqual(taken, ["a"])
-        self.assertEqual(st["items"]["a"]["verify"], VERIFY)
+    def test_a_what_with_only_a_task_in_the_ledger_is_taken(self):
         st, taken = self.take("b", what("タスク: T1"))
         self.assertEqual(taken, ["b"])
         self.assertEqual(st["skipped"], [])
+        self.assertIsNone(st["items"]["b"]["verify"])
 
 
 class Gate(unittest.TestCase):
