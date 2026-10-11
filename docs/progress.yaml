@@ -4,9 +4,9 @@ constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-21
+  task: W-28
   exit_code: 0
-  at: '2026-10-11T21:01:33'
+  at: '2026-10-11T21:23:30'
 next_id: 65
 nodes:
 - id: A
@@ -902,7 +902,7 @@ tasks:
   title: 収束しなかった What を、最後の試行の変更と失敗の出力から再開する
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: resume-from-last-patch'
   serves: R3-b
   purpose: 1 か所の誤りで全部をやり直す非効率を無くし、前回の差分から回復させる（要綱 4）
