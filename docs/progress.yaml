@@ -1,5 +1,5 @@
 project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: G0-2
+active_task_id: G0-4
 next_id: 15
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
@@ -765,7 +765,7 @@ tasks:
   title: 積む前に、変えたパッケージの全件テスト（破損コミットの蓄積防止）
   group: G0
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'hline: run-full-suite-before-stacking'
   depends_on:
   - W-11
@@ -776,7 +776,7 @@ tasks:
   title: 失敗分類の機械化（未収束原因の自動タグ付け）
   group: G0
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'metrics: classify-failures'
   depends_on:
   - G0-2
@@ -837,6 +837,6 @@ tasks:
   - G0-2
   verification: null
 last_verification:
-  task: W-12
+  task: G0-2
   exit_code: 0
-  at: '2026-10-11T11:51:50'
+  at: '2026-10-11T12:31:59'
