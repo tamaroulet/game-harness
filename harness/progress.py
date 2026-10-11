@@ -23,6 +23,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -42,8 +43,21 @@ GIT_TTL = 120
 ORDER_FREE_ENV = "HLINE_PROGRESS_ORDER_FREE"   # "1" のとき main の complete が、現在のタスクでなくても記録する（H ライン用）
 
 
+EXECUTORS = ("pilot", "hline")   # タスクの執行者 by。省略は hline
+PR_REF = re.compile(r"^[A-Za-z0-9_.-]+#\d+$")
+
+
 class ProgressError(Exception):
     pass
+
+
+def is_pilot(t):
+    return (t or {}).get("by") == "pilot"
+
+
+def _label(t):
+    """ツリーに出すタスクの題（操縦士のタスクは後ろに印を付ける）。"""
+    return t["title"] + ("（操縦士）" if is_pilot(t) else "")
 
 
 # ============================================================ 読み書き
@@ -139,6 +153,10 @@ def validate(state):
             problems.append(f"task {tid} の status {t.get('status')} は {STATUSES} のどれでもありません")
         if t.get("review_pr") is not None and not str(t["review_pr"]).startswith("https://"):
             problems.append(f"task {tid} の review_pr は https の URL です")
+        if "by" in t and t["by"] not in EXECUTORS:
+            problems.append(f"task {tid} の by {t['by']} は {EXECUTORS} のどちらかです")
+        if "pr" in t and not (isinstance(t["pr"], str) and PR_REF.match(t["pr"])):
+            problems.append(f"task {tid} の pr {t['pr']} は <リポジトリ名>#<数> の形です")
         v = t.get("verification")
         if v is not None and (not isinstance(v, dict) or not isinstance(v.get("command"), str)
                               or not isinstance(v.get("expected_exit_code"), int)):
@@ -257,7 +275,7 @@ def tree(state, expand_all=False):
         for t in shown[:len(shown) - rest]:
             here = " ← 現在地" if t["id"] == state.get("active_task_id") else ""
             tmark = "[x]" if t["status"] == "completed" else "[ ]"
-            lines.append(f"{'  ' * (depth + 1)}- {tmark} {t['id']} {t['title']}{here}")
+            lines.append(f"{'  ' * (depth + 1)}- {tmark} {t['id']} {_label(t)}{here}")
         if rest:
             lines.append(f"{'  ' * (depth + 1)}- …ほか {rest} 件（tree --all で内訳）")
 
@@ -280,13 +298,19 @@ def report(state):
     t = task(state, tid) if tid else None
     v = (t or {}).get("verification")
     pr = (t or {}).get("review_pr")
-    lines = ["## 進捗ツリー"] + tree(state).splitlines() + [
+    if pr:
+        human = f"- 人間作業: REVIEW_REQUIRED {pr}"
+    elif is_pilot(t):
+        human = f"- 人間作業: TASK {tid} {t['title']}（操縦士）"
+    else:
+        human = "- 人間作業: NONE"
+    lines =["## 進捗ツリー"] + tree(state).splitlines() + [
         "",
         "## 状態",
         f"- 現在タスク: {tid}（{t['title']}）" if t else "- 現在タスク: NONE",
         f"- リポジトリ: {t['target_repo']}" if t else "- リポジトリ: NONE",
         f"- 検証コマンド: {v['command'] if v else '(undefined)'}",
-        f"- 人間作業: REVIEW_REQUIRED {pr}" if pr else "- 人間作業: NONE",
+        human,
     ]
     if len(lines) > REPORT_MAX_LINES:
         raise ProgressError(f"report が {len(lines)} 行で、上限 {REPORT_MAX_LINES} 行を超えます")

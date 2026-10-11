@@ -7,6 +7,7 @@ import fastsuite
 import hline_abort
 import hline_boundary
 import hline_quota
+import hline_suite
 import hline_queue
 import infra_retry
 from hline_base import Fatal, Infra, Quota
@@ -43,6 +44,11 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
         ok, feedback = host.gate(cfg, wt, changed, None, task, *([extended] if extended else []), warnings=warnings)
         tries.append(rec := {**attempt_record(run, attempt, code, models, ok, rest), "flaky": list(fastsuite.flaky_names(feedback)),
                              "warnings": warnings})
+        suites = getattr(host, "hline_suite", None)   # host（harness.hline）が持つものを使う。持たない差し替えの host では走らせない
+        if ok and suites and (suite := suites.run(wt, changed, (cfg.get("ttl_seconds") or {}).get("gate"))) is not None:   # 積む前に、変えたパッケージの全件
+            ok, text, rec["suite"] = suite
+            feedback = f"{feedback}\n\n{text}"
+            rec["gate"] = ok
         (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
         if ok:
             return wt, branch, tries
