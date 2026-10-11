@@ -1757,5 +1757,13 @@ class ResidentTests(Base):
         self.assertIn("自己監視", hb["reason"])
 
 
+def load_tests(loader, tests, pattern):
+    """git の足場（Base）を使う試験は tests/test_scheduler_*.py へ分けて走らせる。ここでは足場の要らない試験だけ。"""
+    suite = unittest.TestSuite()
+    for case in (ExitCodeTests, ProjectConfigTests):
+        suite.addTests(loader.loadTestsFromTestCase(case))
+    return suite
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -44,7 +44,7 @@ projects/<id>/
   project.json    リポジトリ・ローカルパス・テスト置き場・必須チェック名（ここにだけ書く）
   pipeline.json   実装パイプラインの設定
 tests/
-  test_scheduler.py   状態遷移・異常系（git は本物、GitHub は偽物、子はスタブ）
+  test_scheduler.py   状態遷移・異常系（git は本物、GitHub は偽物、子はスタブ）。git の足場を使う試験は test_scheduler_{a,b,c,gdd,resident}.py に分けて走る
   test_approval.py    抽出器と承認ゲート
   test_adapters.py    アダプタの選択・結果ファイルの読み取り（実物）・コアに固有の語が無いこと
   test_oracle.py      二相判定（偽テスト・入れ替わり・消えたテスト・制御群・quarantine の承認）
