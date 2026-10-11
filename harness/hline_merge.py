@@ -12,7 +12,11 @@ PASSED = {"SUCCESS"}
 
 
 def _runs(checks, workflow):
-    return [c for c in checks if c.get("workflowName") == workflow]
+    """そのワークフローの走行のうち、startedAt が最も新しい 1 件（同じなら completedAt が新しいもの）。無ければ空。"""
+    found = [c for c in checks if isinstance(c, dict) and c.get("workflowName") == workflow]
+    if not found:
+        return []
+    return [max(found, key=lambda c: (str(c.get("startedAt") or ""), str(c.get("completedAt") or "")))]
 
 
 def _done(run):
