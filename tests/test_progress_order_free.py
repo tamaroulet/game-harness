@@ -212,15 +212,11 @@ class IntegrateRecords(unittest.TestCase):
         self.run_integrate("S2-4")
         self.assertEqual(os.environ.get(progress.ORDER_FREE_ENV), before)
 
-    def test_a_failing_record_is_a_warning_and_the_code_is_still_committed_and_pushed(self):
-        """進捗の記録が拒まれても、コードは積む（C6）。理由は警告に残す。"""
-        warn = []
-        calls, failed = self.run_integrate("S2-4", complete_code=1, warn=warn)
-        self.assertFalse(failed)
-        self.assertEqual([c[0][1] for c in calls[1:]], ["add", "commit", "push"])
-        self.assertEqual(len(warn), 1)
-        self.assertIn("S2-4", warn[0])
-        self.assertIn("拒まれました", warn[0])
+    def test_a_failing_record_is_not_committed_or_pushed(self):
+        """進捗の記録が拒まれたら、コードは積まない（台帳が進まない変更を積まない）。"""
+        calls, failed = self.run_integrate("S2-4", complete_code=1)
+        self.assertTrue(failed)
+        self.assertFalse([c for c in calls if c[0][1] in ("add", "commit", "push")])
 
     def test_what_without_a_task_does_not_touch_the_progress(self):
         calls, failed = self.run_integrate(None)
