@@ -31,7 +31,7 @@ SAMPLE = "=" * 70 + "\nFAIL: test_a (tests.test_ok.A)\n" + "-" * 70 + "\n" + TRA
 
 
 def what(*lines):
-    return "\n".join(["# 題", "マイルストーン: B8.1", *lines, "", "本文"])
+    return "\n".join(["# 題", "マイルストーン: B8.1", *lines, "", "## What", "本文", "", "## 合格条件", "1. 満たす"])
 
 
 class Intake(unittest.TestCase):

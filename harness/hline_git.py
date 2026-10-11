@@ -62,6 +62,12 @@ def implementer_room(wt, ttl):
     must(["git", "update-index", "--skip-worktree", ".claude/settings.json"], wt, ttl, "git update-index")
 
 
+def apply_patch(cfg, wt, patch):
+    """前の変更（git diff の出力）を作業ツリーに載せる。(載ったか, 載らなかった理由)。載らなければ作業ツリーは変わらない。"""
+    code, out, err = proc.run(["git", "apply", "--whitespace=nowarn", str(patch)], wt, cfg["ttl_seconds"]["git"], "git apply")
+    return code == 0, " ".join((err or out or "").split())[:300]
+
+
 def changed_paths(wt, cfg):
     out = must(["git", "status", "--porcelain", "-uall"], wt, cfg["ttl_seconds"]["git"], "git status")
     return [line[3:].strip().strip('"') for line in out.splitlines() if line.strip()]

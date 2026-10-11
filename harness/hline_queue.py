@@ -37,6 +37,28 @@ def parse_header(text):
             "verify": found.get("検証") or None}
 
 
+ITEM = re.compile(r"^(?:\d+\.|-)\s")
+
+
+def shape_problem(text):
+    """本文に `## What` と `## 合格条件` の節があり、合格条件の字下げの無い箇条が 1〜4 であること。満たさなければ理由。"""
+    lines = text.splitlines()
+    if not any(re.fullmatch(r"##\s+What\s*", l) for l in lines):
+        return "本文に `## What` の行がありません"
+    starts = [n for n, l in enumerate(lines) if re.fullmatch(r"##\s+合格条件\s*", l)]
+    if not starts:
+        return "本文に `## 合格条件` の行がありません"
+    section = []
+    for l in lines[starts[0] + 1:]:
+        if l.startswith("## "):
+            break
+        section.append(l)
+    count = sum(1 for l in section if ITEM.match(l))
+    if not 1 <= count <= 4:
+        return f"`## 合格条件` の箇条が {count} 件です（1〜4 件で書いてください）"
+    return None
+
+
 def candidates(inbox):
     """受信箱の What を名前の順に。H ラインが書くファイルは取らない。"""
     return sorted(p for p in Path(inbox).glob("*.md") if p.is_file() and p.name not in RESERVED)
@@ -98,6 +120,17 @@ def intake(cfg, st):
             return f"タスク {task} は base の台帳で完了しています"
         return None
 
+    def oracle_problem(task):
+        for o in ledger[task].get("oracle") or []:
+            src = str(o.get("from") or "")
+            if src != "existing" and not ledger.get(src, {}).get("done"):
+                continue
+            path = str(o.get("path") or "")
+            code, _, _ = proc.run(["git", "cat-file", "-e", f"{cfg['base']}:{path}"], ROOT, cfg["ttl_seconds"]["git"], "git cat-file (oracle)")
+            if code != 0:
+                return f"タスク {task} のオラクル {path}（from: {src}）が base（{cfg['base']}）にありません"
+        return None
+
     for src in candidates(cfg["inbox"]):
         name, text = src.stem, src.read_text(encoding="utf-8")
         meta, old = parse_header(text), st["items"].get(src.stem)
@@ -110,6 +143,10 @@ def intake(cfg, st):
         elif meta["verify"]:
             why = f"`検証:` の行のある What は取りません（タスク {meta['task']} の検証コマンドの正本は台帳です。行を消してください）"
         elif why := task_problem(meta["task"]):
+            pass
+        elif why := oracle_problem(meta["task"]):
+            pass
+        elif why := shape_problem(text):
             pass
         elif old and old["status"] in ("processing", "done"):
             why = f"同名の What が{'処理中' if old['status'] == 'processing' else '済み'}です"
@@ -140,7 +177,7 @@ def read_ledger(cfg):
     try:
         tasks = yaml.safe_load(out)["tasks"]
         return {t["id"]: {"deps": list(t.get("depends_on") or []), "done": t.get("status") == "completed",
-                          "by": t.get("by") or "hline"} for t in tasks}
+                          "by": t.get("by") or "hline", "oracle": list(t.get("oracle") or [])} for t in tasks}
     except Exception as e:   # noqa: BLE001
         raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を解釈できません: {type(e).__name__}") from e
 

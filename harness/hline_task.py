@@ -10,6 +10,7 @@ import hline_boundary
 import hline_quota
 import hline_suite
 import hline_queue
+import hline_resume
 import infra_retry
 from hline_base import Fatal, Infra, Quota
 from hline_budget import attempt_record, with_cutoff
@@ -26,7 +27,7 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
     on_stage = on_stage or (lambda stage: None)
     tries = []
     wt, branch = first or host.new_worktree(cfg, tid)
-    feedback = prev = None
+    feedback, prev = hline_resume.previous(outdir), None   # 置き直した What の最初の試行だけ、前回の失敗の出力を受け取る
     extended = ()
     cmd = None if task or not isinstance(what, str) else hline_queue.parse_header(what)["verify"]   # タスクを宣言しない What の `検証:`（キューに残した本文の写しから読む）
     verify = {"verify": cmd} if cmd else {}
@@ -41,6 +42,7 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
             tries.append({**attempt_record(run, attempt, code, models, False, rest), "flaky": [], "warnings": [], "abort": why})
             tries[-1]["failure"] = failure_classes.describe(tries[-1], None)
             (outdir / f"gate-{run}-{attempt}.log").write_text(f"Gate 1 は呼ばず、試行を打ち切りました: {why}\n", encoding="utf-8")
+            hline_resume.keep(cfg, wt, outdir, f"試行を打ち切りました: {why}")
             return None, None, tries
         on_stage(f"Gate 1 {run + 1}-{attempt}")
         changed = host.changed_paths(wt, cfg)
@@ -59,12 +61,14 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
                 ok, feedback = False, host.record_refused(task, code, text)
                 rec["gate"] = False
             elif code != 0:   # 台帳の状態の異常：呼び直しても直らない
-                raise Fatal(host.record_refused(task, code, text))
+                hline_resume.keep(cfg, wt, outdir, reason := host.record_refused(task, code, text))
+                raise Fatal(reason)
         if not ok:
             rec["failure"] = failure_classes.describe(rec, feedback)
         (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
         if ok:
             return wt, branch, tries
+        hline_resume.keep(cfg, wt, outdir, feedback)
         if attempt < cfg["max_attempts"]:
             _, extended, feedback = widen(wt, None, extended, feedback, changed, rec)
     return None, None, tries
@@ -132,8 +136,15 @@ def process(host, cfg, st, name):
         try:
             wt, branch = host.new_worktree(cfg, tid)
             item.update(tries=[])
+            hline_resume.forget_attempt(outdir)
+            resume = hline_resume.begin(host, cfg, name, wt, outdir) if item.get("replaced") else None   # 置き直し：残した変更を載せる
+            item.pop("resume", None)
+            if resume:
+                item["resume"] = resume
             stage = lambda s: host.mark(cfg, st, name, s)   # 段階は run_task が試行ごとに置く（実装 1-1 → Gate 1 1-1 → …）
             wt, branch, item["tries"] = host.run_task(cfg, tid, what, outdir, (wt, branch), item["task"], on_stage=stage)
+            if resume and item["tries"]:
+                item["tries"][0]["resume"] = resume
             if wt is None: return False
             own = host.self_change(host.changed_paths(wt, cfg))
             warnings = item["tries"][-1].setdefault("warnings", []) if item["tries"] else []   # 進捗の不整合もここに積む
@@ -151,6 +162,7 @@ def process(host, cfg, st, name):
     except Quota as e:
         return wait_quota(host, cfg, st, name, item, e)
     except Fatal as e:
+        hline_resume.store(cfg, name, outdir)
         return stop_fatal(host, cfg, st, name, item, e)
     except infra_retry.InfraExhausted as e:
         item.update(status="waiting", infra_retries=e.records, failure_class=failure_classes.INFRA)
@@ -161,7 +173,9 @@ def process(host, cfg, st, name):
         item["infra_retries"] = records
     if done:
         hline_queue.mark_done(item)
+        hline_resume.clear(cfg, name)
     else:
+        hline_resume.store(cfg, name, outdir)
         item.update(status="unconverged", at=host.today(), reason=unconverged(item), failure_class=failure_classes.last_class(item))
         print(f"[{tid}] 収束しませんでした: {item['reason']}")
     host.mark(cfg, st, name)

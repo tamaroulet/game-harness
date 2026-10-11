@@ -115,7 +115,7 @@ class Intake(unittest.TestCase):
         return self.git
 
     def put(self, name, task):
-        (self.inbox / f"{name}.md").write_text(f"# T-{name}\nマイルストーン: G0\nタスク: {task}\n\n本文", encoding="utf-8")
+        (self.inbox / f"{name}.md").write_text(f"# T-{name}\nマイルストーン: G0\nタスク: {task}\n\n## What\n本文\n\n## 合格条件\n1. 満たす", encoding="utf-8")
 
     def take(self):
         st = hline_queue.load_state(self.cfg)

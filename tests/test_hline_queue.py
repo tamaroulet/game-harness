@@ -408,7 +408,7 @@ class World(unittest.TestCase):
         lines = [f"# T-{name}"] + ([f"マイルストーン: {milestone}"] if milestone else [])
         lines += [f"タスク: {task or name}"]   # 台帳は read_ledger の差し替えが、どのタスクも未完了の by: hline として答える
         lines += ["依存: " + ", ".join(deps)] if deps else []
-        (self.inbox / f"{name}.md").write_text("\n".join(lines + ["", "本文", extra]), encoding="utf-8")
+        (self.inbox / f"{name}.md").write_text("\n".join(lines + ["", "## What", "本文", extra, "", "## 合格条件", "1. 満たす"]), encoding="utf-8")
 
     def poll(self):
         return quiet(hline.poll, self.cfg)
