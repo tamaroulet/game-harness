@@ -16,6 +16,17 @@ def turn_cap(agent):
     return cap
 
 
+def resume_turn_cap(agent):
+    """前の差分から続ける試行（2 回目から・再開・延長）のターン数の上限。budget.resume_max_turns。無ければ max_turns。"""
+    cap = turn_cap(agent)
+    if "resume_max_turns" not in agent["budget"]:
+        return cap
+    got = agent["budget"]["resume_max_turns"]
+    if isinstance(got, bool) or not isinstance(got, int) or got < 1:
+        raise Infra(f"config/hline.json の budget.resume_max_turns（1 以上の整数）が不正です: {agent['budget']!r}")
+    return got
+
+
 def capped_args(agent, cli, cap):
     return implementer_args(agent, cli) + ["--max-turns", str(cap)]
 

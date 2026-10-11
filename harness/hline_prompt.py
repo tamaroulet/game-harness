@@ -9,7 +9,7 @@ import impacted
 import infra_retry
 import oracle_deny
 from hline_base import Infra, Quota
-from hline_budget import capped_args, outcome, turn_cap
+from hline_budget import capped_args, outcome, resume_turn_cap, turn_cap
 
 
 TIMEOUT_EXIT = 124   # ttl_seconds.implementer の時間切れ（proc.run が返す）
@@ -38,8 +38,10 @@ def implement(host, cfg, wt, what, feedback, log):
     shown = host.symbolmap.prompt_text(cfg, wt, None, what, scope=True)
     host.map_chars = len(shown)   # 試行の記録に入れる（hline_task.run_task が読む）。implement の戻り値の形は変えない
     shown = "\n\n".join(filter(None, (shown, impacted.prompt_note())))
+    follow, host.follow_up = getattr(host, "follow_up", False), False   # run_task が試行ごとに置く。読んだら戻す
+    host.turn_cap_used = cap = (resume_turn_cap if follow else turn_cap)(agent)   # 試行の記録に入れる
     began = time.monotonic()
-    code, out, err = host.proc.run(capped_args(oracle_deny.with_deny(impacted.scoped_agent(agent), cfg), host.proc.resolve_cli(agent["cli"]), cap := turn_cap(agent)),
+    code, out, err = host.proc.run(capped_args(oracle_deny.with_deny(impacted.scoped_agent(agent), cfg), host.proc.resolve_cli(agent["cli"]), cap),
                                    wt, cfg["ttl_seconds"]["implementer"], "実装役", input=host.build_prompt(what, feedback, shown))
     host.implement_seconds = round(time.monotonic() - began)   # 時間切れの理由に出す（hline_task.run_task が読む）
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
