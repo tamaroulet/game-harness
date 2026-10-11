@@ -14,7 +14,7 @@ import base_whitelist, exitcode, fastsuite, gate_order, hline_gate, hline_merge,
 import infra_retry, model_pin, proc, progress, size_limits, symbolmap  # noqa: E402,F401  テストが hline.proc などを差し替える
 from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args, load_config, must, pinned_models, run_agent, slug, title_of  # noqa: E402,F401
 from hline_gc import sweep  # noqa: E402
-from hline_git import ahead, apply_patch, changed_paths, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, merge_pr, open_pr, pr_checks, pr_state, record, record_refused  # noqa: E402,F401
+from hline_git import ahead, apply_patch, changed_paths, code_shas, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, merge_pr, open_pr, pr_checks, pr_state, record, record_refused  # noqa: E402,F401
 from hline_hygiene import diff_files, problems  # noqa: E402
 from hline_queue import by_status, intake, load_state, next_runnable, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
 from hline_report import line_modules, mark as _mark, pr_body, pr_title, self_change, today, write_report  # noqa: E402,F401
@@ -87,6 +87,14 @@ def open_integration_pr(cfg, st):
     print(f"統合 PR: {url}")
 
 
+def check_code(cfg, st):
+    """走っているコードが統合ブランチの先端（無ければ base）と違えば True。どちらも st に残し、report が読む。"""
+    running, tip = code_shas(cfg)
+    st["code"] = running[:7]
+    st["stale_code"] = None if running == tip else {"running": running[:7], "tip": tip[:7]}
+    return bool(st["stale_code"])
+
+
 def run_line(cfg):
     st = load_state(cfg)
     if hline_quota.waiting(st):   # 利用枠の回復待ち。時刻を過ぎた記録は waiting が消し、下の save_state で残る
@@ -99,7 +107,14 @@ def run_line(cfg):
     st["auto_merge"] = None
     st["self_change"] = None   # 前の走行の区切りも、次の走行を妨げない
     save_state(cfg, st)
+    st["stale_code"] = None
     fetch(cfg)
+    if check_code(cfg, st):   # 積んだ自分の変更を読み込まない古いコードでは、取り込みも処理も PR も出さない
+        save_state(cfg, st)
+        write_report(cfg, st)
+        print(f"走っているコードが統合ブランチの先端と違います（{st['stale_code']['running']} ／ {st['stale_code']['tip']}）。何もしません")
+        return 0
+    save_state(cfg, st)
     recover(cfg, st, lambda n: integrated(cfg, n))
     if st["awaiting_pr"] and not settle_pr(cfg, st):
         write_report(cfg, st)
