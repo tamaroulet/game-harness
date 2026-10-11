@@ -7,6 +7,7 @@ import failure_classes
 import fastsuite
 import hline_abort
 import hline_boundary
+import hline_extend
 import hline_quota
 import hline_suite
 import hline_queue
@@ -47,6 +48,7 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
             why = f"実装役が時間切れになりました（終了コード 124、経過 {secs:g} 秒）。残りの試行を行わずに打ち切りました"
             tries.append({**attempt_record(run, attempt, code, models, False, rest), "flaky": [], "warnings": [], "timeout": why, **map_size(host)})
             tries[-1]["failure"] = failure_classes.describe(tries[-1], None)
+            tries[-1].update(hline_extend.test_counts(tries[-1], None))
             (outdir / f"gate-{run}-{attempt}.log").write_text(f"Gate 1 は呼ばず、試行を打ち切りました: {why}\n", encoding="utf-8")
             hline_resume.keep(cfg, wt, outdir, f"試行を打ち切りました: {why}")
             return None, None, tries
@@ -56,6 +58,7 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
         if why is not None:
             tries.append({**attempt_record(run, attempt, code, models, False, rest), "flaky": [], "warnings": [], "abort": why, **map_size(host)})
             tries[-1]["failure"] = failure_classes.describe(tries[-1], None)
+            tries[-1].update(hline_extend.test_counts(tries[-1], None))
             (outdir / f"gate-{run}-{attempt}.log").write_text(f"Gate 1 は呼ばず、試行を打ち切りました: {why}\n", encoding="utf-8")
             hline_resume.keep(cfg, wt, outdir, f"試行を打ち切りました: {why}")
             return None, None, tries
@@ -78,6 +81,7 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
             elif code != 0:   # 台帳の状態の異常：呼び直しても直らない
                 hline_resume.keep(cfg, wt, outdir, reason := host.record_refused(task, code, text))
                 raise Fatal(reason)
+        rec.update(hline_extend.test_counts(rec, feedback))
         if not ok:
             rec["failure"] = failure_classes.describe(rec, feedback)
         (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
@@ -100,8 +104,9 @@ def widen(wt, spec, extended, feedback, changed, rec):
 
 def unconverged(item):
     """収束しなかった What の理由：最後の試行の打ち切り・断念の理由、無ければ試行の回数。"""
+    kept = (item.get("material") or {}).get("kept")
     return (hline_abort.unconverged_reason(item["tries"])
-            or f"{len(item['tries'])} 回の試行で Gate 1 に通らず、パッチを捨てた")
+            or f"{len(item['tries'])} 回の試行で Gate 1 に通らず、{'差分を残した' if kept else 'パッチを捨てた'}")
 
 
 def record_infra(host, cfg, st, item, n, e):
@@ -142,6 +147,7 @@ def process(host, cfg, st, name):
     (outdir / "what.md").write_text(what, encoding="utf-8")
     item.pop("infra_retries", None)
     item.pop("failure_class", None)
+    item.pop("material", None)
     item.pop("started_at", None)   # 前の走行の途中で落ちた項目の開始の時刻を引き継がない
     item.update(status="processing", tid=tid)
     host.mark(cfg, st, name, "実装 1-1")
@@ -160,6 +166,8 @@ def process(host, cfg, st, name):
             wt, branch, item["tries"] = host.run_task(cfg, tid, what, outdir, (wt, branch), item["task"], on_stage=stage)
             if resume and item["tries"]:
                 item["tries"][0]["resume"] = resume
+            if item.get("extended") and item["tries"]:
+                item["tries"][0]["extended"] = item["extended"]   # 延長して続けた最初の試行にも印を残す
             if wt is None: return False
             own = host.self_change(host.changed_paths(wt, cfg))
             warnings = item["tries"][-1].setdefault("warnings", []) if item["tries"] else []   # 進捗の不整合もここに積む
@@ -178,6 +186,7 @@ def process(host, cfg, st, name):
         return wait_quota(host, cfg, st, name, item, e)
     except Fatal as e:
         hline_resume.store(cfg, name, outdir)
+        item["material"] = hline_resume.material(cfg, name)
         return stop_fatal(host, cfg, st, name, item, e)
     except infra_retry.InfraExhausted as e:
         item.update(status="waiting", infra_retries=e.records, failure_class=failure_classes.INFRA)
@@ -191,7 +200,12 @@ def process(host, cfg, st, name):
         hline_resume.clear(cfg, name)
     else:
         hline_resume.store(cfg, name, outdir)
+        item["material"] = hline_resume.material(cfg, name)
         item.update(status="unconverged", at=host.today(), reason=unconverged(item), failure_class=failure_classes.last_class(item))
         print(f"[{tid}] 収束しませんでした: {item['reason']}")
+        if got := hline_extend.decide(cfg, name, item):   # 前進が確かなら、置き直したのと同じに 1 回だけ続ける
+            hline_extend.extend(item, got)
+            print(f"[{tid}] 通った試験が {got['previous_passed']} → {got['passed']} に増えたので、残した差分を載せて 1 回だけ続けます（落ちた {got['failed']}）")
+            done = True   # 待ちに戻したので未収束ではない（続きの結果が次の処理で決まる）
     host.mark(cfg, st, name)
     return done

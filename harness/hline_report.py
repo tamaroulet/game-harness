@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 
 import hline_checks
+import hline_extend
 import hline_probe
 import hline_quota
 import hline_usage
@@ -81,6 +82,14 @@ def warning_count(item):
     return sum(len(t.get("warnings") or []) for t in item.get("tries", []))
 
 
+def material_note(item):
+    """未収束の行の、再開の材料（差分と失敗の出力）の注記。古い記録には材料の記録が無い。"""
+    m = item.get("material")
+    if not isinstance(m, dict):
+        return "（再開の材料: 記録なし）"
+    return f"（再開の材料: あり・差分 {m.get('lines', 0)} 行）" if m.get("kept") else "（再開の材料: なし）"
+
+
 def goal_section(cfg):
     """「## 目的までの距離」の節（report.md の先頭）。読み込みが例外で止まっても、節を 1 行の理由に替えて、書き出しを止めない。"""
     try:
@@ -128,13 +137,13 @@ def h_section(cfg, st):
         names = by_status(st, status)
         return f"- {label}（{len(names)} 件）: " + (", ".join(f"{n}{note(items[n])}" for n in names) or "なし")
 
-    done = lambda i: (f"（警告 {warning_count(i)} 件）" if warning_count(i) else "") + hline_usage.note(i)   # noqa: E731
-    waiting = lambda i: (f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else "") + (f"（台帳を読めず待ち: {i['ledger_error']}）" if i.get("ledger_error") else "")   # noqa: E731
+    done = lambda i: (f"（警告 {warning_count(i)} 件）" if warning_count(i) else "") + hline_usage.note(i) + hline_extend.note(i)   # noqa: E731
+    waiting = lambda i: (f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else "") + (f"（台帳を読めず待ち: {i['ledger_error']}）" if i.get("ledger_error") else "") + hline_extend.note(i)   # noqa: E731
     frozen = lambda i: f"（上流の未収束: {', '.join(i.get('frozen_by', []))}）"   # noqa: E731
     lines = ["## H ライン", f"- 状態: {line_status(cfg, st)}", f"- 統合ブランチ: {cfg['integration_branch']}",
              f"- 統合 PR: {st['awaiting_pr'] or 'なし'}"] + ([f"- コード: {st['code']}"] if st.get("code") else []) + pr_wait_line(st.get("pr_times")) + ["", "## キュー",
              row("済み", "done", done), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
-             row("未収束", "unconverged", lambda i: f"（{i.get('reason', '')}）" + hline_usage.note(i)), row("凍結", "frozen", frozen)]
+             row("未収束", "unconverged", lambda i: f"（{i.get('reason', '')}）{material_note(i)}" + hline_usage.note(i) + hline_extend.note(i)), row("凍結", "frozen", frozen)]
     lines += ["", northstar_section(items).rstrip("\n"), "", failure_section(items).rstrip("\n")]
     flaky = [f"- {n}: {', '.join(flaky_tests(i))}" for n, i in sorted(items.items()) if flaky_tests(i)]
     if flaky:
