@@ -31,7 +31,9 @@ def build_prompt(what, feedback=None, symbol_map=None):
 def implement(host, cfg, wt, what, feedback, log):
     """実装役を 1 回呼ぶ。使ったモデルを照合し記録する（model_pin）。TTL 超過・起動の失敗は Infra。ターン数の上限の打ち切りは例外にせず、照合しない（hline_budget.outcome）。"""
     agent = cfg["implementer"]
-    shown = "\n\n".join(filter(None, (host.symbolmap.prompt_text(cfg, wt, None, what), impacted.prompt_note())))
+    shown = host.symbolmap.prompt_text(cfg, wt, None, what, scope=True)
+    host.map_chars = len(shown)   # 試行の記録に入れる（hline_task.run_task が読む）。implement の戻り値の形は変えない
+    shown = "\n\n".join(filter(None, (shown, impacted.prompt_note())))
     code, out, err = host.proc.run(capped_args(oracle_deny.with_deny(impacted.scoped_agent(agent), cfg), host.proc.resolve_cli(agent["cli"]), cap := turn_cap(agent)),
                                    wt, cfg["ttl_seconds"]["implementer"], "実装役", input=host.build_prompt(what, feedback, shown))
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")

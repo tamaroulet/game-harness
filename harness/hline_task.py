@@ -21,6 +21,12 @@ def digest_of(cfg, wt):
     return hline_abort.patch_digest(wt, cfg["ttl_seconds"]["git"]) if (Path(wt) / ".git").exists() else None
 
 
+def map_size(host):
+    """直前の実装役の呼び出しで渡した目次の字数（host.map_chars）。記録が無い host では空。"""
+    n = getattr(host, "map_chars", None)
+    return {"map_chars": n} if isinstance(n, int) and not isinstance(n, bool) else {}
+
+
 def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None, run=0):
     """1 つの作業ツリーで実装役を最大 max_attempts 回試す。通った (作業ツリー, ブランチ, 試行の記録) か None。
     what は実装役に渡す What の本文（段を 1 つにしたので TaskSpec は作らない）。run は 0 = 最初、1 = 作り直し。"""
@@ -39,7 +45,7 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
         why = hline_abort.abort_reason(log, digest, prev)   # 断念・同じ差分の繰り返しは Gate 1 を呼ばずに打ち切る
         prev = digest
         if why is not None:
-            tries.append({**attempt_record(run, attempt, code, models, False, rest), "flaky": [], "warnings": [], "abort": why})
+            tries.append({**attempt_record(run, attempt, code, models, False, rest), "flaky": [], "warnings": [], "abort": why, **map_size(host)})
             tries[-1]["failure"] = failure_classes.describe(tries[-1], None)
             (outdir / f"gate-{run}-{attempt}.log").write_text(f"Gate 1 は呼ばず、試行を打ち切りました: {why}\n", encoding="utf-8")
             hline_resume.keep(cfg, wt, outdir, f"試行を打ち切りました: {why}")
@@ -49,7 +55,7 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
         warnings = []   # 不合格にしない指摘（差分の量・編集境界・規模・進捗の不整合）。実装役には返さず、試行の記録に残す
         ok, feedback = host.gate(cfg, wt, changed, None, task, *([extended] if extended else []), warnings=warnings, **verify)
         tries.append(rec := {**attempt_record(run, attempt, code, models, ok, rest), "flaky": list(fastsuite.flaky_names(feedback)),
-                             "warnings": warnings})
+                             "warnings": warnings, **map_size(host)})
         suites = getattr(host, "hline_suite", None)   # host（harness.hline）が持つものを使う。持たない差し替えの host では走らせない
         if ok and suites and (suite := suites.run(wt, changed, (cfg.get("ttl_seconds") or {}).get("gate"))) is not None:   # 積む前に、変えたパッケージの全件
             ok, text, rec["suite"] = suite
