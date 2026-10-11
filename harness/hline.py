@@ -7,6 +7,7 @@
 """
 import argparse
 import sys
+import time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import base_whitelist, exitcode, fastsuite, gate_order, hline_gate, hline_prompt, hline_protect, hline_quota, hline_task  # noqa: E402,F401
@@ -53,6 +54,8 @@ def settle_pr(cfg, st):
             if i["status"] == "done" and i.get("pr") == url:
                 i["merged"] = True
     st["awaiting_pr"] = None
+    if (times := st.get("pr_times")) and times.get("url") == url and times.get("closed_at") is None:
+        times["closed_at"] = time.time()
     save_state(cfg, st)
     return True
 
@@ -72,6 +75,7 @@ def open_integration_pr(cfg, st):
         if i["status"] == "done" and not i.get("merged"):
             i["pr"] = url
     st["awaiting_pr"] = url
+    st["pr_times"] = {"url": url, "opened_at": time.time(), "closed_at": None}
     save_state(cfg, st)
     print(f"統合 PR: {url}")
 

@@ -17,6 +17,8 @@ _RAN = re.compile(r"\bRan (\d+) tests?\b")
 _MODULE = re.compile(r"[A-Za-z_]\w*(\.[A-Za-z_]\w*)*")
 _FAILED = re.compile(r"^(?:FAIL|ERROR): (\S.*?)[ \t\r]*$", re.MULTILINE)
 FLAKY_PREFIX = "並列で落ちて単独で通ったテスト: "
+SLOW_PREFIX = "遅いモジュール: "
+SLOW_COUNT = 5
 
 
 def discover(start_dir):
@@ -113,6 +115,8 @@ def report(results, seconds, flaky=()):
     parts += [f"走ったテスト: {sum(r['ran'] for r in results)} 件（{len(results)} モジュール）",
               "落ちたモジュール: " + (", ".join(r["module"] for r in failed) or "なし")]
     parts += [FLAKY_PREFIX + ", ".join(flaky)] if flaky else []
+    slow = sorted(results, key=lambda r: -r["seconds"])[:SLOW_COUNT]
+    parts += [SLOW_PREFIX + ", ".join(f"{r['module']} {r['seconds']:.1f} 秒" for r in slow)] if slow else []
     return (1 if failed else 0), "\n".join(parts + [f"壁時計: {seconds:.1f} 秒"])
 
 
