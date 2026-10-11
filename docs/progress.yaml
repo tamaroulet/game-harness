@@ -1,13 +1,12 @@
-active_task_id: W-31
+active_task_id: W-63
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
-- Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress
-  complete`.
+- Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-29
+  task: W-30
   exit_code: 0
-  at: '2026-10-11T21:28:54'
+  at: '2026-10-11T22:49:05'
 next_id: 65
 nodes:
 - id: A
@@ -91,8 +90,7 @@ nodes:
 - id: W-18
   parent: A
   title: 段 4：Outer Loop の確立（C4）
-project_goal: 自己改善できる自律開発環境（C4）を作る。段 1 軽い 3D 通し → 段 2 改善 → 段 3 チャットに勝つ（C5）→ 段 4 Outer
-  Loop の確立（C4）。段は nodes の W-15〜W-18
+project_goal: 自己改善できる自律開発環境（C4）を作る。段 1 軽い 3D 通し → 段 2 改善 → 段 3 チャットに勝つ（C5）→ 段 4 Outer Loop の確立（C4）。段は nodes の W-15〜W-18
 tasks:
 - group: B3.1
   id: B3.1-PREP
@@ -113,8 +111,7 @@ tasks:
   target_repo: falling-blocks
   title: v2 契約の移行（falling-blocks への PR）
   verification:
-    command: python harness/canary.py check-migrated --project falling-blocks --unit-id
-      issue_12
+    command: python harness/canary.py check-migrated --project falling-blocks --unit-id issue_12
     expected_exit_code: 0
 - group: B3.1
   id: B3.1-2
@@ -128,8 +125,7 @@ tasks:
   target_repo: game-harness
   title: 時限制約とティック進行の述語、終了コードの三値化（旧 B3.1-3 ＋ B3.1-4）
   verification:
-    command: python -m unittest tests.test_unit_schema.TickPredicates tests.test_unit_schema.TimedConstraints
-      tests.test_testgen.TickLoop tests.test_exitcode_coverage
+    command: python -m unittest tests.test_unit_schema.TickPredicates tests.test_unit_schema.TimedConstraints tests.test_testgen.TickLoop tests.test_exitcode_coverage
     expected_exit_code: 0
 - group: B3.1
   id: B3.1-3
@@ -141,9 +137,7 @@ tasks:
   target_repo: falling-blocks
   title: GDD の改訂・仕様の再生成・保存則の宣言（旧 B3.1-2）
   verification:
-    command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py
-      --project falling-blocks --decl projects/falling-blocks/invariants.json --out
-      C:/src/.local/out/harness/falling-blocks/invariants-check
+    command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py --project falling-blocks --decl projects/falling-blocks/invariants.json --out C:/src/.local/out/harness/falling-blocks/invariants-check
     expected_exit_code: 0
 - group: B3.1
   id: B3.1-4
@@ -162,8 +156,7 @@ tasks:
   target_repo: falling-blocks
   title: 出現＋1 段の自然落下
   verification:
-    command: python -c "import json,subprocess,sys; r=subprocess.run(['gh','pr','view','18','--repo','tamaroulet/falling-blocks','--json','state'],capture_output=True,text=True);
-      sys.exit(0 if json.loads(r.stdout or '{}').get('state')=='MERGED' else 1)"
+    command: python -c "import json,subprocess,sys; r=subprocess.run(['gh','pr','view','18','--repo','tamaroulet/falling-blocks','--json','state'],capture_output=True,text=True); sys.exit(0 if json.loads(r.stdout or '{}').get('state')=='MERGED' else 1)"
     expected_exit_code: 0
 - group: B3
   id: B3.2
@@ -192,8 +185,7 @@ tasks:
   target_repo: game-harness
   title: 差分バジェット・契約の形テスト・.meta の自動生成
   verification:
-    command: python -m unittest tests.test_diff_budget tests.test_unit_schema.TaskKind
-      tests.test_testgen.ContractShape tests.test_adapters
+    command: python -m unittest tests.test_diff_budget tests.test_unit_schema.TaskKind tests.test_testgen.ContractShape tests.test_adapters
     expected_exit_code: 0
 - group: B4
   id: B4-PREP
@@ -219,10 +211,7 @@ tasks:
   target_repo: falling-blocks
   title: GDD v10（ハードドロップと SRS）と仕様の再生成
   verification:
-    command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py
-      --project falling-blocks --decl projects/falling-blocks/invariants.json --out
-      C:/src/.local/out/harness/falling-blocks/invariants-check && python harness/unit_schema.py
-      --project falling-blocks --unit projects/falling-blocks/units/issue_12.json
+    command: git -C C:/src/falling-blocks fetch -q origin main && python harness/invgen.py --project falling-blocks --decl projects/falling-blocks/invariants.json --out C:/src/.local/out/harness/falling-blocks/invariants-check && python harness/unit_schema.py --project falling-blocks --unit projects/falling-blocks/units/issue_12.json
     expected_exit_code: 0
 - group: B4
   id: B4-E2
@@ -301,8 +290,7 @@ tasks:
   target_repo: game-harness
   title: v2 の設計（game-harness#64）
   verification:
-    command: python -c "import pathlib,sys; sys.exit(0 if pathlib.Path('docs/design/v2_contract_foundry.md').exists()
-      else 1)"
+    command: python -c "import pathlib,sys; sys.exit(0 if pathlib.Path('docs/design/v2_contract_foundry.md').exists() else 1)"
     expected_exit_code: 0
 - group: B5
   id: V2-1
@@ -393,8 +381,7 @@ tasks:
   target_repo: game-harness
   title: 自己批判と狭い文脈の原則 N1〜N7（game-harness#99）
   verification:
-    command: python -c "import pathlib,sys; sys.exit(0 if pathlib.Path('docs/design/v2_2_architecture_self_critique.md').exists()
-      else 1)"
+    command: python -c "import pathlib,sys; sys.exit(0 if pathlib.Path('docs/design/v2_2_architecture_self_critique.md').exists() else 1)"
     expected_exit_code: 0
 - group: B5.6
   id: V2-6.3
@@ -443,8 +430,7 @@ tasks:
   target_repo: game-harness
   title: 設計要項・配管・タスクの系列 T1〜T10（game-harness#105〜#112）
   verification:
-    command: python -m unittest tests.test_model_pin tests.test_nlgen tests.test_v2r_limits
-      tests.test_v2r_driver tests.test_v2r_tools tests.test_v2r_series
+    command: python -m unittest tests.test_model_pin tests.test_nlgen tests.test_v2r_limits tests.test_v2r_driver tests.test_v2r_tools tests.test_v2r_series
     expected_exit_code: 0
 - group: B6.1
   id: V2R-3
@@ -530,8 +516,7 @@ tasks:
   target_repo: game-harness
   title: 追試可能性の自己監査と走行の来歴の記録（docs/design/v2r_reproducibility.md）・変異の死滅率の診断の道具
   verification:
-    command: python -m unittest tests.test_provenance tests.test_v2r_mutation tests.test_v2r_ceiling
-      tests.test_v2r_preflight
+    command: python -m unittest tests.test_provenance tests.test_v2r_mutation tests.test_v2r_ceiling tests.test_v2r_preflight
     expected_exit_code: 0
 - group: B6.3
   id: V2R-R
@@ -633,8 +618,7 @@ tasks:
   id: S3-1
   status: completed
   target_repo: game-harness
-  title: TaskSpec IR の 5 要素（対象シンボルと型シグネチャ・事前／事後条件と不変量・編集境界・テストオラクル指針）と Gate B（AST
-    のシンボル照合）
+  title: TaskSpec IR の 5 要素（対象シンボルと型シグネチャ・事前／事後条件と不変量・編集境界・テストオラクル指針）と Gate B（AST のシンボル照合）
   verification:
     command: python -m unittest tests.test_taskspec
     expected_exit_code: 0
@@ -694,9 +678,7 @@ tasks:
   target_repo: game-harness
   title: 機能の What が自走して積み切られる（C2 の合格条件）
   verification:
-    command: python -c "import testbed" && python -m harness.reqcov --spec docs/testbed/spec.md
-      --tests "tests/test_testbed_*.py" && python -m unittest discover -s tests -p
-      "test_testbed_*.py"
+    command: python -c "import testbed" && python -m harness.reqcov --spec docs/testbed/spec.md --tests "tests/test_testbed_*.py" && python -m unittest discover -s tests -p "test_testbed_*.py"
     expected_exit_code: 0
 - depends_on: []
   group: G0
@@ -706,8 +688,7 @@ tasks:
   target_repo: game-harness
   title: 実行の順を依存の DAG で決める（depends_on の検査・現在地の選び方・完了の拒否）
   verification:
-    command: python -m unittest tests.test_progress_deps && python -m harness.progress
-      check
+    command: python -m unittest tests.test_progress_deps && python -m harness.progress check
     expected_exit_code: 0
 - depends_on: []
   group: G0
@@ -791,8 +772,7 @@ tasks:
   target_repo: game-harness
   title: CI の全件を並列に走らせる（NuGet の事前の restore を含む）
   verification:
-    command: python -c "import pathlib, sys; t = pathlib.Path('.github/workflows/harness-tests.yml').read_text(encoding='utf-8');
-      sys.exit(0 if 'harness.fastsuite' in t and 'nuget warm-up' in t else 1)"
+    command: python -c "import pathlib, sys; t = pathlib.Path('.github/workflows/harness-tests.yml').read_text(encoding='utf-8'); sys.exit(0 if 'harness.fastsuite' in t and 'nuget warm-up' in t else 1)"
     expected_exit_code: 0
 - depends_on:
   - W-11
@@ -845,10 +825,8 @@ tasks:
   slug: 'docs: task-rationale-and-ledger-check'
   by: pilot
   serves: R3-b
-  purpose: 設計意図を会話から外し、台帳の欄と docs/tasks.md に永続させる。台帳を変える PR は、大局（横木）との整合とオラクルの実在を
-    CI で確かめられる（病理 ①②③、要綱 1）
-  deliverable: docs/tasks.md、tests/test_ledger_double_check.py、台帳の purpose・deliverable・serves
-    の欄
+  purpose: 設計意図を会話から外し、台帳の欄と docs/tasks.md に永続させる。台帳を変える PR は、大局（横木）との整合とオラクルの実在を CI で確かめられる（病理 ①②③、要綱 1）
+  deliverable: docs/tasks.md、tests/test_ledger_double_check.py、台帳の purpose・deliverable・serves の欄
   depends_on: []
   acceptance:
   - docs/tasks.md に、完了していない全タスクの行（題・目的・成果物・検証・執行者・横木）が、台帳と同じ文言である
@@ -870,15 +848,13 @@ tasks:
   deliverable: H ラインの取り込みの規則、雛形の CLAUDE.md、tests/test_hline_task_required.py
   depends_on: []
   acceptance:
-  - タスクの無い What・`検証:` の行のある What・base の台帳に無いか完了したタスクの What・台帳を読めないときの What は、受信箱に残り、理由が
-    report.md に出る
+  - タスクの無い What・`検証:` の行のある What・base の台帳に無いか完了したタスクの What・台帳を読めないときの What は、受信箱に残り、理由が report.md に出る
   - 雛形の CLAUDE.md が、1 件の What が 1 つのタスクを完了にする書き方を示す
   oracle:
   - path: tests/test_hline_task_required.py
     from: self
   verification:
-    command: python -m unittest tests.test_hline_task_required tests.test_hline_queue
-      tests.test_hline_what_verification tests.test_hline_ledger_deps
+    command: python -m unittest tests.test_hline_task_required tests.test_hline_queue tests.test_hline_what_verification tests.test_hline_ledger_deps
     expected_exit_code: 0
 - id: W-27
   title: 進捗の記録を Gate 1 の最後の段にする（記録の検証の落ちは試行の不合格、台帳の異常は未収束。どちらも積まない）
@@ -898,8 +874,7 @@ tasks:
   - path: tests/test_hline_record_in_gate.py
     from: self
   verification:
-    command: python -m unittest tests.test_hline_record_in_gate tests.test_fatal_failfast
-      tests.test_hline_queue tests.test_progress_order_free
+    command: python -m unittest tests.test_hline_record_in_gate tests.test_fatal_failfast tests.test_hline_queue tests.test_progress_order_free
     expected_exit_code: 0
 - id: W-21
   title: 横木 R3-a：課題 B06 の本体を工廠が仕様から作り、判定役を通す
@@ -955,8 +930,7 @@ tasks:
   depends_on:
   - W-26
   acceptance:
-  - タスクの oracle の欄が existing か完了したタスクのものなのに、そのファイルが base に無い What は、受信箱に残り、理由（無いファイル）が
-    report.md に出る
+  - タスクの oracle の欄が existing か完了したタスクのものなのに、そのファイルが base に無い What は、受信箱に残り、理由（無いファイル）が report.md に出る
   - 本文に `## What` と `## 合格条件` の節が無いか、合格条件が 1〜4 項目でない What も、同じく差し戻される
   oracle:
   - path: tests/test_audit_machine.py
@@ -968,17 +942,15 @@ tasks:
   title: 監修役（LLM）：機械の監修を通った What を、台帳のタスクと大局に照らして批判し、差し戻すか通す
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'audit: llm-review-on-intake'
-  serves: R3-c
+  serves: R3-b
   purpose: 起草役（総監督・計画役）と監修役を分け、タスクの目的と横木に照らして的外れな What を差し戻す（要綱 3、病理 ②）
   deliverable: 取り込みの段の LLM の監修（指示は docs/prompts/auditor.md）、tests/test_audit_llm.py
   depends_on:
   - W-29
   acceptance:
-  - 取り込みの前に、docs/prompts/auditor.md の指示と、What・タスクの欄（title・purpose・serves・acceptance・oracle・verification）・そのタスクが寄与する横木の
-    acceptance を渡して監修役を 1 回呼び、出力の JSON が revise なら、What は受信箱に残り、findings が report.md
-    に出る
+  - 取り込みの前に、docs/prompts/auditor.md の指示と、What・タスクの欄（title・purpose・serves・acceptance・oracle・verification）・そのタスクが寄与する横木の acceptance を渡して監修役を 1 回呼び、出力の JSON が revise なら、What は受信箱に残り、findings が report.md に出る
   - 同じ What・同じタスクの欄・同じ指示の組み合わせは、2 回目から監修役を呼ばずに前の判定を使う
   - 監修役は合格を決めない。機械の監修（W-26・W-29）に落ちた What は監修役に回らない
   oracle:
@@ -991,17 +963,15 @@ tasks:
   title: 目的までの距離を report.md の先頭に出す（横木ごとの達成の量と前提タスクの完了率）
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'report: goal-distance'
-  serves: R3-c
+  serves: R3-b
   purpose: 進み具合をタスクの消化数でなく、C5・C4 の達成要件に対する量で常に見せる（病理 ④）
   deliverable: harness/goal_distance.py、report.md の「## 目的までの距離」の節、tests/test_goal_distance.py
   depends_on:
   - W-26
   acceptance:
-  - python -m harness.goal_distance が、横木ごとに達成の量を出す。R3-a・R3-b は判定役の照合が通る課題の数／目標の数、R3-c
-    は指紋と床の検査が合格の課題の数／10・両条件の記録（invalid が空）がそろう課題の数／10・凍結の有無、R3 は凍結の後の記録の数／60 と判定の有無、R4
-    は続いた週次の周期の数／4
+  - python -m harness.goal_distance が、横木ごとに達成の量を出す。R3-a・R3-b は判定役の照合が通る課題の数／目標の数、R3-c は指紋と床の検査が合格の課題の数／10・両条件の記録（invalid が空）がそろう課題の数／10・凍結の有無、R3 は凍結の後の記録の数／60 と判定の有無、R4 は続いた週次の周期の数／4
   - 同じ出力に、横木ごとに、その横木が推移的に依存するタスクの完了の数／総数が出る
   - H ラインが書く report.md の先頭に、その出力が「## 目的までの距離」の節として出る
   oracle:
@@ -1016,7 +986,7 @@ tasks:
   target_repo: game-harness
   status: pending
   slug: 'report: goal-distance-history'
-  serves: R3-c
+  serves: R3-b
   purpose: タスクを 1 つ終えるたびに、目的に近づいたか・どこかを壊していないかを記録で示す（病理 ③ の事後の保証）
   deliverable: 目的までの距離の履歴、report.md の「直近の完了と距離の変化」、tests/test_goal_history.py
   depends_on:
@@ -1042,7 +1012,11 @@ tasks:
   deliverable: docs/bench/B01/spec.md、docs/bench/B05/spec.md、tests/rollgame_judge.py、tests/tower_judge.py
   depends_on:
   - W-21
+  - W-28
+  - W-30
   - W-62
+  - W-63
+  - W-64
   acceptance:
   - B01・B05 の仕様（要件 ID つき）と判定役（保護パス）を、総監督の完成形のとおり置く
   - PR の前に、総監督の参照実装で各判定役が 10 回とも通り、本体が無いと全部落ちる
@@ -1050,9 +1024,7 @@ tasks:
   - path: harness/reqcov.py
     from: existing
   verification:
-    command: python -m harness.reqcov --spec docs/bench/B01/spec.md --list && python
-      -m harness.reqcov --spec docs/bench/B05/spec.md --list && python -c "import
-      tests.rollgame_judge, tests.tower_judge"
+    command: python -m harness.reqcov --spec docs/bench/B01/spec.md --list && python -m harness.reqcov --spec docs/bench/B05/spec.md --list && python -c "import tests.rollgame_judge, tests.tower_judge"
     expected_exit_code: 0
 - id: W-32
   title: 課題 B01 の本体（rollgame）を工廠が仕様から作り、判定役を通す
@@ -1065,7 +1037,6 @@ tasks:
   deliverable: rollgame パッケージ
   depends_on:
   - W-31
-  - W-35
   acceptance:
   - rollgame パッケージが B01 の仕様を満たし、判定役を通す
   oracle:
@@ -1074,16 +1045,6 @@ tasks:
   verification:
     command: python -m unittest tests.rollgame_judge
     expected_exit_code: 0
-  after:
-  - W-30
-  - W-65
-  - W-66
-  - W-67
-  - W-69
-  - W-72
-  - W-73
-  - W-74
-  - W-75
 - id: W-33
   title: 課題 B05 の本体（tower）を工廠が仕様から作り、判定役を通す
   group: W-17
@@ -1095,7 +1056,6 @@ tasks:
   deliverable: tower パッケージ
   depends_on:
   - W-31
-  - W-35
   acceptance:
   - tower パッケージが B05 の仕様を満たし、判定役を通す
   oracle:
@@ -1104,16 +1064,6 @@ tasks:
   verification:
     command: python -m unittest tests.tower_judge
     expected_exit_code: 0
-  after:
-  - W-30
-  - W-65
-  - W-66
-  - W-67
-  - W-69
-  - W-72
-  - W-73
-  - W-74
-  - W-75
 - id: W-22
   title: 横木 R3-b：課題 B06・B01・B05 の本体が、工廠の手で判定役を通す
   group: W-17
@@ -1153,11 +1103,8 @@ tasks:
   depends_on:
   - W-22
   acceptance:
-  - python -m harness.bench_score score --task <id> --tree <dir> --out <json> は、C:\src\.local\oracles\bench\<id>\hidden
-    の指紋が docs/bench/<id>/oracle.sha256 と違えば終了コード 2 で記録を書かない。合えば、元の木を変えずに、隠しテストだけの通過率（木に置かれた
-    test_hidden_* は数えない、600 秒で打ち切り）を記録に書く
-  - python -m harness.bench_score floor --task <id>... は、参照実装が 1.0 で空実装が 0.2 未満なら
-    0 で、結果を bench/records/<id>/floor.json に書く。hash は指紋を出す
+  - python -m harness.bench_score score --task <id> --tree <dir> --out <json> は、C:\src\.local\oracles\bench\<id>\hidden の指紋が docs/bench/<id>/oracle.sha256 と違えば終了コード 2 で記録を書かない。合えば、元の木を変えずに、隠しテストだけの通過率（木に置かれた test_hidden_* は数えない、600 秒で打ち切り）を記録に書く
+  - python -m harness.bench_score floor --task <id>... は、参照実装が 1.0 で空実装が 0.2 未満なら 0 で、結果を bench/records/<id>/floor.json に書く。hash は指紋を出す
   oracle:
   - path: tests/test_bench_score.py
     from: self
@@ -1165,18 +1112,18 @@ tasks:
     command: python -m unittest tests.test_bench_score
     expected_exit_code: 0
 - id: W-35
-  title: 実装役に、受信箱（総監督の下書き）・非公開オラクル・生ログを読ませない（道具の設定）
+  title: 実装役とチャット型に非公開オラクルを読ませない
   group: W-17
   target_repo: game-harness
   status: pending
-  slug: 'hline: deny-drafts-and-oracles'
-  serves: R3-b
-  purpose: 工廠が仕様だけから作ったと言えるように、総監督の下書き・参照実装・非公開オラクルを実装役の道具から外す（R3-a の B06 の参照実装は受信箱にあり、読まれ得た）
-  deliverable: 実装役の呼び出しの禁止の列、tests/test_oracle_deny.py
-  depends_on: []
+  slug: 'hline: deny-oracles'
+  serves: R3-c
+  purpose: 非公開オラクルを実装役とチャット型が読めないことを、設定で担保する
+  deliverable: 作業ツリーの設定の禁止、tests/test_oracle_deny.py
+  depends_on:
+  - W-22
   acceptance:
-  - 実装役の呼び出しは、設定の inbox・out と C:\src\.local\oracles の下への Read・Grep・Glob を拒む禁止の列を受け取る。禁止の列は設定から作る
-  - チャット型の呼び出しも、同じ禁止の列を受け取れる
+  - 実装役の作業ツリーの設定で、C:\src\.local\oracles\** の Read・Grep・Glob が拒まれる。チャット型の呼び出しも同じ禁止の列を受け取れる
   oracle:
   - path: tests/test_oracle_deny.py
     from: self
@@ -1192,14 +1139,11 @@ tasks:
   by: pilot
   serves: R3-c
   purpose: 作った 3 本の課題を、非公開オラクルで採点できるようにする
-  deliverable: oracles の配置、docs/bench/<id>/oracle.sha256、bench/records/<id>/floor.json（3
-    本）
+  deliverable: oracles の配置、docs/bench/<id>/oracle.sha256、bench/records/<id>/floor.json（3 本）
   depends_on:
   - W-34
-  - W-70
   acceptance:
-  - 総監督の完成形の隠しテスト・参照実装・空実装を oracles に置き、指紋（bench_score hash）と floor.json を PR で main
-    に入れる
+  - 総監督の完成形の隠しテスト・参照実装・空実装を oracles に置き、指紋（bench_score hash）と floor.json を PR で main に入れる
   oracle:
   - path: harness/bench_score.py
     from: W-34
@@ -1220,7 +1164,6 @@ tasks:
   - W-34
   acceptance:
   - 3 本の仕様・指紋・floor.json を PR で main に入れ、隠しテスト・参照実装・空実装を oracles に置く（中身は総監督の完成形）
-  - 各課題の oracles に canary.txt（隠しテストに無い目印の文字列）を置く
   oracle:
   - path: harness/bench_score.py
     from: W-34
@@ -1241,7 +1184,6 @@ tasks:
   - W-34
   acceptance:
   - 2 本の仕様・指紋・floor.json を PR で main に入れ、隠しテスト・参照実装・空実装を oracles に置く
-  - 各課題の oracles に canary.txt（隠しテストに無い目印の文字列）を置く
   oracle:
   - path: harness/bench_score.py
     from: W-34
@@ -1262,7 +1204,6 @@ tasks:
   - W-34
   acceptance:
   - 2 本の仕様・指紋・floor.json を PR で main に入れ、隠しテスト・参照実装・空実装を oracles に置く
-  - 各課題の oracles に canary.txt（隠しテストに無い目印の文字列）を置く
   oracle:
   - path: harness/bench_score.py
     from: W-34
@@ -1281,8 +1222,7 @@ tasks:
   depends_on:
   - W-22
   acceptance:
-  - python -m harness.progress complete <id> --ref <rev> は、検証コマンドを <rev> の台帳と照合する。--ref
-    が無ければ今のまま origin/main。H ラインの記録は設定の base を照合先にする
+  - python -m harness.progress complete <id> --ref <rev> は、検証コマンドを <rev> の台帳と照合する。--ref が無ければ今のまま origin/main。H ラインの記録は設定の base を照合先にする
   oracle:
   - path: tests/test_progress_ref.py
     from: self
@@ -1301,8 +1241,7 @@ tasks:
   depends_on:
   - W-40
   acceptance:
-  - python -m harness.hline poll --config <path> は、その設定（inbox・out・worktrees・base・integration_branch・milestones）で走る。--config
-    が無ければ今のまま
+  - python -m harness.hline poll --config <path> は、その設定（inbox・out・worktrees・base・integration_branch・milestones）で走る。--config が無ければ今のまま
   - 設定の open_pr が false なら、積むものが尽きても統合 PR を出さず、マージもしない
   oracle:
   - path: tests/test_hline_config_file.py
@@ -1322,10 +1261,7 @@ tasks:
   depends_on:
   - W-22
   acceptance:
-  - python -m harness.planner --spec <spec.md> --package <名前> --inbox <dir> は、docs/prompts/planner.md
-    の指示で計画役を呼び、受信箱に What（タスク P-01〜P-04 を宣言）と ledger.yaml（P-NN の題・depends_on・acceptance・oracle・検証コマンド）を残し、出力の
-    sha256 を planner.json に書く
-  - ledger.yaml の各タスクに files（作るか変えるファイルの相対パスの列）がある
+  - python -m harness.planner --spec <spec.md> --package <名前> --inbox <dir> は、docs/prompts/planner.md の指示で計画役を呼び、受信箱に What（タスク P-01〜P-04 を宣言）と ledger.yaml（P-NN の題・depends_on・acceptance・oracle・検証コマンド）を残し、出力の sha256 を planner.json に書く
   oracle:
   - path: tests/test_planner.py
     from: self
@@ -1344,11 +1280,8 @@ tasks:
   depends_on:
   - W-30
   - W-42
-  - W-76
   acceptance:
-  - 計画役の出力は、仕様の要件の網羅（harness.reqcov）・ledger.yaml の形（progress check に合格・依存に循環なし・各タスクの
-    acceptance が 1〜4 項目・検証コマンドが oracle のモジュールを名指す python -m unittest の 1 命令）・What
-    ごとの機械と LLM の監修に通ったときだけ確定する
+  - 計画役の出力は、仕様の要件の網羅（harness.reqcov）・ledger.yaml の形（progress check に合格・依存に循環なし・各タスクの acceptance が 1〜4 項目・検証コマンドが oracle のモジュールを名指す python -m unittest の 1 命令）・What ごとの機械と LLM の監修に通ったときだけ確定する
   - 落ちたら、落ちた項目だけを計画役に返して直させる。2 回直しても通らなければ終了コード 1 で、理由を planner.json に残す
   oracle:
   - path: tests/test_planner_audit_loop.py
@@ -1368,10 +1301,7 @@ tasks:
   depends_on:
   - W-43
   acceptance:
-  - python -m harness.bench_start --repo <clone> --base <rev> --task <id> [--ledger
-    <ledger.yaml>] は、<rev> から <package>/ と tests/<package>_judge.py と tests/test_<package>*
-    が無く、--ledger があれば台帳が計画役のタスク P-NN だけ（progress check に合格）のコミットを作り、その SHA を出す
-  - 開始のコミットは親を持たない単独のコミットで、走行の clone はそのコミットだけを持つ（履歴から本体と判定役を読めない）
+  - python -m harness.bench_start --repo <clone> --base <rev> --task <id> [--ledger <ledger.yaml>] は、<rev> から <package>/ と tests/<package>_judge.py と tests/test_<package>* が無く、--ledger があれば台帳が計画役のタスク P-NN だけ（progress check に合格）のコミットを作り、その SHA を出す
   oracle:
   - path: tests/test_bench_start.py
     from: self
@@ -1391,12 +1321,8 @@ tasks:
   - W-34
   - W-35
   - W-44
-  - W-68
-  - W-71
   acceptance:
-  - python -m harness.bench_run chat --task <id> --run-id <r> --repo <clone> --base
-    <rev> は、開始のコミットから、docs/bench/prompts/chat.md と仕様の全文で、実装役と同じモデルを 1 回（ターン上限 30、W-35
-    の禁止つき）呼び、結果を枝 bench/<id>/chat-<r> に置き、採点した記録 bench/records/<id>/chat-<r>.json（base・head・tokens・turns・calls・score・invalid）を書く
+  - python -m harness.bench_run chat --task <id> --run-id <r> --repo <clone> --base <rev> は、開始のコミットから、docs/bench/prompts/chat.md と仕様の全文で、実装役と同じモデルを 1 回（ターン上限 30、W-35 の禁止つき）呼び、結果を枝 bench/<id>/chat-<r> に置き、採点した記録 bench/records/<id>/chat-<r>.json（base・head・tokens・turns・calls・score・invalid）を書く
   - 差分が <package>/ と tests/test_<package>* の外に触れた走行は、invalid に触れたパスが入る
   oracle:
   - path: tests/test_bench_run_chat.py
@@ -1417,14 +1343,9 @@ tasks:
   - W-41
   - W-44
   - W-45
-  - W-68
-  - W-71
   acceptance:
-  - python -m harness.bench_run factory --task <id> --run-id <r> --repo <clone> --base
-    <rev> は、監修つきの計画（W-43）・開始のコミット・走行ごとの受信箱と設定（open_pr false・統合ブランチ bench/<id>/factory-<r>）で
-    clone の H ラインを、待ちと処理中が 0 になるか 3 時間まで回し、枝の先端を採点した記録を書く
-  - 記録に、計画役の出力の sha256・キューが取り込んだ What の sha256・置き直しの数・What の試行の合計・監修の差し戻しの回数・トークンが入る。計画が確定しなかった走行は
-    invalid にその理由が入る
+  - python -m harness.bench_run factory --task <id> --run-id <r> --repo <clone> --base <rev> は、監修つきの計画（W-43）・開始のコミット・走行ごとの受信箱と設定（open_pr false・統合ブランチ bench/<id>/factory-<r>）で clone の H ラインを、待ちと処理中が 0 になるか 3 時間まで回し、枝の先端を採点した記録を書く
+  - 記録に、計画役の出力の sha256・キューが取り込んだ What の sha256・置き直しの数・What の試行の合計・監修の差し戻しの回数・トークンが入る。計画が確定しなかった走行は invalid にその理由が入る
   oracle:
   - path: tests/test_bench_run_factory.py
     from: self
@@ -1443,11 +1364,8 @@ tasks:
   depends_on:
   - W-46
   acceptance:
-  - python -m harness.bench_verify (--task <id>... | --all) --min-runs <n> [--frozen]
-    は、floor.json が合格で指紋が今と同じ・chat と factory の有効な記録が n 件以上・各記録の head を採点し直すと passed
-    と tests が一致、のときだけ 0
-  - factory の記録は、キューの What の sha256 がすべて計画役の出力にあり、置き直しが 0 のときだけ有効（人の介入 0 回の測り方）。--frozen
-    は、freeze.json の base・指紋に合い、凍結の時刻より後に始まった記録だけを数える
+  - python -m harness.bench_verify (--task <id>... | --all) --min-runs <n> [--frozen] は、floor.json が合格で指紋が今と同じ・chat と factory の有効な記録が n 件以上・各記録の head を採点し直すと passed と tests が一致、のときだけ 0
+  - factory の記録は、キューの What の sha256 がすべて計画役の出力にあり、置き直しが 0 のときだけ有効（人の介入 0 回の測り方）。--frozen は、freeze.json の base・指紋に合い、凍結の時刻より後に始まった記録だけを数える
   oracle:
   - path: tests/test_bench_verify.py
     from: self
@@ -1467,20 +1385,8 @@ tasks:
   depends_on:
   - W-36
   - W-47
-  - W-30
-  - W-63
-  - W-64
-  - W-65
-  - W-66
-  - W-67
-  - W-69
-  - W-72
-  - W-73
-  - W-74
-  - W-75
   acceptance:
-  - 本線の H ラインとは別の clone（C:\src\.local\bench\repo）で B06 を 1 回ずつ走らせ、記録を PR で main に入れ、枝を
-    origin に push する
+  - 本線の H ラインとは別の clone（C:\src\.local\bench\repo）で B06 を 1 回ずつ走らせ、記録を PR で main に入れ、枝を origin に push する
   oracle:
   - path: harness/bench_verify.py
     from: W-47
@@ -1499,8 +1405,7 @@ tasks:
   depends_on:
   - W-47
   acceptance:
-  - python -m harness.bench_table は、有効な記録から課題 × 条件の平均の通過率・トークン・試行回数（工廠は What の試行の合計と差し戻しの回数、チャット型は呼び出しとターン）の表を
-    bench/records/summary.md に書く
+  - python -m harness.bench_table は、有効な記録から課題 × 条件の平均の通過率・トークン・試行回数（工廠は What の試行の合計と差し戻しの回数、チャット型は呼び出しとターン）の表を bench/records/summary.md に書く
   oracle:
   - path: tests/test_bench_table.py
     from: self
@@ -1519,8 +1424,7 @@ tasks:
   depends_on:
   - W-49
   acceptance:
-  - python -m harness.bench_ceiling --freeze は、チャット型の平均の通過率が 0.85 以下で満点でない課題が 3 本以上なら、base・10
-    本の指紋・閾値・時刻を bench/records/freeze.json に書いて 0。満たさなければ満点の課題を出して 1
+  - python -m harness.bench_ceiling --freeze は、チャット型の平均の通過率が 0.85 以下で満点でない課題が 3 本以上なら、base・10 本の指紋・閾値・時刻を bench/records/freeze.json に書いて 0。満たさなければ満点の課題を出して 1
   - --check は、freeze.json があり、今の指紋と記録に合えば 0
   oracle:
   - path: tests/test_bench_ceiling.py
@@ -1586,8 +1490,7 @@ tasks:
   depends_on:
   - W-23
   acceptance:
-  - python -m harness.bench_stats は、凍結の後の有効な記録から、課題を復元抽出しその中で各条件の走行を復元抽出する 2 段のブートストラップ（10,000
-    回、種 20261011）で、通過率の差（工廠 − チャット型）の平均と 95% 区間を bench/records/verdict.json に書く
+  - python -m harness.bench_stats は、凍結の後の有効な記録から、課題を復元抽出しその中で各条件の走行を復元抽出する 2 段のブートストラップ（10,000 回、種 20261011）で、通過率の差（工廠 − チャット型）の平均と 95% 区間を bench/records/verdict.json に書く
   - --verdict は、各課題・各条件の有効な記録が 3 件以上で、区間の下限が 0 を超えるときだけ 0
   oracle:
   - path: tests/test_bench_stats.py
@@ -1630,8 +1533,7 @@ tasks:
   - W-52
   - W-53
   acceptance:
-  - bench_stats --verdict が 0。工廠の 30 走行がすべて W-47 の基準で有効（計画役の出力だけ・置き直し 0）。verdict.json
-    と summary.md を PR で main に入れる
+  - bench_stats --verdict が 0。工廠の 30 走行がすべて W-47 の基準で有効（計画役の出力だけ・置き直し 0）。verdict.json と summary.md を PR で main に入れる
   oracle:
   - path: harness/bench_stats.py
     from: W-52
@@ -1650,9 +1552,7 @@ tasks:
   depends_on:
   - W-24
   acceptance:
-  - python -m harness.weekly_report は、queue.json と bench/records から、週ごとの計器（識別子つき。例
-    first_try_rate・tokens_per_done・failure.full_suite・audit.revise_rate）と前の 2 週との比較を
-    reports/weekly/<年>-W<週>.md と .json に書く
+  - python -m harness.weekly_report は、queue.json と bench/records から、週ごとの計器（識別子つき。例 first_try_rate・tokens_per_done・failure.full_suite・audit.revise_rate）と前の 2 週との比較を reports/weekly/<年>-W<週>.md と .json に書く
   - H ラインは、週が変わった最初の走行で前の週の報告を作る。--latest-within-days <n> は n 日以内の報告があれば 0
   oracle:
   - path: tests/test_weekly_report.py
@@ -1672,8 +1572,7 @@ tasks:
   depends_on:
   - W-24
   acceptance:
-  - config/foundation_paths.json の paths（harness/・config/・docs/prompts/・docs/bench/prompts/）に触れる差分は、What
-    のマイルストーンが同じファイルの milestones（W-17・W-18・outer）に無ければ Gate 1 が拒み、理由に触れたパスが出る
+  - config/foundation_paths.json の paths（harness/・config/・docs/prompts/・docs/bench/prompts/）に触れる差分は、What のマイルストーンが同じファイルの milestones（W-17・W-18・outer）に無ければ Gate 1 が拒み、理由に触れたパスが出る
   oracle:
   - path: tests/test_foundation_guard.py
     from: self
@@ -1692,8 +1591,7 @@ tasks:
   depends_on:
   - W-55
   acceptance:
-  - config/hline.json の milestones に outer がある。マイルストーン outer の What は hline/outer
-    に積まれ、hline/outer の統合 PR は週に 1 本だけ出る。内側の統合と待ちは止まらない
+  - config/hline.json の milestones に outer がある。マイルストーン outer の What は hline/outer に積まれ、hline/outer の統合 PR は週に 1 本だけ出る。内側の統合と待ちは止まらない
   oracle:
   - path: tests/test_hline_outer_branch.py
     from: self
@@ -1712,9 +1610,7 @@ tasks:
   depends_on:
   - W-24
   acceptance:
-  - python -m harness.bench_regress --head <rev> は、clone を <rev> にして凍結の 10 本を工廠で 1
-    回ずつ走らせ、W-53 の工廠の記録と課題を束にしたブートストラップ（10,000 回）で比べ、差（新 − 基準）の 95% 区間の下限が −0.05 を超えれば
-    bench/records/regress/<rev>.json に合格を書いて 0
+  - python -m harness.bench_regress --head <rev> は、clone を <rev> にして凍結の 10 本を工廠で 1 回ずつ走らせ、W-53 の工廠の記録と課題を束にしたブートストラップ（10,000 回）で比べ、差（新 − 基準）の 95% 区間の下限が −0.05 を超えれば bench/records/regress/<rev>.json に合格を書いて 0
   oracle:
   - path: tests/test_bench_regress.py
     from: self
@@ -1734,8 +1630,7 @@ tasks:
   - W-56
   - W-57
   acceptance:
-  - hline/outer の統合 PR は、ラベルと CI の緑に加えて、その head の bench/records/regress/<head>.json
-    が合格のときだけマージされる。内側の統合 PR の扱いは変わらない
+  - hline/outer の統合 PR は、ラベルと CI の緑に加えて、その head の bench/records/regress/<head>.json が合格のときだけマージされる。内側の統合 PR の扱いは変わらない
   oracle:
   - path: tests/test_hline_outer_merge.py
     from: self
@@ -1755,9 +1650,7 @@ tasks:
   - W-54
   - W-58
   acceptance:
-  - python -m harness.outer_cycles --min <n> [--improved <k>] は、報告があり・外側の What が 1
-    件以上マージされ・非劣性が合格した週を数え、続いた週が n 以上で、改善の What が本文の `計器:` の行で名指しした計器（識別子と良くなる向き）がマージの翌週に前の
-    2 週の平均より良くなった件数が k 以上なら 0
+  - python -m harness.outer_cycles --min <n> [--improved <k>] は、報告があり・外側の What が 1 件以上マージされ・非劣性が合格した週を数え、続いた週が n 以上で、改善の What が本文の `計器:` の行で名指しした計器（識別子と良くなる向き）がマージの翌週に前の 2 週の平均より良くなった件数が k 以上なら 0
   oracle:
   - path: tests/test_outer_cycles.py
     from: self
@@ -1778,8 +1671,7 @@ tasks:
   - W-54
   - W-58
   acceptance:
-  - runner に、週に 1 回、総監督のセッション（週次の報告を読み、改善のタスクの台帳の PR の完成形と、マイルストーン outer の What を書く）と、hline/outer
-    の統合 PR の head での bench_regress を登録する（定期起動は 1 経路：D-059）
+  - runner に、週に 1 回、総監督のセッション（週次の報告を読み、改善のタスクの台帳の PR の完成形と、マイルストーン outer の What を書く）と、hline/outer の統合 PR の head での bench_regress を登録する（定期起動は 1 経路：D-059）
   - 週ごとの人の操作は、改善のタスクの台帳の PR の適用と、外側の統合 PR のラベルの 2 回
   oracle:
   - path: harness/weekly_report.py
@@ -1828,265 +1720,4 @@ tasks:
     from: W-59
   verification:
     command: python -m harness.outer_cycles --min 4 --improved 1
-    expected_exit_code: 0
-- id: W-65
-  title: H ラインは、走っているコードが統合ブランチの先端（無ければ base）と違うとき、What を取り込まず処理もしない
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'hline: refuse-stale-code'
-  serves: R3-c
-  purpose: 積んだ自分の変更（再開・監修）を読み込まないまま古いコードで走る穴を塞ぎ、その状態を report.md に出す（10-11、W-28 の再開が一度も働かなかった。病理
-    ④）
-  deliverable: 走行の前のコードの版の照合、report.md の H ラインの節の「コード」の行、tests/test_hline_code_version.py
-  depends_on:
-  - W-28
-  acceptance:
-  - poll の始めに、走っているコードの HEAD を、統合ブランチの先端（無ければ base）と比べる。違えば受信箱を取り込まず What も処理せず、report.md
-    の人間作業に STALE_CODE と両方の SHA を出して終わる
-  - 同じなら今のまま走る。report.md の H ラインの節に、走っているコードの SHA が出る
-  oracle:
-  - path: tests/test_hline_code_version.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_hline_code_version tests.test_hline_queue
-    expected_exit_code: 0
-- id: W-66
-  title: 未収束の What の再開の材料を report.md に出し、試験が最後まで走って通った数が増えていれば 1 回だけ自動で続ける
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'hline: resume-visible-and-extend'
-  serves: R3-c
-  purpose: 再開の材料の有無を総監督が見られるようにし、前進が確かな What だけを人の置き直しなしに続けさせる。前進の無い試行（構文の誤り・途中の落ち）には続けない（要綱
-    4）
-  deliverable: report.md の未収束の行の再開の材料、自動の延長、試行の記録の通った試験の数、tests/test_hline_resume_extend.py
-  depends_on:
-  - W-28
-  acceptance:
-  - report.md の未収束の行に、再開の材料（差分と失敗の出力）が残っているかと、差分の行数が出る。材料が残っていれば、理由の文面に「パッチを捨てた」と書かない
-  - 試行の記録に、台帳の検証コマンドの試験が最後まで走ったか（unittest の集計の行があり、収集・import・構文の誤り・時間切れ・打ち切りが無い）と、通った試験の数・落ちた試験の数が入る
-  - 未収束になったとき、材料が残っていて、最後の試行と前の試行の両方で検証コマンドの試験が最後まで走り、最後の試行の通った数が前の試行より多く、落ちた数が 0
-    でなく、失敗の分類が test か full_suite で、その What をまだ延長していなければ、同じ名前で置き直したのと同じに 1 回だけ待ちに戻す。延長したことと、そのときの数が、試行の記録と
-    report.md に出る
-  oracle:
-  - path: tests/test_hline_resume_extend.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_hline_resume_extend tests.test_hline_resume
-    expected_exit_code: 0
-- id: W-67
-  title: 試行のトークンを、入力・キャッシュの書き込み・キャッシュの読み出し・出力に分けて report.md に出し、直近 20 件の歩留まりと燃費を出す
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'report: token-breakdown'
-  serves: R3-c
-  purpose: 1 件あたり約 100 万トークンの中身と歩留まりを測り、燃費の手（W-69・W-73・W-74）の効き目と、本走の前の歩留まりの関門（W-48）の値を数字で出す（病理
-    ④）
-  deliverable: 試行の記録の内訳、report.md のキューの行と計器の内訳・直近 20 件の行、tests/test_hline_usage_breakdown.py
-  depends_on: []
-  acceptance:
-  - 実装役の試行の記録に、input・cache_creation・cache_read・output のトークンが入る
-  - report.md のキューの行と「## 計器」の日ごとの行に、その 4 つの内訳が出る。内訳の無い古い記録は「内訳なし」と出る
-  - 「## 計器」に、済みか未収束になった直近 20 件の、未収束の率・1 回で済んだ率・済み 1 件あたりのトークンの中央値（4 つの内訳つき）が出る
-  oracle:
-  - path: tests/test_hline_usage_breakdown.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_hline_usage_breakdown
-    expected_exit_code: 0
-- id: W-68
-  title: 比較の規約（両条件でそろえるもの・違えるもの・評価項目・無効の走行）を docs/bench/protocol.md に置く
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'bench: protocol-preregistration'
-  by: pilot
-  serves: R3-c
-  purpose: チャット型を不利に縛って勝つ疑いを、凍結の前の事前登録で外す（C5 の科学的な成立）
-  deliverable: docs/bench/protocol.md
-  depends_on: []
-  acceptance:
-  - 両条件でそろえるもの（モデル・仕様・開始のコミット・実装の道具・読めないもの・時間の上限）と、違えるもの（工廠の構造：計画・監修・Gate 1 による試験の実行と再試行）を要件
-    ID つきで列べる
-  - 主要な評価項目（課題を束にした通過率の差）・副次の評価項目（トークンあたりの通過率）・無効の走行の扱い・凍結の後に変えないもの（両条件の指示）と凍結の前の調整の記録の仕方を、凍結の前に決めて
-    main に入れる
-  oracle:
-  - path: harness/reqcov.py
-    from: existing
-  verification:
-    command: python -m harness.reqcov --spec docs/bench/protocol.md --list
-    expected_exit_code: 0
-- id: W-69
-  title: 実装役に渡す目次を、What が名指すモジュールとその import 先の節に絞る
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'hline: narrow-symbol-map'
-  serves: R3-c
-  purpose: 呼び出しのたびに渡す目次（上限 30,000 字）を What に要る範囲に絞り、入力のトークンを減らす（燃費。効き目は W-67 の内訳で測る）
-  deliverable: 実装役の目次の絞り込み、試行の記録の目次の字数、tests/test_hline_symbol_scope.py
-  depends_on: []
-  acceptance:
-  - What の本文が harness/ のモジュール（パスか import の名前）を名指すとき、実装役に渡す目次は、そのモジュールと、それが import
-    する harness/ のモジュールの節だけになる。名指しが無ければ今のまま全体
-  - 実装役の試行の記録に、渡した目次の字数が入る
-  oracle:
-  - path: tests/test_hline_symbol_scope.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_hline_symbol_scope tests.test_symbol_map
-    expected_exit_code: 0
-- id: W-70
-  title: 照合で、受信箱の下書きを base の木に重ねて走らせる（重ねるファイル・繰り返しの回数・期待する合否）
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'checks: overlay-drafts'
-  serves: R3-c
-  purpose: シェルを持たない総監督の下書き（仕様・判定役・参照実装・隠しテスト）を、操縦士の手を使わずに PR の前に機械で確かめ、検証の負荷を操縦士に集めない
-  deliverable: 照合の宣言の overlay・repeat・expect、tests/test_hline_checks_overlay.py
-  depends_on: []
-  acceptance:
-  - 照合の宣言の overlay（木の中の相対パス → 受信箱の drafts/ の下のファイル）は、ref の作業ツリーにそのファイルを重ねてから走らせる。受信箱の
-    drafts/ の外を指す宣言は、宣言の誤り
-  - repeat（1〜20）は同じ命令をその回数走らせ、全部が期待どおりのときだけ合格。expect が fail なら、終了コードが 0 でないことを期待する
-  - 重ねたファイルの中身が変われば、前回の結果を使わずに走らせ直す
-  oracle:
-  - path: tests/test_hline_checks_overlay.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_hline_checks_overlay tests.test_hline_checks
-    expected_exit_code: 0
-- id: W-71
-  title: ベンチの走行を、非公開オラクル・受信箱・本線の生ログを読めない OS のアカウントで回し、漏れの跡のある走行を無効にする
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'bench: restricted-account'
-  serves: R3-c
-  purpose: Gate 1 は実装役の書いた試験を実行するので、道具の設定の禁止では非公開オラクルを守れない。読めないことを OS で保証し、漏れの跡を記録で検める（C5
-    の成立）
-  deliverable: harness/bench_guard.py、docs/ops/bench_account.md、tests/test_bench_guard.py
-  depends_on:
-  - W-34
-  acceptance:
-  - 制限のアカウントで走らせた python -m harness.bench_guard check は、C:\src\.local\oracles・受信箱・本線の
-    out の下のファイルを開けないことを確かめて 0、開けたものがあればそのパスを出して 1
-  - python -m harness.bench_guard scan <dir>... は、道具の呼び出しの記録・Gate 1 の出力・差分に、oracles
-    の下のパスか各課題の canary.txt の文字列が現れたら、そのファイルと位置を出して 1
-  - docs/ops/bench_account.md が、アカウントの作成・ACL・CLI のログインを、人間が 1 回だけ行う手順として書く
-  oracle:
-  - path: tests/test_bench_guard.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_bench_guard
-    expected_exit_code: 0
-- id: W-72
-  title: 台帳の after（弱い依存）を H ラインが守り、上流が未収束でも後続を止めない。未収束ごとに、凍結した下流と本線への影響を出す
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'hline: soft-dependencies-and-triage'
-  serves: R3-c
-  purpose: 副次の道具の未収束が本線を道連れに凍結させない仕組みを持ち、凍結の影響を総監督がすぐ選り分けられるようにする（一本鎖の脆さ）
-  deliverable: 台帳の after の扱い、report.md の未収束のトリアージの行、tests/test_hline_soft_deps.py
-  depends_on: []
-  acceptance:
-  - 台帳のタスクの after に書いたタスクが、キューで待ち・処理中・凍結のあいだは、後続を処理しない。上流が済み・未収束・キューに無いときは処理し、上流が未収束なら、そのことを警告として後続の試行の記録と
-    report.md に出す。after は凍結の計算に入らない
-  - report.md の未収束の行ごとに、depends_on で凍結した下流のタスクの数と、そのうち横木（rung）のタスクに depends_on で推移的につながる本線のタスクがあるかが出る
-  oracle:
-  - path: tests/test_hline_soft_deps.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_hline_soft_deps tests.test_hline_ledger_deps
-    expected_exit_code: 0
-- id: W-73
-  title: 実装役の空転（同じ呼び出しの繰り返し・編集の無いターンの連続）を、呼び出しの途中で止める
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'hline: stop-spinning-implementer'
-  serves: R3-c
-  purpose: 前進の無いターンにトークンと時間を使わない。呼び出しの後ではなく途中で止める（燃費と実時間）
-  deliverable: 実装役の出力の流れの読み取りと途中の停止、tests/test_hline_spin_stop.py
-  depends_on: []
-  acceptance:
-  - 実装役の呼び出しの出力を流れで読み、同じ道具を同じ引数で、あいだに編集（Edit・Write）を挟まずに 3 回呼んだとき、または編集が 1 回も無いまま
-    8 ターンに達したとき、その呼び出しを止める
-  - 止めた試行は Gate 1 を呼ばずに打ち切り、理由（どちらの条件か、道具と引数）を試行の記録と report.md に出す。止めたときの作業ツリーの変更は、再開の材料に残る
-  - 流れから読む利用量（4 つの内訳）とターン数は、今の呼び出しの記録と同じに残る
-  oracle:
-  - path: tests/test_hline_spin_stop.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_hline_spin_stop tests.test_hline_turn_cap
-    expected_exit_code: 0
-- id: W-74
-  title: 前の差分から続ける試行は、ターン上限を下げ、渡す失敗の出力を落ちた試験の分だけにする
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'hline: lean-follow-up-attempts'
-  serves: R3-c
-  purpose: 残りが局所の直しになった試行に、最初の試行と同じ文脈とターンを使わない（燃費。文脈の圧縮）
-  deliverable: 続きの試行のターン上限と失敗の出力の絞り込み、tests/test_hline_follow_up.py
-  depends_on:
-  - W-28
-  acceptance:
-  - 2 回目の試行と、再開・延長で前の差分を載せた試行のターン上限は、設定の implementer.budget.resume_max_turns（既定 8）になる。最初の試行は今のまま
-    max_turns。上限は試行の記録に入る
-  - それらの試行に渡す失敗の出力は、落ちた試験ごとの名前とトレースバックだけ（通った試験の出力・重複したトレースバックを除く）で、gate_tail_chars
-    を超えない
-  oracle:
-  - path: tests/test_hline_follow_up.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_hline_follow_up tests.test_hline_turn_cap
-    expected_exit_code: 0
-- id: W-75
-  title: Gate 1 の入口で、変えた Python の構文を試験より先に確かめ、時間切れの試行の後は再試行しない
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'gate: syntax-first-and-timeout-triage'
-  serves: R3-c
-  purpose: 構文の誤りに試験の全件の時間を使わず、時間切れの繰り返しに 30 分ずつ使わない（実時間と歩留まり。旧 501・507 の残り）
-  deliverable: Gate 1 の入口の構文の検査、時間切れの後の打ち切り、tests/test_gate_syntax_first.py
-  depends_on: []
-  acceptance:
-  - Gate 1 は、試験を走らせる前に、作業ツリーで変えた .py をすべて構文の検査にかける。誤りがあれば試験を走らせずに不合格にし、ファイルと行と誤りを次の試行に渡す。失敗の分類は
-    test
-  - 実装役の呼び出しが時間切れ（ttl_seconds.implementer）で終わった試行の後は、残りの試行を行わずに未収束にし、理由に時間切れと経過の時間を出す
-  oracle:
-  - path: tests/test_gate_syntax_first.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_gate_syntax_first tests.test_hline_queue
-    expected_exit_code: 0
-- id: W-76
-  title: 計画の受け入れの検査（タスクの数・依存・粒度・オラクルの出どころ）を、計画役の出力に掛ける
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'planner: plan-acceptance-check'
-  serves: R3-c
-  purpose: 実行できない粒度・粗すぎる分け方・オラクルの無いタスクを含む計画を、H ラインに渡す前に機械で止める（計画役の受け入れの基準）
-  deliverable: harness/plan_check.py、tests/test_plan_check.py
-  depends_on:
-  - W-42
-  acceptance:
-  - python -m harness.plan_check <dir> は、計画役の出力（ledger.yaml と What）が次をすべて満たすとき 0。タスクは
-    2〜8 件。depends_on に循環が無く、どのタスクも根から届く。依存の深さは 6 以下。What とタスクが 1 対 1
-  - 粒度：各タスクの files は 1〜5 件で、<package>/ と tests/test_<package>* の下だけ。各タスクの acceptance
-    は 1〜4 項目。2 つのタスクが同じ <package>/ のファイルを files に持つときは、片方がもう片方に依存している
-  - オラクル：各タスクの検証コマンドが名指す試験のモジュールが、そのタスクか依存先のタスクの files にある
-  - 満たさなければ 1 で、落ちた規則とタスクの ID を planner.json に書く（W-43 は、それを計画役に返す項目に含める）
-  oracle:
-  - path: tests/test_plan_check.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_plan_check
     expected_exit_code: 0
