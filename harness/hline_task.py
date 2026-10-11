@@ -53,6 +53,13 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
             ok, text, rec["suite"] = suite
             feedback = f"{feedback}\n\n{text}"
             rec["gate"] = ok
+        if ok and task and (record := getattr(host, "record", None)):   # 最後の段：進捗の記録。落ちたら積まない
+            code, text = record(cfg, wt, task)
+            if code == 1:   # 検証コマンドが落ちた：試行の不合格にして、出力を次の試行に渡す
+                ok, feedback = False, host.record_refused(task, code, text)
+                rec["gate"] = False
+            elif code != 0:   # 台帳の状態の異常：呼び直しても直らない
+                raise Fatal(host.record_refused(task, code, text))
         if not ok:
             rec["failure"] = failure_classes.describe(rec, feedback)
         (outdir / f"gate-{run}-{attempt}.log").write_text(feedback, encoding="utf-8")
@@ -130,7 +137,7 @@ def process(host, cfg, st, name):
             if wt is None: return False
             own = host.self_change(host.changed_paths(wt, cfg))
             warnings = item["tries"][-1].setdefault("warnings", []) if item["tries"] else []   # 進捗の不整合もここに積む
-            host.integrate(cfg, wt, name, item["title"], item["task"], warnings=warnings)
+            host.integrate(cfg, wt, name, item["title"], None, warnings=warnings)   # 進捗の記録は run_task の最後の段で済んでいる
             if own:
                 st["self_change"] = {"name": name, "paths": own}
             return True

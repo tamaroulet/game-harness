@@ -37,7 +37,7 @@ class LedgerDeps(unittest.TestCase):
         return self.git
 
     def put(self, name, task=None, deps=()):
-        lines = [f"# T-{name}", "マイルストーン: B8.1"] + ([f"タスク: {task}"] if task else ["検証: python -m unittest tests.test_x"])
+        lines = [f"# T-{name}", "マイルストーン: B8.1", f"タスク: {task or name}"]
         lines += ["依存: " + ", ".join(deps)] if deps else []
         (self.inbox / f"{name}.md").write_text("\n".join(lines + ["", "本文"]), encoding="utf-8")
 
@@ -86,33 +86,38 @@ class LedgerDeps(unittest.TestCase):
         self.assertEqual(st["items"]["c"]["deps"], ["Phase 4-1"])
         self.assertIsNone(hline_queue.next_runnable(st))
 
-    def test_an_unreadable_ledger_keeps_only_that_what_waiting_and_the_report_says_why(self):
-        self.git = (128, "", "fatal: path not in origin/main")
+    def test_a_queued_what_whose_ledger_becomes_unreadable_keeps_waiting_and_the_report_says_why(self):
+        self.git = (0, ledger({"id": "T1", "status": "pending"}), "")
         self.put("a", task="T1")
-        self.put("b")
+        st = self.take()
+        hline_queue.save_state(self.cfg, st)
+        self.git = (128, "", "fatal: path not in origin/main")
         st = self.take()
         self.assertEqual(st["items"]["a"]["status"], "waiting")
         self.assertIn("fatal", st["items"]["a"]["ledger_error"])
-        self.assertEqual(hline_queue.next_runnable(st), "b")
+        self.assertIsNone(hline_queue.next_runnable(st))
         with mock.patch.object(hline_report, "progress_report", return_value="## 進捗ツリー\n- 人間作業: NONE\n"):
             text = hline_report.h_section(self.cfg, st)
         self.assertIn("台帳を読めず待ち", text)
         self.git = (0, "{{{ not yaml", "")
-        self.put("c", task="T2")
-        self.assertIn("解釈できません", self.take()["items"]["c"]["ledger_error"])
+        self.assertIn("解釈できません", self.take()["items"]["a"]["ledger_error"])
 
     def test_the_wait_ends_when_the_ledger_becomes_readable(self):
-        self.git = (1, "", "boom")
+        self.git = (0, ledger({"id": "T1", "status": "pending"}), "")
         self.put("a", task="T1")
         st = self.take()
+        hline_queue.save_state(self.cfg, st)
+        self.git = (1, "", "boom")
+        st = self.take()
+        self.assertIn("boom", st["items"]["a"]["ledger_error"])
         hline_queue.save_state(self.cfg, st)
         self.git = (0, ledger({"id": "T1", "status": "pending"}), "")
         st = self.take()
         self.assertNotIn("ledger_error", st["items"]["a"])
         self.assertEqual(hline_queue.next_runnable(st), "a")
 
-    def test_whats_without_a_task_or_without_depends_on_run_on_the_what_line_alone(self):
-        self.git = (0, ledger({"id": "T1", "status": "pending"}), "")
+    def test_whats_without_depends_on_run_on_the_what_line_alone(self):
+        self.git = (0, ledger({"id": "a", "status": "pending"}, {"id": "b", "status": "pending"}, {"id": "T1", "status": "pending"}), "")
         self.put("a", deps=["b"])
         self.put("b")
         self.put("c", task="T1", deps=["b"])
@@ -120,11 +125,6 @@ class LedgerDeps(unittest.TestCase):
         self.assertEqual(st["items"]["a"]["deps"], ["b"])
         self.assertEqual(st["items"]["c"]["deps"], ["b"])
         self.assertEqual(hline_queue.next_runnable(st), "b")
-
-    def test_without_a_task_the_ledger_is_never_read(self):
-        self.put("a")
-        self.take()
-        self.assertEqual(self.calls, [])
 
 
 if __name__ == "__main__":

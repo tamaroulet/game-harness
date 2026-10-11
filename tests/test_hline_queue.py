@@ -47,6 +47,19 @@ SPEC = {
 VERIFY = "python -m unittest tests.test_x"
 
 
+class AnyTask(dict):
+    """どのタスクも、台帳にある未完了の by: hline のタスクとして答える台帳。"""
+
+    def __contains__(self, task):
+        return True
+
+    def __getitem__(self, task):
+        return {"deps": [], "done": False, "by": "hline"}
+
+    def get(self, task, default=None):
+        return self[task]
+
+
 def claude_json(result, model):
     return json.dumps({"result": result, "modelUsage": {model: {}}})
 
@@ -197,13 +210,11 @@ class Integrate(unittest.TestCase):
         self.assertFalse([c for c in calls if "harness.progress" in c])
         self.assertEqual([c[1] for c in calls], ["add", "commit", "push"])
 
-    def test_a_failing_complete_is_a_warning_and_the_commit_and_push_go_on(self):
-        """進捗の記録が拒まれても、コードは積む（C6）。"""
-        warn = []
-        calls, failed = self.run_integrate("S1-2", complete_code=1, warn=warn)
-        self.assertFalse(failed)
-        self.assertEqual([c[1] for c in calls[1:]], ["add", "commit", "push"])
-        self.assertEqual(len(warn), 1)
+    def test_a_failing_complete_stops_the_commit_and_push(self):
+        """進捗の記録が拒まれたら、コードは積まない。"""
+        calls, failed = self.run_integrate("S1-2", complete_code=1)
+        self.assertTrue(failed)
+        self.assertFalse([c for c in calls if c[1] in ("add", "commit", "push")])
 
     def test_the_report_mirrors_the_progress_of_the_integration_branch(self):
         served = progress.load(REPO / "docs" / "progress.yaml")
@@ -350,10 +361,12 @@ class World(unittest.TestCase):
         self.patch(infra_retry, "SLEEP", new=self.slept.append)   # 呼び直しの待ち時間は実際には待たない
         self.patch(hline.proc, "run", side_effect=forbidden)
         self.patch(hline.proc, "resolve_cli", side_effect=forbidden)
+        self.patch(hline_queue, "read_ledger", side_effect=lambda cfg: AnyTask())
         [self.patch(hline, n) for n in ("fetch", "changed_paths")]   # changed_paths は空の反復を返す
         self.patch(hline, "integrated", side_effect=lambda c, n: n in self.integrated)
         self.patch(hline, "new_worktree", side_effect=lambda c, t: (self.wt, "b"))
         self.patch(hline, "integrate", side_effect=self.fake_integrate)
+        self.patch(hline, "record", return_value=(0, ""))   # 進捗の記録（Gate 1 の最後の段）は外部を呼ぶので差し替える
         self.patch(hline, "ahead", side_effect=lambda c: self.ahead_n); self.patch(hline, "diff_files", side_effect=lambda c: self.diff_list)
         self.patch(hline, "open_pr", side_effect=lambda c: self.open_pr)
         self.patch(hline, "create_pr", side_effect=self.fake_create_pr)
@@ -393,7 +406,7 @@ class World(unittest.TestCase):
     # --- 道具
     def put(self, name, milestone="B8.1", task=None, deps=(), extra=""):
         lines = [f"# T-{name}"] + ([f"マイルストーン: {milestone}"] if milestone else [])
-        lines += [f"タスク: {task}"] if task else [f"検証: {VERIFY}"]
+        lines += [f"タスク: {task or name}"]   # 台帳は read_ledger の差し替えが、どのタスクも未完了の by: hline として答える
         lines += ["依存: " + ", ".join(deps)] if deps else []
         (self.inbox / f"{name}.md").write_text("\n".join(lines + ["", "本文", extra]), encoding="utf-8")
 

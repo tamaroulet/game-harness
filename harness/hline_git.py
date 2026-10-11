@@ -69,18 +69,31 @@ def changed_paths(wt, cfg):
 
 # ============================================================ 統合ブランチに積む
 
+def record(cfg, wt, task):
+    """タスクを宣言した What の進捗の記録（harness.progress complete）を作業ツリーで行う。(終了コード, 出力)。
+    Gate 1 の最後の段で、積む前に呼ぶ。落ちたときは docs/progress.yaml を元に戻す（保護されたパスで、次の試行の門に当たるため）。"""
+    code, out, err = proc.run([sys.executable, "-m", "harness.progress", "complete", task], wt, cfg["ttl_seconds"]["gate"],
+                              "harness.progress complete", env={**os.environ, progress.ORDER_FREE_ENV: "1"})
+    if code != 0:
+        proc.run(["git", "checkout", "-q", "--", "docs/progress.yaml"], wt, cfg["ttl_seconds"]["git"], "git checkout")
+    return code, out + err
+
+
+def record_refused(task, code, text):
+    """記録が拒まれた理由（タスクの ID・終了コード・出力の末尾）。"""
+    return f"harness.progress complete {task} が終了コード {code} で、進捗の記録が拒まれました: {text[-400:]}"
+
+
 def integrate(cfg, wt, name, title, task, warnings=None):
     """Gate 1 を通った変更を統合ブランチに積む。タスクを宣言した What は、harness.progress で完了として記録してから積む。
 
-    進捗の記録が拒まれても、コードのコミットと push は行う（進捗はコードの付随情報で、パッチを捨てる理由にしない）。
-    拒まれた理由は warnings に積み、report と統合 PR のレビューに回す。"""
-    t, warn = cfg["ttl_seconds"], [] if warnings is None else warnings
+    通常、記録は Gate 1 の最後の段（record）で済んでいて、ここへは task=None で来る。ここで記録して拒まれたときは、
+    積まずに Fatal にする（台帳が進まない変更を統合ブランチに積まない）。"""
+    t = cfg["ttl_seconds"]
     if task:
-        code, out, err = proc.run([sys.executable, "-m", "harness.progress", "complete", task], wt, t["gate"],
-                                  "harness.progress complete", env={**os.environ, progress.ORDER_FREE_ENV: "1"})
+        code, text = record(cfg, wt, task)
         if code != 0:
-            warn.append(f"harness.progress complete {task} が終了コード {code} で、進捗の記録が拒まれました"
-                        f"（コードはそのまま積みました。進捗は人間が直す）: {(out + err)[-400:]}")
+            raise Fatal(record_refused(task, code, text))
     must(["git", "add", "-A"], wt, t["git"], "git add")
     must(["git", "commit", "-q", "-m", f"feat(hline): {title}\n\n{TRAILER}: {name}\n{cfg['commit_trailer']}\n"],
          wt, t["git"], "git commit")

@@ -5,9 +5,10 @@
 
 What は本文の行で次を宣言できる（書式は総監督の部屋の CLAUDE.md の雛形にある）:
     マイルストーン: B7.1          必須。進捗のグループの ID。設定の milestones に無いもの・無いものは取らない
-    タスク: S1-2                  任意。進捗のタスクの ID
+    タスク: S1-2                  必須。進捗のタスクの ID。base の台帳にある未完了の by: hline のものだけ取る。ファイル名は常にタスクの ID
     依存: 120-s1-2-x, 130-s1-3-y  任意。受信箱でのファイル名から .md を除いたもの
-    検証: python -m unittest tests.test_x   タスクを宣言しない What は必須（期待する終了コードは 0）。タスクを宣言した What は書かない
+    検証:                         書かない（`検証:` の行のある What は取らない。検証コマンドの正本は台帳）
+1 件の What が 1 つのタスクを完了にする（分けるときは台帳のタスクを分ける）。
 
 項目の状態: waiting（待ち）→ processing → done（済み）／unconverged（未収束）。未収束に依存する項目は frozen（凍結）。
 """
@@ -75,18 +76,27 @@ def by_status(st, status):
 # ============================================================ 取り込み
 
 def intake(cfg, st):
-    """受信箱の What をキューに入れ、受信箱から消す。許されないマイルストーンの What・宣言の無い What は受信箱に残す。
+    """受信箱の What をキューに入れ、受信箱から消す。許されないマイルストーンの What・タスクを宣言しない What・`検証:` の行のある What・
+    base の台帳に無いか完了したタスクの What・台帳を読めないときの What は受信箱に残す（次の走行で取り直す）。
     未収束の What と同じ名前の What は、その記録を差し替える（再開）。"""
-    skipped, taken, ledger = [], [], None
+    skipped, taken, ledger, ledger_error = [], [], None, None
 
-    def pilot_task(task):
-        nonlocal ledger
-        if ledger is None:
+    def task_problem(task):
+        nonlocal ledger, ledger_error
+        if ledger is None and ledger_error is None:
             try:
                 ledger = read_ledger(cfg)
-            except Exception:   # noqa: BLE001  読めない台帳は apply_ledger が待ちにする
-                ledger = {}
-        return ledger.get(task, {}).get("by") == "pilot"
+            except Exception as e:   # noqa: BLE001
+                ledger_error = str(e)
+        if ledger_error:
+            return f"base の台帳を読めないため、タスク {task} を確かめられません（次の走行で取り直します）: {ledger_error}"
+        if task not in ledger:
+            return f"タスク {task} は base の台帳にありません"
+        if ledger[task].get("by") == "pilot":
+            return f"タスク {task} は操縦士の作業（by: pilot）で、H ラインは取りません"
+        if ledger[task]["done"]:
+            return f"タスク {task} は base の台帳で完了しています"
+        return None
 
     for src in candidates(cfg["inbox"]):
         name, text = src.stem, src.read_text(encoding="utf-8")
@@ -95,12 +105,12 @@ def intake(cfg, st):
             why = "マイルストーンの宣言がありません"
         elif meta["milestone"] not in cfg["milestones"]:
             why = f"マイルストーン {meta['milestone']} はこのラインに許されていません（許可: {', '.join(cfg['milestones'])}）"
-        elif meta["task"] and pilot_task(meta["task"]):
-            why = f"タスク {meta['task']} は操縦士の作業（by: pilot）で、H ラインは取りません"
-        elif not meta["task"] and not meta["verify"]:
-            why = "タスクを宣言しない What には `検証:` の行（検証コマンド）が必要です"
-        elif meta["task"] and meta["verify"]:
-            why = f"タスク {meta['task']} を宣言した What は、検証コマンドの正本が台帳です（`検証:` の行を消してください）"
+        elif not meta["task"]:
+            why = "`タスク:` の行がありません（すべての What は台帳のタスクを 1 つ宣言します）"
+        elif meta["verify"]:
+            why = f"`検証:` の行のある What は取りません（タスク {meta['task']} の検証コマンドの正本は台帳です。行を消してください）"
+        elif why := task_problem(meta["task"]):
+            pass
         elif old and old["status"] in ("processing", "done"):
             why = f"同名の What が{'処理中' if old['status'] == 'processing' else '済み'}です"
         else:
