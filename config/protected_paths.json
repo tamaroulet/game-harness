@@ -11,6 +11,10 @@
     "tests/test_testbed_judge_stress.py",
     "tests/testbed_judge_util.py",
     "docs/bench/",
-    "tests/launcher_judge.py"
+    "tests/launcher_judge.py",
+    "docs/tasks.md",
+    "tests/test_ledger_double_check.py",
+    "docs/prompts/",
+    "bench/records/"
   ]
 }
