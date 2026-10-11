@@ -46,9 +46,10 @@ def report(command, code, out, err, limit, expected=0):
     return "\n".join(f"{head}\n{digest}".splitlines()[:MAX_LINES])[:limit]
 
 
-def focused(cfg, wt, paths, task, spec=None, warnings=None):
+def focused(cfg, wt, paths, task, spec=None, warnings=None, verify=None):
     """影響テスト（変えたパスから引いたテスト）と、タスクがあれば進捗の検証コマンドを走らせる。
     (通ったか, 出力)。走らせるものが無ければ None。
+    タスクを宣言しない What は、What の `検証:` のコマンド verify を、タスクの検証コマンドと同じ扱い（期待する終了コード 0）で走らせる。
 
     検証コマンドが見つからないときは、不合格にせず warnings に積み、影響テストだけで判定する
     （進捗はコードの付随情報で、パッチを捨てる理由にしない）。"""
@@ -57,6 +58,10 @@ def focused(cfg, wt, paths, task, spec=None, warnings=None):
         v = verification_of(wt, task)
         if not v:
             warn.append(f"進捗のタスク {task} の検証コマンドが見つかりません（影響テストだけで判定しました）")
+    elif verify:
+        v = {"command": verify, "expected_exit_code": 0}
+        if (gone := [m for m in impacted.command_modules(verify) if m not in present(wt, [m])]):
+            return False, f"検証コマンド `{verify}` が名指しするテストのモジュールが作業ツリーにありません: {', '.join(gone)}"
     changed = test_modules(paths)
     keep = impacted.command_modules(v.get("command")) if isinstance(v, dict) else ()
     modules = present(wt, impacted.test_modules(wt, spec, v, changed, paths), keep)
@@ -64,6 +69,6 @@ def focused(cfg, wt, paths, task, spec=None, warnings=None):
     if stage is None:
         return None
     text, cmd, expected = stage
-    label = f"検証 {task}" if task else "Gate 1 個別"
+    label = f"検証 {task}" if task else "検証 What" if verify else "Gate 1 個別"
     code, out, err = proc.run(cmd, wt, cfg["ttl_seconds"]["gate"], label, env=dict(os.environ, PYTHONUTF8="1"))
     return code == expected, report(text, code, out, err, cfg["gate_tail_chars"], expected)

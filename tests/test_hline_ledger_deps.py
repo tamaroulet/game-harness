@@ -37,7 +37,7 @@ class LedgerDeps(unittest.TestCase):
         return self.git
 
     def put(self, name, task=None, deps=()):
-        lines = [f"# T-{name}", "マイルストーン: B8.1"] + ([f"タスク: {task}"] if task else [])
+        lines = [f"# T-{name}", "マイルストーン: B8.1"] + ([f"タスク: {task}"] if task else ["検証: python -m unittest tests.test_x"])
         lines += ["依存: " + ", ".join(deps)] if deps else []
         (self.inbox / f"{name}.md").write_text("\n".join(lines + ["", "本文"]), encoding="utf-8")
 

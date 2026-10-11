@@ -300,8 +300,8 @@ class IntegrationTip(unittest.TestCase):
 class QueueParts(unittest.TestCase):
     def test_declarations_are_read_from_the_body(self):
         meta = hline_queue.parse_header("# 題\nマイルストーン: B7.1\n- タスク： S1-2\n依存: 120-a.md, `130-b`、140-c\n本文")
-        self.assertEqual(meta, {"milestone": "B7.1", "task": "S1-2", "deps": ["120-a", "130-b", "140-c"]})
-        self.assertEqual(hline_queue.parse_header("# 題\n本文"), {"milestone": None, "task": None, "deps": []})
+        self.assertEqual(meta, {"milestone": "B7.1", "task": "S1-2", "deps": ["120-a", "130-b", "140-c"], "verify": None})
+        self.assertEqual(hline_queue.parse_header("# 題\n本文"), {"milestone": None, "task": None, "deps": [], "verify": None})
 
     def item(self, deps=(), status="waiting", milestone="B7.1"):
         return {"status": status, "title": "t", "milestone": milestone, "task": None, "deps": list(deps)}
@@ -393,7 +393,7 @@ class World(unittest.TestCase):
     # --- 道具
     def put(self, name, milestone="B8.1", task=None, deps=(), extra=""):
         lines = [f"# T-{name}"] + ([f"マイルストーン: {milestone}"] if milestone else [])
-        lines += [f"タスク: {task}"] if task else []
+        lines += [f"タスク: {task}"] if task else [f"検証: {VERIFY}"]
         lines += ["依存: " + ", ".join(deps)] if deps else []
         (self.inbox / f"{name}.md").write_text("\n".join(lines + ["", "本文", extra]), encoding="utf-8")
 

@@ -63,11 +63,8 @@ class RepoProgressTests(unittest.TestCase):
         # 350 トークン前後に収める（日本語混じりで 1 文字 ≒ 1 トークンと見ても上限内）
         self.assertLessEqual(len(progress.anchor(self.state)), 1200)
 
-    def test_tree_fits_in_a_report(self):
-        self.assertLessEqual(len(progress.tree(self.state).splitlines()), 15)
-
-    def test_report_fits_in_20_lines(self):
-        self.assertLessEqual(len(progress.report(self.state).splitlines()), 20)
+    def test_report_builds(self):
+        self.assertTrue(progress.report(self.state).startswith("## 進捗ツリー\n"))
 
 
 class ViewTests(unittest.TestCase):
@@ -90,13 +87,13 @@ class ViewTests(unittest.TestCase):
         self.assertIn("G2 group 2（0/1）", t)
         self.assertIn("T3 third", progress.tree(sample(), expand_all=True))
 
-    def test_tree_folds_completed_tasks_into_the_count(self):
+    def test_tree_keeps_completed_tasks_in_the_open_branch(self):
         s = sample()
         s["tasks"][0]["status"], s["tasks"][1]["status"], s["active_task_id"] = "completed", "in_progress", "T2"
         t = progress.tree(s)
-        self.assertNotIn("T1 first", t)
+        self.assertIn("- [x] T1 first", t)
         self.assertIn("G1 group 1（1/2）", t)
-        self.assertIn("T1 first", progress.tree(s, expand_all=True))
+        self.assertLess(t.index("T1 first"), t.index("T2 second"))
 
     def test_report_has_only_tree_and_state(self):
         r = progress.report(sample())
@@ -104,24 +101,21 @@ class ViewTests(unittest.TestCase):
         self.assertIn("- 現在タスク: T1（first）", r)
         self.assertIn("- 人間作業: NONE", r)
 
-    def test_report_refuses_to_exceed_20_lines(self):
+    def test_report_does_not_stop_over_20_lines(self):
         s = sample()
         s["nodes"] += [{"id": f"H{i}", "title": "h", "parent": "A"} for i in range(20)]
         s["tasks"] += [{"id": f"X{i}", "title": "x", "group": f"H{i}", "target_repo": "r", "status": "pending",
                         "verification": None} for i in range(20)]
-        with self.assertRaises(progress.ProgressError):
-            progress.report(s)
+        self.assertGreater(len(progress.report(s).splitlines()), 20)
 
-    def test_the_open_branch_shows_at_most_four_tasks(self):
+    def test_the_open_branch_shows_every_task(self):
         s = sample()
         s["tasks"][2:2] = [{"id": f"X{i}", "title": "x", "group": "G1", "target_repo": "r", "status": "pending",
                             "verification": None} for i in range(5)]
         t = progress.tree(s)
         self.assertIn("T1 first ← 現在地", t)
-        self.assertIn("X1 x", t)
-        self.assertNotIn("X2 x", t)
-        self.assertIn("…ほか 3 件（tree --all で内訳）", t)
-        self.assertIn("X4 x", progress.tree(s, expand_all=True))
+        self.assertIn("X4 x", t)
+        self.assertNotIn("ほか", t)
 
     def test_completed_siblings_fold_into_one_line(self):
         s = sample()

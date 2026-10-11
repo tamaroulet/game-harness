@@ -7,6 +7,7 @@ What は本文の行で次を宣言できる（書式は総監督の部屋の CL
     マイルストーン: B7.1          必須。進捗のグループの ID。設定の milestones に無いもの・無いものは取らない
     タスク: S1-2                  任意。進捗のタスクの ID
     依存: 120-s1-2-x, 130-s1-3-y  任意。受信箱でのファイル名から .md を除いたもの
+    検証: python -m unittest tests.test_x   タスクを宣言しない What は必須（期待する終了コードは 0）。タスクを宣言した What は書かない
 
 項目の状態: waiting（待ち）→ processing → done（済み）／unconverged（未収束）。未収束に依存する項目は frozen（凍結）。
 """
@@ -21,7 +22,7 @@ import proc  # noqa: E402
 import progress  # noqa: E402
 import yaml  # noqa: E402
 
-HEADER = re.compile(r"^\s*(?:[-*]\s*)?(マイルストーン|タスク|依存)\s*[:：]\s*(.*?)\s*$")
+HEADER = re.compile(r"^\s*(?:[-*]\s*)?(マイルストーン|タスク|依存|検証)\s*[:：]\s*(.*?)\s*$")
 
 
 def parse_header(text):
@@ -31,7 +32,8 @@ def parse_header(text):
         if m and m.group(1) not in found:
             found[m.group(1)] = m.group(2).strip("` ")
     deps = [d.strip("`").removesuffix(".md") for d in re.split(r"[,、，\s]+", found.get("依存", "")) if d.strip("`")]
-    return {"milestone": found.get("マイルストーン") or None, "task": found.get("タスク") or None, "deps": deps}
+    return {"milestone": found.get("マイルストーン") or None, "task": found.get("タスク") or None, "deps": deps,
+            "verify": found.get("検証") or None}
 
 
 def candidates(inbox):
@@ -95,6 +97,10 @@ def intake(cfg, st):
             why = f"マイルストーン {meta['milestone']} はこのラインに許されていません（許可: {', '.join(cfg['milestones'])}）"
         elif meta["task"] and pilot_task(meta["task"]):
             why = f"タスク {meta['task']} は操縦士の作業（by: pilot）で、H ラインは取りません"
+        elif not meta["task"] and not meta["verify"]:
+            why = "タスクを宣言しない What には `検証:` の行（検証コマンド）が必要です"
+        elif meta["task"] and meta["verify"]:
+            why = f"タスク {meta['task']} を宣言した What は、検証コマンドの正本が台帳です（`検証:` の行を消してください）"
         elif old and old["status"] in ("processing", "done"):
             why = f"同名の What が{'処理中' if old['status'] == 'processing' else '済み'}です"
         else:

@@ -37,7 +37,6 @@ ROOT = Path(__file__).resolve().parent.parent
 REL_PATH = "docs/progress.yaml"
 STATUSES = ("pending", "in_progress", "completed")
 TAIL_LINES = 20
-REPORT_MAX_LINES = 20
 VERIFY_TTL = 1800
 GIT_TTL = 120
 ORDER_FREE_ENV = "HLINE_PROGRESS_ORDER_FREE"   # "1" のとき main の complete が、現在のタスクでなくても記録する（H ライン用）
@@ -230,14 +229,11 @@ def _contains_active(state, node_id):
     return any(t["id"] == state.get("active_task_id") for t in _tasks_under(state, node_id))
 
 
-OPEN_TASKS_MAX = 4   # 既定の表示で、展開した枝に並べる未完了のタスクの上限（残りは件数だけ。report の 20 行に収める）
-
-
 def tree(state, expand_all=False):
     """人間と PR 用。既定では現在のタスクを含む枝だけを展開し、他の枝は件数に畳む。
 
-    既定の表示では、続けて並ぶ完了した兄弟の段を 1 行にまとめ、展開した枝の未完了のタスクは先頭から OPEN_TASKS_MAX 件
-    だけ出す（段 B6 を中ゴールに分けたら report が 24 行になった。2026-09-27）。--all ではすべて出す。
+    既定の表示では、続けて並ぶ完了した兄弟の段を 1 行にまとめる。展開した枝のタスクは完了も未完了もすべて出す。
+    行数の上限は設けない。--all では現在地を含まない枝もすべて出す。
     """
     lines = []
 
@@ -269,15 +265,13 @@ def tree(state, expand_all=False):
         if not (expand_all or _contains_active(state, node["id"])):
             return
         siblings(_children(state, node["id"]), depth + 1)
-        # 完了したタスクは親の件数に畳む（--all のときだけ出す）
-        shown = [t for t in state["tasks"] if t["group"] == node["id"] and (expand_all or t["status"] != "completed")]
-        rest = 0 if expand_all else max(0, len(shown) - OPEN_TASKS_MAX)
-        for t in shown[:len(shown) - rest]:
+        # 展開した枝のタスクは、完了も未完了も台帳の並びのまますべて出す
+        for t in state["tasks"]:
+            if t["group"] != node["id"]:
+                continue
             here = " ← 現在地" if t["id"] == state.get("active_task_id") else ""
             tmark = "[x]" if t["status"] == "completed" else "[ ]"
             lines.append(f"{'  ' * (depth + 1)}- {tmark} {t['id']} {_label(t)}{here}")
-        if rest:
-            lines.append(f"{'  ' * (depth + 1)}- …ほか {rest} 件（tree --all で内訳）")
 
     for root in _children(state, None):
         # 根は常に 1 段目まで開く（全体の位置づけを示すため）
@@ -312,8 +306,6 @@ def report(state):
         f"- 検証コマンド: {v['command'] if v else '(undefined)'}",
         human,
     ]
-    if len(lines) > REPORT_MAX_LINES:
-        raise ProgressError(f"report が {len(lines)} 行で、上限 {REPORT_MAX_LINES} 行を超えます")
     return "\n".join(lines) + "\n"
 
 
