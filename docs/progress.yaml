@@ -1,6 +1,6 @@
-project_goal: 基盤刷新（docs/design/foundation_v3_review.md 改訂 5）で無菌室と人間の非同期化を確立し、Phase 4 へ進む
-active_task_id: G0-1
-next_id: 15
+project_goal: 自己改善できる自律開発環境（C4）を作る。段 1 軽い 3D 通し → 段 2 改善 → 段 3 チャットに勝つ（C5）→ 段 4 Outer Loop の確立（C4）。段は nodes の W-15〜W-18
+active_task_id: W-19
+next_id: 21
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -49,34 +49,46 @@ nodes:
   title: 基盤刷新：最速の無菌化と人間の非同期化（docs/design/foundation_v3_review.md 改訂 5）
   parent: A
 - id: B7.0
-  title: 段 0：H ラインの設立（受信箱の What 1 件を PR 1 件に。総監督の道具の剥奪）
+  title: H ラインの設立（受信箱の What 1 件を PR 1 件に。総監督の道具の剥奪）
   parent: B7
 - id: B7.1
-  title: 段 1：実行基盤（タスクキューから依存順に連続消化・使い捨て作業ツリー・Job Object・agy の固定）
+  title: 実行基盤（タスクキューから依存順に連続消化・使い捨て作業ツリー・Job Object・agy の固定）
   parent: B7
 - id: B7.2
-  title: 段 2：自己回復と門の純化（Outer-Loop・ホワイトリスト・Gate 2 廃止・規模の制約・未収束の扱い）
+  title: 自己回復と門の純化（Outer-Loop・ホワイトリスト・Gate 2 廃止・規模の制約・未収束の扱い）
   parent: B7
 - id: B7.3
-  title: 段 3：役の分離（TaskSpec IR・受入テスト（Red）の合成・TDD 境界）
+  title: 役の分離（TaskSpec IR・受入テスト（Red）の合成・TDD 境界）
   parent: B7
 - id: B8
-  title: 器の再建（Phase 3）
+  title: 器の再建
   parent: A
 - id: B8.1
   title: 配線を外したモジュール本体の削除
   parent: B8
 - id: G0
   title: 決定論的基盤と測定器
-  parent: A
+  parent: W-16
 - id: G1
   title: 試験台（MuJoCo）で工廠ループを 1 本走り切る（C2 の測定）
-  parent: A
+  parent: W-15
 - id: Phase 4
-  title: 段 5：3D 物理・推論・知覚（Phase 4）
-  parent: A
+  title: 3D 物理・推論・知覚
+  parent: W-17
 - id: H0
   title: 総監督知覚健全化
+  parent: A
+- id: W-15
+  title: 段 1：軽い 3D 通し
+  parent: A
+- id: W-16
+  title: 段 2：改善（足場固め）
+  parent: A
+- id: W-17
+  title: 段 3：チャットに勝つ（C5）
+  parent: A
+- id: W-18
+  title: 段 4：Outer Loop の確立（C4）
   parent: A
 tasks:
 - id: B3.1-PREP
@@ -793,22 +805,6 @@ tasks:
   verification:
     command: python -m unittest tests.test_progress_executor
     expected_exit_code: 0
-- id: G0-1
-  title: 撤去記録の整備（進捗台帳と実態の乖離防止）
-  group: G0
-  target_repo: game-harness
-  status: in_progress
-  slug: 'progress: record-removals'
-  depends_on: []
-  verification: null
-- id: G0-6
-  title: 後退台帳の防壁（保護パス・門緩和の強制リジェクト）
-  group: G0
-  target_repo: game-harness
-  status: pending
-  slug: 'hline: reject-guard-relaxation'
-  depends_on: []
-  verification: null
 - id: Phase 4-1
   title: 3D 物理・メタモルフィックテスト
   group: Phase 4
@@ -816,7 +812,7 @@ tasks:
   status: pending
   slug: 'testbed: add-metamorphic-tests'
   depends_on:
-  - G0-2
+  - W-20
   verification: null
 - id: Phase 4-2
   title: 推論モデル・信号時相論理（STL）
@@ -825,7 +821,7 @@ tasks:
   status: pending
   slug: 'testbed: add-stl-checks'
   depends_on:
-  - G0-2
+  - W-20
   verification: null
 - id: Phase 4-3
   title: VLM による知覚の判定・差分テスト
@@ -834,8 +830,31 @@ tasks:
   status: pending
   slug: 'testbed: add-vlm-judge'
   depends_on:
-  - G0-2
+  - W-20
   verification: null
+- id: W-19
+  title: CI の所要の中央値 8 分以下（段 2 の完了の条件 ②）
+  group: G0
+  target_repo: game-harness
+  status: in_progress
+  slug: 'ci: cut-median-under-8min'
+  by: pilot
+  depends_on: []
+  verification:
+    command: python -m unittest tests.test_probe_ci_duration_conclusion
+    expected_exit_code: 0
+- id: W-20
+  title: 段 3 の開始の DR と開始の PR（課題 10 本・統計の手順・基盤の保護・段 3 のタスクの登録）
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'docs: start-stage-3'
+  by: pilot
+  depends_on:
+  - W-19
+  verification:
+    command: python -m harness.progress check
+    expected_exit_code: 0
 last_verification:
   task: G0-4
   exit_code: 0
