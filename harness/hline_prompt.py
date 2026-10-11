@@ -6,6 +6,7 @@ import hline_abort
 import hline_quota
 import impacted
 import infra_retry
+import oracle_deny
 from hline_base import Infra, Quota
 from hline_budget import capped_args, outcome, turn_cap
 
@@ -31,7 +32,7 @@ def implement(host, cfg, wt, what, feedback, log):
     """実装役を 1 回呼ぶ。使ったモデルを照合し記録する（model_pin）。TTL 超過・起動の失敗は Infra。ターン数の上限の打ち切りは例外にせず、照合しない（hline_budget.outcome）。"""
     agent = cfg["implementer"]
     shown = "\n\n".join(filter(None, (host.symbolmap.prompt_text(cfg, wt, None, what), impacted.prompt_note())))
-    code, out, err = host.proc.run(capped_args(impacted.scoped_agent(agent), host.proc.resolve_cli(agent["cli"]), cap := turn_cap(agent)),
+    code, out, err = host.proc.run(capped_args(oracle_deny.with_deny(impacted.scoped_agent(agent), cfg), host.proc.resolve_cli(agent["cli"]), cap := turn_cap(agent)),
                                    wt, cfg["ttl_seconds"]["implementer"], "実装役", input=host.build_prompt(what, feedback, shown))
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
     if hit := hline_quota.message(out, err):   # モデルの照合・打ち切りの判定より先に見る（試行に数えない）
