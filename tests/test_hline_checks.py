@@ -171,6 +171,7 @@ class Checks(unittest.TestCase):
         self.declare("unit", kind="unittest", modules=["tests.test_x"])
         with mock.patch.object(hc, "section", side_effect=RuntimeError("boom")), \
                 mock.patch.object(hline_report, "progress_report", return_value="P\n"), \
+                mock.patch.object(hline_report, "goal_section", return_value="## 目的までの距離\n"), \
                 mock.patch.object(hline_report, "h_section", return_value="## H ライン\n"), \
                 mock.patch.object(hline_report.hline_probe, "safe_section", return_value="## probe\n"):
             hline_report.write_report(self.cfg, {"items": {}, "awaiting_pr": None})

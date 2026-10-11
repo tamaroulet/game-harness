@@ -81,6 +81,15 @@ def warning_count(item):
     return sum(len(t.get("warnings") or []) for t in item.get("tries", []))
 
 
+def goal_section(cfg):
+    """「## 目的までの距離」の節（report.md の先頭）。読み込みが例外で止まっても、節を 1 行の理由に替えて、書き出しを止めない。"""
+    try:
+        import goal_distance
+        return goal_distance.section(cfg)
+    except Exception as e:   # noqa: BLE001
+        return f"## 目的までの距離\n- {hline_probe.failure(f'{type(e).__name__}: {e}')}\n"
+
+
 def northstar_section(items):
     """「## 計器」の節。計器の読み込み・計算が例外で止まっても、節を 1 行の理由に替えて、report.md の書き出しを止めない。"""
     try:
@@ -160,7 +169,7 @@ def write_report(cfg, st):
     if human:
         text = re.sub(r"^- 人間作業:.*$", lambda _: human, text, flags=re.M)
     probe = hline_probe.safe_section(cfg, pr=st.get("awaiting_pr"), waits=True)
-    body = text + "\n" + h_section(cfg, st) + "\n" + probe + "\n" + hline_checks.safe_section(cfg)
+    body = goal_section(cfg).rstrip("\n") + "\n\n" + text + "\n" + h_section(cfg, st) + "\n" + probe + "\n" + hline_checks.safe_section(cfg)
     (Path(cfg["inbox"]) / "report.md").write_text(body, encoding="utf-8")
     write_todo(cfg, st)
 
