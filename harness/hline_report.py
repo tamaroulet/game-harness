@@ -139,6 +139,8 @@ def human_line(cfg, st):
         return f"- 人間作業: UNCLEAN_DIFF {'／'.join(hyg['files'])}"
     if st.get("quota_wait"):   # 人間の作業ではない。待ちの表示で、定期起動が再開の時刻の後に続きを取る
         return f"- 人間作業: NONE（利用枠の回復待ち（再開 {hline_quota.shown(st)} 以降））"
+    if am := st.get("auto_merge"):
+        return f"- 人間作業: {am['kind']} {am['url']}" + (f"：{am['reason']}" if am.get("reason") else "")
     if st["awaiting_pr"]:
         return f"- 人間作業: REVIEW_REQUIRED {st['awaiting_pr']}"
     return None

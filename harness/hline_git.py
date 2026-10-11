@@ -136,6 +136,15 @@ def pr_state(cfg, url):
     return gh(cfg, ["pr", "view", url, "--json", "state", "--jq", ".state"], "gh pr view").strip()
 
 
+def pr_checks(cfg, url):
+    """今の head のチェックとラベル（statusCheckRollup・labels）。"""
+    return json.loads(gh(cfg, ["pr", "view", url, "--json", "statusCheckRollup,labels"], "gh pr view"))
+
+
+def merge_pr(cfg, url):
+    gh(cfg, ["pr", "merge", url, "--merge"], "gh pr merge")
+
+
 def drop_merged_branch(cfg):
     """マージされた統合ブランチを消す（残すと、スカッシュのマージの後に main に無いコミットとして見え、次の作業の土台になる）。"""
     fetch(cfg)
