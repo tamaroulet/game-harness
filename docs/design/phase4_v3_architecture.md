@@ -1,4 +1,7 @@
 # Phase 4 自律連続開発基盤 統合計画仕様書（v3.1 改訂版）
+
+> 状態（2026-10-11）：段 3（台帳の W-17）の開始の DR の入力として読む構想で、いまの計画ではない。段の順と完了の条件は `docs/progress.yaml` の W-15〜W-18 と各タスク。
+
 ## Contract-Driven Foundry: 3D 連続力学系・ゲーム物理の階層的自律開発アーキテクチャ
 
 - **文書区分**: Phase 4 統合アーキテクチャ仕様書兼実行計画（Roadmap & Architecture Specification）
