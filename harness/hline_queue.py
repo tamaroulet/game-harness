@@ -180,7 +180,8 @@ def read_ledger(cfg):
     try:
         tasks = yaml.safe_load(out)["tasks"]
         return {t["id"]: {"deps": list(t.get("depends_on") or []), "done": t.get("status") == "completed",
-                          "by": t.get("by") or "hline", "oracle": list(t.get("oracle") or []), "row": t} for t in tasks}
+                          "by": t.get("by") or "hline", "oracle": list(t.get("oracle") or []), "row": t,
+                          "after": list(t.get("after") or []), "rung": t.get("rung")} for t in tasks}
     except Exception as e:   # noqa: BLE001
         raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を解釈できません: {type(e).__name__}") from e
 
@@ -206,6 +207,49 @@ def apply_ledger(cfg, st):
         head = i.get("header_deps", i["deps"])
         i["deps"] = list(dict.fromkeys([*head, *own]))
         i["met"] = [d for d in i["deps"] if ledger.get(d, {}).get("done")]
+        i["after"] = list(ledger.get(i["task"], {}).get("after", []))   # 弱い依存：待たせるだけで、凍結の計算（deps）には入れない
+        i["mainline"] = reaches_rung(ledger, i["task"])
+
+
+def reaches_rung(ledger, task):
+    """task が、台帳の rung を持つタスクか、rung を持つタスクが depends_on で推移的にたどり着くタスクか（本線への影響）。"""
+    seen, todo = set(), [t for t, row in ledger.items() if row.get("rung")]
+    while todo:
+        t = todo.pop()
+        if t not in seen:
+            seen.add(t)
+            todo.extend(ledger.get(t, {}).get("deps", []))
+    return task in seen
+
+
+def _after_states(st, item):
+    """item の after の各タスクについて、そのタスクを宣言したキューの What の状態の集合 {タスク: {状態...}}。"""
+    return {a: {j["status"] for j in st["items"].values() if j.get("task") == a} for a in item.get("after") or []}
+
+
+def after_blockers(st, item):
+    """item を待たせる after のタスク：宣言した What が待ち・処理中・凍結のもの。"""
+    return [a for a, s in _after_states(st, item).items() if s & {"waiting", "processing", "frozen"}]
+
+
+def after_unconverged(st, item):
+    """after のタスクのうち、宣言した What が未収束のもの（待たせないが警告する）。"""
+    return [a for a, s in _after_states(st, item).items() if "unconverged" in s and not s & {"waiting", "processing", "frozen"}]
+
+
+def downstream_impact(st, name):
+    """未収束の項目 name に depends_on で（推移的に）依存して凍結した項目の名前の列と、そのうち本線に響くものがあるか。"""
+    items = st["items"]
+    ids = lambda n: {n, items[n].get("task")} - {None}   # noqa: E731
+    reach, hit, grew = set(ids(name)), [], True
+    while grew:
+        grew = False
+        for n, i in sorted(items.items()):
+            if i["status"] == "frozen" and n not in hit and reach & set(i["deps"]):
+                hit.append(n)
+                reach |= ids(n)
+                grew = True
+    return hit, any(items[n].get("mainline") for n in hit)
 
 
 def dep_done(st, item, d):
@@ -243,7 +287,8 @@ def next_runnable(st):
     """依存がすべて済んだ待ちの What のうち、名前の順で最初のもの。"""
     for name in sorted(st["items"]):
         i = st["items"][name]
-        if i["status"] == "waiting" and not i.get("ledger_error") and all(dep_done(st, i, d) for d in i["deps"]):
+        if (i["status"] == "waiting" and not i.get("ledger_error") and all(dep_done(st, i, d) for d in i["deps"])
+                and not after_blockers(st, i)):
             return name
     return None
 

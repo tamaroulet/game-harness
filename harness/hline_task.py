@@ -134,6 +134,10 @@ def wait_quota(host, cfg, st, name, item, e):
     return False
 
 
+def after_warning(tasks):
+    return f"after の上流 {', '.join(tasks)} が未収束のまま処理しました"
+
+
 def process(host, cfg, st, name):
     """待ちの What 1 件を、実装 → Gate 1 → 統合ブランチへ（段は 1 つ。分解役・再分解は呼ばない）。積めたら True、未収束なら False。
     環境の異常（Infra）は新しい作業ツリーで呼び直す（実装役の試行に数えない）。続けば What を待ちに戻し、infra_halt を立てて False。
@@ -150,6 +154,7 @@ def process(host, cfg, st, name):
     item.pop("material", None)
     item.pop("started_at", None)   # 前の走行の途中で落ちた項目の開始の時刻を引き継がない
     item.update(status="processing", tid=tid)
+    item["after_unconverged"] = hline_queue.after_unconverged(st, item)   # 未収束の after を待たずに処理した警告
     host.mark(cfg, st, name, "実装 1-1")
     print(f"[{tid}] {item['title']}")
 
@@ -168,6 +173,8 @@ def process(host, cfg, st, name):
                 item["tries"][0]["resume"] = resume
             if item.get("extended") and item["tries"]:
                 item["tries"][0]["extended"] = item["extended"]   # 延長して続けた最初の試行にも印を残す
+            if item["tries"] and item["after_unconverged"]:
+                item["tries"][-1].setdefault("warnings", []).append(after_warning(item["after_unconverged"]))
             if wt is None: return False
             own = host.self_change(host.changed_paths(wt, cfg))
             warnings = item["tries"][-1].setdefault("warnings", []) if item["tries"] else []   # 進捗の不整合もここに積む
