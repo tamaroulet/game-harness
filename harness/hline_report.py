@@ -6,6 +6,7 @@ TODO.md は未収束の What の記録で、キューの状態から書く（再
 import datetime
 import re
 import sys
+import time
 from pathlib import Path
 
 import yaml
@@ -89,6 +90,19 @@ def northstar_section(items):
         return f"## 計器\n- 計器を出せませんでした: {' '.join(f'{type(e).__name__}: {e}'.split())}\n"
 
 
+def pr_wait_line(times, at=None):
+    """「直近の統合 PR の待ち」の行（記録が無ければ行なし）。出した時刻 → 閉じた時刻とその長さ。開いている間は経過の長さ。"""
+    try:
+        opened, closed = float(times["opened_at"]), times.get("closed_at")
+        if closed is None:
+            took = (time.time() if at is None else at) - opened
+            return [f"- 直近の統合 PR の待ち: {hline_probe.stamp(opened)} → 開いている（経過 {hline_probe.span(took)}）"]
+        return [f"- 直近の統合 PR の待ち: {hline_probe.stamp(opened)} → {hline_probe.stamp(float(closed))}"
+                f"（{hline_probe.span(float(closed) - opened)}）"]
+    except (TypeError, KeyError, ValueError):
+        return []
+
+
 def h_section(cfg, st):
     items = st["items"]
 
@@ -100,7 +114,7 @@ def h_section(cfg, st):
     waiting = lambda i: (f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else "") + (f"（台帳を読めず待ち: {i['ledger_error']}）" if i.get("ledger_error") else "")   # noqa: E731
     frozen = lambda i: f"（上流の未収束: {', '.join(i.get('frozen_by', []))}）"   # noqa: E731
     lines = ["## H ライン", f"- 状態: {line_status(cfg, st)}", f"- 統合ブランチ: {cfg['integration_branch']}",
-             f"- 統合 PR: {st['awaiting_pr'] or 'なし'}", "", "## キュー",
+             f"- 統合 PR: {st['awaiting_pr'] or 'なし'}"] + pr_wait_line(st.get("pr_times")) + ["", "## キュー",
              row("済み", "done", done), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
              row("未収束", "unconverged", lambda i: f"（{i.get('reason', '')}）" + hline_usage.note(i)), row("凍結", "frozen", frozen)]
     lines += ["", northstar_section(items).rstrip("\n")]
@@ -125,6 +139,8 @@ def human_line(cfg, st):
         return f"- 人間作業: UNCLEAN_DIFF {'／'.join(hyg['files'])}"
     if st.get("quota_wait"):   # 人間の作業ではない。待ちの表示で、定期起動が再開の時刻の後に続きを取る
         return f"- 人間作業: NONE（利用枠の回復待ち（再開 {hline_quota.shown(st)} 以降））"
+    if am := st.get("auto_merge"):
+        return f"- 人間作業: {am['kind']} {am['url']}" + (f"：{am['reason']}" if am.get("reason") else "")
     if st["awaiting_pr"]:
         return f"- 人間作業: REVIEW_REQUIRED {st['awaiting_pr']}"
     return None
@@ -134,7 +150,8 @@ def write_report(cfg, st):
     text, human = progress_report(cfg), human_line(cfg, st)
     if human:
         text = re.sub(r"^- 人間作業:.*$", lambda _: human, text, flags=re.M)
-    body = text + "\n" + h_section(cfg, st) + "\n" + hline_probe.safe_section(cfg) + "\n" + hline_checks.safe_section(cfg)
+    probe = hline_probe.safe_section(cfg, pr=st.get("awaiting_pr"), waits=True)
+    body = text + "\n" + h_section(cfg, st) + "\n" + probe + "\n" + hline_checks.safe_section(cfg)
     (Path(cfg["inbox"]) / "report.md").write_text(body, encoding="utf-8")
     write_todo(cfg, st)
 

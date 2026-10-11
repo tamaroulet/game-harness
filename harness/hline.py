@@ -7,13 +7,14 @@
 """
 import argparse
 import sys
+import time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import base_whitelist, exitcode, fastsuite, gate_order, hline_gate, hline_prompt, hline_protect, hline_quota, hline_task  # noqa: E402,F401
+import base_whitelist, exitcode, fastsuite, gate_order, hline_gate, hline_merge, hline_prompt, hline_protect, hline_quota, hline_task  # noqa: E402,F401
 import infra_retry, model_pin, proc, progress, size_limits, symbolmap  # noqa: E402,F401  テストが hline.proc などを差し替える
 from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args, load_config, must, pinned_models, run_agent, slug, title_of  # noqa: E402,F401
 from hline_gc import sweep  # noqa: E402
-from hline_git import ahead, changed_paths, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, open_pr, pr_state  # noqa: E402,F401
+from hline_git import ahead, changed_paths, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, merge_pr, open_pr, pr_checks, pr_state  # noqa: E402,F401
 from hline_hygiene import diff_files, problems  # noqa: E402
 from hline_queue import by_status, intake, load_state, next_runnable, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
 from hline_report import line_modules, mark as _mark, pr_body, pr_title, self_change, today, write_report  # noqa: E402,F401
@@ -46,13 +47,22 @@ def settle_pr(cfg, st):
     url = st["awaiting_pr"]
     state = pr_state(cfg, url)
     if state == "OPEN":
-        return False
+        what = hline_merge.settle(sys.modules[__name__], cfg, st, url)
+        if what == "ci_failed":   # 直す What を積めるよう受信箱を取る。PR は開いたまま（積むものが尽きれば同じ PR でまた待つ）
+            save_state(cfg, st)
+            return True
+        if what == "wait":
+            save_state(cfg, st)
+            return False
+        state = "MERGED"
     if state == "MERGED":
         drop_merged_branch(cfg)
         for i in st["items"].values():
             if i["status"] == "done" and i.get("pr") == url:
                 i["merged"] = True
     st["awaiting_pr"] = None
+    if (times := st.get("pr_times")) and times.get("url") == url and times.get("closed_at") is None:
+        times["closed_at"] = time.time()
     save_state(cfg, st)
     return True
 
@@ -72,6 +82,7 @@ def open_integration_pr(cfg, st):
         if i["status"] == "done" and not i.get("merged"):
             i["pr"] = url
     st["awaiting_pr"] = url
+    st["pr_times"] = {"url": url, "opened_at": time.time(), "closed_at": None}
     save_state(cfg, st)
     print(f"統合 PR: {url}")
 
@@ -85,6 +96,7 @@ def run_line(cfg):
     sweep(cfg)   # 前の走行の残骸の掃除。例外は出さず、戻り値も使わない（消せないものは次の起動で再び対象になる）
     st["infra_halt"] = None   # 前の走行の停止は、次の走行の自動の再開を妨げない
     st["hygiene_halt"] = None
+    st["auto_merge"] = None
     st["self_change"] = None   # 前の走行の区切りも、次の走行を妨げない
     save_state(cfg, st)
     fetch(cfg)

@@ -753,7 +753,7 @@ tasks:
   title: CI の所要と統合 PR の待ちの時間を report.md に出す
   group: G0
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'probe: report-ci-duration'
   depends_on: []
   verification:
@@ -763,7 +763,7 @@ tasks:
   title: 統合 PR が承認済みで CI が緑なら H ラインがマージする
   group: G0
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: merge-when-approved-and-green'
   depends_on:
   - W-11
@@ -814,6 +814,6 @@ tasks:
   - G0-2
   verification: null
 last_verification:
-  task: W-8
+  task: W-12
   exit_code: 0
-  at: '2026-10-11T02:33:08'
+  at: '2026-10-11T11:51:50'
