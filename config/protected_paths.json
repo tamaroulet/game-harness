@@ -9,6 +9,8 @@
     "tests/test_protected_paths.py",
     "tests/test_testbed_judge_basic.py",
     "tests/test_testbed_judge_stress.py",
-    "tests/testbed_judge_util.py"
+    "tests/testbed_judge_util.py",
+    "docs/bench/",
+    "tests/launcher_judge.py"
   ]
 }

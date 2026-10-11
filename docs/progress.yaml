@@ -1,6 +1,6 @@
 project_goal: 自己改善できる自律開発環境（C4）を作る。段 1 軽い 3D 通し → 段 2 改善 → 段 3 チャットに勝つ（C5）→ 段 4 Outer Loop の確立（C4）。段は nodes の W-15〜W-18
-active_task_id: W-19
-next_id: 21
+active_task_id: W-21
+next_id: 26
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -72,9 +72,6 @@ nodes:
 - id: G1
   title: 試験台（MuJoCo）で工廠ループを 1 本走り切る（C2 の測定）
   parent: W-15
-- id: Phase 4
-  title: 3D 物理・推論・知覚
-  parent: W-17
 - id: H0
   title: 総監督知覚健全化
   parent: A
@@ -805,57 +802,90 @@ tasks:
   verification:
     command: python -m unittest tests.test_progress_executor
     expected_exit_code: 0
-- id: Phase 4-1
-  title: 3D 物理・メタモルフィックテスト
-  group: Phase 4
+- id: W-20
+  title: 段 3 の開始の PR（B06 の仕様と判定役・目的の梯子）
+  group: W-17
   target_repo: game-harness
-  status: pending
-  slug: 'testbed: add-metamorphic-tests'
-  depends_on:
-  - W-20
-  verification: null
-- id: Phase 4-2
-  title: 推論モデル・信号時相論理（STL）
-  group: Phase 4
-  target_repo: game-harness
-  status: pending
-  slug: 'testbed: add-stl-checks'
-  depends_on:
-  - W-20
-  verification: null
-- id: Phase 4-3
-  title: VLM による知覚の判定・差分テスト
-  group: Phase 4
-  target_repo: game-harness
-  status: pending
-  slug: 'testbed: add-vlm-judge'
-  depends_on:
-  - W-20
-  verification: null
-- id: W-19
-  title: CI の所要の中央値 8 分以下（段 2 の完了の条件 ②）
-  group: G0
-  target_repo: game-harness
-  status: in_progress
-  slug: 'ci: cut-median-under-8min'
+  status: completed
+  slug: 'docs: start-stage-3'
   by: pilot
   depends_on: []
   verification:
-    command: python -m unittest tests.test_probe_ci_duration_conclusion
+    command: python -m harness.progress check
     expected_exit_code: 0
-- id: W-20
-  title: 段 3 の開始の DR と開始の PR（課題 10 本・統計の手順・基盤の保護・段 3 のタスクの登録）
+- id: W-21
+  title: 横木 R3-a：課題 B06 の本体を工廠が仕様から作り、判定役を通す
+  group: W-17
+  target_repo: game-harness
+  status: in_progress
+  slug: 'launcher: build-b06'
+  depends_on:
+  - W-20
+  verification:
+    command: python -m unittest tests.launcher_judge
+    expected_exit_code: 0
+- id: W-22
+  title: 横木 R3-b：課題 B01・B05 を足し、3 本の本体が工廠の手で判定役を通す
   group: W-17
   target_repo: game-harness
   status: pending
-  slug: 'docs: start-stage-3'
+  slug: 'bench: three-tasks'
   by: pilot
   depends_on:
-  - W-19
+  - W-21
+  acceptance:
+  - B01・B05 の仕様（docs/bench/<id>/spec.md）と判定役（tests/rollgame_judge.py・tests/tower_judge.py）を、B06 と同じ形（保護パス・決定論のほかは走らせるたびに変わる種の乱数で入力を選ぶ）で足す
+  - 3 本の本体を工廠（H ライン）が作り、3 つの判定役を通す
   verification:
-    command: python -m harness.progress check
+    command: python -m unittest tests.launcher_judge tests.rollgame_judge tests.tower_judge
+    expected_exit_code: 0
+- id: W-23
+  title: 横木 R3-c：課題 10 本の非公開オラクルを確立し、工廠とチャット型の比較の測定を終える（天井の検査と凍結）
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: blind-oracle-and-chat-baseline'
+  by: pilot
+  depends_on:
+  - W-22
+  acceptance:
+  - 非公開オラクル：課題 10 本（B01〜B10）の判定役をリポジトリの外に置き、main には各判定役の指紋（sha256）だけを置く。工廠の実装役・計画役とチャット型は判定役を読めない（道具の禁止で拒まれる）。判定役の中身が走行の差分・記録に現れた走行は無効にする
+  - 床：10 本すべてで、参照実装が非公開オラクルを満点で通り、空実装の通過率が 0.2 未満
+  - 比較の測定：10 本すべてで、工廠（W-24 と同じ条件：計画役が仕様から What を起草）とチャット型（同じモデル・単発のセッション）を、同じ課題・同じ土台のコミットで各 1 回以上走らせ、課題と条件ごとに、成功率（非公開オラクルの通過率）・トークン消費・試行回数（工廠は What の試行の合計、チャット型は呼び出しの回数とターン数）を記録として main に置く
+  - 天井：チャット型の平均の通過率が 0.85 以下で、満点でない課題が 3 本以上（DR-005 §決定 4）。満たすまで課題を作り直し、満たした時点で課題・判定役・閾値を凍結する
+  verification:
+    command: python -m unittest tests.r3c_acceptance
+    expected_exit_code: 0
+- id: W-24
+  title: 横木 R3：計画役が仕様から自律起草した What による工廠の本走（各条件 3 回 × 10 本）で、チャット型に有意に勝つ（C5）
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: verdict-c5'
+  by: pilot
+  depends_on:
+  - W-23
+  acceptance:
+  - 工廠の条件の What は、計画役が仕様の全文だけから自律起草したものに限る。総監督・人が書いた・直した What を含む走行は無効。計画役の出力した What の指紋と、H ラインのキューが取り込んだ What の指紋が一致することを記録で示す
+  - 凍結した課題 10 本・非公開オラクル・土台のコミットで、各条件 3 回ずつ走らせ、記録を main に置く
+  - 課題を束にした 2 段のブートストラップ（10,000 回）で、通過率の差（工廠 − チャット型）の 95% 区間の下限が 0 を超える（DR-005 §決定 5）
+  - 工廠の 30 走行で、走行の開始の後の人の操作が 0 回（キューの記録に、人が置いた・置き直した What が無い）。トークン消費・試行回数の条件ごとの比較を同じ記録から出す
+  verification:
+    command: python -m unittest tests.r3_acceptance
+    expected_exit_code: 0
+- id: W-25
+  title: 横木 R4：Outer Loop の週次の周期が 4 週回り、構造の改善で計器が良くなり、ベンチの点が下がらない（C4）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'outer-loop: four-weeks'
+  by: pilot
+  depends_on:
+  - W-24
+  verification:
+    command: python -m unittest tests.r4_acceptance
     expected_exit_code: 0
 last_verification:
-  task: G0-4
+  task: W-20
   exit_code: 0
-  at: '2026-10-11T13:15:24'
+  at: '2026-10-11T17:23:37'
