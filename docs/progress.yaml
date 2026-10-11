@@ -1,4 +1,4 @@
-active_task_id: W-30
+active_task_id: W-31
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -942,7 +942,7 @@ tasks:
   title: 監修役（LLM）：機械の監修を通った What を、台帳のタスクと大局に照らして批判し、差し戻すか通す
   group: W-17
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'audit: llm-review-on-intake'
   serves: R3-c
   purpose: 起草役（総監督・計画役）と監修役を分け、タスクの目的と横木に照らして的外れな What を差し戻す（要綱 3、病理 ②）
@@ -963,7 +963,7 @@ tasks:
   title: 目的までの距離を report.md の先頭に出す（横木ごとの達成の量と前提タスクの完了率）
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'report: goal-distance'
   serves: R3-c
   purpose: 進み具合をタスクの消化数でなく、C5・C4 の達成要件に対する量で常に見せる（病理 ④）
@@ -984,7 +984,7 @@ tasks:
   title: タスクの完了の前後で目的までの距離を記録し、後退に印を付ける
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'report: goal-distance-history'
   serves: R3-c
   purpose: タスクを 1 つ終えるたびに、目的に近づいたか・どこかを壊していないかを記録で示す（病理 ③ の事後の保証）
@@ -1004,7 +1004,7 @@ tasks:
   title: 課題 B01（玉転がし）・B05（積み木の塔）の仕様と公開の判定役を main に置く
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'bench: specs-b01-b05'
   by: pilot
   serves: R3-b

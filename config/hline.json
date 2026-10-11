@@ -42,6 +42,7 @@
   "_canary_note": "影響テストに走らせるものが無かったときだけ Gate 1 が走らせる、既存のテストの小さな束。決定論の契約（乱数・実時間・待機への依存）・二相判定（F2P/P2P）の再現性・性質から作る参照モデルと反例・証拠の状態の注入を確かめる。新しいテストは書かず、ここに名前を置くだけ",
   "ttl_seconds": {
     "implementer": 1800,
+    "reviewer": 600,
     "gate": 1800,
     "git": 300,
     "gh": 120,
@@ -76,6 +77,25 @@
     },
     "_budget_note": "実装役 1 回のターン数の上限（--max-turns）。値はここだけに置く。打ち切られても作業ツリーは捨てず、残った変更をそのまま Gate 1 に渡す。落ちたら、打ち切りの理由を添えて次の試行に渡す。思考の量・時間の上限は掛けない（時間は ttl_seconds.implementer）"
   },
+  "reviewer": {
+    "cli": "claude",
+    "headless_flag": "-p",
+    "model_flag": "--model",
+    "model": "claude-sonnet-5-5",
+    "auxiliary_models": [
+      "claude-haiku-"
+    ],
+    "instruction": "docs/prompts/auditor.md",
+    "extra_flags": [
+      "--disallowedTools",
+      "Read,Grep,Glob,Edit,Write,Bash,WebFetch,WebSearch,Task,NotebookEdit"
+    ],
+    "output_format_args": [
+      "--output-format",
+      "json"
+    ]
+  },
+  "_reviewer_note": "取り込みの段の監修役（harness/hline_review.py）。実装役と同じ CLI とモデルで、道具（ファイルの読み書き・コマンド）を許さずに 1 回呼ぶ。指示は base から読む。判定は生ログの置き場の review/ に控える。合格は決めない（Gate 1 には入れない）",
   "pr_hygiene": {
     "forbidden_globs": [
       "*.log",
