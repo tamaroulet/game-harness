@@ -28,6 +28,8 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
     wt, branch = first or host.new_worktree(cfg, tid)
     feedback = prev = None
     extended = ()
+    cmd = None if task or not isinstance(what, str) else hline_queue.parse_header(what)["verify"]   # タスクを宣言しない What の `検証:`（キューに残した本文の写しから読む）
+    verify = {"verify": cmd} if cmd else {}
     for attempt in range(1, cfg["max_attempts"] + 1):
         log = outdir / f"implementer-{run}-{attempt}.log"
         on_stage(f"実装 {run + 1}-{attempt}")
@@ -43,7 +45,7 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
         on_stage(f"Gate 1 {run + 1}-{attempt}")
         changed = host.changed_paths(wt, cfg)
         warnings = []   # 不合格にしない指摘（差分の量・編集境界・規模・進捗の不整合）。実装役には返さず、試行の記録に残す
-        ok, feedback = host.gate(cfg, wt, changed, None, task, *([extended] if extended else []), warnings=warnings)
+        ok, feedback = host.gate(cfg, wt, changed, None, task, *([extended] if extended else []), warnings=warnings, **verify)
         tries.append(rec := {**attempt_record(run, attempt, code, models, ok, rest), "flaky": list(fastsuite.flaky_names(feedback)),
                              "warnings": warnings})
         suites = getattr(host, "hline_suite", None)   # host（harness.hline）が持つものを使う。持たない差し替えの host では走らせない

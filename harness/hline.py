@@ -28,7 +28,7 @@ def build_prompt(what, feedback=None, symbol_map=None): return hline_prompt.buil
 def implement(cfg, wt, what, feedback, log): return hline_prompt.implement(sys.modules[__name__], cfg, wt, what, feedback, log)
 
 
-def gate(cfg, wt, paths, spec=None, task=None, extended=(), warnings=None): return hline_gate.gate(sys.modules[__name__], cfg, wt, paths, spec, task, extended, warnings)
+def gate(cfg, wt, paths, spec=None, task=None, extended=(), warnings=None, verify=None): return hline_gate.gate(sys.modules[__name__], cfg, wt, paths, spec, task, extended, warnings, verify)
 
 
 def mark(cfg, st, name=None, stage=None):

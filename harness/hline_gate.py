@@ -7,7 +7,7 @@ import hline_boundary
 import hline_symbols
 
 
-def gate(host, cfg, wt, paths, spec=None, task=None, extended=(), warnings=None):
+def gate(host, cfg, wt, paths, spec=None, task=None, extended=(), warnings=None, verify=None):
     """H ラインの Gate 1。(通ったか, 実装役に返す出力)。不合格にするのは、変えてはならないパス（hline_protect）と「変更なし」だけ。
 
     差分の量・編集境界・規模・宣言したシンボルの食い違いは、不合格にせず warnings に積む（実装役には返さない。
@@ -23,7 +23,7 @@ def gate(host, cfg, wt, paths, spec=None, task=None, extended=(), warnings=None)
     if extended:
         warn += hline_boundary.shrink_problems(wt, extended, host.size_limits.head_source(cfg, wt))
     warn += hline_symbols.declared_problems(spec, wt) if spec else []
-    first = host.gate_order.focused(cfg, wt, paths, task, spec, warn)   # 影響テストだけで判定する（全件テストは統合 PR の CI が見る）
+    first = host.gate_order.focused(cfg, wt, paths, task, spec, warn, verify)   # 影響テストだけで判定する（全件テストは統合 PR の CI が見る）
     if first is not None:
         return first
     return canary(host, cfg, wt)
