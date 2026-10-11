@@ -19,6 +19,7 @@ from pathlib import Path
 
 from hline_base import RESERVED, ROOT, title_of, write_json
 
+import hline_review  # noqa: E402
 import proc  # noqa: E402
 import progress  # noqa: E402
 import yaml  # noqa: E402
@@ -152,6 +153,8 @@ def intake(cfg, st):
             why = f"同名の What が{'処理中' if old['status'] == 'processing' else '済み'}です"
         else:
             why = None
+        if not why:   # 機械の監修をすべて通った What だけを、監修役（LLM）に 1 回かける
+            why = hline_review.review(cfg, ledger, meta["task"], text)
         if why:
             skipped.append({"file": src.name, "reason": why})
             continue
@@ -177,7 +180,7 @@ def read_ledger(cfg):
     try:
         tasks = yaml.safe_load(out)["tasks"]
         return {t["id"]: {"deps": list(t.get("depends_on") or []), "done": t.get("status") == "completed",
-                          "by": t.get("by") or "hline", "oracle": list(t.get("oracle") or [])} for t in tasks}
+                          "by": t.get("by") or "hline", "oracle": list(t.get("oracle") or []), "row": t} for t in tasks}
     except Exception as e:   # noqa: BLE001
         raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を解釈できません: {type(e).__name__}") from e
 

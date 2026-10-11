@@ -102,6 +102,8 @@ class Intake(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
+        mock.patch.object(hline_queue.hline_review, "review", return_value=None).start()   # 監修役（LLM）の段は pass に差し替える
+        self.addCleanup(mock.patch.stopall)
         self.cfg = json.loads(json.dumps(CFG))
         self.inbox, self.out = self.tmp / "inbox", self.tmp / "out"
         self.inbox.mkdir()
