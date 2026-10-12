@@ -1475,15 +1475,15 @@ tasks:
     command: python -m unittest tests.test_bench_ceiling
     expected_exit_code: 0
 - id: W-51
-  title: 比較の測定：10 本をチャット型と工廠で 1 回ずつ走らせる
+  title: 天井の検査の材料：10 本をチャット型で 1 回ずつ走らせる
   group: W-17
   target_repo: game-harness
   status: pending
   slug: 'bench: baseline-ten'
   by: pilot
   serves: R3-c
-  purpose: 10 本の比較の基準の値を取り、天井の検査の材料にする
-  deliverable: 10 本 × 2 条件 × 1 回の記録、summary.md
+  purpose: 凍結の前の天井の検査（W-50）に要るチャット型の通過率を取る。工廠の走行は凍結の後の本走（W-53）だけで行い、費用を抑える
+  deliverable: 10 本 × チャット型 × 1 回の記録、summary.md
   depends_on:
   - W-37
   - W-38
@@ -1542,15 +1542,15 @@ tasks:
     command: python -m unittest tests.test_bench_stats
     expected_exit_code: 0
 - id: W-53
-  title: 本走：凍結した 10 本をチャット型と工廠で 3 回ずつ走らせる
+  title: 本走：凍結した 10 本をチャット型と工廠で 1 回ずつの段で走らせ、勝ちか損切りの段で止める（3 段まで）
   group: W-17
   target_repo: game-harness
   status: pending
   slug: 'bench: main-run'
   by: pilot
   serves: R3
-  purpose: C5 の判定に要る走行（60 回）をそろえる
-  deliverable: 10 本 × 2 条件 × 3 回の記録
+  purpose: C5 の判定に要る走行を、事前登録した止め方でそろえ、差が早く出るか、出る見込みが無いと分かれば費用を抑える
+  deliverable: 10 本 × 2 条件 × 段の数の記録
   depends_on:
   - W-23
   acceptance:
@@ -1559,7 +1559,7 @@ tasks:
   - path: harness/bench_verify.py
     from: W-47
   verification:
-    command: python -m harness.bench_verify --all --min-runs 3 --frozen
+    command: python -m harness.bench_verify --all --min-runs 1 --frozen
     expected_exit_code: 0
 - id: W-24
   title: 横木 R3：計画役が自律起草し監修に通った What による工廠の本走で、チャット型に有意に勝つ（C5）
