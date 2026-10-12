@@ -75,9 +75,10 @@
       "json"
     ],
     "budget": {
-      "max_turns": 15
+      "max_turns": 15,
+      "resume_max_turns": 8
     },
-    "_budget_note": "実装役 1 回のターン数の上限（--max-turns）。値はここだけに置く。打ち切られても作業ツリーは捨てず、残った変更をそのまま Gate 1 に渡す。落ちたら、打ち切りの理由を添えて次の試行に渡す。思考の量・時間の上限は掛けない（時間は ttl_seconds.implementer）"
+    "_budget_note": "実装役 1 回のターン数の上限（--max-turns）。resume_max_turns は前の差分から続ける試行（2 回目から・再開・延長）の上限。値はここだけに置く。打ち切られても作業ツリーは捨てず、残った変更をそのまま Gate 1 に渡す。落ちたら、打ち切りの理由を添えて次の試行に渡す。思考の量・時間の上限は掛けない（時間は ttl_seconds.implementer）"
   },
   "reviewer": {
     "cli": "claude",

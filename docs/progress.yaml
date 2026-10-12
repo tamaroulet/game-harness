@@ -4,9 +4,9 @@ constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-72
+  task: W-74
   exit_code: 0
-  at: '2026-10-12T01:13:52'
+  at: '2026-10-12T01:33:39'
 next_id: 65
 nodes:
 - id: A
@@ -1806,7 +1806,7 @@ tasks:
   title: 試行のトークンを、入力・キャッシュの書き込み・キャッシュの読み出し・出力に分けて report.md に出し、直近 20 件の歩留まりと燃費を出す
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'report: token-breakdown'
   serves: R3-c
   purpose: 1 件あたり約 100 万トークンの中身と歩留まりを測り、燃費の手（W-69・W-73・W-74）の効き目と、本走の前の歩留まりの関門（W-48）の値を数字で出す（病理 ④）
@@ -1945,7 +1945,7 @@ tasks:
   title: 前の差分から続ける試行は、ターン上限を下げ、渡す失敗の出力を落ちた試験の分だけにする
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: lean-follow-up-attempts'
   serves: R3-c
   purpose: 残りが局所の直しになった試行に、最初の試行と同じ文脈とターンを使わない（燃費。文脈の圧縮）
