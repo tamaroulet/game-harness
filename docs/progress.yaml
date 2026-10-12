@@ -1,13 +1,13 @@
-active_task_id: W-31
+active_task_id: W-32
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-74
+  task: W-31
   exit_code: 0
-  at: '2026-10-12T01:33:39'
-next_id: 65
+  at: '2026-10-12T22:00:00'
+next_id: 79
 nodes:
 - id: A
   parent: null
@@ -1004,7 +1004,7 @@ tasks:
   title: 課題 B01（玉転がし）・B05（積み木の塔）の仕様と公開の判定役を main に置く
   group: W-17
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'bench: specs-b01-b05'
   by: pilot
   serves: R3-b
@@ -1026,7 +1026,7 @@ tasks:
   title: 課題 B01 の本体（rollgame）を工廠が仕様から作り、判定役を通す
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'rollgame: build-b01'
   serves: R3-b
   purpose: 玉転がしの物理（傾く盤・接触・落下・ゴール）を工廠が作る
@@ -1425,6 +1425,8 @@ tasks:
   - W-73
   - W-74
   - W-75
+  - W-77
+  - W-78
   acceptance:
   - 本線の H ラインとは別の clone（C:\src\.local\bench\repo）で B06 を 1 回ずつ走らせ、記録を PR で main に入れ、枝を origin に push する
   oracle:
@@ -1489,12 +1491,12 @@ tasks:
   - W-48
   - W-49
   acceptance:
-  - 10 本 × 2 条件 × 1 回の記録と summary.md を PR で main に入れる
+  - 10 本をチャット型で 1 回ずつ走らせ、通過率と summary.md を PR で main に入れる
   oracle:
   - path: harness/bench_verify.py
     from: W-47
   verification:
-    command: python -m harness.bench_verify --all --min-runs 1
+    command: python -m harness.bench_verify --all --min-runs 1 --condition chat
     expected_exit_code: 0
 - id: W-23
   title: 横木 R3-c：天井の検査を満たして、課題 10 本・非公開オラクル・土台を凍結する
@@ -1530,8 +1532,9 @@ tasks:
   depends_on:
   - W-23
   acceptance:
-  - python -m harness.bench_stats は、凍結の後の有効な記録から、課題を復元抽出しその中で各条件の走行を復元抽出する 2 段のブートストラップ（10,000 回、種 20261011）で、通過率の差（工廠 − チャット型）の平均と 95% 区間を bench/records/verdict.json に書く
-  - --verdict は、各課題・各条件の有効な記録が 3 件以上で、区間の下限が 0 を超えるときだけ 0
+  - 2 条件の各段の通過率から、ブートストラップ（各課題・各条件で走行を復元抽出、10,000 回）で課題を束にした通過率の差の 98.3% 信頼区間（両側 5% を 3 段で Bonferroni 補正、各段 1 - 0.05/3 = 98.33%）を計算する
+  - 第 1・第 2 段の後に、無益性の境界（差の信頼区間の上限 < 0.10、または差の標本平均 <= 0）を判定する
+  - 3 段すべての後に、最終の判定（98.3% 区間の下限 > 0 なら工廠の勝ち、そうでなければ有意差なし）を判定する
   oracle:
   - path: tests/test_bench_stats.py
     from: self
@@ -1551,7 +1554,7 @@ tasks:
   depends_on:
   - W-23
   acceptance:
-  - freeze.json の base から、10 本 × 2 条件 × 3 回の記録を PR で main に入れる
+  - freeze.json の base から、10 本 × 2 条件 × 1 回を 1 段として走らせ、各段の後に bench_stats --verdict と --futility を走らせる。--verdict が 0 なら勝ちとして止め、第 1・第 2 段の後に --futility が 0 なら損切りとして止め、どちらでもなければ次の段に進む（3 段まで）。止めた段と理由と各段の判定を、記録と一緒に PR で main に入れる
   oracle:
   - path: harness/bench_verify.py
     from: W-47
@@ -1573,7 +1576,7 @@ tasks:
   - W-52
   - W-53
   acceptance:
-  - bench_stats --verdict が 0。工廠の 30 走行がすべて W-47 の基準で有効（計画役の出力だけ・置き直し 0）。verdict.json と summary.md を PR で main に入れる
+  - '- bench_stats --verdict が 0（W-53 で止めた段の数で見る）。工廠の全走行が W-47 の基準で有効（計画役の出力だけ・置き直し 0）。verdict.json と summary.md を PR で main に入れる。3 段まで走るか、損切りで止めて 0 にならなければ、C5 は未達と記録する'
   oracle:
   - path: harness/bench_stats.py
     from: W-52
@@ -1732,6 +1735,7 @@ tasks:
   depends_on:
   - W-59
   - W-60
+  - W-24
   acceptance:
   - 週次の報告 → 総監督の改善の What（`計器:` で対象を名指し）→ 監修 → hline/outer → 非劣性の合格 → マージ、が 1 週の中で通る
   oracle:
@@ -1835,7 +1839,7 @@ tasks:
   depends_on: []
   acceptance:
   - 両条件でそろえるもの（モデル・仕様・開始のコミット・実装の道具・読めないもの・時間の上限）と、違えるもの（工廠の構造：計画・監修・Gate 1 による試験の実行と再試行）を要件 ID つきで列べる
-  - 主要な評価項目（課題を束にした通過率の差）・副次の評価項目（トークンあたりの通過率）・無効の走行の扱い・凍結の後に変えないもの（両条件の指示）と凍結の前の調整の記録の仕方を、凍結の前に決めて main に入れる
+  - 主要な評価項目（課題を束にした通過率の差）・副次の評価項目（トークンあたりの通過率）・無効の走行の扱い・段の数と止め方（1 段 ＝ 10 本 × 2 条件 × 1 回、3 段まで、各回 1 − 0.05/3 の区間、勝ちは下限 ＞ 0、損切りは第 1・2 段の後に上限 ＜ 0.10 か差の平均 ≦ 0）・工廠の 1 走行の上限（3 時間か 800 万トークン）・凍結の後に変えないもの（両条件の指示）と凍結の前の調整の記録の仕方を、凍結の前に決めて main に入れる
   oracle:
   - path: harness/reqcov.py
     from: existing
@@ -2001,4 +2005,40 @@ tasks:
     from: self
   verification:
     command: python -m unittest tests.test_plan_check
+    expected_exit_code: 0
+- id: W-77
+  title: 依存先がキューにも台帳の完了にも無い待ちの What があっても、統合 PR を止めない
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: orphan-wait-no-stall'
+  serves: R3-c
+  purpose: 依存先の欠けた待ちの What があると統合 PR が出ず、人が見る PR も無いまま、ラインが黙って止まる（10-11 の夜、差し戻された W-67 を待つ W-73 が統合 PR を止めかけた）。置く時期の注意に頼らず、コードで防ぐ
+  deliverable: 依存先の無い待ちの扱い、tests/test_hline_orphan_wait.py
+  depends_on: []
+  acceptance:
+  - 待ちの What の依存先が、キューにも無く台帳でも完了していないときは、その What を「依存先なし」として、欠けた依存先の名前とともに report.md に出す。ほかに処理できる What が無ければ統合 PR を出し、その What は待ちのまま次の走行に回す
+  oracle:
+  - path: tests/test_hline_orphan_wait.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hline_orphan_wait tests.test_hline_queue
+    expected_exit_code: 0
+- id: W-78
+  title: 目的までの距離は、下書きを重ねた照合と、落ちることを期待する照合を、判定役が通った課題に数えない
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'report: goal-distance-plain-checks'
+  serves: R3-c
+  purpose: 参照実装を重ねた照合と、本体が無いと落ちることを確かめる照合を「判定役が通った課題」と数え、横木の量が事実より進んで見えた（10-12、R3-b が 1／3 から 3／3）。計器が事実より進んで見えることを防ぐ（病理 ④）
+  deliverable: 目的までの距離の数え方の直し、tests/test_goal_distance_plain_checks.py
+  depends_on: []
+  acceptance:
+  - '目的までの距離の「判定役が通った課題」を数えるとき、overlay のある照合と、expect: fail のある照合を除き、ref が origin/main の照合だけを対象にする'
+  oracle:
+  - path: tests/test_goal_distance_plain_checks.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_goal_distance_plain_checks tests.test_goal_distance
     expected_exit_code: 0
