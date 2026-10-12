@@ -30,7 +30,7 @@ BENCH_TASKS = 10
 TRIALS = 60
 CYCLES = 4
 WEEKLY_TASK = "W-59"
-STATUS_RE = re.compile(r"^- ([A-Za-z0-9-]+): (\S+?)（", re.M)
+STATUS_RE = re.compile(r"^- ([A-Za-z0-9_-]+): (\S+?)（", re.M)
 
 
 class Unreadable(Exception):
@@ -69,7 +69,7 @@ def module_of(path):
 
 
 def passing_modules(cfg):
-    """ref が origin/main の unittest の照合で、最新の結果が合格のものの modules（report.md の「## 照合」と同じ結果）。"""
+    """ref が origin/main で overlay が無く expect が pass の unittest の照合で、最新の結果が合格のものの modules（report.md の「## 照合」と同じ結果）。"""
     text = hline_checks.safe_section(cfg)
     status = dict(STATUS_RE.findall(text))
     d = hline_checks.checks_dir(cfg)
@@ -82,6 +82,7 @@ def passing_modules(cfg):
         except (OSError, ValueError):
             continue
         if (isinstance(decl, dict) and decl.get("kind") == "unittest" and decl.get("ref", "origin/main") == "origin/main"
+                and "overlay" not in decl and decl.get("expect", "pass") == "pass"
                 and status.get(f.stem) == "合格" and isinstance(decl.get("modules"), list)):
             found.update(m for m in decl["modules"] if isinstance(m, str))
     return found
