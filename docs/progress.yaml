@@ -1424,6 +1424,7 @@ tasks:
   - W-75
   - W-77
   - W-78
+  - W-79
   acceptance:
   - 本線の H ラインとは別の clone（C:\src\.local\bench\repo）で B06 を 1 回ずつ走らせ、記録を PR で main に入れ、枝を origin に push する
   oracle:
