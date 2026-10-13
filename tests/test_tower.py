@@ -6,7 +6,6 @@ except ImportError:  # mujoco が無い環境
     tower = None
 
 
-@unittest.skipIf(tower is None, "mujoco が無い")
 class TowerTest(unittest.TestCase):
     def test_simulate_shape(self):
         states = tower.simulate([0.0, 0.01], 3)

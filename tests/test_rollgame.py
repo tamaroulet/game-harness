@@ -6,7 +6,6 @@ except ImportError:  # mujoco が無い環境
     rollgame = None
 
 
-@unittest.skipIf(rollgame is None, "mujoco が無い")
 class RollgameTest(unittest.TestCase):
     def test_step_shape(self):
         s = rollgame.Game().step(0.0, 0.0)
