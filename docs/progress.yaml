@@ -7,7 +7,7 @@ last_verification:
   task: W-33
   exit_code: 0
   at: '2026-10-13T00:15:01'
-next_id: 79
+next_id: 80
 nodes:
 - id: A
   parent: null
@@ -1049,7 +1049,6 @@ tasks:
   - W-67
   - W-69
   - W-72
-  - W-73
   - W-74
   - W-75
 - id: W-33
@@ -1079,7 +1078,6 @@ tasks:
   - W-67
   - W-69
   - W-72
-  - W-73
   - W-74
   - W-75
 - id: W-22
@@ -1422,11 +1420,11 @@ tasks:
   - W-67
   - W-69
   - W-72
-  - W-73
   - W-74
   - W-75
   - W-77
   - W-78
+  - W-79
   acceptance:
   - 本線の H ラインとは別の clone（C:\src\.local\bench\repo）で B06 を 1 回ずつ走らせ、記録を PR で main に入れ、枝を origin に push する
   oracle:
@@ -1925,26 +1923,6 @@ tasks:
   verification:
     command: python -m unittest tests.test_hline_soft_deps tests.test_hline_ledger_deps
     expected_exit_code: 0
-- id: W-73
-  title: 実装役の空転（同じ呼び出しの繰り返し・編集の無いターンの連続）を、呼び出しの途中で止める
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'hline: stop-spinning-implementer'
-  serves: R3-c
-  purpose: 前進の無いターンにトークンと時間を使わない。呼び出しの後ではなく途中で止める（燃費と実時間）
-  deliverable: 実装役の出力の流れの読み取りと途中の停止、tests/test_hline_spin_stop.py
-  depends_on: []
-  acceptance:
-  - 実装役の呼び出しの出力を流れで読み、同じ道具を同じ引数で、あいだに編集（Edit・Write）を挟まずに 3 回呼んだとき、または編集が 1 回も無いまま 8 ターンに達したとき、その呼び出しを止める
-  - 止めた試行は Gate 1 を呼ばずに打ち切り、理由（どちらの条件か、道具と引数）を試行の記録と report.md に出す。止めたときの作業ツリーの変更は、再開の材料に残る
-  - 流れから読む利用量（4 つの内訳）とターン数は、今の呼び出しの記録と同じに残る
-  oracle:
-  - path: tests/test_hline_spin_stop.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_hline_spin_stop tests.test_hline_turn_cap
-    expected_exit_code: 0
 - id: W-74
   title: 前の差分から続ける試行は、ターン上限を下げ、渡す失敗の出力を落ちた試験の分だけにする
   group: W-17
@@ -2041,4 +2019,24 @@ tasks:
     from: self
   verification:
     command: python -m unittest tests.test_goal_distance_plain_checks tests.test_goal_distance
+    expected_exit_code: 0
+- id: W-79
+  title: 関門ごとの流れを台帳から作り、report.md に出す（各タスクの関門・前段・後段・着手可・目的）
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'report: gate-flow-view'
+  serves: R3-c
+  purpose: セッションや手番が変わると、AI は大局を見失う。手書きのロードマップに状態や依存を写すと腐る（D-077・L-39）。台帳だけを正として、関門ごとの流れと各タスクの立ち位置・着手の可否・目的を機械が毎走行出し、AI と人が同じ現在地を読む
+  deliverable: harness/gate_flow.py、report.md の「## 関門ごとの流れ」、tests/test_gate_flow.py
+  depends_on: []
+  acceptance:
+  - rung を持つタスクを関門とし、関門の順は depends_on の順（前の関門を推移的に待つ関門が後）にする。各タスクを、それを depends_on で推移的に待つ関門のうち最も前の関門の下に置き、どの関門にも待たれないタスクは「関門なし」の下に置く
+  - 各関門の見出しに、その関門の下のタスクの済み・着手可・待ちの数を出す。未完了のタスクを 1 行ずつ出し、行に ID・題・by・着手可か待ちか・待っている前段（未完了の depends_on）・後段（それを depends_on に持つタスク）・purpose を出す。着手可は、depends_on がすべて完了していること
+  - 台帳は進捗ツリーと同じ ref（統合ブランチ、無ければ base）から読む。読めなければ、節を 1 行の理由に替え、report.md の書き出しを止めない。python -m harness.gate_flow は同じ節を標準出力に出す
+  oracle:
+  - path: tests/test_gate_flow.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_gate_flow
     expected_exit_code: 0
