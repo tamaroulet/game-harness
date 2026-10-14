@@ -26,6 +26,12 @@ import os
 import re
 import subprocess
 import sys
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+_STARTUPINFO = None
+if sys.platform == "win32":
+    _STARTUPINFO = subprocess.STARTUPINFO()
+    _STARTUPINFO.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    _STARTUPINFO.wShowWindow = 0  # SW_HIDE
 from pathlib import Path
 
 import yaml
@@ -375,7 +381,8 @@ def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, 
     out(f"検証: {v['command']}")
     try:
         r = subprocess.run(v["command"], shell=True, cwd=repo_root, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=VERIFY_TTL)
+                           encoding="utf-8", errors="replace", timeout=VERIFY_TTL,
+                           creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
         rc, log = r.returncode, (r.stdout or "") + (r.stderr or "")
     except subprocess.TimeoutExpired:
         rc, log = -1, f"{VERIFY_TTL} 秒で打ち切りました"
