@@ -198,9 +198,9 @@ class IntegrateRecords(unittest.TestCase):
         calls, failed = self.run_integrate("S2-4")
         self.assertFalse(failed)
         args, env = calls[0]
-        self.assertEqual(args[-3:], ["harness.progress", "complete", "S2-4"])
+        self.assertEqual(args[-5:], ["harness.progress", "complete", "S2-4", "--ref", CFG["base"]])
         self.assertEqual(args[1:3], ["-m", "harness.progress"])
-        self.assertEqual(len(args), 5)
+        self.assertEqual(len(args), 7)
         self.assertEqual(env[progress.ORDER_FREE_ENV], "1")
         for key, value in os.environ.items():
             if key != progress.ORDER_FREE_ENV:

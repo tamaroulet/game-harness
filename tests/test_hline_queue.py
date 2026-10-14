@@ -198,7 +198,7 @@ class Integrate(unittest.TestCase):
     def test_the_task_is_recorded_as_complete_before_the_commit_and_pushed_to_the_integration_branch_only(self):
         calls, failed = self.run_integrate("S1-2")
         self.assertFalse(failed)
-        self.assertEqual(calls[0][-3:], ["harness.progress", "complete", "S1-2"])
+        self.assertEqual(calls[0][-5:], ["harness.progress", "complete", "S1-2", "--ref", CFG["base"]])
         names = [c[1] for c in calls[1:]]
         self.assertEqual(names, ["add", "commit", "push"])
         self.assertIn("HEAD:refs/heads/" + CFG["integration_branch"], calls[-1])

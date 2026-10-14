@@ -22,7 +22,8 @@ import hline_report  # noqa: E402
 import hline_task  # noqa: E402
 import infra_retry  # noqa: E402
 
-GIT_CFG = {"ttl_seconds": {"gate": 1, "git": 1}, "commit_trailer": "T", "integration_branch": "hline/integration"}
+GIT_CFG = {"ttl_seconds": {"gate": 1, "git": 1}, "commit_trailer": "T", "integration_branch": "hline/integration",
+           "base": "origin/main"}
 REASON = "進捗の記録が拒まれました"
 
 
