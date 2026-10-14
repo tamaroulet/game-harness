@@ -7,7 +7,7 @@ last_verification:
   task: W-22
   exit_code: 0
   at: '2026-10-14T21:12:46'
-next_id: 84
+next_id: 87
 nodes:
 - id: A
   parent: null
@@ -1108,7 +1108,7 @@ tasks:
     command: python -m unittest tests.launcher_judge tests.rollgame_judge tests.tower_judge
     expected_exit_code: 0
 - id: W-34
-  title: 採点役（非公開オラクルの指紋を確かめ、木を変えずに通過率を出す・床の検査）
+  title: 採点役（非公開オラクルの指紋を確かめ、木を変えずに通過率を出す）
   group: W-17
   target_repo: game-harness
   status: in_progress
@@ -1120,12 +1120,32 @@ tasks:
   - W-22
   acceptance:
   - python -m harness.bench_score score --task <id> --tree <dir> --out <json> は、C:\src\.local\oracles\bench\<id>\hidden の指紋が docs/bench/<id>/oracle.sha256 と違えば終了コード 2 で記録を書かない。合えば、元の木を変えずに、隠しテストだけの通過率（木に置かれた test_hidden_* は数えない、600 秒で打ち切り）を記録に書く
-  - python -m harness.bench_score floor --task <id>... は、参照実装が 1.0 で空実装が 0.2 未満なら 0 で、結果を bench/records/<id>/floor.json に書く。hash は指紋を出す
+  - python -m harness.bench_score hash --task <id> は、木の指紋を 1 行で標準出力に出す
   oracle:
   - path: tests/test_bench_score.py
     from: self
   verification:
     command: python -m unittest tests.test_bench_score
+    expected_exit_code: 0
+- id: W-86
+  title: 床の検査（参照実装と木の採点、floor.json を出す）
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: floor-check'
+  serves: R3-c
+  purpose: 課題と隠しテストの組み合わせが、通り、かつ空の木を落とすことを機械で確かめる。目的までの距離 R3-c の「床の検査済の課題」を数える記録。W-34 の行数の都合で分離
+  deliverable: harness/bench_score.py の floor、tests/test_bench_floor.py
+  depends_on:
+  - W-34
+  acceptance:
+  - python -m harness.bench_score floor --task <id>... は、課題ごとに、参照実装を置いた木と、空の木（標準の木）を score と同じ手順で採点し、bench/records/<id>/floor.json に task・fingerprint・reference_rate・empty_rate・passed を書く
+  - passed は、参照実装の通過率が 1.0 かつ空が 0.2 以下のとき true。すべての課題が true なら終了コード 0、どれかが false なら 1、指紋が合わないか置き場が無いときは 2
+  oracle:
+  - path: tests/test_bench_floor.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_bench_floor
     expected_exit_code: 0
 - id: W-35
   title: 実装役に、受信箱（総監督の下書き）・非公開オラクル・生ログを読ませない（道具の設定）
@@ -1157,13 +1177,13 @@ tasks:
   purpose: 作った 3 本の課題を、非公開オラクルで採点できるようにする
   deliverable: oracles の配置、docs/bench/<id>/oracle.sha256、bench/records/<id>/floor.json（3 本）
   depends_on:
-  - W-34
+  - W-86
   - W-70
   acceptance:
   - 総監督の完成形の隠しテスト・参照実装・空実装を oracles に置き、指紋（bench_score hash）と floor.json を PR で main に入れる
   oracle:
   - path: harness/bench_score.py
-    from: W-34
+    from: W-86
   verification:
     command: python -m harness.bench_score floor --task B06 --task B01 --task B05
     expected_exit_code: 0
@@ -1178,13 +1198,13 @@ tasks:
   purpose: ベンチを 10 本にそろえる（1/3）。チャット型との差が出る難しさの課題を足す
   deliverable: B02〜B04 の仕様・指紋・floor.json、oracles の配置
   depends_on:
-  - W-34
+  - W-86
   acceptance:
   - 3 本の仕様・指紋・floor.json を PR で main に入れ、隠しテスト・参照実装・空実装を oracles に置く（中身は総監督の完成形）
   - 各課題の oracles に canary.txt（隠しテストに無い目印の文字列）を置く
   oracle:
   - path: harness/bench_score.py
-    from: W-34
+    from: W-86
   verification:
     command: python -m harness.bench_score floor --task B02 --task B03 --task B04
     expected_exit_code: 0
@@ -1199,13 +1219,13 @@ tasks:
   purpose: ベンチを 10 本にそろえる（2/3）
   deliverable: B07・B08 の仕様・指紋・floor.json、oracles の配置
   depends_on:
-  - W-34
+  - W-86
   acceptance:
   - 2 本の仕様・指紋・floor.json を PR で main に入れ、隠しテスト・参照実装・空実装を oracles に置く
   - 各課題の oracles に canary.txt（隠しテストに無い目印の文字列）を置く
   oracle:
   - path: harness/bench_score.py
-    from: W-34
+    from: W-86
   verification:
     command: python -m harness.bench_score floor --task B07 --task B08
     expected_exit_code: 0
@@ -1220,13 +1240,13 @@ tasks:
   purpose: ベンチを 10 本にそろえる（3/3）
   deliverable: B09・B10 の仕様・指紋・floor.json、oracles の配置
   depends_on:
-  - W-34
+  - W-86
   acceptance:
   - 2 本の仕様・指紋・floor.json を PR で main に入れ、隠しテスト・参照実装・空実装を oracles に置く
   - 各課題の oracles に canary.txt（隠しテストに無い目印の文字列）を置く
   oracle:
   - path: harness/bench_score.py
-    from: W-34
+    from: W-86
   verification:
     command: python -m harness.bench_score floor --task B09 --task B10
     expected_exit_code: 0
