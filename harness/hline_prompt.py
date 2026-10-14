@@ -7,7 +7,9 @@ import hline_abort
 import hline_quota
 import impacted
 import infra_retry
+import hline_queue
 import oracle_deny
+import yaml
 from hline_base import Infra, Quota
 from hline_budget import capped_args, outcome, resume_turn_cap, turn_cap
 
@@ -32,12 +34,35 @@ def build_prompt(what, feedback=None, symbol_map=None):
     return "\n".join(p) + "\n"
 
 
+def ledger_section(wt, what):
+    """What の `タスク:` の行が宣言したタスクの台帳の欄（作業ツリーの docs/progress.yaml）を、指示の節にする。
+    宣言が無い・台帳に無い・台帳を読めない・欄の形が違うときは例外を出さず空の文字列を返す。"""
+    try:
+        task_id = hline_queue.parse_header(what)["task"]
+        if not task_id:
+            return ""
+        state = yaml.safe_load((Path(wt) / "docs" / "progress.yaml").read_text(encoding="utf-8"))
+        task = next(t for t in state["tasks"] if isinstance(t, dict) and t.get("id") == task_id)
+        title, purpose, items = task["title"], task["purpose"], task["acceptance"]
+        command = task["verification"]["command"]
+        if not (isinstance(title, str) and isinstance(purpose, str) and isinstance(command, str)
+                and isinstance(items, list) and all(isinstance(i, str) for i in items)):
+            return ""
+        one = lambda s: " ".join(s.split())   # noqa: E731  項目ごとに 1 行にする
+        return "\n".join([f"## 台帳のタスク（{task_id}）",
+                          "台帳の欄と What の本文が食い違うときは、台帳に従う。",
+                          f"- 題: {one(title)}", f"- 目的: {one(purpose)}", "- acceptance:",
+                          *(f"  - {one(i)}" for i in items), f"- 検証コマンド: {one(command)}"])
+    except Exception:   # noqa: BLE001  節を入れないだけで、実装役の呼び出しは止めない
+        return ""
+
+
 def implement(host, cfg, wt, what, feedback, log):
     """実装役を 1 回呼ぶ。使ったモデルを照合し記録する（model_pin）。起動の失敗は Infra。TTL 超過（124）は例外にせず、そのまま返す。ターン数の上限の打ち切りは例外にせず、照合しない（hline_budget.outcome）。"""
     agent = cfg["implementer"]
     shown = host.symbolmap.prompt_text(cfg, wt, None, what, scope=True)
     host.map_chars = len(shown)   # 試行の記録に入れる（hline_task.run_task が読む）。implement の戻り値の形は変えない
-    shown = "\n\n".join(filter(None, (shown, impacted.prompt_note())))
+    shown = "\n\n".join(filter(None, (ledger_section(wt, what), shown, impacted.prompt_note())))
     follow, host.follow_up = getattr(host, "follow_up", False), False   # run_task が試行ごとに置く。読んだら戻す
     host.turn_cap_used = cap = (resume_turn_cap if follow else turn_cap)(agent)   # 試行の記録に入れる
     began = time.monotonic()
