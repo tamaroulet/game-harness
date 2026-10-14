@@ -293,6 +293,19 @@ def next_runnable(st):
     return None
 
 
+def missing_deps(st, item):
+    """item の依存先のうち、キューのどの What の名前・タスクとも一致せず、base の台帳でも完了していないもの（欠けた依存先）。"""
+    known = set(st["items"]) | {j["task"] for j in st["items"].values() if j.get("task")}
+    return [d for d in item["deps"] if d not in known and d not in item.get("met", ())]
+
+
+def only_orphans_wait(st):
+    """走行の終わりに、処理中も、処理できる待ちも、台帳を読めずに待つ What も無いか（残る待ちは依存先なしか、その連鎖だけ）。"""
+    items = st["items"].values()
+    return (not any(i["status"] == "processing" or (i["status"] == "waiting" and i.get("ledger_error")) for i in items)
+            and next_runnable(st) is None)
+
+
 def now():
     return datetime.datetime.now().astimezone()
 

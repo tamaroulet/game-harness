@@ -17,7 +17,7 @@ import hline_halt  # noqa: E402
 from hline_gc import sweep  # noqa: E402
 from hline_git import ahead, apply_patch, changed_paths, code_shas, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, merge_pr, open_pr, pr_checks, pr_state, record, record_refused  # noqa: E402,F401
 from hline_hygiene import diff_files, problems  # noqa: E402
-from hline_queue import by_status, intake, load_state, next_runnable, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
+from hline_queue import by_status, intake, load_state, next_runnable, only_orphans_wait, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
 from hline_report import line_modules, mark as _mark, pr_body, pr_title, self_change, today, write_report  # noqa: E402,F401
 from hline_room import director_settings, setup  # noqa: E402,F401
 from hline_spec import boundary_problems, diff_counts  # noqa: E402,F401
@@ -142,7 +142,7 @@ def run_line(cfg):
     if st.get("quota_wait"):   # 待ちに戻した What が残るので統合 PR は出さない。定期起動が再開の時刻の後に続きを取る
         write_report(cfg, st)
         return 0
-    if not by_status(st, "waiting") and not by_status(st, "processing"):
+    if only_orphans_wait(st):   # 依存先の欠けた待ちが残っても止めない。残りは待ちのまま次の走行に回す
         open_integration_pr(cfg, st)
     write_report(cfg, st)
     return 1 if unconverged else 0

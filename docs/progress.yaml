@@ -4,9 +4,9 @@ constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-81
+  task: W-77
   exit_code: 0
-  at: '2026-10-14T23:42:36'
+  at: '2026-10-14T23:49:23'
 next_id: 87
 nodes:
 - id: A
@@ -2012,7 +2012,7 @@ tasks:
   title: 依存先がキューにも台帳の完了にも無い待ちの What があっても、統合 PR を止めない
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: orphan-wait-no-stall'
   serves: R3-c
   purpose: 依存先の欠けた待ちの What があると統合 PR が出ず、人が見る PR も無いまま、ラインが黙って止まる（10-11 の夜、差し戻された W-67 を待つ W-73 が統合 PR を止めかけた）。置く時期の注意に頼らず、コードで防ぐ
