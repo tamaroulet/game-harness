@@ -1,12 +1,12 @@
-active_task_id: W-22
+active_task_id: W-34
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-80
+  task: W-22
   exit_code: 0
-  at: '2026-10-14T21:04:13'
+  at: '2026-10-14T21:12:46'
 next_id: 84
 nodes:
 - id: A
@@ -1084,7 +1084,7 @@ tasks:
   title: 横木 R3-b：課題 B06・B01・B05 の本体が、工廠の手で判定役を通す
   group: W-17
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'bench: three-tasks'
   by: pilot
   rung: R3-b
@@ -1111,7 +1111,7 @@ tasks:
   title: 採点役（非公開オラクルの指紋を確かめ、木を変えずに通過率を出す・床の検査）
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'bench: score-with-hidden-tests'
   serves: R3-c
   purpose: 実装役に見えない判定（非公開オラクル）で採点する道具。チャット型との公平な比較の前提
