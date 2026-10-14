@@ -35,6 +35,11 @@
     "tests"
   ],
   "_gate_note": "Gate 1 がテストを走らせる土台の命令（モジュール名を足して使う。harness/fastsuite.py がモジュールごとに別のプロセスで並列に走らせる）。判定は終了コードだけ（0 = 全部通った）。LLM は使わない。内側のループで discover（全件）は走らせない",
+  "gate_always_modules": [
+    "tests.test_isolation",
+    "tests.test_ledger_double_check"
+  ],
+  "_gate_always_note": "影響テストに加えて Gate 1 が毎回、影響テストと同じ命令で走らせる、リポジトリ全体を走査する試験のモジュール。作業ツリーに無いものは外す。欄が無いか空なら影響テストだけ。落ちる変更を統合 PR の CI まで持ち越さない",
   "canary_modules": [
     "tests.test_contract",
     "tests.test_oracle",

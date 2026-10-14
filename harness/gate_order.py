@@ -65,6 +65,8 @@ def focused(cfg, wt, paths, task, spec=None, warnings=None, verify=None):
     changed = test_modules(paths)
     keep = impacted.command_modules(v.get("command")) if isinstance(v, dict) else ()
     modules = present(wt, impacted.test_modules(wt, spec, v, changed, paths), keep)
+    always = present(wt, cfg.get("gate_always_modules") or ())   # リポジトリ全体を走査する試験は毎回同じ命令に足す
+    modules = tuple(dict.fromkeys((*modules, *always)))
     stage = impacted.stage_command(cfg["gate_command"], modules, v)
     if stage is None:
         return None
