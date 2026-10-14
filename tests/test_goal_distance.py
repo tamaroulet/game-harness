@@ -10,6 +10,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+import gate_flow  # noqa: E402
 import goal_distance as gd  # noqa: E402
 import hline_report  # noqa: E402
 
@@ -169,13 +170,14 @@ class ReportHead(unittest.TestCase):
         cfg = {"inbox": str(tmp), "out": str(tmp / "out"), "integration_branch": "hline/integration", "base": "origin/main",
                "ttl_seconds": {"git": 5}}
         with mock.patch.object(gd, "section", return_value="## 目的までの距離\n- R3-a: x\n"), \
+                mock.patch.object(gate_flow, "section", return_value="## 関門ごとの流れ\n- G: y\n"), \
                 mock.patch.object(hline_report, "progress_report", return_value="## 進捗ツリー\n- 人間作業: NONE\n"), \
                 mock.patch.object(hline_report, "h_section", return_value="## H ライン\n"), \
                 mock.patch.object(hline_report.hline_probe, "safe_section", return_value="## probe\n"), \
                 mock.patch.object(hline_report.hline_checks, "safe_section", return_value="## 照合\n宣言なし\n"):
             hline_report.write_report(cfg, {"items": {}, "awaiting_pr": None})
         text = (tmp / "report.md").read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("## 目的までの距離\n- R3-a: x\n\n## 進捗ツリー\n"), text)
+        self.assertTrue(text.startswith("## 目的までの距離\n- R3-a: x\n\n## 関門ごとの流れ\n- G: y\n\n## 進捗ツリー\n"), text)
 
     def test_a_raising_section_still_writes_report_md(self):
         with mock.patch.object(gd, "section", side_effect=RuntimeError("boom")):
