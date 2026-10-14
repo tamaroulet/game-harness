@@ -60,3 +60,97 @@ def place(ledger):
     current = next((g for g in gate_ids if open_(g) or any(open_(i) for i in gates[g]["tasks"])
                     or any(open_(m["id"]) or any(open_(i) for i in m["tasks"]) for m in gates[g]["mids"])), None)
     return [gates[g] for g in gate_ids], current
+
+
+TITLE = "## 関門ごとの流れ"
+MAX_LINES = 60
+
+
+def _one(text):
+    return " ".join(str(text or "").split())
+
+
+def _state(by_id, i):
+    """'done' / 'ready'（depends_on がすべて完了）/ 'wait'。"""
+    t = by_id[i]
+    if t.get("status") == "completed":
+        return "done"
+    ok = all(d in by_id and by_id[d].get("status") == "completed" for d in progress._deps(t))
+    return "ready" if ok else "wait"
+
+
+def _counts(by_id, ids):
+    states = [_state(by_id, i) for i in ids]
+    return f"済み {states.count('done')}・着手可 {states.count('ready')}・待ち {states.count('wait')}"
+
+
+def _group(by_id, heading, ids, short):
+    """見出しと、着手可・待ちのタスクの行。short なら待ちの行を「待ち N 件」に替える。"""
+    out = [f"{heading}: {_counts(by_id, ids)}"]
+    waiting = 0
+    for i in ids:
+        s, t = _state(by_id, i), by_id[i]
+        if s == "ready":
+            after = [j for j, u in by_id.items() if i in progress._deps(u)]
+            out.append(f"- {i} {_one(t.get('title'))}（by: {t.get('by') or 'hline'}）後段: {'・'.join(after) or 'なし'} — {_one(t.get('purpose'))}")
+        elif s == "wait":
+            waiting += 1
+            if not short:
+                undone = [d for d in progress._deps(t) if d not in by_id or by_id[d].get("status") != "completed"]
+                out.append(f"- {i} {_one(t.get('title'))} ← 未完了の前段: {'・'.join(undone)}")
+    if short and waiting:
+        out.append(f"- 待ち {waiting} 件")
+    return out
+
+
+def render(ledger):
+    """「## 関門ごとの流れ」の節の本文（行の列）。現在の関門だけ詳しく、60 行を超えるときは縮約する。"""
+    gates, current = place(ledger)
+    by_id = {t["id"]: t for t in ledger.get("tasks") or [] if isinstance(t, dict) and "id" in t}
+
+    def gate_ids(g):
+        return [g["id"]] + g["tasks"] + [m for mid in g["mids"] for m in [mid["id"]] + mid["tasks"]]
+
+    def build(short, collapse_others):
+        lines = [TITLE]
+        others = []
+        for g in gates:
+            if g["id"] != current:
+                others.append(g)
+                continue
+            lines.append(f"### 現在の関門 {g['id']} {_one(by_id[g['id']].get('title'))}: {_counts(by_id, gate_ids(g))}")
+            lines += _group(by_id, "#### 関門直下", [g["id"]] + g["tasks"], short)
+            for mid in g["mids"]:
+                lines += _group(by_id, f"#### 中間関門 {mid['id']} {_one(by_id[mid['id']].get('title'))}", [mid["id"]] + mid["tasks"], short)
+        if others and collapse_others:
+            lines.append(f"- ほかの {len(others)} 関門: {_counts(by_id, [i for g in others for i in gate_ids(g)])}")
+        else:
+            lines += [f"- {g['id']} {_one(by_id[g['id']].get('title'))}: {_counts(by_id, gate_ids(g))}" for g in others]
+        return lines
+
+    for short, collapse in ((False, False), (True, False), (True, True)):
+        lines = build(short, collapse)
+        if len(lines) <= MAX_LINES:
+            break
+    return lines
+
+
+def section(cfg):
+    """report.md 用。台帳を読めないなど、節ごと失敗しても、1 行の理由に替えて書き出しを止めない。"""
+    import goal_distance
+    try:
+        _, ledger = goal_distance.load_ledger(cfg)
+        return "\n".join(render(ledger)) + "\n"
+    except Exception as e:   # noqa: BLE001
+        return f"{TITLE}\n- 取得失敗：{type(e).__name__}: {e}\n"
+
+
+def main(argv=None):
+    from hline_base import load_config
+    sys.stdout.write(section(load_config()))
+    return 0
+
+
+if __name__ == "__main__":
+    import exitcode
+    sys.exit(exitcode.normalized(main))
