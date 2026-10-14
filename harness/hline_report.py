@@ -15,6 +15,7 @@ import hline_checks
 import hline_extend
 import hline_probe
 import hline_quota
+import hline_resume
 import hline_usage
 from hline_base import ROOT, must
 from hline_git import remote_ref
@@ -90,6 +91,65 @@ def material_note(item):
     return f"（再開の材料: あり・差分 {m.get('lines', 0)} 行）" if m.get("kept") else "（再開の材料: なし）"
 
 
+DONE_SHOWN = 10      # report.md に出す済みの件数（完了の時刻の新しい順）
+POINTS_MAX = 5       # 未収束の What ごとに出す、落ちた試験の件数
+EXC_MAX = 200        # 例外の行を切る字数
+NO_FAILURE = "失敗の出力なし"
+_HEAD = re.compile(r"^(?:FAIL|ERROR): (\S.*)$")
+_FILE = re.compile(r'^\s*File "(.*)", line (\d+)')
+
+
+def recent_done(items, names):
+    """済みの名前のうち、完了の時刻のある新しい順の直近 DONE_SHOWN 件（時刻の無い項目は候補に入れない）。"""
+    import northstar
+    timed = []
+    for n in names:
+        at = northstar.ended_at(items[n])
+        if at is not None:
+            timed.append((at, n))
+    timed.sort(key=lambda p: p[0], reverse=True)
+    return [n for _, n in timed[:DONE_SHOWN]]
+
+
+def failure_points(text):
+    """Gate 1 の出力（unittest の FAIL:・ERROR: とトレースバック）から「試験の名前: ファイル:行: 例外の行」の一覧を、現れた順に出す。"""
+    blocks, cur = [], None
+    for line in text.splitlines():
+        m = _HEAD.match(line)
+        if m:
+            cur = [m.group(1).strip(), []]
+            blocks.append(cur)
+        elif cur is not None:
+            if line.startswith("=====") or (line.startswith("-----") and cur[1]):
+                cur = None
+            elif not line.startswith("-----"):
+                cur[1].append(line)
+    out = []
+    for name, body in blocks:
+        last = max((i for i, l in enumerate(body) if _FILE.match(l)), default=None)
+        where, exc = "不明", ""
+        if last is not None:
+            f = _FILE.match(body[last])
+            where = f"{f.group(1)}:{f.group(2)}"
+            exc = next((l for l in body[last + 1:] if l.strip() and not l[:1].isspace()), "")
+        if not exc:
+            exc = next((l for l in reversed(body) if l.strip()), "")
+        out.append(f"{name}: {where}: {' '.join(exc.split())[:EXC_MAX]}")
+    return out
+
+
+def failure_lines(cfg, name):
+    """未収束の What の再開の置き場の last-failure.txt から、落ちた試験の要点の行（字下げ 4）。読めなければ「失敗の出力なし」の 1 行。"""
+    try:
+        text = (hline_resume.resume_dir(cfg, name) / hline_resume.FAILURE).read_text(encoding="utf-8", errors="replace")
+        points = failure_points(text)
+    except Exception:   # noqa: BLE001
+        return [f"    - {NO_FAILURE}"]
+    if not points:
+        return ["    - 落ちた試験を読み取れず"]
+    return [f"    - {p}" for p in points[:POINTS_MAX]]
+
+
 def goal_section(cfg):
     """「## 目的までの距離」の節（report.md の先頭）。読み込みが例外で止まっても、節を 1 行の理由に替えて、書き出しを止めない。"""
     try:
@@ -133,15 +193,22 @@ def pr_wait_line(times, at=None):
 def h_section(cfg, st):
     items = st["items"]
 
-    def row(label, status, note=lambda i: ""):
+    def row(label, status, note=lambda i: "", shown=None):
         names = by_status(st, status)
-        return f"- {label}（{len(names)} 件）: " + (", ".join(f"{n}{note(items[n])}" for n in names) or "なし")
+        shown_names = names if shown is None else shown(names)
+        return f"- {label}（{len(names)} 件）: " + (", ".join(f"{n}{note(items[n])}" for n in shown_names) or "なし")
 
-    def unconverged_row():
+    def unconverged_rows():
         names = by_status(st, "unconverged")
         note = lambda n, i: (f"（{i.get('reason', '')}）{material_note(i)}" + triage(n) + after_note(i)   # noqa: E731
                              + hline_usage.note(i) + hline_extend.note(i))
-        return f"- 未収束（{len(names)} 件）: " + (", ".join(f"{n}{note(n, items[n])}" for n in names) or "なし")
+        if not names:
+            return ["- 未収束（0 件）: なし"]
+        out = [f"- 未収束（{len(names)} 件）:"]
+        for n in names:
+            out.append(f"  - {n}{note(n, items[n])}")
+            out += failure_lines(cfg, n)
+        return out
 
     after_note = lambda i: (f"（警告: after の上流 {', '.join(i['after_unconverged'])} が未収束のまま処理）" if i.get("after_unconverged") else "")   # noqa: E731
 
@@ -154,8 +221,8 @@ def h_section(cfg, st):
     frozen = lambda i: f"（上流の未収束: {', '.join(i.get('frozen_by', []))}）"   # noqa: E731
     lines = ["## H ライン", f"- 状態: {line_status(cfg, st)}", f"- 統合ブランチ: {cfg['integration_branch']}",
              f"- 統合 PR: {st['awaiting_pr'] or 'なし'}"] + ([f"- コード: {st['code']}"] if st.get("code") else []) + pr_wait_line(st.get("pr_times")) + ["", "## キュー",
-             row("済み", "done", done), row("待ち", "waiting", waiting), row("処理中", "processing", stage_note),
-             unconverged_row(), row("凍結", "frozen", frozen)]
+             row("済み", "done", done, lambda ns: recent_done(items, ns)), row("待ち", "waiting", waiting),
+             row("処理中", "processing", stage_note), *unconverged_rows(), row("凍結", "frozen", frozen)]
     lines += ["", northstar_section(items).rstrip("\n"), "", failure_section(items).rstrip("\n")]
     flaky = [f"- {n}: {', '.join(flaky_tests(i))}" for n, i in sorted(items.items()) if flaky_tests(i)]
     if flaky:

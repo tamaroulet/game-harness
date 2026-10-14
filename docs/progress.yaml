@@ -4,9 +4,9 @@ constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-22
+  task: W-83
   exit_code: 0
-  at: '2026-10-14T21:12:46'
+  at: '2026-10-14T22:29:42'
 next_id: 87
 nodes:
 - id: A
@@ -2126,7 +2126,7 @@ tasks:
   title: report.md の「## キュー」で、済みは直近 10 件と件数だけを出し、未収束には最後の試行の落ちた試験の要点を出す
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'report: queue-recent-and-failures'
   serves: R3-c
   purpose: 起動のたびに読む report.md で、済みの全件を 1 行に並べた行が最も大きい。一方、未収束の行には分類と再開の材料の行数しか無く、総監督は落ちた試験の名前も失敗の文も知らずに What を直している（生ログは読めず、中継もしない。D-079）。Gate 1 が走らせるのは公開の試験だけで、非公開オラクルは入らないので、落ちた試験の要点を機械が report.md に写しても秘匿は崩れない。起動で読む量を減らし、未収束の直しを事実から行う

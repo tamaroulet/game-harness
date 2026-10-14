@@ -21,7 +21,8 @@ def attempt(n, u, turns):
 
 
 def item(status, tries, **extra):
-    return {"status": status, "title": "題", "milestone": "B7.4", "task": None, "deps": [], "tid": "t1", "tries": tries, **extra}
+    when = {"done_at": "2026-10-12T10:00:00+00:00"} if status == "done" else {}   # 済みの行には完了の時刻のある項目だけが出る
+    return {"status": status, "title": "題", "milestone": "B7.4", "task": None, "deps": [], "tid": "t1", "tries": tries, **when, **extra}
 
 
 def section(items):
