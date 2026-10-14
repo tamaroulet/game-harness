@@ -1201,7 +1201,7 @@ tasks:
   - W-86
   acceptance:
   - 3 本の仕様・指紋・floor.json を PR で main に入れ、隠しテスト・参照実装・空実装を oracles に置く（中身は総監督の完成形）
-  - 各課題の oracles に canary.txt（隠しテストに無い目印の文字列）を置く
+  - 各課題の oracles に canary.txt を置き、同じ目印の文字列を隠しテストの先頭のコメントにも置く
   oracle:
   - path: harness/bench_score.py
     from: W-86
@@ -1222,7 +1222,7 @@ tasks:
   - W-86
   acceptance:
   - 2 本の仕様・指紋・floor.json を PR で main に入れ、隠しテスト・参照実装・空実装を oracles に置く
-  - 各課題の oracles に canary.txt（隠しテストに無い目印の文字列）を置く
+  - 各課題の oracles に canary.txt を置き、同じ目印の文字列を隠しテストの先頭のコメントにも置く
   oracle:
   - path: harness/bench_score.py
     from: W-86
@@ -1243,7 +1243,7 @@ tasks:
   - W-86
   acceptance:
   - 2 本の仕様・指紋・floor.json を PR で main に入れ、隠しテスト・参照実装・空実装を oracles に置く
-  - 各課題の oracles に canary.txt（隠しテストに無い目印の文字列）を置く
+  - 各課題の oracles に canary.txt を置き、同じ目印の文字列を隠しテストの先頭のコメントにも置く
   oracle:
   - path: harness/bench_score.py
     from: W-86

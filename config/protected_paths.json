@@ -17,6 +17,9 @@
     "docs/tasks.md",
     "tests/test_ledger_double_check.py",
     "docs/prompts/",
-    "bench/records/"
+    "bench/records/",
+    "tests/cartpole_judge.py",
+    "tests/billiards_judge.py",
+    "tests/domino_judge.py"
   ]
 }
