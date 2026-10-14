@@ -4,9 +4,9 @@ constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-34
+  task: W-81
   exit_code: 0
-  at: '2026-10-14T23:39:02'
+  at: '2026-10-14T23:42:36'
 next_id: 87
 nodes:
 - id: A
@@ -2088,7 +2088,7 @@ tasks:
   title: poll が環境の異常か予期しない例外で終わったら、report.md の先頭に停止の節を書き、同じ停止が 2 回続いたら GitHub に issue を開く
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: halt-notice'
   serves: R3-c
   purpose: poll が落ちても外に何も出ず、report.md が古いまま放置される。今は総監督がセッションの始めに古さを見つけるだけで、R3-c の無人の走行（W-48・W-51 の数時間の走行）の間は誰も気づかない。落ちた走行が自分で印を書き、続けば操縦士の手元に届く通知を出す

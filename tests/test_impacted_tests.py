@@ -144,7 +144,8 @@ class Implement(Tree):
         """実装役にはテストを走らせる許可を渡さない（C4）。"""
         run = Run(first=(0, json.dumps({"result": "x", "modelUsage": {CFG["implementer"]["model"]: {}}, "num_turns": 1}), ""))
         before = json.dumps(CFG["implementer"], sort_keys=True)
-        with mock.patch.object(hline.proc, "run", side_effect=run), mock.patch.object(hline.proc, "resolve_cli", return_value=["claude"]):
+        with mock.patch.object(hline, "follow_up", False, create=True), \
+                mock.patch.object(hline.proc, "run", side_effect=run), mock.patch.object(hline.proc, "resolve_cli", return_value=["claude"]):
             hline.implement(CFG, str(self.wt), WHAT, "FB", self.wt / "log")
         self.assertEqual(json.dumps(CFG["implementer"], sort_keys=True), before)
         args = run.commands[0]
