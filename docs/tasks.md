@@ -49,7 +49,8 @@
 | W-32 | 課題 B01 の本体（rollgame）を工廠が仕様から作り、判定役を通す | 玉転がしの物理（傾く盤・接触・落下・ゴール）を工廠が作る | rollgame パッケージ | `python -m unittest tests.rollgame_judge` | 工廠（自律） | R3-b |
 | W-33 | 課題 B05 の本体（tower）を工廠が仕様から作り、判定役を通す | 積み木の塔の物理（積み重ね・重心・崩れ）を工廠が作る | tower パッケージ | `python -m unittest tests.tower_judge` | 工廠（自律） | R3-b |
 | W-22 | 横木 R3-b：課題 B06・B01・B05 の本体が、工廠の手で判定役を通す | 3 本の物理を工廠が作れたことの判定（横木 R3-b）。比べる道具に進む前提 | main の上で 3 つの判定役がそろって通ること | `python -m unittest tests.launcher_judge tests.rollgame_judge tests.tower_judge` | 操縦士（手動） | R3-b |
-| W-34 | 採点役（非公開オラクルの指紋を確かめ、木を変えずに通過率を出す・床の検査） | 実装役に見えない判定（非公開オラクル）で採点する道具。チャット型との公平な比較の前提 | harness/bench_score.py、tests/test_bench_score.py | `python -m unittest tests.test_bench_score` | 工廠（自律） | R3-c |
+| W-34 | 採点役（非公開オラクルの指紋を確かめ、木を変えずに通過率を出す） | 実装役に見えない判定（非公開オラクル）で採点する道具。チャット型との公平な比較の前提 | harness/bench_score.py、tests/test_bench_score.py | `python -m unittest tests.test_bench_score` | 工廠（自律） | R3-c |
+| W-86 | 床の検査（参照実装と木の採点、floor.json を出す） | 課題と隠しテストの組み合わせが、通り、かつ空の木を落とすことを機械で確かめる。目的までの距離 R3-c の「床の検査済の課題」を数える記録。W-34 の行数の都合で分離 | harness/bench_score.py の floor、tests/test_bench_floor.py | `python -m unittest tests.test_bench_floor` | 工廠（自律） | R3-c |
 | W-35 | 実装役に、受信箱（総監督の下書き）・非公開オラクル・生ログを読ませない（道具の設定） | 工廠が仕様だけから作ったと言えるように、総監督の下書き・参照実装・非公開オラクルを実装役の道具から外す（R3-a の B06 の参照実装は受信箱にあり、読まれ得た） | 実装役の呼び出しの禁止の列、tests/test_oracle_deny.py | python -m unittest tests.test_oracle_deny | 工廠（自律） | R3-b |
 | W-36 | B06・B01・B05 の非公開オラクルを置き、指紋と床の検査の結果を main に入れる | 作った 3 本の課題を、非公開オラクルで採点できるようにする | oracles の配置、docs/bench/<id>/oracle.sha256、bench/records/<id>/floor.json（3 本） | `python -m harness.bench_score floor --task B06 --task B01 --task B05` | 操縦士（手動） | R3-c |
 | W-37 | 課題 B02（倒立振子）・B03（ビリヤード）・B04（ドミノ）の仕様と非公開オラクルを置く | ベンチを 10 本にそろえる（1/3）。チャット型との差が出る難しさの課題を足す | B02〜B04 の仕様・指紋・floor.json、oracles の配置 | `python -m harness.bench_score floor --task B02 --task B03 --task B04` | 操縦士（手動） | R3-c |
