@@ -1369,7 +1369,8 @@ tasks:
   - W-71
   acceptance:
   - python -m harness.bench_run chat --task <id> --run-id <r> --repo <clone> --base <rev> は、開始のコミットから、docs/bench/prompts/chat.md と仕様の全文で、実装役と同じモデルを 1 回（ターン上限 30、W-35 の禁止つき）呼び、結果を枝 bench/<id>/chat-<r> に置き、採点した記録 bench/records/<id>/chat-<r>.json（base・head・tokens・turns・calls・score・invalid）を書く
-  - 差分が <package>/ と tests/test_<package>* の外に触れた走行は、invalid に触れたパスが入る
+  - 差分が <package>/ と tests/test_<package>* の外に触れた走行は、violations に触れたパスが入り、score は 0 になる（無効にしない。docs/bench/protocol.md の REQ-23）。CLI が報告したモデルが設定と違うか、CLI の版が freeze.json と違う走行は、invalid に理由が入る（REQ-02・REQ-03）
+  - 走行ごとに docs/bench/protocol.md の REQ-31 のディレクトリ（env.json・inputs・calls・git・score.json・manifest.json）を書き、記録に manifest.json の sha256 を入れる
   oracle:
   - path: tests/test_bench_run_chat.py
     from: self
@@ -1393,7 +1394,8 @@ tasks:
   - W-71
   acceptance:
   - python -m harness.bench_run factory --task <id> --run-id <r> --repo <clone> --base <rev> は、監修つきの計画（W-43）・開始のコミット・走行ごとの受信箱と設定（open_pr false・統合ブランチ bench/<id>/factory-<r>）で clone の H ラインを、待ちと処理中が 0 になるか 3 時間まで回し、枝の先端を採点した記録を書く
-  - 記録に、計画役の出力の sha256・キューが取り込んだ What の sha256・置き直しの数・What の試行の合計・監修の差し戻しの回数・トークンが入る。計画が確定しなかった走行は invalid にその理由が入る
+  - 記録に、計画役の出力の sha256・キューが取り込んだ What の sha256・置き直しの数・What の試行の合計・監修の差し戻しの回数・トークン・利用枠の回復待ちの秒が入る。計画が確定しなかった走行は、score が 0 の有効な走行として理由が入る（REQ-23）。3 時間は利用枠の回復待ちを除いて数える（REQ-17）
+  - 走行ごとに REQ-31 のディレクトリ（チャット型の分に factory/ を加える）を書き、記録に manifest.json の sha256 を入れる
   oracle:
   - path: tests/test_bench_run_factory.py
     from: self
@@ -1414,6 +1416,7 @@ tasks:
   acceptance:
   - python -m harness.bench_verify (--task <id>... | --all) --min-runs <n> [--frozen] は、floor.json が合格で指紋が今と同じ・chat と factory の有効な記録が n 件以上・各記録の head を採点し直すと passed と tests が一致、のときだけ 0
   - factory の記録は、キューの What の sha256 がすべて計画役の出力にあり、置き直しが 0 のときだけ有効（人の介入 0 回の測り方）。--frozen は、freeze.json の base・指紋に合い、凍結の時刻より後に始まった記録だけを数える
+  - --package <dir> と --oracles <dir> を渡すと、展開した走行の束の manifest.json の sha256 を照合し、git の bundle の先端を渡したオラクルで採点し直し、記録の score と一致すること、bench_stats の判定を計算し直して記録と一致することを確かめ、すべて一致すれば 0（REQ-36）
   oracle:
   - path: tests/test_bench_verify.py
     from: self
@@ -1488,7 +1491,7 @@ tasks:
   depends_on:
   - W-49
   acceptance:
-  - python -m harness.bench_ceiling --freeze は、チャット型の平均の通過率が 0.85 以下で満点でない課題が 3 本以上なら、base・10 本の指紋・閾値・時刻を bench/records/freeze.json に書いて 0。満たさなければ満点の課題を出して 1
+  - python -m harness.bench_ceiling --freeze は、チャット型の平均の通過率が 0.85 以下で満点でない課題が 3 本以上なら、base・10 本の指紋・閾値・時刻・CLI の版（claude --version）・モデル ID を bench/records/freeze.json に書いて 0。満たさなければ満点の課題を出して 1
   - --check は、freeze.json があり、今の指紋と記録に合えば 0
   oracle:
   - path: tests/test_bench_ceiling.py
