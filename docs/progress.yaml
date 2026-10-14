@@ -7,7 +7,7 @@ last_verification:
   task: W-86
   exit_code: 0
   at: '2026-10-14T23:58:38'
-next_id: 87
+next_id: 88
 nodes:
 - id: A
   parent: null
@@ -1445,7 +1445,7 @@ tasks:
   - W-75
   - W-77
   - W-78
-  - W-79
+  - W-87
   - W-81
   - W-82
   - W-83
@@ -2045,24 +2045,43 @@ tasks:
     command: python -m unittest tests.test_goal_distance_plain_checks tests.test_goal_distance
     expected_exit_code: 0
 - id: W-79
-  title: 関門ごとの流れを台帳から作り、report.md に出す（中間関門・着手可・前段・後段・目的）
+  title: 関門と中間関門の並びと、タスクの置き場を台帳から決める
   group: W-17
   target_repo: game-harness
   status: pending
   slug: 'report: gate-flow-view'
   serves: R3-c
   purpose: セッションや手番が変わると、AI は大局を見失う。手書きのロードマップに状態や依存を写すと腐る（D-077・L-39）。台帳だけを正として、関門ごとの流れと各タスクの立ち位置・着手の可否・目的を機械が毎走行出し、AI と人が同じ現在地を読む。全文を出すと文脈を圧迫するので、詳しく出すのは現在の関門だけにする
-  deliverable: harness/gate_flow.py、report.md の「## 関門ごとの流れ」、tests/test_gate_flow.py
+  deliverable: harness/gate_flow.py の置き場の計算、tests/test_gate_flow.py
   depends_on: []
   acceptance:
-  - rung を持つタスクを関門とし、関門の順は depends_on の順（前の関門を推移的に待つ関門が後）にする。関門が推移的に待つ操縦士のタスク（by: pilot）を中間関門とする。未完了のタスクを、それを推移的に待つ関門・中間関門のうち最も前のものの下に置く。足場（規則 5 の例外）は、未完了のタスクに効かないので、待つ関門の下に置く
-  - 未完了のタスクを持つ最も前の関門を現在の関門とし、それだけを詳しく出す。中間関門ごとに見出しと済み・着手可・待ちの数を出し、着手可のタスク（depends_on がすべて完了）は ID・題・by・後段（それを depends_on に持つタスク）・purpose を、待ちのタスクは ID・題・未完了の前段だけを、それぞれ 1 行で出す。ほかの関門は 1 行（ID・題・済み・着手可・待ちの数）にする。節は 60 行を超えない（超えるときは、待ちのタスクの行を数に替える）
-  - report.md の「## 目的までの距離」の次に「## 関門ごとの流れ」として毎走行出し、python -m harness.gate_flow は同じ節を標準出力に出す。台帳は進捗ツリーと同じ ref（統合ブランチ、無ければ base）から読み、読めなければ節を 1 行の理由に替え、report.md の書き出しを止めない
+  - harness.gate_flow の place(ledger) は、rung を持つタスクを関門とし、depends_on の順（前の関門を推移的に待つ関門が後）に並べる。関門が推移的に待つ、rung を持たない操縦士のタスク（by: pilot）を中間関門とし、どの関門にも待たれない操縦士のタスクは中間関門にしない
+  - 各タスク（済みを含む）を、それを推移的に待つ関門・中間関門のうち最も前のものの下に置き、未完了のタスクを持つ最も前の関門を現在の関門として返す
   oracle:
   - path: tests/test_gate_flow.py
     from: self
   verification:
-    command: python -m unittest tests.test_gate_flow tests.test_goal_distance
+    command: python -m unittest tests.test_gate_flow
+    expected_exit_code: 0
+- id: W-87
+  title: 関門ごとの流れを report.md に出す（現在の関門の詳細・着手可・前段・後段・目的・縮約）
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'report: gate-flow-section'
+  serves: R3-c
+  purpose: W-79 の置き場から、AI と人が同じ現在地を読む節を毎走行出す。全文を出すと文脈を圧迫するので、詳しく出すのは現在の関門だけにし、60 行に収める。W-79 から量の超過で分けた
+  deliverable: harness/gate_flow.py の節と入口、report.md の「## 関門ごとの流れ」、tests/test_gate_flow_section.py
+  depends_on:
+  - W-79
+  acceptance:
+  - 現在の関門だけを詳しく出す。中間関門ごとに見出しと済み・着手可・待ちの数を出し、着手可のタスク（depends_on がすべて完了）は ID・題・by・後段（それを depends_on に持つタスク）・purpose を、待ちのタスクは ID・題・未完了の前段だけを、それぞれ 1 行で出す。ほかの関門は 1 行（ID・題・済み・着手可・待ちの数）にする。節は 60 行を超えない（超えるときは、待ちのタスクの行を数に替える）
+  - report.md の「## 目的までの距離」の次に「## 関門ごとの流れ」として毎走行出し、python -m harness.gate_flow は同じ節を標準出力に出す。台帳は進捗ツリーと同じ ref（統合ブランチ、無ければ base）から読み、読めなければ節を 1 行の理由に替え、report.md の書き出しを止めない
+  oracle:
+  - path: tests/test_gate_flow_section.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_gate_flow_section tests.test_goal_distance
     expected_exit_code: 0
 - id: W-80
   title: 実装役への指示に、What が宣言したタスクの台帳の欄（題・目的・acceptance・検証コマンド）を入れる

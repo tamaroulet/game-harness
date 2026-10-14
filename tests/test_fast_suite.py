@@ -13,7 +13,7 @@ import base_whitelist as bw  # noqa: E402
 import fastsuite as fs  # noqa: E402
 import hline  # noqa: E402
 
-CFG = hline.load_config()
+CFG = {**hline.load_config(), "gate_always_modules": []}   # 毎回走らせる試験の欄は tests/test_gate_always_modules.py が確かめる
 CANARY = hline.base_whitelist.unittest_command(CFG["gate_command"], CFG["canary_modules"])   # 影響テストが無いときだけ走る束（C3）
 NAMES = [f"tests.test_{c}" for c in "abcd"]
 TRACE = "Traceback (most recent call last):\n  File \"x.py\", line 1, in test_b\nAssertionError: boom"

@@ -35,7 +35,7 @@ import progress  # noqa: E402
 import yaml  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
-CFG = hline.load_config()
+CFG = {**hline.load_config(), "gate_always_modules": []}   # 毎回走らせる試験の欄は tests/test_gate_always_modules.py が確かめる
 SPEC = {
     "target_symbols": [{"module": "harness/textnorm.py", "kind": "function", "name": "normalize_newlines"}],
     "signatures": [{"symbol": "normalize_newlines", "params": [{"name": "text", "type": "str"}], "returns": "str"}],
