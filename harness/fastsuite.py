@@ -13,6 +13,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Queue
 
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+_STARTUPINFO = None
+if sys.platform == "win32":
+    _STARTUPINFO = subprocess.STARTUPINFO()
+    _STARTUPINFO.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    _STARTUPINFO.wShowWindow = 0  # SW_HIDE
+
 _RAN = re.compile(r"\bRan (\d+) tests?\b")
 _MODULE = re.compile(r"[A-Za-z_]\w*(\.[A-Za-z_]\w*)*")
 _FAILED = re.compile(r"^(?:FAIL|ERROR): (\S.*?)[ \t\r]*$", re.MULTILINE)
@@ -46,7 +53,7 @@ def run_module(module, root, worker, timeout):
         try:
             with open(log, "wb") as f:
                 code = subprocess.run(module_command(module), cwd=str(root), env=env, stdout=f, stderr=subprocess.STDOUT,
-                                      timeout=timeout).returncode
+                                      timeout=timeout, creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO).returncode
             note = ""
         except subprocess.TimeoutExpired:
             code, note = 124, f"\n{module} は {timeout} 秒で時間切れになり、強制終了しました\n"
