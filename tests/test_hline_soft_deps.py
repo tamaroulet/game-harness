@@ -110,7 +110,9 @@ class SoftDeps(unittest.TestCase):
                          {"a": "unconverged", "b": "frozen", "c": "frozen", "x": "unconverged", "y": "frozen", "z": "waiting"})
         with mock.patch.object(hline_report, "progress_report", return_value="## 進捗ツリー\n- 人間作業: NONE\n"):
             text = hline_report.h_section(self.cfg, st)
-        row = next(l for l in text.splitlines() if l.startswith("- 未収束"))
+        lines = text.splitlines()
+        start = next(i for i, l in enumerate(lines) if l.startswith("- 未収束"))
+        row = " ".join(l for l in lines[start + 1:] if l.startswith("  - ") and not l.startswith("    "))
         self.assertIn("a（r）", row)
         self.assertIn("（凍結した下流 2 件・本線への影響 あり）", row.split("x（")[0])
         self.assertIn("（凍結した下流 1 件・本線への影響 なし）", row.split("x（")[1])
