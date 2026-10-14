@@ -13,10 +13,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import base_whitelist, exitcode, fastsuite, gate_order, hline_gate, hline_merge, hline_prompt, hline_protect, hline_quota, hline_suite, hline_task  # noqa: E402,F401
 import infra_retry, model_pin, proc, progress, size_limits, symbolmap  # noqa: E402,F401  テストが hline.proc などを差し替える
 from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args, load_config, must, pinned_models, run_agent, slug, title_of  # noqa: E402,F401
+import hline_halt  # noqa: E402
 from hline_gc import sweep  # noqa: E402
 from hline_git import ahead, apply_patch, changed_paths, code_shas, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, merge_pr, open_pr, pr_checks, pr_state, record, record_refused  # noqa: E402,F401
 from hline_hygiene import diff_files, problems  # noqa: E402
-from hline_queue import by_status, intake, load_state, next_runnable, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
+from hline_queue import by_status, intake, load_state, next_runnable, only_orphans_wait, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
 from hline_report import line_modules, mark as _mark, pr_body, pr_title, self_change, today, write_report  # noqa: E402,F401
 from hline_room import director_settings, setup  # noqa: E402,F401
 from hline_spec import boundary_problems, diff_counts  # noqa: E402,F401
@@ -141,7 +142,7 @@ def run_line(cfg):
     if st.get("quota_wait"):   # 待ちに戻した What が残るので統合 PR は出さない。定期起動が再開の時刻の後に続きを取る
         write_report(cfg, st)
         return 0
-    if not by_status(st, "waiting") and not by_status(st, "processing"):
+    if only_orphans_wait(st):   # 依存先の欠けた待ちが残っても止めない。残りは待ちのまま次の走行に回す
         open_integration_pr(cfg, st)
     write_report(cfg, st)
     return 1 if unconverged else 0
@@ -168,11 +169,19 @@ def main(argv=None):
     ap.add_argument("cmd", choices=["poll", "setup"])
     args = ap.parse_args(argv)
     cfg = load_config()
+    reason = None
     try:
-        return poll(cfg) if args.cmd == "poll" else setup(cfg)
+        code = poll(cfg) if args.cmd == "poll" else setup(cfg)
     except Infra as e:
         print(f"ABORT（環境の異常）: {e}")
-        return 2
+        code, reason = 2, hline_halt.reason_of(e)
+    except Exception as e:   # noqa: BLE001 - 停止の節を書いてから、そのまま外へ出す
+        if args.cmd == "poll":
+            hline_halt.stopped(cfg, hline_halt.reason_of(e))
+        raise
+    if args.cmd == "poll":
+        hline_halt.settle(cfg, code, reason)
+    return code
 
 
 if __name__ == "__main__":

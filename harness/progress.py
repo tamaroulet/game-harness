@@ -328,9 +328,18 @@ def review(task_id, url, path):
 
 # ============================================================ 検証連動の遷移（Gatekeeper）
 
+def _is_remote_ref(repo_root, ref):
+    remote, sep, branch = ref.partition("/")
+    if not sep or not branch:
+        return False
+    r = subprocess.run(["git", "remote"], cwd=repo_root, capture_output=True, text=True, timeout=GIT_TTL,
+                       creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
+    return r.returncode == 0 and remote in r.stdout.split()
+
+
 def main_version(repo_root, ref, fetch=True):
     remote, _, branch = ref.partition("/")
-    if fetch:
+    if fetch and _is_remote_ref(repo_root, ref):
         r = subprocess.run(["git", "fetch", "-q", remote, branch], cwd=repo_root, capture_output=True, text=True,
                            timeout=GIT_TTL)
         if r.returncode != 0:
@@ -408,10 +417,11 @@ def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, 
 
 # ============================================================ CLI
 
-def _complete_cli(task_id):
+def _complete_cli(task_id, ref=None):
+    kw = {"ref": ref} if ref else {}
     if os.environ.get(ORDER_FREE_ENV) == "1":
-        return complete(task_id, require_active=False)
-    return complete(task_id)
+        return complete(task_id, require_active=False, **kw)
+    return complete(task_id, **kw)
 
 
 def main(argv=None):
@@ -422,6 +432,7 @@ def main(argv=None):
     tp.add_argument("--all", action="store_true", help="すべての枝を展開する")
     cp = sub.add_parser("complete")
     cp.add_argument("task_id")
+    cp.add_argument("--ref", default=None, help="検証コマンドを照合する rev（既定は origin/main）")
     sub.add_parser("check")
     sub.add_parser("report")
     sub.add_parser("hook")
@@ -432,7 +443,7 @@ def main(argv=None):
     path = ROOT / REL_PATH
     try:
         if args.cmd == "complete":
-            return _complete_cli(args.task_id)
+            return _complete_cli(args.task_id, args.ref)
         if args.cmd == "review":
             review(args.task_id, args.url, path)
             print(report(load(path)), end="")

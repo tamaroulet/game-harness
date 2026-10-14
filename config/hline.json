@@ -99,6 +99,28 @@
     ]
   },
   "_reviewer_note": "取り込みの段の監修役（harness/hline_review.py）。実装役と同じ CLI とモデルで、道具（ファイルの読み書き・コマンド）を許さずに 1 回呼ぶ。指示は base から読む。判定は生ログの置き場の review/ に控える。合格は決めない（Gate 1 には入れない）",
+  "planner": {
+    "cli": "claude",
+    "headless_flag": "-p",
+    "model_flag": "--model",
+    "model": "claude-sonnet-5-5",
+    "auxiliary_models": [
+      "claude-haiku-"
+    ],
+    "instruction": "docs/prompts/planner.md",
+    "ttl_seconds": 900,
+    "extra_flags": [
+      "--permission-mode",
+      "acceptEdits",
+      "--allowedTools",
+      "Read,Glob,Write"
+    ],
+    "output_format_args": [
+      "--output-format",
+      "json"
+    ]
+  },
+  "_planner_note": "計画役（harness/planner.py）。課題の仕様から、受信箱（cwd）に What（P-01.md〜）と ledger.yaml を書かせる。実装役と同じ CLI とモデル。編集は受信箱の中だけ。呼び出しの後に受信箱を確かめ、planner.json に sha256 と満たさなかった項目を書く",
   "pr_hygiene": {
     "forbidden_globs": [
       "*.log",

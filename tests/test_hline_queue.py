@@ -198,7 +198,7 @@ class Integrate(unittest.TestCase):
     def test_the_task_is_recorded_as_complete_before_the_commit_and_pushed_to_the_integration_branch_only(self):
         calls, failed = self.run_integrate("S1-2")
         self.assertFalse(failed)
-        self.assertEqual(calls[0][-3:], ["harness.progress", "complete", "S1-2"])
+        self.assertEqual(calls[0][-5:], ["harness.progress", "complete", "S1-2", "--ref", CFG["base"]])
         names = [c[1] for c in calls[1:]]
         self.assertEqual(names, ["add", "commit", "push"])
         self.assertIn("HEAD:refs/heads/" + CFG["integration_branch"], calls[-1])
@@ -344,6 +344,7 @@ class World(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         mock.patch.object(hline_queue.hline_review, "review", return_value=None).start()   # 監修役（LLM）の段は pass に差し替える
         self.addCleanup(mock.patch.stopall)
+        mock.patch.object(hline, "follow_up", False, create=True).start()   # 偽の実装役は follow_up を読まない。試験の後に元の値（無ければ無し）へ戻す
         self.cfg = json.loads(json.dumps(CFG))
         self.inbox, self.out, self.wt = self.tmp / "inbox", self.tmp / "out", self.tmp / "wt"
         self.cfg.update(inbox=str(self.inbox), out=str(self.out), worktrees=str(self.wt), milestones=["B8.1"])
@@ -475,15 +476,13 @@ class IntegrationPr(World):
         self.assertIn("統合 PR 待ち", self.report())
         self.assertIn("REVIEW_REQUIRED https://github.com/o/r/pull/1", self.report())
 
-    def test_the_pr_is_made_only_when_the_waiting_whats_are_gone(self):
+    def test_the_pr_is_made_even_when_a_waiting_what_has_no_dependency_in_the_queue(self):
         self.put("010-a", deps=["020-ghost"])
         self.put("020-b")
         self.poll()
         self.assertEqual(self.integrated, ["020-b"])
-        self.assertEqual(self.created, [])   # 010-a がまだ待ち
-        self.put("020-ghost")
-        self.poll()
-        self.assertEqual(len(self.created), 1)
+        self.assertEqual(len(self.created), 1)   # 010-a は依存先なしのまま待ちに残る
+        self.assertEqual(self.status("010-a"), "waiting")
 
     def test_no_pr_is_made_when_nothing_was_integrated(self):
         self.failing = {"T-010-a"}
@@ -821,6 +820,9 @@ class Marks(World):
 class StageCalls(unittest.TestCase):
     def run_task(self, verdicts, on_stage=True, run=0):
         events, verdicts = [], iter(verdicts)
+        patcher = mock.patch.object(hline, "follow_up", False, create=True)   # 本物の run_task が 2 回目から True にする。試験の後に元の値へ戻す
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
         def implement(*a):
             events.append("implement")

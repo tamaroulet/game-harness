@@ -1,12 +1,12 @@
-active_task_id: W-34
+active_task_id: W-36
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-83
+  task: W-86
   exit_code: 0
-  at: '2026-10-14T22:29:42'
+  at: '2026-10-14T23:58:38'
 next_id: 87
 nodes:
 - id: A
@@ -1111,7 +1111,7 @@ tasks:
   title: 採点役（非公開オラクルの指紋を確かめ、木を変えずに通過率を出す）
   group: W-17
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'bench: score-with-hidden-tests'
   serves: R3-c
   purpose: 実装役に見えない判定（非公開オラクル）で採点する道具。チャット型との公平な比較の前提
@@ -1131,7 +1131,7 @@ tasks:
   title: 床の検査（参照実装と木の採点、floor.json を出す）
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'bench: floor-check'
   serves: R3-c
   purpose: 課題と隠しテストの組み合わせが、通り、かつ空の木を落とすことを機械で確かめる。目的までの距離 R3-c の「床の検査済の課題」を数える記録。W-34 の行数の都合で分離
@@ -1170,7 +1170,7 @@ tasks:
   title: B06・B01・B05 の非公開オラクルを置き、指紋と床の検査の結果を main に入れる
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'bench: place-oracles-b06-b01-b05'
   by: pilot
   serves: R3-c
@@ -1254,7 +1254,7 @@ tasks:
   title: 進捗の記録の照合先を選べるようにする（progress complete --ref）
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'progress: complete-against-ref'
   serves: R3-c
   purpose: ベンチの走行の台帳（計画役のタスク）でも記録を照合できるようにし、W-26・W-27 の規則とベンチを両立させる
@@ -1293,7 +1293,7 @@ tasks:
   title: 計画役の道具（課題の仕様から、What と台帳のタスクの対を書く）
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'planner: spec-to-whats-and-tasks'
   serves: R3-c
   purpose: 工廠の条件の起草役。仕様から What と台帳のタスクを自律で書く（C5 の本走の要件）
@@ -2012,7 +2012,7 @@ tasks:
   title: 依存先がキューにも台帳の完了にも無い待ちの What があっても、統合 PR を止めない
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: orphan-wait-no-stall'
   serves: R3-c
   purpose: 依存先の欠けた待ちの What があると統合 PR が出ず、人が見る PR も無いまま、ラインが黙って止まる（10-11 の夜、差し戻された W-67 を待つ W-73 が統合 PR を止めかけた）。置く時期の注意に頼らず、コードで防ぐ
@@ -2088,7 +2088,7 @@ tasks:
   title: poll が環境の異常か予期しない例外で終わったら、report.md の先頭に停止の節を書き、同じ停止が 2 回続いたら GitHub に issue を開く
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: halt-notice'
   serves: R3-c
   purpose: poll が落ちても外に何も出ず、report.md が古いまま放置される。今は総監督がセッションの始めに古さを見つけるだけで、R3-c の無人の走行（W-48・W-51 の数時間の走行）の間は誰も気づかない。落ちた走行が自分で印を書き、続けば操縦士の手元に届く通知を出す

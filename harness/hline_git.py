@@ -91,7 +91,9 @@ def changed_paths(wt, cfg):
 def record(cfg, wt, task):
     """タスクを宣言した What の進捗の記録（harness.progress complete）を作業ツリーで行う。(終了コード, 出力)。
     Gate 1 の最後の段で、積む前に呼ぶ。落ちたときは docs/progress.yaml を元に戻す（保護されたパスで、次の試行の門に当たるため）。"""
-    code, out, err = proc.run([sys.executable, "-m", "harness.progress", "complete", task], wt, cfg["ttl_seconds"]["gate"],
+    ref = ["--ref", cfg["base"]] if "base" in cfg else []
+    code, out, err = proc.run([sys.executable, "-m", "harness.progress", "complete", task, *ref], wt,
+                              cfg["ttl_seconds"]["gate"],
                               "harness.progress complete", env={**os.environ, progress.ORDER_FREE_ENV: "1"})
     if code != 0:
         proc.run(["git", "checkout", "-q", "--", "docs/progress.yaml"], wt, cfg["ttl_seconds"]["git"], "git checkout")
