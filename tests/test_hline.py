@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 import hline  # noqa: E402
 import hline_base  # noqa: E402
 
-CFG = hline.load_config()
+CFG = {**hline.load_config(), "gate_always_modules": []}   # 毎回走らせる試験の欄は tests/test_gate_always_modules.py が確かめる
 CANARY = hline.base_whitelist.unittest_command(CFG["gate_command"], CFG["canary_modules"])   # 影響テストが無いときだけ走る束（C3）
 
 
