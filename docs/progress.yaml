@@ -7,7 +7,7 @@ last_verification:
   task: W-33
   exit_code: 0
   at: '2026-10-13T00:15:01'
-next_id: 80
+next_id: 84
 nodes:
 - id: A
   parent: null
@@ -1280,6 +1280,7 @@ tasks:
   deliverable: harness/planner.py、tests/test_planner.py
   depends_on:
   - W-22
+  - W-80
   acceptance:
   - python -m harness.planner --spec <spec.md> --package <名前> --inbox <dir> は、docs/prompts/planner.md の指示で計画役を呼び、受信箱に What（タスク P-01〜P-04 を宣言）と ledger.yaml（P-NN の題・depends_on・acceptance・oracle・検証コマンド）を残し、出力の sha256 を planner.json に書く
   - ledger.yaml の各タスクに files（作るか変えるファイルの相対パスの列）がある
@@ -1425,6 +1426,9 @@ tasks:
   - W-77
   - W-78
   - W-79
+  - W-81
+  - W-82
+  - W-83
   acceptance:
   - 本線の H ラインとは別の clone（C:\src\.local\bench\repo）で B06 を 1 回ずつ走らせ、記録を PR で main に入れ、枝を origin に push する
   oracle:
@@ -2021,22 +2025,100 @@ tasks:
     command: python -m unittest tests.test_goal_distance_plain_checks tests.test_goal_distance
     expected_exit_code: 0
 - id: W-79
-  title: 関門ごとの流れを台帳から作り、report.md に出す（各タスクの関門・前段・後段・着手可・目的）
+  title: 関門ごとの流れを台帳から作り、report.md に出す（中間関門・着手可・前段・後段・目的）
   group: W-17
   target_repo: game-harness
   status: pending
   slug: 'report: gate-flow-view'
   serves: R3-c
-  purpose: セッションや手番が変わると、AI は大局を見失う。手書きのロードマップに状態や依存を写すと腐る（D-077・L-39）。台帳だけを正として、関門ごとの流れと各タスクの立ち位置・着手の可否・目的を機械が毎走行出し、AI と人が同じ現在地を読む
+  purpose: セッションや手番が変わると、AI は大局を見失う。手書きのロードマップに状態や依存を写すと腐る（D-077・L-39）。台帳だけを正として、関門ごとの流れと各タスクの立ち位置・着手の可否・目的を機械が毎走行出し、AI と人が同じ現在地を読む。全文を出すと文脈を圧迫するので、詳しく出すのは現在の関門だけにする
   deliverable: harness/gate_flow.py、report.md の「## 関門ごとの流れ」、tests/test_gate_flow.py
   depends_on: []
   acceptance:
-  - rung を持つタスクを関門とし、関門の順は depends_on の順（前の関門を推移的に待つ関門が後）にする。各タスクを、それを depends_on で推移的に待つ関門のうち最も前の関門の下に置き、どの関門にも待たれないタスクは「関門なし」の下に置く
-  - 各関門の見出しに、その関門の下のタスクの済み・着手可・待ちの数を出す。未完了のタスクを 1 行ずつ出し、行に ID・題・by・着手可か待ちか・待っている前段（未完了の depends_on）・後段（それを depends_on に持つタスク）・purpose を出す。着手可は、depends_on がすべて完了していること
-  - 台帳は進捗ツリーと同じ ref（統合ブランチ、無ければ base）から読む。読めなければ、節を 1 行の理由に替え、report.md の書き出しを止めない。python -m harness.gate_flow は同じ節を標準出力に出す
+  - rung を持つタスクを関門とし、関門の順は depends_on の順（前の関門を推移的に待つ関門が後）にする。関門が推移的に待つ操縦士のタスク（by: pilot）を中間関門とする。未完了のタスクを、それを推移的に待つ関門・中間関門のうち最も前のものの下に置く。足場（規則 5 の例外）は、未完了のタスクに効かないので、待つ関門の下に置く
+  - 未完了のタスクを持つ最も前の関門を現在の関門とし、それだけを詳しく出す。中間関門ごとに見出しと済み・着手可・待ちの数を出し、着手可のタスク（depends_on がすべて完了）は ID・題・by・後段（それを depends_on に持つタスク）・purpose を、待ちのタスクは ID・題・未完了の前段だけを、それぞれ 1 行で出す。ほかの関門は 1 行（ID・題・済み・着手可・待ちの数）にする。節は 60 行を超えない（超えるときは、待ちのタスクの行を数に替える）
+  - report.md の「## 目的までの距離」の次に「## 関門ごとの流れ」として毎走行出し、python -m harness.gate_flow は同じ節を標準出力に出す。台帳は進捗ツリーと同じ ref（統合ブランチ、無ければ base）から読み、読めなければ節を 1 行の理由に替え、report.md の書き出しを止めない
   oracle:
   - path: tests/test_gate_flow.py
     from: self
   verification:
-    command: python -m unittest tests.test_gate_flow
+    command: python -m unittest tests.test_gate_flow tests.test_goal_distance
+    expected_exit_code: 0
+- id: W-80
+  title: 実装役への指示に、What が宣言したタスクの台帳の欄（題・目的・acceptance・検証コマンド）を入れる
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: ledger-fields-to-implementer'
+  serves: R3-c
+  purpose: What が台帳の題・目的・acceptance・検証コマンドを手で写すと、写しが崩れる（10-13 の W-79 は台帳と 6 か所食い違った）。計画役（W-42）の出力でも同じ写しが起き、ベンチでは走行 1 回ごと無駄になる。H ラインが台帳の欄を実装役に直に渡し、What には台帳に無いこと（読み方・試験の注意・変えるファイル）だけを書く形にして、写しと、写しを確かめる総監督の照合を無くす
+  deliverable: harness/hline_prompt.py の実装役への指示の「台帳のタスク」の節、tests/test_hline_ledger_fields.py
+  depends_on: []
+  acceptance:
+  - 実装役への指示に、What のタスクの行が宣言したタスクの title・purpose・acceptance（項目ごとに 1 行）・verification の command を、作業ツリーの docs/progress.yaml から読んで「台帳のタスク」の節として、What の本文より前に入れる。続きの試行の指示にも入れる
+  - 節の頭に、台帳の欄と What の本文が食い違うときは台帳に従う、と書く
+  - タスクを宣言しない What、台帳に無いタスク、作業ツリーの台帳を読めないとき（ファイルが無い・YAML として読めない・欄の形が違う）は、例外を外に出さず、節を入れずに今までどおりの指示にする（実装役の呼び出しは止めない）
+  oracle:
+  - path: tests/test_hline_ledger_fields.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hline_ledger_fields
+    expected_exit_code: 0
+- id: W-81
+  title: poll が環境の異常か予期しない例外で終わったら、report.md の先頭に停止の節を書き、同じ停止が 2 回続いたら GitHub に issue を開く
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: halt-notice'
+  serves: R3-c
+  purpose: poll が落ちても外に何も出ず、report.md が古いまま放置される。今は総監督がセッションの始めに古さを見つけるだけで、R3-c の無人の走行（W-48・W-51 の数時間の走行）の間は誰も気づかない。落ちた走行が自分で印を書き、続けば操縦士の手元に届く通知を出す
+  deliverable: 停止の節と通知、tests/test_hline_halt_notice.py
+  depends_on: []
+  acceptance:
+  - python -m harness.hline poll が環境の異常（終了コード 2）か予期しない例外で終わったとき、report.md の先頭に「## 停止」の節（時刻・終了の理由の 1 行）を書く。次に正常に終わった走行で、その節を消す
+  - 同じ理由の停止が 2 回続いたら、GitHub に issue を 1 件開く（題に停止の理由を入れ、同じ題の開いた issue があれば開かない）。report.md の書き込みや gh が失敗しても、poll の終了コードは変えない
+  oracle:
+  - path: tests/test_hline_halt_notice.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hline_halt_notice
+    expected_exit_code: 0
+- id: W-82
+  title: Gate 1 は、影響テストに加えて、リポジトリ全体を走査する試験を毎回走らせる
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: gate-always-modules'
+  serves: R3-c
+  purpose: Gate 1 は影響テストだけを走らせ、リポジトリ全体を走査する試験は統合 PR の CI で初めて掛かる。10-13 の統合 PR（#186）はこれで CI が赤になり、工廠には直す道が無く、操縦士の手の直しが要った。ベンチ（W-41）は main への PR を出さないので CI も無く、全体の検査がどこにも掛からない。落ちる変更を積む前に Gate 1 で止める
+  deliverable: Gate 1 の毎回走らせる試験、config/hline.json の gate_always_modules、tests/test_gate_always_modules.py
+  depends_on: []
+  acceptance:
+  - Gate 1 は、影響テストに加えて、config/hline.json の gate_always_modules に並べた試験のモジュールを、影響テストと同じ命令で毎回走らせる。落ちたら試行の不合格にし、落ちた試験の出力を次の試行に渡す
+  - gate_always_modules の初めの値は tests.test_isolation と tests.test_ledger_double_check。欄が無いか空なら、今までどおり影響テストだけを走らせる
+  oracle:
+  - path: tests/test_gate_always_modules.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_gate_always_modules
+    expected_exit_code: 0
+- id: W-83
+  title: report.md の「## キュー」で、済みは直近 10 件と件数だけを出し、未収束には最後の試行の落ちた試験の要点を出す
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'report: queue-recent-and-failures'
+  serves: R3-c
+  purpose: 起動のたびに読む report.md で、済みの全件を 1 行に並べた行が最も大きい。一方、未収束の行には分類と再開の材料の行数しか無く、総監督は落ちた試験の名前も失敗の文も知らずに What を直している（生ログは読めず、中継もしない。D-079）。Gate 1 が走らせるのは公開の試験だけで、非公開オラクルは入らないので、落ちた試験の要点を機械が report.md に写しても秘匿は崩れない。起動で読む量を減らし、未収束の直しを事実から行う
+  deliverable: report.md の「## キュー」の済みと未収束の行、tests/test_hline_report_queue.py
+  depends_on: []
+  acceptance:
+  - 「## キュー」の済みは、完了の時刻の新しい順に直近 10 件だけを今の書式で出し（時刻の無い項目は数えない）、件数は全件の数を出す
+  - 未収束の行の下に、再開の材料の失敗の出力（harness/hline_resume.py の last-failure.txt）から、落ちた試験の名前と、それぞれの最初の失敗の行（ファイル:行と、例外か AssertionError の 1 行）を、What ごとに 5 件まで字下げして出す。失敗の出力が無いか読めなければ、失敗の出力なしの 1 行にする
+  - 失敗の出力の全文と済みの全件は report.md に出さない。読み込みの失敗で report.md の書き出しを止めない
+  oracle:
+  - path: tests/test_hline_report_queue.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hline_report_queue
     expected_exit_code: 0
