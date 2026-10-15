@@ -1,12 +1,12 @@
-active_task_id: W-39
+active_task_id: W-41
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-38
+  task: W-39
   exit_code: 0
-  at: '2026-10-15T09:48:11'
+  at: '2026-10-15T11:39:24'
 next_id: 88
 nodes:
 - id: A
@@ -1233,7 +1233,7 @@ tasks:
   title: 課題 B09（受け止め）・B10（迷路の玉）の仕様と非公開オラクルを置く
   group: W-17
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'bench: tasks-b09-b10'
   by: pilot
   serves: R3-c
@@ -1273,7 +1273,7 @@ tasks:
   title: H ラインを別の設定ファイルで走らせる（ベンチの受信箱・統合ブランチ・base、main への PR を出さない）
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'hline: run-with-config-file'
   serves: R3-c
   purpose: 本線を止めず汚さずに、別の clone と設定で工廠を走らせる
