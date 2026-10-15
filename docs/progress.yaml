@@ -1,12 +1,12 @@
-active_task_id: W-38
+active_task_id: W-39
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-37
+  task: W-38
   exit_code: 0
-  at: '2026-10-15T02:18:52'
+  at: '2026-10-15T09:48:11'
 next_id: 88
 nodes:
 - id: A
@@ -1212,7 +1212,7 @@ tasks:
   title: 課題 B07（坂を登る車）・B08（ばねの鎖）の仕様と非公開オラクルを置く
   group: W-17
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'bench: tasks-b07-b08'
   by: pilot
   serves: R3-c
@@ -1233,7 +1233,7 @@ tasks:
   title: 課題 B09（受け止め）・B10（迷路の玉）の仕様と非公開オラクルを置く
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'bench: tasks-b09-b10'
   by: pilot
   serves: R3-c
