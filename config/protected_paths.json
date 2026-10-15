@@ -1,5 +1,5 @@
 {
-  "_comment": "H \u30e9\u30a4\u30f3 Gate 1 \u3067\u3001\u5b9f\u88c5\u5f79\u304c\u5909\u3048\u3066\u306f\u306a\u3089\u306a\u3044\u30d1\u30b9\uff08\u672b\u5c3e\u304c / \u306a\u3089\u305d\u306e\u4e0b\u3059\u3079\u3066\uff09\u3002harness/hline_protect.py \u304c\u8d70\u3063\u3066\u3044\u308b\u30cf\u30fc\u30cd\u30b9\u306e\u6839\u304b\u3089\u8aad\u3080\uff08\u4f5c\u696d\u30c4\u30ea\u30fc\u306e\u5199\u3057\u306f\u898b\u306a\u3044\uff09\u3002\u3053\u306e\u4e00\u89a7\u306e\u30d5\u30a1\u30a4\u30eb\u81ea\u8eab\u3068\u5b88\u308a\u306e\u30c6\u30b9\u30c8\u306f\u5fc5\u305a\u5165\u308c\u308b\uff08\u6b20\u3051\u308c\u3070\u8aad\u307f\u8fbc\u307f\u304c\u6b62\u307e\u308b\uff09\u3002docs/progress.yaml \u306f harness.progress \u3060\u3051\u304c\u5909\u3048\u308b\u3002.claude/ \u306f\u6a29\u9650\u306e\u8a2d\u5b9a",
+  "_comment": "H ライン Gate 1 で、実装役が変えてはならないパス（末尾が / ならその下すべて）。harness/hline_protect.py が走っているハーネスの根から読む（作業ツリーの写しは見ない）。この一覧のファイル自身と守りのテストは必ず入れる（欠ければ読み込みが止まる）。docs/progress.yaml は harness.progress だけが変える。.claude/ は権限の設定",
   "protected_paths": [
     "config/protected_paths.json",
     "docs/progress.yaml",
@@ -22,6 +22,8 @@
     "tests/billiards_judge.py",
     "tests/domino_judge.py",
     "tests/hillcar_judge.py",
-    "tests/springchain_judge.py"
+    "tests/springchain_judge.py",
+    "tests/catcher_judge.py",
+    "tests/maze_judge.py"
   ]
 }
