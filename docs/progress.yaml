@@ -4,9 +4,9 @@ constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-39
+  task: W-90
   exit_code: 0
-  at: '2026-10-15T11:39:24'
+  at: '2026-10-15T23:04:56'
 next_id: 91
 nodes:
 - id: A
@@ -2124,7 +2124,7 @@ tasks:
   title: 目的までの距離から R3 の行と両条件の数を外し、R3-c に凍結を、R4 に基準の記録の数を出す
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'report: goal-distance-after-d109'
   serves: R3-c
   purpose: D-109 で R3（C5 の判定）とチャット型の走行を外した。今の計器は R3 の行（凍結の後の記録 0／60）と R3-c の「両条件の記録がそろう課題 0／10」を出し続け、意味を失った数で現在地を誤らせる

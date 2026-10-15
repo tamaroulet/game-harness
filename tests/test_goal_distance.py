@@ -1,4 +1,4 @@
-"""目的までの距離（harness/goal_distance.py）の検査：5 つの横木の量・前提タスクの推移的な数え方・取得失敗の行・report.md の先頭。
+"""目的までの距離（harness/goal_distance.py）の検査：4 つの横木の量・前提タスクの推移的な数え方・取得失敗の行・report.md の先頭。
 git と照合の結果は差し替え、本物の git・gh は呼ばない。"""
 import json
 import shutil
@@ -85,11 +85,11 @@ class Distance(unittest.TestCase):
             text = gd.render(CFG)
         self.assertEqual(text.splitlines()[0], "## 目的までの距離")
         got = lines_of(text)
-        self.assertEqual(list(got), ["R3-a", "R3-b", "R3-c", "R3", "R4"])
+        self.assertEqual(list(got), ["R3-a", "R3-b", "R3-c", "R4"])
         self.assertIn("判定役の照合が通る課題 0／2", got["R3-a"])
         self.assertIn("判定役の照合が通る課題 0／1", got["R3-b"])
-        self.assertIn("凍結の後の記録 0／60、判定 なし", got["R3"])
-        self.assertIn("続いた週次の周期 0／4", got["R4"])
+        self.assertIn("R3-c: 床の検査が合格の課題 0／10、凍結 なし", got["R3-c"])
+        self.assertIn("R4: 工廠の基準の記録がそろう課題 0／10、続いた週次の周期 0／4", got["R4"])
 
     def test_r3_a_and_r3_b_count_oracle_items_whose_module_passes(self):
         with Fake(passing={"tests.launcher_judge", "tests.third"}):
@@ -108,29 +108,25 @@ class Distance(unittest.TestCase):
         self.assertTrue(got["R3-c"].endswith("（前提タスク 0／1）"), got["R3-c"])
         self.assertTrue(got["R4"].endswith("（前提タスク 0／0）"), got["R4"])
 
-    def test_r3_c_counts_floor_both_conditions_and_the_freeze(self):
+    def test_r3_c_counts_floor_and_the_freeze(self):
         files = {f"{R}/B01/floor.json": {"passed": True}, f"{R}/B02/floor.json": {"passed": False},
-                 f"{R}/B01/chat-1.json": {}, f"{R}/B01/factory-1.json": {"invalid": ""},
-                 f"{R}/B02/chat-1.json": {"invalid": "x"}, f"{R}/B02/factory-1.json": {},
-                 f"{R}/B03/chat-1.json": {}, f"{R}/B03/chat-2.json": {}}
+                 f"{R}/B03/chat-1.json": {}}
         with Fake(files=files):
             line = lines_of(gd.render(CFG))["R3-c"]
         self.assertIn("床の検査が合格の課題 1／10", line)
-        self.assertIn("両条件の記録がそろう課題 1／10", line)
         self.assertIn("凍結 なし", line)
+        self.assertNotIn("両条件", line)
         files[f"{R}/freeze.json"] = {"base": "b1"}
         with Fake(files=files):
             self.assertIn("凍結 あり", lines_of(gd.render(CFG))["R3-c"])
 
-    def test_r3_counts_valid_records_with_the_freeze_base_and_the_verdict(self):
-        files = {f"{R}/freeze.json": {"base": "b1"}, f"{R}/B01/chat-1.json": {"base": "b1"},
-                 f"{R}/B01/factory-1.json": {"base": "b1", "invalid": ["x"]}, f"{R}/B02/chat-1.json": {"base": "b0"},
-                 f"{R}/B02/factory-1.json": {"base": "b1", "invalid": ""}}
+    def test_r4_counts_tasks_with_a_valid_factory_base_record(self):
+        files = {f"{R}/B01/factory-base-1.json": {}, f"{R}/B02/factory-base-1.json": {"invalid": ""},
+                 f"{R}/B03/factory-base-1.json": {"invalid": "x"}, f"{R}/B03/factory-1.json": {},
+                 f"{R}/B04/chat-1.json": {}}
         with Fake(files=files):
-            self.assertIn("凍結の後の記録 2／60、判定 なし", lines_of(gd.render(CFG))["R3"])
-        files[f"{R}/verdict.json"] = {}
-        with Fake(files=files):
-            self.assertIn("判定 あり", lines_of(gd.render(CFG))["R3"])
+            line = lines_of(gd.render(CFG))["R4"]
+        self.assertIn("工廠の基準の記録がそろう課題 2／10", line)
 
     def test_r4_is_zero_until_w59_is_done_then_the_longest_run_that_holds(self):
         tasks = [task("W-59", "pending")]
@@ -146,7 +142,7 @@ class Distance(unittest.TestCase):
             got = lines_of(gd.render(CFG))
         self.assertIn("取得失敗", got["R3-c"])
         self.assertIn("ls-tree が落ちた", got["R3-c"])
-        self.assertIn("取得失敗", got["R3"])
+        self.assertIn("取得失敗", got["R4"])
         self.assertNotIn("取得失敗", got["R3-a"])
         self.assertTrue(got["R3-c"].endswith("（前提タスク 0／1）"), got["R3-c"])
 
