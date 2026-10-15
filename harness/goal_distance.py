@@ -23,11 +23,10 @@ from hline_base import ROOT, load_config  # noqa: E402
 from hline_git import remote_ref  # noqa: E402
 
 TITLE = "## 目的までの距離"
-RUNGS = ("R3-a", "R3-b", "R3-c", "R3", "R4")
+RUNGS = ("R3-a", "R3-b", "R3-c", "R4")
 PAIR_RUNGS = ("R3-a", "R3-b")
 RECORDS = "bench/records"
 BENCH_TASKS = 10
-TRIALS = 60
 CYCLES = 4
 WEEKLY_TASK = "W-59"
 STATUS_RE = re.compile(r"^- ([A-Za-z0-9_-]+): (\S+?)（", re.M)
@@ -144,49 +143,42 @@ def exists_word(flag):
     return "あり" if flag else "なし"
 
 
-def r3c(cfg, ref):
-    recs = records_of(cfg, ref)
+def per_task(recs):
+    """{課題: {ファイル名: 中身}}（bench/records/<課題>/<ファイル名> の形のものだけ）。"""
     per = {}
     for path, rec in recs.items():
         parts = path.split("/")
         if len(parts) == 4:
             per.setdefault(parts[2], {})[parts[3]] = rec
-    floor = sum(1 for files in per.values() if (files.get("floor.json") or {}).get("passed") is True)
-
-    def has(files, prefix):
-        return any(n.startswith(prefix) and valid(r) for n, r in files.items())
-    both = sum(1 for files in per.values() if has(files, "chat-") and has(files, "factory-"))
-    return (f"床の検査が合格の課題 {floor}／{BENCH_TASKS}、両条件の記録がそろう課題 {both}／{BENCH_TASKS}、"
-            f"凍結 {exists_word(f'{RECORDS}/freeze.json' in recs)}")
+    return per
 
 
-def r3(cfg, ref):
+def r3c(cfg, ref):
     recs = records_of(cfg, ref)
-    freeze = recs.get(f"{RECORDS}/freeze.json")
-    verdict = exists_word(f"{RECORDS}/verdict.json" in recs)
-    if freeze is None:
-        return f"凍結の後の記録 0／{TRIALS}、判定 {verdict}"
-    n = 0
-    for path, rec in recs.items():
-        parts = path.split("/")
-        if len(parts) == 4 and parts[3].startswith(("chat-", "factory-")) and valid(rec) and rec.get("base") == freeze.get("base"):
-            n += 1
-    return f"凍結の後の記録 {n}／{TRIALS}、判定 {verdict}"
+    floor = sum(1 for files in per_task(recs).values() if (files.get("floor.json") or {}).get("passed") is True)
+    return f"床の検査が合格の課題 {floor}／{BENCH_TASKS}、凍結 {exists_word(f'{RECORDS}/freeze.json' in recs)}"
 
 
-def r4(cfg, tasks):
+def base_tasks(cfg, ref):
+    """工廠の基準の記録（factory-base-*.json で invalid が偽）が 1 つ以上ある課題の数。"""
+    return sum(1 for files in per_task(records_of(cfg, ref)).values()
+               if any(n.startswith("factory-base-") and n.endswith(".json") and valid(r) for n, r in files.items()))
+
+
+def r4(cfg, ref, tasks):
+    head = f"工廠の基準の記録がそろう課題 {base_tasks(cfg, ref)}／{BENCH_TASKS}、続いた週次の周期"
     if not any(t.get("id") == WEEKLY_TASK and t.get("status") == "completed" for t in tasks):
-        return f"続いた週次の周期 0／{CYCLES}"
+        return f"{head} 0／{CYCLES}"
     for n in range(CYCLES, 0, -1):
         if cycles_ok(cfg, n):
-            return f"続いた週次の周期 {n}／{CYCLES}"
-    return f"続いた週次の周期 0／{CYCLES}"
+            return f"{head} {n}／{CYCLES}"
+    return f"{head} 0／{CYCLES}"
 
 
 def quantity(cfg, ref, tasks, rung):
     if rung in PAIR_RUNGS:
         return pairs(cfg, tasks, rung)
-    return {"R3-c": lambda: r3c(cfg, ref), "R3": lambda: r3(cfg, ref), "R4": lambda: r4(cfg, tasks)}[rung]()
+    return {"R3-c": lambda: r3c(cfg, ref), "R4": lambda: r4(cfg, ref, tasks)}[rung]()
 
 
 def measure(cfg):
@@ -219,10 +211,8 @@ REGRESSION = "後退"
 AMOUNT_RES = {
     "R3-a": (("課題", r"課題 (\d+)／"),),
     "R3-b": (("課題", r"課題 (\d+)／"),),
-    "R3-c": (("床", r"床の検査が合格の課題 (\d+)／"), ("両条件", r"両条件の記録がそろう課題 (\d+)／"),
-             ("凍結", r"凍結 (あり|なし)")),
-    "R3": (("記録", r"凍結の後の記録 (\d+)／"), ("判定", r"判定 (あり|なし)")),
-    "R4": (("周期", r"続いた週次の周期 (\d+)／"),),
+    "R3-c": (("床", r"床の検査が合格の課題 (\d+)／"), ("凍結", r"凍結 (あり|なし)")),
+    "R4": (("基準", r"基準の記録がそろう課題 (\d+)／"), ("周期", r"続いた週次の周期 (\d+)／")),
 }
 
 

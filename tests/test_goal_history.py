@@ -17,10 +17,10 @@ def task(tid, status="completed"):
     return {"id": tid, "title": tid, "status": status, "depends_on": []}
 
 
-def bodies(a=0, b=0, c=(0, 0, "なし"), r3=(0, "なし"), r4=0):
+def bodies(a=0, b=0, c=(0, "なし"), r4=0, base=0):
     return {"R3-a": f"判定役の照合が通る課題 {a}／2", "R3-b": f"判定役の照合が通る課題 {b}／1",
-            "R3-c": f"床の検査が合格の課題 {c[0]}／10、両条件の記録がそろう課題 {c[1]}／10、凍結 {c[2]}",
-            "R3": f"凍結の後の記録 {r3[0]}／60、判定 {r3[1]}", "R4": f"続いた週次の周期 {r4}／4"}
+            "R3-c": f"床の検査が合格の課題 {c[0]}／10、凍結 {c[1]}",
+            "R4": f"工廠の基準の記録がそろう課題 {base}／10、続いた週次の周期 {r4}／4"}
 
 
 class History(unittest.TestCase):
@@ -84,11 +84,11 @@ class History(unittest.TestCase):
         self.assertEqual(len(self.rows()), 2)
 
     def test_a_regression_is_also_marked_when_the_same_run_adds_a_row(self):
-        self.run_section(["A"], r3=(5, "なし"))
-        text = self.run_section(["A", "W-7"], r3=(3, "なし"))
+        self.run_section(["A"], base=5)
+        text = self.run_section(["A", "W-7"], base=3)
         lines = [x for x in text.splitlines() if x.startswith(gd.REGRESSION)]
         self.assertEqual(len(lines), 1, text)
-        self.assertIn("R3", lines[0])
+        self.assertIn("R4 基準", lines[0])
         self.assertIn("5 → 3", lines[0])
         self.assertIn("W-7", lines[0])
 
@@ -108,18 +108,27 @@ class History(unittest.TestCase):
         self.assertEqual(len(self.rows()), 1)
         self.assertNotIn("R3-a 課題", gd.amounts(failed))
 
-    def test_the_freeze_and_the_verdict_count_as_amounts(self):
-        self.run_section(["A"], c=(1, 1, "あり"), r3=(2, "あり"))
-        text = self.run_section(["A"], c=(1, 1, "なし"), r3=(2, "あり"))
+    def test_the_freeze_counts_as_an_amount(self):
+        self.run_section(["A"], c=(1, "あり"))
+        text = self.run_section(["A"], c=(1, "なし"))
         lines = [x for x in text.splitlines() if x.startswith(gd.REGRESSION)]
         self.assertEqual(len(lines), 1, text)
         self.assertIn("R3-c", lines[0])
         self.assertIn("1 → 0", lines[0])
 
+    def test_quantities_only_in_the_previous_row_are_not_compared_or_shown(self):
+        old = {"R3-a 課題": 1, "R3 記録": 5, "R3 判定": 1, "R3-c 両条件": 3}
+        gd.append_history(self.cfg, {"time": "t0", "added": [], "before": None, "after": old, "done": ["A"]})
+        text = self.run_section(["A", "W-1"], a=1)
+        self.assertNotIn(gd.REGRESSION, text)
+        self.assertNotIn("R3 記録", text.split(gd.HISTORY_TITLE)[1].splitlines()[1])
+        self.assertNotIn("両条件", text.split(gd.HISTORY_TITLE)[1].splitlines()[1])
+        self.assertIn("量の変化なし", text)
+
     def test_the_prerequisite_count_is_not_an_amount(self):
         self.assertNotIn("前提", " ".join(gd.amounts(bodies())))
         self.assertEqual(sorted(gd.amounts(bodies())), sorted([
-            "R3-a 課題", "R3-b 課題", "R3-c 床", "R3-c 両条件", "R3-c 凍結", "R3 記録", "R3 判定", "R4 周期"]))
+            "R3-a 課題", "R3-b 課題", "R3-c 床", "R3-c 凍結", "R4 基準", "R4 周期"]))
 
     def test_only_the_newest_five_rows_are_shown_newest_first_with_added_ids_and_changes(self):
         done = ["A"]
