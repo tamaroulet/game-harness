@@ -1,12 +1,12 @@
-active_task_id: W-41
+active_task_id: W-43
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-90
+  task: W-76
   exit_code: 0
-  at: '2026-10-15T23:04:56'
+  at: '2026-10-16T01:55:55'
 next_id: 91
 nodes:
 - id: A
@@ -1273,7 +1273,7 @@ tasks:
   title: H ラインを別の設定ファイルで走らせる（ベンチの受信箱・統合ブランチ・base、main への PR を出さない）
   group: W-17
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'hline: run-with-config-file'
   serves: R3-c
   purpose: 本線を止めず汚さずに、別の clone と設定で工廠を走らせる
@@ -1314,7 +1314,7 @@ tasks:
   title: 計画の監修のループ（計画役 → 監修役 → 差し戻しは 2 回まで → 合格で確定）
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'planner: audit-loop'
   serves: R3-c
   purpose: 計画役の出力を監修に通し、落ちた項目だけを直させる（要綱 3・4）
@@ -1867,7 +1867,7 @@ tasks:
   title: 計画の受け入れの検査（タスクの数・依存・粒度・オラクルの出どころ）を、計画役の出力に掛ける
   group: W-17
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'planner: plan-acceptance-check'
   serves: R3-c
   purpose: 実行できない粒度・粗すぎる分け方・オラクルの無いタスクを含む計画を、H ラインに渡す前に機械で止める（計画役の受け入れの基準）
