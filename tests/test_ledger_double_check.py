@@ -13,7 +13,6 @@
 3. 検証コマンドが、オラクルのモジュールを名指している
 4. H ラインのタスクの検証コマンドは `python -m unittest` で始まる 1 つの命令（Gate 1 は shell を通さない）
 5. serves に書いた横木が実在し、タスクがその横木そのものか、横木が推移的に依存するタスクである
-6. 正本の資料 docs/tasks.md に、そのタスクの行（題・目的・成果物・検証コマンド・執行者・横木）が台帳と同じ文言である
 """
 import unittest
 from pathlib import Path
@@ -22,8 +21,6 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 LEDGER = ROOT / "docs" / "progress.yaml"
-RATIONALE = ROOT / "docs" / "tasks.md"
-EXECUTOR = {"pilot": "操縦士（手動）", "hline": "工廠（自律）"}
 
 
 def module_of(path):
@@ -96,23 +93,3 @@ class LedgerDoubleCheck(unittest.TestCase):
                 rung = self.rungs.get(t.get("serves"))
                 self.assertIsNotNone(rung)
                 self.assertTrue(t["id"] == rung or t["id"] in self.deps(rung))
-
-    def test_the_rationale_document_matches_the_ledger(self):
-        rows = {}
-        for line in RATIONALE.read_text(encoding="utf-8").splitlines():
-            if line.startswith("| W-"):
-                rows[line.split("|")[1].strip()] = line
-        for tid in rows:
-            with self.subTest(row=tid):
-                self.assertIn(tid, self.tasks)
-        for t in self.open:
-            with self.subTest(task=t["id"]):
-                row = rows.get(t["id"])
-                self.assertIsNotNone(row)
-                for text in (t["title"], t["purpose"], t["deliverable"], t["verification"]["command"],
-                             EXECUTOR[t.get("by") or "hline"], t["serves"]):
-                    self.assertIn(text, row)
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -7,7 +7,7 @@ last_verification:
   task: W-39
   exit_code: 0
   at: '2026-10-15T11:39:24'
-next_id: 88
+next_id: 91
 nodes:
 - id: A
   parent: null
@@ -86,11 +86,11 @@ nodes:
   title: 段 2：改善（足場固め）
 - id: W-17
   parent: A
-  title: 段 3：チャットに勝つ（C5）
+  title: 段 3：物差しの凍結（工廠のベンチの道具と、非劣性の物差しの 10 本）
 - id: W-18
   parent: A
   title: 段 4：Outer Loop の確立（C4）
-project_goal: 自己改善できる自律開発環境（C4）を作る。段 1 軽い 3D 通し → 段 2 改善 → 段 3 チャットに勝つ（C5）→ 段 4 Outer Loop の確立（C4）。段は nodes の W-15〜W-18
+project_goal: 自己改善できる自律開発環境（C4）を作る。段 1 軽い 3D 通し → 段 2 改善 → 段 3 物差しの凍結 → 段 4 Outer Loop の確立（C4）。段は nodes の W-15〜W-18。チャット型との比べ（C5）は、R5 の製品の付け足しで行い、そのときに改めて事前登録する（D-109）
 tasks:
 - group: B3.1
   id: B3.1-PREP
@@ -1339,7 +1339,7 @@ tasks:
   status: pending
   slug: 'bench: start-commit'
   serves: R3-c
-  purpose: 両条件を同じ出発点（本体と公開の判定役の無い土台）から始め、比較を公平にする
+  purpose: 工廠の走行を、本体と公開の判定役の無い土台から始め、採点が仕様からの作りだけを測るようにする
   deliverable: harness/bench_start.py、tests/test_bench_start.py
   depends_on:
   - W-43
@@ -1351,31 +1351,6 @@ tasks:
     from: self
   verification:
     command: python -m unittest tests.test_bench_start
-    expected_exit_code: 0
-- id: W-45
-  title: チャット型の走らせ役（同じモデルの単発のセッションで解かせ、枝と採点つきの記録を残す）
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'bench: run-chat'
-  serves: R3-c
-  purpose: 比べる相手（チャット型）を、同じモデル・同じ仕様・同じ出発点で走らせる
-  deliverable: harness/bench_run.py の chat、tests/test_bench_run_chat.py
-  depends_on:
-  - W-34
-  - W-35
-  - W-44
-  - W-68
-  - W-71
-  acceptance:
-  - python -m harness.bench_run chat --task <id> --run-id <r> --repo <clone> --base <rev> は、開始のコミットから、docs/bench/prompts/chat.md と仕様の全文で、実装役と同じモデルを 1 回（ターン上限 30、W-35 の禁止つき）呼び、結果を枝 bench/<id>/chat-<r> に置き、採点した記録 bench/records/<id>/chat-<r>.json（base・head・tokens・turns・calls・score・invalid）を書く
-  - 差分が <package>/ と tests/test_<package>* の外に触れた走行は、violations に触れたパスが入り、score は 0 になる（無効にしない。docs/bench/protocol.md の REQ-23）。CLI が報告したモデルが設定と違うか、CLI の版が freeze.json と違う走行は、invalid に理由が入る（REQ-02・REQ-03）
-  - 走行ごとに docs/bench/protocol.md の REQ-31 のディレクトリ（env.json・inputs・calls・git・score.json・manifest.json）を書き、記録に manifest.json の sha256 を入れる
-  oracle:
-  - path: tests/test_bench_run_chat.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_bench_run_chat
     expected_exit_code: 0
 - id: W-46
   title: 工廠の走らせ役（監修つきの計画 → 開始のコミット → H ラインで積み切り → 採点つきの記録）
@@ -1389,13 +1364,13 @@ tasks:
   depends_on:
   - W-41
   - W-44
-  - W-45
   - W-68
   - W-71
   acceptance:
   - python -m harness.bench_run factory --task <id> --run-id <r> --repo <clone> --base <rev> は、監修つきの計画（W-43）・開始のコミット・走行ごとの受信箱と設定（open_pr false・統合ブランチ bench/<id>/factory-<r>）で clone の H ラインを、待ちと処理中が 0 になるか 3 時間まで回し、枝の先端を採点した記録を書く
   - 記録に、計画役の出力の sha256・キューが取り込んだ What の sha256・置き直しの数・What の試行の合計・監修の差し戻しの回数・トークン・利用枠の回復待ちの秒が入る。計画が確定しなかった走行は、score が 0 の有効な走行として理由が入る（REQ-23）。3 時間は利用枠の回復待ちを除いて数える（REQ-17）
-  - 走行ごとに REQ-31 のディレクトリ（チャット型の分に factory/ を加える）を書き、記録に manifest.json の sha256 を入れる
+  - 走行ごとに REQ-31 のディレクトリ（factory/ を含む）を書き、記録に manifest.json の sha256 を入れる
+  - clone の poll は 1 回ずつ TTL つきの子プロセスで起こし、0 以外で終わっても次の poll を起こす。同じ終わり方（終了コードと標準エラーの最後の行）が 3 回続いたら、走らせ役の異常として invalid の記録に理由を書いて止める（REQ-22）
   oracle:
   - path: tests/test_bench_run_factory.py
     from: self
@@ -1414,7 +1389,7 @@ tasks:
   depends_on:
   - W-46
   acceptance:
-  - python -m harness.bench_verify (--task <id>... | --all) --min-runs <n> [--frozen] は、floor.json が合格で指紋が今と同じ・chat と factory の有効な記録が n 件以上・各記録の head を採点し直すと passed と tests が一致、のときだけ 0
+  - python -m harness.bench_verify (--task <id>... | --all) --min-runs <n> [--frozen] は、floor.json が合格で指紋が今と同じ・factory の有効な記録が n 件以上・各記録の head を採点し直すと passed と tests が一致、のときだけ 0
   - factory の記録は、キューの What の sha256 がすべて計画役の出力にあり、置き直しが 0 のときだけ有効（人の介入 0 回の測り方）。--frozen は、freeze.json の base・指紋に合い、凍結の時刻より後に始まった記録だけを数える
   - --package <dir> と --oracles <dir> を渡すと、展開した走行の束の manifest.json の sha256 を照合し、git の bundle の先端を渡したオラクルで採点し直し、記録の score と一致すること、bench_stats の判定を計算し直して記録と一致することを確かめ、すべて一致すれば 0（REQ-36）
   oracle:
@@ -1424,15 +1399,15 @@ tasks:
     command: python -m unittest tests.test_bench_verify
     expected_exit_code: 0
 - id: W-48
-  title: 乾式の通し：B06 をチャット型と工廠で 1 回ずつ走らせ、記録を検め直す
+  title: 乾式の通し：B06 を工廠で 1 回走らせ、記録を検め直し、計画の確定の率を測る
   group: W-17
   target_repo: game-harness
   status: pending
   slug: 'bench: dry-run-b06'
   by: pilot
   serves: R3-c
-  purpose: 道具一式を B06 の 1 本で端から端まで通し、道具の誤りを本走の前に見つける
-  deliverable: B06 の両条件の記録と枝
+  purpose: 道具一式を B06 の 1 本で端から端まで通し、道具の誤りを凍結の前に見つける
+  deliverable: B06 の工廠の記録と枝、計画の確定の率の記録
   depends_on:
   - W-36
   - W-47
@@ -1453,160 +1428,56 @@ tasks:
   - W-82
   - W-83
   acceptance:
-  - 本線の H ラインとは別の clone（C:\src\.local\bench\repo）で B06 を 1 回ずつ走らせ、記録を PR で main に入れ、枝を origin に push する
+  - 本線の H ラインとは別の clone（C:\src\.local\bench\repo）で B06 を工廠で 1 回走らせ、記録を PR で main に入れ、枝を origin に push する
+  - 同じ clone で、B06 と練習の課題 2 本（docs/bench/practice/P1・P2。ベンチの 10 本に入らない）のそれぞれで、計画の監修のループ（W-43）だけを 3 回ずつ走らせ、確定した回数と、確定しなかった回の差し戻しの理由を、同じ PR の記録に入れる
   oracle:
   - path: harness/bench_verify.py
     from: W-47
   verification:
     command: python -m harness.bench_verify --task B06 --min-runs 1
     expected_exit_code: 0
-- id: W-49
-  title: 比較の表（課題 × 条件の成功率・トークン消費・試行回数）
+- id: W-50
+  title: 凍結の記録（10 本の指紋・base・CLI の版・モデル ID）
   group: W-17
   target_repo: game-harness
   status: pending
-  slug: 'bench: comparison-table'
+  slug: 'bench: freeze-record'
   serves: R3-c
-  purpose: 課題 × 条件の成功率・トークン・試行回数を並べて見せる
-  deliverable: harness/bench_table.py、bench/records/summary.md、tests/test_bench_table.py
+  purpose: 非劣性の物差し（10 本と非公開オラクルと土台）を、後から変わっていないと機械で確かめられる形で凍結する
+  deliverable: harness/bench_freeze.py、tests/test_bench_freeze.py
   depends_on:
   - W-47
   acceptance:
-  - python -m harness.bench_table は、有効な記録から課題 × 条件の平均の通過率・トークン・試行回数（工廠は What の試行の合計と差し戻しの回数、チャット型は呼び出しとターン）の表を bench/records/summary.md に書く
-  oracle:
-  - path: tests/test_bench_table.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_bench_table
-    expected_exit_code: 0
-- id: W-50
-  title: 天井の検査と凍結の記録
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'bench: ceiling-and-freeze'
-  serves: R3-c
-  purpose: チャット型でも満点の易しい課題で比べる失敗（過去の v2r の天井）を防ぎ、物差しを凍結する
-  deliverable: harness/bench_ceiling.py、tests/test_bench_ceiling.py
-  depends_on:
-  - W-49
-  acceptance:
-  - python -m harness.bench_ceiling --freeze は、チャット型の平均の通過率が 0.85 以下で満点でない課題が 3 本以上なら、base・10 本の指紋・閾値・時刻・CLI の版（claude --version）・モデル ID を bench/records/freeze.json に書いて 0。満たさなければ満点の課題を出して 1
+  - python -m harness.bench_freeze --freeze は、10 本の floor.json がすべて合格で指紋が今の oracles と同じなら、base・10 本の指紋・時刻・CLI の版（claude --version）・モデル ID を bench/records/freeze.json に書いて 0。満たさなければ、満たさない課題を出して 1
   - --check は、freeze.json があり、今の指紋と記録に合えば 0
   oracle:
-  - path: tests/test_bench_ceiling.py
+  - path: tests/test_bench_freeze.py
     from: self
   verification:
-    command: python -m unittest tests.test_bench_ceiling
-    expected_exit_code: 0
-- id: W-51
-  title: 天井の検査の材料：10 本をチャット型で 1 回ずつ走らせる
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'bench: baseline-ten'
-  by: pilot
-  serves: R3-c
-  purpose: 凍結の前の天井の検査（W-50）に要るチャット型の通過率を取る。工廠の走行は凍結の後の本走（W-53）だけで行い、費用を抑える
-  deliverable: 10 本 × チャット型 × 1 回の記録、summary.md
-  depends_on:
-  - W-37
-  - W-38
-  - W-39
-  - W-48
-  - W-49
-  acceptance:
-  - 10 本をチャット型で 1 回ずつ走らせ、通過率と summary.md を PR で main に入れる
-  oracle:
-  - path: harness/bench_verify.py
-    from: W-47
-  verification:
-    command: python -m harness.bench_verify --all --min-runs 1 --condition chat
+    command: python -m unittest tests.test_bench_freeze
     expected_exit_code: 0
 - id: W-23
-  title: 横木 R3-c：天井の検査を満たして、課題 10 本・非公開オラクル・土台を凍結する
+  title: 横木 R3-c：課題 10 本・非公開オラクル・工廠の土台を、非劣性の物差しとして凍結する
   group: W-17
   target_repo: game-harness
   status: pending
-  slug: 'bench: blind-oracle-and-chat-baseline'
+  slug: 'bench: freeze-ruler'
   by: pilot
   rung: R3-c
   serves: R3-c
-  purpose: 比べる物差しの確定（横木 R3-c）。凍結の後は測定器の欠陥の修正だけを許す
+  purpose: 段 4 の非劣性の検査が使う物差しの確定（横木 R3-c）。凍結の後は測定器の欠陥の修正だけを許す
   deliverable: bench/records/freeze.json
   depends_on:
   - W-50
-  - W-51
+  - W-48
+  - W-90
   acceptance:
-  - bench_ceiling --freeze が 0 で、freeze.json を PR で main に入れる。満たさなければ、満点だった課題ごとに要件を足すタスクを台帳に足し、その課題だけ測り直す
+  - bench_freeze --freeze が 0 で、freeze.json を PR で main に入れる
   oracle:
-  - path: harness/bench_ceiling.py
+  - path: harness/bench_freeze.py
     from: W-50
   verification:
-    command: python -m harness.bench_ceiling --check
-    expected_exit_code: 0
-- id: W-52
-  title: 2 段のブートストラップと判定（課題を束にした通過率の差の 95% 区間）
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'bench: bootstrap-verdict'
-  serves: R3
-  purpose: 差が偶然でないかを、課題を束にした区間で判定する
-  deliverable: harness/bench_stats.py、tests/test_bench_stats.py
-  depends_on:
-  - W-23
-  acceptance:
-  - 2 条件の各段の通過率から、ブートストラップ（各課題・各条件で走行を復元抽出、10,000 回）で課題を束にした通過率の差の 98.3% 信頼区間（両側 5% を 3 段で Bonferroni 補正、各段 1 - 0.05/3 = 98.33%）を計算する
-  - 第 1・第 2 段の後に、無益性の境界（差の信頼区間の上限 < 0.10、または差の標本平均 <= 0）を判定する
-  - 3 段すべての後に、最終の判定（98.3% 区間の下限 > 0 なら工廠の勝ち、そうでなければ有意差なし）を判定する
-  oracle:
-  - path: tests/test_bench_stats.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_bench_stats
-    expected_exit_code: 0
-- id: W-53
-  title: 本走：凍結した 10 本をチャット型と工廠で 1 回ずつの段で走らせ、勝ちか損切りの段で止める（3 段まで）
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'bench: main-run'
-  by: pilot
-  serves: R3
-  purpose: C5 の判定に要る走行を、事前登録した止め方でそろえ、差が早く出るか、出る見込みが無いと分かれば費用を抑える
-  deliverable: 10 本 × 2 条件 × 段の数の記録
-  depends_on:
-  - W-23
-  acceptance:
-  - freeze.json の base から、10 本 × 2 条件 × 1 回を 1 段として走らせ、各段の後に bench_stats --verdict と --futility を走らせる。--verdict が 0 なら勝ちとして止め、第 1・第 2 段の後に --futility が 0 なら損切りとして止め、どちらでもなければ次の段に進む（3 段まで）。止めた段と理由と各段の判定を、記録と一緒に PR で main に入れる
-  oracle:
-  - path: harness/bench_verify.py
-    from: W-47
-  verification:
-    command: python -m harness.bench_verify --all --min-runs 1 --frozen
-    expected_exit_code: 0
-- id: W-24
-  title: 横木 R3：計画役が自律起草し監修に通った What による工廠の本走で、チャット型に有意に勝つ（C5）
-  group: W-17
-  target_repo: game-harness
-  status: pending
-  slug: 'bench: verdict-c5'
-  by: pilot
-  rung: R3
-  serves: R3
-  purpose: 工廠がチャット型に勝つことの判定（横木 R3＝C5）。勝てる物差しがあって初めて自己改善の向きが決まる
-  deliverable: bench/records/verdict.json、summary.md
-  depends_on:
-  - W-52
-  - W-53
-  acceptance:
-  - '- bench_stats --verdict が 0（W-53 で止めた段の数で見る）。工廠の全走行が W-47 の基準で有効（計画役の出力だけ・置き直し 0）。verdict.json と summary.md を PR で main に入れる。3 段まで走るか、損切りで止めて 0 にならなければ、C5 は未達と記録する'
-  oracle:
-  - path: harness/bench_stats.py
-    from: W-52
-  verification:
-    command: python -m harness.bench_stats --verdict
+    command: python -m harness.bench_freeze --check
     expected_exit_code: 0
 - id: W-54
   title: 週次の報告を自動で作る（失敗の分類の推移・ボトルネック・トークンの効率・監修の差し戻し）
@@ -1618,7 +1489,7 @@ tasks:
   purpose: Outer Loop の入力（週ごとの計器と推移）を自動で作る
   deliverable: harness/weekly_report.py、reports/weekly/、tests/test_weekly_report.py
   depends_on:
-  - W-24
+  - W-23
   acceptance:
   - python -m harness.weekly_report は、queue.json と bench/records から、週ごとの計器（識別子つき。例 first_try_rate・tokens_per_done・failure.full_suite・audit.revise_rate）と前の 2 週との比較を reports/weekly/<年>-W<週>.md と .json に書く
   - H ラインは、週が変わった最初の走行で前の週の報告を作る。--latest-within-days <n> は n 日以内の報告があれば 0
@@ -1638,7 +1509,7 @@ tasks:
   purpose: 課題を解く What が基盤を書き換えないようにし、基盤の変更を外側のループに限る（D-057・D-058）
   deliverable: config/foundation_paths.json、Gate 1 の検査、tests/test_foundation_guard.py
   depends_on:
-  - W-24
+  - W-23
   acceptance:
   - config/foundation_paths.json の paths（harness/・config/・docs/prompts/・docs/bench/prompts/）に触れる差分は、What のマイルストーンが同じファイルの milestones（W-17・W-18・outer）に無ければ Gate 1 が拒み、理由に触れたパスが出る
   oracle:
@@ -1676,9 +1547,10 @@ tasks:
   purpose: 基盤の改善でベンチの点が下がらないことを機械で確かめる（仕様ゲーミングの歯止め）
   deliverable: harness/bench_regress.py、tests/test_bench_regress.py
   depends_on:
-  - W-24
+  - W-23
+  - W-88
   acceptance:
-  - python -m harness.bench_regress --head <rev> は、clone を <rev> にして凍結の 10 本を工廠で 1 回ずつ走らせ、W-53 の工廠の記録と課題を束にしたブートストラップ（10,000 回）で比べ、差（新 − 基準）の 95% 区間の下限が −0.05 を超えれば bench/records/regress/<rev>.json に合格を書いて 0
+  - python -m harness.bench_regress --head <rev> は、clone を <rev> にして凍結の 10 本を工廠で 1 回ずつ走らせ（W-88 の段の走らせ役を使う）、W-89 の基準の記録（bench/records/<課題>/factory-base-*.json）と課題を束にしたブートストラップ（10,000 回）で比べ、差（新 − 基準）の 95% 区間の下限が −0.05 を超えれば bench/records/regress/<rev>.json に合格を書いて 0
   oracle:
   - path: tests/test_bench_regress.py
     from: self
@@ -1738,6 +1610,8 @@ tasks:
   depends_on:
   - W-54
   - W-58
+  - W-84
+  - W-85
   acceptance:
   - runner に、週に 1 回、総監督のセッション（週次の報告を読み、改善のタスクの台帳の PR の完成形と、マイルストーン outer の What を書く）と、hline/outer の統合 PR の head での bench_regress を登録する（定期起動は 1 経路：D-059）
   - 週ごとの人の操作は、改善のタスクの台帳の PR の適用と、外側の統合 PR のラベルの 2 回
@@ -1760,7 +1634,7 @@ tasks:
   depends_on:
   - W-59
   - W-60
-  - W-24
+  - W-89
   acceptance:
   - 週次の報告 → 総監督の改善の What（`計器:` で対象を名指し）→ 監修 → hline/outer → 非劣性の合格 → マージ、が 1 週の中で通る
   oracle:
@@ -1917,7 +1791,7 @@ tasks:
   status: pending
   slug: 'bench: restricted-account'
   serves: R3-c
-  purpose: Gate 1 は実装役の書いた試験を実行するので、道具の設定の禁止では非公開オラクルを守れない。読めないことを OS で保証し、漏れの跡を記録で検める（C5 の成立）
+  purpose: Gate 1 は実装役の書いた試験を実行するので、道具の設定の禁止では非公開オラクルを守れない。読めないことを OS で保証し、漏れの跡を記録で検める（非劣性の物差しの成立）
   deliverable: harness/bench_guard.py、docs/ops/bench_account.md、tests/test_bench_guard.py
   depends_on:
   - W-34
@@ -2163,4 +2037,105 @@ tasks:
     from: self
   verification:
     command: python -m unittest tests.test_hline_report_queue
+    expected_exit_code: 0
+- id: W-84
+  title: 総監督の無人の起動の関所（config/hline.json の上限で起こすか決め、字数を記録する）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'outer: director-launch-gate'
+  serves: R4
+  purpose: 段 4 の週次の改善の周期では、総監督が What を自律で起草する。しかし総監督の前提資料（INDEX・roadmap・pipeline・handoff・decisions・lessons）が膨らむと、起動するだけでトークンを消費し、思考の文脈が狭まり、計画の質が落ちる。起こす前に字数を測って上限を掛け、超えていれば総監督を起こさず人に知らせる関所を作る（D-091）
+  deliverable: 総監督の無人の起動の入口、config/hline.json の director_budget、tests/test_director_launch.py
+  depends_on:
+  - W-23
+  acceptance:
+  - 総監督を無人で起こす入口は、起こす前に、受信箱の drafts/director/INDEX.md・drafts/director/roadmap.md・drafts/director/pipeline.md・notes/handoff.md・drafts/director/decisions.md・drafts/director/lessons.md の字数を測る。config/hline.json の director_budget の上限を 1 つでも超えていれば総監督を起こさず、超えた文書と字数を report.md に 1 行で出す
+  - 上限の内なら、受信箱を作業ディレクトリにして総監督を 1 回だけ起こし、director_budget のターン数とトークンの上限を掛ける。起動の時刻・終了の理由・使ったトークンを生ログの置き場に残す
+  oracle:
+  - path: tests/test_director_launch.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_director_launch
+    expected_exit_code: 0
+- id: W-85
+  title: What が持つ台帳の項目を、取り込みが確かめて統合ブランチの台帳に積み、別の台帳の PR を無くす
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: ledger-entry-from-what'
+  serves: R4
+  purpose: 段 4 の週次の周期では、総監督が改善のタスクの台帳の PR を書き、人がそれを当ててから What が取られる。人の手番が統合 PR の承認と台帳の PR の 2 つになり、無人の周期の律速になる。What が自分のタスクの台帳の項目を持ち、取り込みが二重の照合と同じ規則で確かめて統合ブランチの台帳に積めば、台帳の変更は統合 PR の点検に入り、別の台帳の PR が要らなくなる。検証コマンドを origin/main の台帳と照合する決まり（人が点検した検証だけが完了に使われる）は崩さない
+  deliverable: 取り込みの台帳の項目の積み、tests/test_hline_ledger_entry.py
+  depends_on:
+  - W-23
+  acceptance:
+  - What に「## 台帳の項目」の節（タスク 1 件の YAML）があり、そのタスクが base の台帳に無いとき、取り込みは台帳の二重の照合の規則（欄・オラクルの出どころ・検証の名指し・unittest の 1 命令・横木へのたどり）でその項目を確かめる。通れば統合ブランチの台帳にその項目だけを足すコミットを積み、What は待ちに戻してその周期では処理しない。落ちれば What を受信箱に残し、落ちた規則を report.md に出す
+  - その項目を含む統合 PR が main に入った後の周期で、その What を今までどおり処理する（完了は origin/main の台帳の検証コマンドで確かめる）
+  oracle:
+  - path: tests/test_hline_ledger_entry.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hline_ledger_entry
+    expected_exit_code: 0
+- id: W-88
+  title: 段の走らせ役（凍結の 10 本を工廠で 1 回ずつ、1 命令で順に回し、止まっても記録から続きを再開する）
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: run-stage'
+  serves: R4
+  purpose: 工廠の 10 走行は最大 30 時間かかる。走行ごとに操縦士が命令を打つと、人が前の走行の終わりを待って張り付き、夜に止まれば朝まで何も走らない。1 命令で 10 本を回し、止まっても同じ命令で続きから再開できるようにする（基準の走行 W-89 と非劣性の検査 W-57 が使う。D-106 改訂 1・D-109）
+  deliverable: harness/bench_run.py の stage、tests/test_bench_run_stage.py
+  depends_on:
+  - W-46
+  acceptance:
+  - python -m harness.bench_run stage --tag <t> --repo <clone> --base <rev> は、凍結の 10 本を課題の ID の順に 1 本ずつ工廠の走らせ役で走らせる。run-id は <t>-<回>。bench/records/<課題>/factory-<t>-*.json に invalid でない記録がある課題は飛ばす（止まった段を同じ命令で再開できる）
+  - 無効の走行は次の回の run-id で走らせ直し、同じ課題で 3 回続けて無効なら、止めて終了コード 1 で理由を出す（REQ-22・REQ-24）。10 走行がそろえば 0 で終わる
+  - 走っている間は OS の眠りを止める（Windows の SetThreadExecutionState）
+  oracle:
+  - path: tests/test_bench_run_stage.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_bench_run_stage
+    expected_exit_code: 0
+- id: W-89
+  title: 工廠の基準の走行（凍結の 10 本を工廠で 1 回ずつ。段 4 の非劣性の検査の基準）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: factory-baseline'
+  by: pilot
+  serves: R4
+  purpose: 段 4 の非劣性の検査（W-57）が比べる基準の点を、凍結した物差しで取る。基準が無いと、外側の改善で点が下がったかを判じられない
+  deliverable: bench/records/<課題>/factory-base-*.json（10 本）
+  depends_on:
+  - W-23
+  - W-88
+  acceptance:
+  - freeze.json の base から、bench_run stage --tag base で 10 本を工廠で 1 回ずつ走らせ、記録を PR で main に入れる
+  oracle:
+  - path: harness/bench_verify.py
+    from: W-47
+  verification:
+    command: python -m harness.bench_verify --all --min-runs 1 --frozen
+    expected_exit_code: 0
+- id: W-90
+  title: 目的までの距離から R3 の行と両条件の数を外し、R3-c に凍結を、R4 に基準の記録の数を出す
+  group: W-17
+  target_repo: game-harness
+  status: pending
+  slug: 'report: goal-distance-after-d109'
+  serves: R3-c
+  purpose: D-109 で R3（C5 の判定）とチャット型の走行を外した。今の計器は R3 の行（凍結の後の記録 0／60）と R3-c の「両条件の記録がそろう課題 0／10」を出し続け、意味を失った数で現在地を誤らせる
+  deliverable: harness/goal_distance.py、tests/test_goal_distance.py
+  depends_on: []
+  acceptance:
+  - report.md の「## 目的までの距離」は、R3-a・R3-b・R3-c・R4 の 4 行を出す（R3 の行を出さない）。R3-c は「床の検査が合格の課題 n／10、凍結 あり|なし」、R4 は「工廠の基準の記録がそろう課題 n／10、続いた週次の周期 n／4」（基準の記録は bench/records/<課題>/factory-base-*.json の invalid でないもの）
+  - 完了の前後の距離の記録（goal_history）の量の名前も同じ 4 行の量に合わせ、前の記録にしか無い量は比べない
+  oracle:
+  - path: tests/test_goal_distance.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_goal_distance
     expected_exit_code: 0
