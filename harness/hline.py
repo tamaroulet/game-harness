@@ -142,7 +142,7 @@ def run_line(cfg):
     if st.get("quota_wait"):   # 待ちに戻した What が残るので統合 PR は出さない。定期起動が再開の時刻の後に続きを取る
         write_report(cfg, st)
         return 0
-    if only_orphans_wait(st):   # 依存先の欠けた待ちが残っても止めない。残りは待ちのまま次の走行に回す
+    if only_orphans_wait(st) and cfg.get("open_pr") is not False:   # 依存先の欠けた待ちが残っても止めない。open_pr が false の設定（別の clone の工廠）は統合 PR を出さない
         open_integration_pr(cfg, st)
     write_report(cfg, st)
     return 1 if unconverged else 0
@@ -167,8 +167,9 @@ def poll(cfg):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="H ライン（段 1）")
     ap.add_argument("cmd", choices=["poll", "setup"])
+    ap.add_argument("--config", help="設定ファイル（無ければ config/hline.json）")
     args = ap.parse_args(argv)
-    cfg = load_config()
+    cfg = load_config(args.config) if args.config else load_config()
     reason = None
     try:
         code = poll(cfg) if args.cmd == "poll" else setup(cfg)
