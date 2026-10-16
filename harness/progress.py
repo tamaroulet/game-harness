@@ -140,6 +140,8 @@ def validate(state):
     if len(set(node_ids)) != len(node_ids):
         problems.append("nodes の id が重複しています")
     for n in state["nodes"]:
+        if not n.get("title"):
+            problems.append(f"node {n.get('id')} に title がありません")
         if n.get("parent") is not None and n["parent"] not in node_ids:
             problems.append(f"node {n.get('id')} の parent {n['parent']} がありません")
         if n.get("status") not in (None, "completed"):

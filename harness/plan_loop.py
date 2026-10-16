@@ -72,7 +72,7 @@ def stage_ledger(inbox, package):
     if tasks is None:
         return [item("ledger", None, "ledger.yaml を読めません")]
     rows = [{**{"group": GROUP, "target_repo": package, "status": "pending"}, **t} for t in tasks]
-    state = {"project_goal": "bench", "nodes": [{"id": GROUP, "parent": None}], "tasks": rows, "constraints": []}
+    state = {"project_goal": "bench", "nodes": [{"id": GROUP, "title": GROUP, "parent": None}], "tasks": rows, "constraints": []}
     out = []
     for p in progress.validate(state):
         m = re.search(r"task (P-\d+)", p)
