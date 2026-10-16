@@ -1,0 +1,79 @@
+project_goal: bench
+nodes:
+- id: bench
+  title: bench
+  parent: null
+tasks:
+- group: bench
+  target_repo: launcher
+  status: pending
+  id: P-01
+  title: 投射のシミュレーションと入力検査
+  depends_on: []
+  acceptance:
+  - simulate(angle, speed, steps) は長さ steps の列を返し、各要素は pos と vel（float 3 個）を持つ辞書で、全値が有限であり、同じ引数で
+    2 回呼ぶと全値がビット単位で一致する
+  - angle（度）が 5〜85、speed が 0.5〜10、steps が 1〜20000 の整数の範囲の外、数でない値、bool、整数でない steps
+    は ValueError になる
+  - 着地前の各歩で pos の y と vel の y の絶対値は 1e-9 以下、pos の x は前の歩の x 以上
+  - speed*sin(angle)（angle は度）が 4 以下なら全歩で z は 0 以上、着地の歩の 1000 歩後の z は 0.015 以上 0.025
+    以下
+  files:
+  - launcher/__init__.py
+  - launcher/model.py
+  - tests/test_launcher_simulate.py
+  oracle:
+  - path: tests/test_launcher_simulate.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_launcher_simulate
+    expected_exit_code: 0
+- group: bench
+  target_repo: launcher
+  status: pending
+  id: P-02
+  title: 着地の点
+  depends_on:
+  - P-01
+  acceptance:
+  - landing(angle, speed) は float を返し、範囲外の入力には simulate と同じく ValueError を投げる
+  - 戻り値は、z が 0.02 より大きい歩の次に初めて 0.02 以下になる歩について、simulate の前後 2 歩の状態から z について線形に補間した
+    x と一致する
+  - angle が 15〜75 で speed が 1〜8 のとき、R = v^2*sin(2θ)/9.81 との差は 0.01*R + v*cos(θ)*0.002
+    以内
+  - 同じ引数で 2 回呼ぶとビット単位で一致する
+  files:
+  - launcher/__init__.py
+  - launcher/landing.py
+  - tests/test_launcher_landing.py
+  oracle:
+  - path: tests/test_launcher_landing.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_launcher_landing
+    expected_exit_code: 0
+- group: bench
+  target_repo: launcher
+  status: pending
+  id: P-03
+  title: 狙いの角度
+  depends_on:
+  - P-02
+  acceptance:
+  - aim(distance, speed) は角度（度、float）か None を返し、distance が 0 以下・有限でない、speed が 0.5〜10
+    の外、数でない値、bool には ValueError を投げる
+  - speed が 2〜10 で distance*9.81/speed^2 が 0.25〜0.95 のとき、5〜45 の角度を返し、landing(θ, speed)
+    と distance の差は 0.02 以内
+  - distance*9.81/speed^2 が 1.05 を超えるとき None を返す
+  - 同じ引数で 2 回呼ぶと返り値（None を含む）がビット単位で一致する
+  files:
+  - launcher/__init__.py
+  - launcher/aim.py
+  - tests/test_launcher_aim.py
+  oracle:
+  - path: tests/test_launcher_aim.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_launcher_aim
+    expected_exit_code: 0
+constraints: []

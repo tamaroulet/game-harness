@@ -1,0 +1,22 @@
+{
+  "_comment": "v2r の総コストと損益分岐の入力（docs/design/v2r_protocol.md §9・§11.4）。python -m harness.ab.v2r_report --prefix <prefix> --cost-model experiments/v2r/cost_model.json",
+  "prices": {
+    "input_per_mtok": 0.75,
+    "output_per_mtok": 3.75,
+    "cache_read_per_mtok": 0.075,
+    "cache_read_included_in_input": false,
+    "source": "experiments/v2/cost_model.json と同じ（Gemini API 公式の料金表の Gemini 3.8 Flash の Standard、2026-09-24 に確認。2026-12-31 までの単価）"
+  },
+  "fixed": {
+    "shared": {
+      "usd": 3.546804,
+      "seconds": 1040.7,
+      "source": "measured: python harness/declare.py --out experiments/v2r（分解役 claude-opus-5）。1 回目は検査に落ちた（results/precost_run1_failed.json：2.289442 USD・685.9 秒。T10 の出典に ST・LP を使い、当時の検査が RL だけを許していた）。検査を直した後の 2 回目が合格（results/precost.json：1.257362 USD・354.8 秒）。両方を足した。総監督の設計と要求文の執筆の費用は含まない"
+    },
+    "B_only": {
+      "usd": null,
+      "seconds": null,
+      "source": "unmeasured: ハーネスの門の開発・保守の費用は測れない。v2r_report の感度の表で F_B_only を変数として扱う（§11.4）"
+    }
+  }
+}

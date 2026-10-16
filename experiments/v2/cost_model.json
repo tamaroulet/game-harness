@@ -1,0 +1,22 @@
+{
+  "_comment": "v2 の A/B 実験の総コストと損益分岐の入力。python -m harness.ab.report --run-id <id> --cost-model experiments/v2/cost_model.json",
+  "prices": {
+    "input_per_mtok": 0.75,
+    "output_per_mtok": 3.75,
+    "cache_read_per_mtok": 0.075,
+    "cache_read_included_in_input": false,
+    "source": "experiments/b4_ab/cost_model.json と同じ（Gemini API 公式の料金表の Gemini 3.8 Flash の Standard、2026-09-24 に確認。2026-12-31 までの単価）"
+  },
+  "fixed": {
+    "shared": {
+      "usd": 1.202043,
+      "seconds": 266.8,
+      "source": "measured: python harness/declare.py（experiments/v2/results/precost.json）。分解役の呼び出し 2 回。総監督のレビューでの手直し（director_edits）の費用は含まない"
+    },
+    "B_only": {
+      "usd": 0,
+      "seconds": 0,
+      "source": "policy: v1 と同じ。不変条件の宣言と門の設定は既存の資産の流用で、按分しない（0）"
+    }
+  }
+}

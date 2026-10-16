@@ -1,0 +1,295 @@
+{
+  "types": [
+    {
+      "name": "GamePhase",
+      "kind": "enum",
+      "values": [
+        "Ready",
+        "Playing",
+        "GameOver"
+      ]
+    },
+    {
+      "name": "MinoType",
+      "kind": "enum",
+      "values": [
+        "I",
+        "O",
+        "T",
+        "S",
+        "Z",
+        "J",
+        "L"
+      ]
+    },
+    {
+      "name": "Rotation",
+      "kind": "enum",
+      "values": [
+        "Spawn",
+        "Right",
+        "Two",
+        "Left"
+      ]
+    },
+    {
+      "name": "Cell",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "Cell",
+          "kind": "ctor",
+          "params": [
+            {
+              "name": "x",
+              "type": "int"
+            },
+            {
+              "name": "y",
+              "type": "int"
+            }
+          ]
+        },
+        {
+          "name": "X",
+          "kind": "property",
+          "type": "int"
+        },
+        {
+          "name": "Y",
+          "kind": "property",
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "name": "ActiveMino",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "ActiveMino",
+          "kind": "ctor",
+          "params": [
+            {
+              "name": "type",
+              "type": "MinoType"
+            },
+            {
+              "name": "x",
+              "type": "int"
+            },
+            {
+              "name": "y",
+              "type": "int"
+            },
+            {
+              "name": "rotation",
+              "type": "Rotation"
+            }
+          ]
+        },
+        {
+          "name": "Type",
+          "kind": "property",
+          "type": "MinoType"
+        },
+        {
+          "name": "X",
+          "kind": "property",
+          "type": "int"
+        },
+        {
+          "name": "Y",
+          "kind": "property",
+          "type": "int"
+        },
+        {
+          "name": "Rotation",
+          "kind": "property",
+          "type": "Rotation"
+        }
+      ]
+    },
+    {
+      "name": "TickInput",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "TickInput",
+          "kind": "ctor",
+          "params": [
+            {
+              "name": "left",
+              "type": "bool"
+            },
+            {
+              "name": "right",
+              "type": "bool"
+            },
+            {
+              "name": "rotateCw",
+              "type": "bool"
+            },
+            {
+              "name": "rotateCcw",
+              "type": "bool"
+            },
+            {
+              "name": "softDrop",
+              "type": "bool"
+            },
+            {
+              "name": "hardDrop",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "name": "Left",
+          "kind": "property",
+          "type": "bool"
+        },
+        {
+          "name": "Right",
+          "kind": "property",
+          "type": "bool"
+        },
+        {
+          "name": "RotateCw",
+          "kind": "property",
+          "type": "bool"
+        },
+        {
+          "name": "RotateCcw",
+          "kind": "property",
+          "type": "bool"
+        },
+        {
+          "name": "SoftDrop",
+          "kind": "property",
+          "type": "bool"
+        },
+        {
+          "name": "HardDrop",
+          "kind": "property",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "GameState",
+      "kind": "class",
+      "members": [
+        {
+          "name": "GameState",
+          "kind": "ctor",
+          "params": [
+            {
+              "name": "phase",
+              "type": "GamePhase"
+            },
+            {
+              "name": "activeMino",
+              "type": "ActiveMino?"
+            }
+          ]
+        },
+        {
+          "name": "GameState",
+          "kind": "ctor",
+          "params": [
+            {
+              "name": "phase",
+              "type": "GamePhase"
+            },
+            {
+              "name": "activeMino",
+              "type": "ActiveMino?"
+            },
+            {
+              "name": "locked",
+              "type": "System.Collections.Generic.IReadOnlyList<Cell>"
+            }
+          ]
+        },
+        {
+          "name": "Phase",
+          "kind": "property",
+          "type": "GamePhase"
+        },
+        {
+          "name": "ActiveMino",
+          "kind": "property",
+          "type": "ActiveMino?"
+        },
+        {
+          "name": "NextQueue",
+          "kind": "property",
+          "type": "System.Collections.Generic.IReadOnlyList<MinoType>"
+        },
+        {
+          "name": "Score",
+          "kind": "property",
+          "type": "int"
+        },
+        {
+          "name": "LinesCleared",
+          "kind": "property",
+          "type": "int"
+        },
+        {
+          "name": "TickCount",
+          "kind": "property",
+          "type": "int"
+        },
+        {
+          "name": "BlockCount",
+          "kind": "property",
+          "type": "int"
+        },
+        {
+          "name": "LockedMinoCount",
+          "kind": "property",
+          "type": "int"
+        },
+        {
+          "name": "IsOccupied",
+          "kind": "method",
+          "type": "bool",
+          "params": [
+            {
+              "name": "x",
+              "type": "int"
+            },
+            {
+              "name": "y",
+              "type": "int"
+            }
+          ]
+        },
+        {
+          "name": "InjectSeed",
+          "kind": "method",
+          "type": "void",
+          "params": [
+            {
+              "name": "seed",
+              "type": "uint"
+            }
+          ]
+        },
+        {
+          "name": "Tick",
+          "kind": "method",
+          "type": "void",
+          "params": [
+            {
+              "name": "input",
+              "type": "TickInput"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

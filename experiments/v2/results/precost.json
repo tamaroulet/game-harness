@@ -1,0 +1,79 @@
+{
+  "tool": "declare",
+  "model_note": "config/decompose.json の cli の既定のモデル。道具なし（--tools \"\"）",
+  "gdd_sha256": "95876782072ebf6a973781f2921e6abe4d2cead5519a09f673fe380991feb7a7",
+  "ok": true,
+  "calls": [
+    {
+      "attempt": 1,
+      "rc": 0,
+      "seconds": 209.4,
+      "usage": {
+        "format": "claude",
+        "input_tokens": 2,
+        "output_tokens": 18468,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 19923,
+        "cost_usd": 0.66094,
+        "num_turns": 1,
+        "total_tokens": 38393
+      },
+      "prompt_chars": 17949,
+      "problems": [
+        "P-T5-01.then: 読めない字があります: '.X'",
+        "P-T5-03.then: 読めない字があります: '.X'"
+      ]
+    },
+    {
+      "attempt": 2,
+      "rc": 0,
+      "seconds": 57.4,
+      "usage": {
+        "format": "claude",
+        "input_tokens": 2,
+        "output_tokens": 5843,
+        "cache_read_tokens": 2935,
+        "cache_creation_tokens": 39355,
+        "cost_usd": 0.5411025,
+        "num_turns": 1,
+        "total_tokens": 48135
+      },
+      "prompt_chars": 119,
+      "problems": []
+    }
+  ],
+  "total": {
+    "calls": 2,
+    "seconds": 266.8,
+    "input_tokens": 4,
+    "output_tokens": 24311,
+    "cache_read_tokens": 2935,
+    "cache_creation_tokens": 59278,
+    "cost_usd": 1.202043
+  },
+  "director_edits": {
+    "note": "総監督（Claude、このリポジトリの作業セッション）が、分解役の宣言をレビューして前提に除外を足した。費用は計測に入っていない（計測は分解役の呼び出しだけ）。式の追加だけで、性質の数・帰結・規則は変えていない",
+    "edits": [
+      {
+        "id": "P-T3-02",
+        "given_added": "&& !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw",
+        "reason": "RL-45：ハードドロップは移動と回転の後に効く。接地していたミノが移動・回転で下の空いた位置に出ると、落下マス数が 1 以上になって得点が入る。前提の fits は移動前の位置で見ているので、移動と回転の入力を除く"
+      },
+      {
+        "id": "P-T3-03",
+        "given_added": "&& !input.Left && !input.Right && !input.RotateCw && !input.RotateCcw",
+        "reason": "P-T3-02 の逆向き。空中にいたミノが移動・回転で接地すると落下マス数が 0 になり、得点が入らない"
+      },
+      {
+        "id": "P-T4-01",
+        "given_added": "&& !input.Left && !input.Right",
+        "reason": "LP-07 の ② では左右移動が回転より先に効く。移動したあとの位置では回転が置けず、キックも全部失敗すると向きが変わらない。前提の fits は移動前の位置で見ているので、左右の入力を除く"
+      },
+      {
+        "id": "P-T4-02",
+        "given_added": "&& !input.Left && !input.Right",
+        "reason": "P-T4-01 と同じ（左回り）"
+      }
+    ]
+  }
+}

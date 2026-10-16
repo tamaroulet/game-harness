@@ -1,0 +1,77 @@
+{
+  "tool": "declare",
+  "cli": "claude",
+  "model_requested": "claude-opus-5",
+  "models_used": [
+    "claude-opus-5"
+  ],
+  "model_note": "config/decompose.json の model を --model で明示。道具なし（--tools \"\"）",
+  "gdd_sha256": "95876782072ebf6a973781f2921e6abe4d2cead5519a09f673fe380991feb7a7",
+  "ok": false,
+  "calls": [
+    {
+      "attempt": 1,
+      "rc": 0,
+      "seconds": 511.3,
+      "usage": {
+        "format": "claude",
+        "input_tokens": 2,
+        "output_tokens": 41566,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 22725,
+        "cost_usd": 1.26641,
+        "num_turns": 1,
+        "total_tokens": 64293
+      },
+      "models_used": [
+        "claude-opus-5"
+      ],
+      "prompt_chars": 20644,
+      "problems": [
+        "P-T3-03.then: 読めない字があります: '.Y) + (bef'",
+        "P-T4-01.then: 読めない字があります: '.Rotation'",
+        "P-T4-02.then: 読めない字があります: '.Rotation'",
+        "P-T5-01.then: 読めない字があります: '.X'",
+        "P-T5-02.then: 読めない字があります: '.Rotation'",
+        "P-T5-03.then: 読めない字があります: '.X'",
+        "P-T7-01.then: 読めない字があります: '.Y) + (bef'",
+        "P-T8-01.then: 読めない字があります: '.Y) + (bef'",
+        "P-T9-01.then: 読めない字があります: '.X - 1'",
+        "P-T9-02.then: 読めない字があります: '.X'"
+      ]
+    },
+    {
+      "attempt": 2,
+      "rc": 0,
+      "seconds": 174.6,
+      "usage": {
+        "format": "claude",
+        "input_tokens": 2,
+        "output_tokens": 14600,
+        "cache_read_tokens": 2943,
+        "cache_creation_tokens": 65655,
+        "cost_usd": 1.0230315,
+        "num_turns": 1,
+        "total_tokens": 83200
+      },
+      "models_used": [
+        "claude-opus-5"
+      ],
+      "prompt_chars": 432,
+      "problems": [
+        "properties[34]: rule は構造化仕様にある RL-xx です: 'LP-06'",
+        "properties[35]: rule は構造化仕様にある RL-xx です: 'ST-10'",
+        "properties[36]: rule は構造化仕様にある RL-xx です: 'ST-02'"
+      ]
+    }
+  ],
+  "total": {
+    "calls": 2,
+    "seconds": 685.9,
+    "input_tokens": 4,
+    "output_tokens": 56166,
+    "cache_read_tokens": 2943,
+    "cache_creation_tokens": 88380,
+    "cost_usd": 2.289442
+  }
+}

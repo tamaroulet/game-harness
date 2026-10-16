@@ -1,0 +1,10 @@
+{
+  "_comment": "構造化仕様（docs/spec/spec.md・questions.md）に現れてはいけない語（docs/design/spec_pipeline.md §6.6、S5）。Step 11 の A/B 対照実験で後から段階的に足す実験用の機能なので、GDD のベースラインから構造化役が推測で補ってはならない。英字だけの語は単語境界で照合し、大文字小文字を区別しない。例外: その語が GDD の根拠行にそのまま現れ、spec の行がその根拠行を引いている場合（GDD 自身が否定している語を引くため）",
+
+  "forbidden_terms": [
+    { "feature": "ハードドロップ", "terms": ["ハードドロップ", "瞬間落下", "即時落下", "hard drop", "harddrop"] },
+    { "feature": "ゴースト", "terms": ["ゴースト", "着地予測", "着地予想", "ghost"] },
+    { "feature": "ホールド", "terms": ["ホールド", "ストック", "hold"] },
+    { "feature": "SRS", "terms": ["SRS", "スーパーローテーション", "Super Rotation System", "壁キック", "wall kick", "T-spin", "Tスピン"] }
+  ]
+}

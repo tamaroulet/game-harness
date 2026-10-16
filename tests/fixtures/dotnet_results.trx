@@ -1,0 +1,507 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="a6b0524f-f6a0-41e4-93b8-fa4a926a0c93" name="tamar@カズマのパソコ 2026-09-17 11:35:57" runUser="カズマのパソコ\tamar" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-09-17T11:35:57.2332232+09:00" queuing="2026-09-17T11:35:57.2332235+09:00" start="2026-09-17T11:35:56.6896210+09:00" finish="2026-09-17T11:35:57.2671322+09:00" />
+  <TestSettings name="default" id="8ea05e01-c49f-4488-b939-8eaedc82c12c">
+    <Deployment runDeploymentRoot="tamar_カズマのパソコ_2026-09-17_11_35_57" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="c9a3f316-84bd-46bb-8396-029597d10452" testId="cecad36a-6068-8f49-e609-8c46a1344d5d" testName="golden_metapoint_disclosed_calc_turn_2" computerName="カズマのパソコ" duration="00:00:00.0000020" startTime="2026-09-17T11:35:57.2039181+09:00" endTime="2026-09-17T11:35:57.2039201+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c9a3f316-84bd-46bb-8396-029597d10452" />
+    <UnitTestResult executionId="cecde9ff-e952-441d-9730-abcfc4f13af4" testId="faf102cf-80a4-6819-9b31-4342ddbb9682" testName="Update_ExactlyAtThreshold_EntersDashing" computerName="カズマのパソコ" duration="00:00:00.0000340" startTime="2026-09-17T11:35:57.1758160+09:00" endTime="2026-09-17T11:35:57.1758498+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cecde9ff-e952-441d-9730-abcfc4f13af4" />
+    <UnitTestResult executionId="08618638-ef49-4689-9eb7-d74081f3c0dd" testId="5e0fae94-79c6-0ff6-5036-0558faf3b9c8" testName="golden_disclosed_unused_pmax" computerName="カズマのパソコ" duration="00:00:00.0000100" startTime="2026-09-17T11:35:57.2026804+09:00" endTime="2026-09-17T11:35:57.2026902+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="08618638-ef49-4689-9eb7-d74081f3c0dd" />
+    <UnitTestResult executionId="e9e0f4b6-9ccc-4751-93f3-49db1042f4c5" testId="b1fb8dae-4162-faea-2cb5-77ee6a6c3e01" testName="BeginCharge_WhileDashing_RestartsTheWindup" computerName="カズマのパソコ" duration="00:00:00.0002480" startTime="2026-09-17T11:35:57.1743253+09:00" endTime="2026-09-17T11:35:57.1745734+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e9e0f4b6-9ccc-4751-93f3-49db1042f4c5" />
+    <UnitTestResult executionId="f22218c2-46c0-48e2-afcc-ca6ad2b0ed6b" testId="34ead38a-58ba-63fc-09ee-0eef87424c47" testName="Update_CrossesThresholdInSecondStep_EntersDashing" computerName="カズマのパソコ" duration="00:00:00.0000530" startTime="2026-09-17T11:35:57.1757563+09:00" endTime="2026-09-17T11:35:57.1758094+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f22218c2-46c0-48e2-afcc-ca6ad2b0ed6b" />
+    <UnitTestResult executionId="8ad47833-9570-4a8b-86ae-9d061a3566b5" testId="69ed97ce-cf3f-e133-39b6-a709c447f0e3" testName="golden_metapoint_disclosed_calc_coeff_skill" computerName="カズマのパソコ" duration="00:00:00.0000020" startTime="2026-09-17T11:35:57.2039624+09:00" endTime="2026-09-17T11:35:57.2039644+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8ad47833-9570-4a8b-86ae-9d061a3566b5" />
+    <UnitTestResult executionId="f5d0b665-365d-4245-b77d-c7b20e4587aa" testId="4f620000-c0c7-678d-8d42-3b8f962476cc" testName="golden_disclosed_mental_4" computerName="カズマのパソコ" duration="00:00:00.0000090" startTime="2026-09-17T11:35:57.2026287+09:00" endTime="2026-09-17T11:35:57.2026381+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f5d0b665-365d-4245-b77d-c7b20e4587aa" />
+    <UnitTestResult executionId="afbaa81a-0ffb-44e0-8506-df98f5b9f11d" testId="96fcc687-d97b-370c-d2fa-04c90ceef545" testName="golden_metapoint_disclosed_apply_avail_4" computerName="カズマのパソコ" duration="00:00:00.0000090" startTime="2026-09-17T11:35:57.2061553+09:00" endTime="2026-09-17T11:35:57.2061645+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="afbaa81a-0ffb-44e0-8506-df98f5b9f11d" />
+    <UnitTestResult executionId="d9b7b8e1-9b87-417d-be5b-5f50913cdb24" testId="30627d18-d5a2-6fe0-64ae-e4b4ff2c6110" testName="golden_metapoint_disclosed_calc_skill_3" computerName="カズマのパソコ" duration="00:00:00.0000020" startTime="2026-09-17T11:35:57.2039351+09:00" endTime="2026-09-17T11:35:57.2039373+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d9b7b8e1-9b87-417d-be5b-5f50913cdb24" />
+    <UnitTestResult executionId="4a94f632-246b-4a70-aee4-4ed20d91ae99" testId="ad171d11-eb73-479a-bb19-4e94a8a0fd0f" testName="golden_metapoint_disclosed_calc_skill_5" computerName="カズマのパソコ" duration="00:00:00.0000020" startTime="2026-09-17T11:35:57.2039527+09:00" endTime="2026-09-17T11:35:57.2039547+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4a94f632-246b-4a70-aee4-4ed20d91ae99" />
+    <UnitTestResult executionId="3b2e1b2d-bea9-4954-a415-f493079a275a" testId="e66871d2-b2ee-d009-a811-c3a9c4b4f88b" testName="golden_metapoint_disclosed_apply_runs_2" computerName="カズマのパソコ" duration="00:00:00.0000120" startTime="2026-09-17T11:35:57.2061056+09:00" endTime="2026-09-17T11:35:57.2061173+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3b2e1b2d-bea9-4954-a415-f493079a275a" />
+    <UnitTestResult executionId="114ee723-a8e1-47fc-ba99-79ceeee0f207" testId="12b1ad37-97f3-91ec-4672-7dfd731f8ec4" testName="NegativeChargeSeconds_IsClampedToZero" computerName="カズマのパソコ" duration="00:00:00.0000540" startTime="2026-09-17T11:35:57.1752153+09:00" endTime="2026-09-17T11:35:57.1752689+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="114ee723-a8e1-47fc-ba99-79ceeee0f207" />
+    <UnitTestResult executionId="e12a3a58-d454-4cc7-947e-db5c6175ac60" testId="39438eff-d23a-5c6b-19c8-609640671739" testName="golden_metapoint_disclosed_calc_not_clear" computerName="カズマのパソコ" duration="00:00:00.0004720" startTime="2026-09-17T11:35:57.2033803+09:00" endTime="2026-09-17T11:35:57.2038522+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e12a3a58-d454-4cc7-947e-db5c6175ac60" />
+    <UnitTestResult executionId="742aab0a-52a9-4739-b2bb-51e86e343c43" testId="73fda8df-d506-89ec-6b36-187af9579cf5" testName="golden_metapoint_disclosed_apply_avail_5" computerName="カズマのパソコ" duration="00:00:00.0000080" startTime="2026-09-17T11:35:57.2061889+09:00" endTime="2026-09-17T11:35:57.2061971+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="742aab0a-52a9-4739-b2bb-51e86e343c43" />
+    <UnitTestResult executionId="e5761cbc-1a14-459d-a860-5c65ab700e77" testId="5547bce0-babb-a17c-9f95-5a61a46483d0" testName="golden_disclosed_turn_0" computerName="カズマのパソコ" duration="00:00:00.0009960" startTime="2026-09-17T11:35:57.2013687+09:00" endTime="2026-09-17T11:35:57.2023640+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e5761cbc-1a14-459d-a860-5c65ab700e77" />
+    <UnitTestResult executionId="942a9be2-308d-4e22-8c7d-7816eac2d4ec" testId="9d603c4e-49b1-b58a-5662-132714d9a71f" testName="NonFiniteDelta_IsIgnored" computerName="カズマのパソコ" duration="00:00:00.0000780" startTime="2026-09-17T11:35:57.1753777+09:00" endTime="2026-09-17T11:35:57.1754560+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="942a9be2-308d-4e22-8c7d-7816eac2d4ec" />
+    <UnitTestResult executionId="8c6382b9-93e7-4631-bbbc-55f32eb503f8" testId="cad12163-131b-a9ef-2c72-8524126589d8" testName="golden_metapoint_disclosed_apply_earned_1" computerName="カズマのパソコ" duration="00:00:00.0000100" startTime="2026-09-17T11:35:57.2060843+09:00" endTime="2026-09-17T11:35:57.2060938+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8c6382b9-93e7-4631-bbbc-55f32eb503f8" />
+    <UnitTestResult executionId="2fb97fc9-97ed-4fae-8b0f-594a5ea5fe67" testId="8f8f4e7e-3f5a-b7af-e627-f16c73d1ef94" testName="IntMinValueDelta_IsIgnored" computerName="カズマのパソコ" duration="00:00:00.0000560" startTime="2026-09-17T11:35:57.1750831+09:00" endTime="2026-09-17T11:35:57.1751385+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2fb97fc9-97ed-4fae-8b0f-594a5ea5fe67" />
+    <UnitTestResult executionId="371687a6-20db-48d3-9583-02d250c94167" testId="5a5b08c5-30c7-1542-775c-f3f19e6c0f2b" testName="AlwaysPasses_ControlGroup" computerName="カズマのパソコ" duration="00:00:00.0241740" startTime="2026-09-17T11:35:57.1771462+09:00" endTime="2026-09-17T11:35:57.2013199+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="371687a6-20db-48d3-9583-02d250c94167" />
+    <UnitTestResult executionId="4971a43a-f731-4c3f-bd1e-f3f6e8cb3748" testId="e6ef0aec-dd56-180b-e81d-3167128c3621" testName="golden_disclosed_skill_5" computerName="カズマのパソコ" duration="00:00:00.0000100" startTime="2026-09-17T11:35:57.2026574+09:00" endTime="2026-09-17T11:35:57.2026673+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4971a43a-f731-4c3f-bd1e-f3f6e8cb3748" />
+    <UnitTestResult executionId="94ec3acd-7dc8-4e69-8c64-72d35d7bcdf9" testId="00db002a-a4f9-0efa-a34c-2e5ac73b3acc" testName="ShorterChargeSeconds_DashesEarlierThanDefault" computerName="カズマのパソコ" duration="00:00:00.0000600" startTime="2026-09-17T11:35:57.1755469+09:00" endTime="2026-09-17T11:35:57.1756065+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="94ec3acd-7dc8-4e69-8c64-72d35d7bcdf9" />
+    <UnitTestResult executionId="79958dc4-0b86-42f8-a891-a2833a2c2eef" testId="12ee24c8-c602-f75d-5288-c84bca80bf0f" testName="Update_AccumulatedExactlyAtThreshold_EntersDashing" computerName="カズマのパソコ" duration="00:00:00.0000570" startTime="2026-09-17T11:35:57.1756966+09:00" endTime="2026-09-17T11:35:57.1757538+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="79958dc4-0b86-42f8-a891-a2833a2c2eef" />
+    <UnitTestResult executionId="6652e2e8-c02d-4b99-9eb7-cb11260c8809" testId="9c314665-5e6e-d3d3-e51e-eedbfb75d86b" testName="golden_metapoint_disclosed_apply_total_0" computerName="カズマのパソコ" duration="00:00:00.0000210" startTime="2026-09-17T11:35:57.2060189+09:00" endTime="2026-09-17T11:35:57.2060397+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6652e2e8-c02d-4b99-9eb7-cb11260c8809" />
+    <UnitTestResult executionId="879123a2-b3f0-4032-a8aa-dd84fe186769" testId="70ad3c53-d6b7-6384-3e3c-51d0370353f1" testName="golden_disclosed_stamina_0" computerName="カズマのパソコ" duration="00:00:00.0000989" startTime="2026-09-17T11:35:57.2023760+09:00" endTime="2026-09-17T11:35:57.2024747+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="879123a2-b3f0-4032-a8aa-dd84fe186769" />
+    <UnitTestResult executionId="9b484ac0-2233-4189-a6b0-45d8295aaa61" testId="8035e081-96f4-bc31-55f3-4d3b60e5e8b9" testName="golden_disclosed_skill_4" computerName="カズマのパソコ" duration="00:00:00.0000090" startTime="2026-09-17T11:35:57.2026178+09:00" endTime="2026-09-17T11:35:57.2026272+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9b484ac0-2233-4189-a6b0-45d8295aaa61" />
+    <UnitTestResult executionId="56825a61-dcf2-43cb-9e65-c8c997717ad5" testId="f1b1ecb5-05eb-3012-08de-9088b49c7409" testName="golden_metapoint_disclosed_apply_total_1" computerName="カズマのパソコ" duration="00:00:00.0000120" startTime="2026-09-17T11:35:57.2060703+09:00" endTime="2026-09-17T11:35:57.2060826+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="56825a61-dcf2-43cb-9e65-c8c997717ad5" />
+    <UnitTestResult executionId="21930dd3-1109-43ed-8b0e-5c9cf277b1c4" testId="4024617e-dcef-9ced-2e10-ccdcf1d3e650" testName="ZeroChargeSeconds_DashesOnFirstUpdate" computerName="カズマのパソコ" duration="00:00:00.0000500" startTime="2026-09-17T11:35:57.1759294+09:00" endTime="2026-09-17T11:35:57.1759796+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="21930dd3-1109-43ed-8b0e-5c9cf277b1c4" />
+    <UnitTestResult executionId="50b8a22a-ec96-4d39-9f54-e91e975a8f3c" testId="96cf2da7-c3b7-c18e-2c64-7e6e0ae8c417" testName="golden_metapoint_disclosed_apply_base" computerName="カズマのパソコ" duration="00:00:00.0019680" startTime="2026-09-17T11:35:57.2039730+09:00" endTime="2026-09-17T11:35:57.2059406+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="50b8a22a-ec96-4d39-9f54-e91e975a8f3c" />
+    <UnitTestResult executionId="a994e9e0-aa28-4832-88a1-59065728943e" testId="63e7d3cc-50cf-1f83-34f8-d79d1c5f22ab" testName="Update_JustBelowThreshold_StaysCharging" computerName="カズマのパソコ" duration="00:00:00.0000290" startTime="2026-09-17T11:35:57.1758521+09:00" endTime="2026-09-17T11:35:57.1758815+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a994e9e0-aa28-4832-88a1-59065728943e" />
+    <UnitTestResult executionId="40265c17-9dc2-4189-9208-374e6c87a88a" testId="a497c762-8ea1-e67b-0232-cd16dccfea91" testName="golden_metapoint_disclosed_calc_skill_1" computerName="カズマのパソコ" duration="00:00:00.0000070" startTime="2026-09-17T11:35:57.2039100+09:00" endTime="2026-09-17T11:35:57.2039166+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="40265c17-9dc2-4189-9208-374e6c87a88a" />
+    <UnitTestResult executionId="40780299-cd8c-4bd3-9171-349ebbbc559e" testId="40d36346-7c5c-e106-020d-0e6b5ce00f19" testName="golden_metapoint_disclosed_apply_earned_5" computerName="カズマのパソコ" duration="00:00:00.0000100" startTime="2026-09-17T11:35:57.2062100+09:00" endTime="2026-09-17T11:35:57.2062201+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="40780299-cd8c-4bd3-9171-349ebbbc559e" />
+    <UnitTestResult executionId="909d53f9-1008-4d80-8ab2-0be9d67f3322" testId="8a9a61b2-5496-44d8-29ac-fcf911b80810" testName="golden_metapoint_disclosed_calc_turn_5" computerName="カズマのパソコ" duration="00:00:00.0000020" startTime="2026-09-17T11:35:57.2039492+09:00" endTime="2026-09-17T11:35:57.2039511+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="909d53f9-1008-4d80-8ab2-0be9d67f3322" />
+    <UnitTestResult executionId="7be63170-b654-487e-8e49-6335be65b776" testId="bbc42528-965f-994f-ffe4-3bf96ea83078" testName="LongerChargeSeconds_DelaysDash" computerName="カズマのパソコ" duration="00:00:00.0000720" startTime="2026-09-17T11:35:57.1751412+09:00" endTime="2026-09-17T11:35:57.1752128+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7be63170-b654-487e-8e49-6335be65b776" />
+    <UnitTestResult executionId="79b9c1a5-2077-4aeb-9e84-a7c2070a8f66" testId="705f67bf-3c77-51e6-1e96-510d14a5add2" testName="golden_metapoint_disclosed_calc_turn_3" computerName="カズマのパソコ" duration="00:00:00.0000080" startTime="2026-09-17T11:35:57.2039252+09:00" endTime="2026-09-17T11:35:57.2039334+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="79b9c1a5-2077-4aeb-9e84-a7c2070a8f66" />
+    <UnitTestResult executionId="9bb7162b-c796-424f-b653-b1395904fc94" testId="90975da5-953f-f633-e812-be54b5576fe4" testName="golden_metapoint_disclosed_apply_null_profile" computerName="カズマのパソコ" duration="00:00:00.0000630" startTime="2026-09-17T11:35:57.2059516+09:00" endTime="2026-09-17T11:35:57.2060148+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9bb7162b-c796-424f-b653-b1395904fc94" />
+    <UnitTestResult executionId="45a3a21f-a213-40b5-895c-76704d6dd86b" testId="293d9cdf-be69-6684-b0cd-149b65672b5a" testName="golden_metapoint_disclosed_calc_skill_0" computerName="カズマのパソコ" duration="00:00:00.0000040" startTime="2026-09-17T11:35:57.2038959+09:00" endTime="2026-09-17T11:35:57.2039004+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="45a3a21f-a213-40b5-895c-76704d6dd86b" />
+    <UnitTestResult executionId="366f3844-d81f-469c-8c37-653bef069b66" testId="5ccc670b-7e39-e6d3-bedb-5e8ad6ce605a" testName="golden_metapoint_disclosed_calc_coeff_clear" computerName="カズマのパソコ" duration="00:00:00.0000020" startTime="2026-09-17T11:35:57.2039660+09:00" endTime="2026-09-17T11:35:57.2039679+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="366f3844-d81f-469c-8c37-653bef069b66" />
+    <UnitTestResult executionId="5c870c08-9ac3-4088-ac62-ad0c66479344" testId="c59f0b2e-89dd-f7d6-b074-1d67f911fca2" testName="golden_disclosed_turn_1" computerName="カズマのパソコ" duration="00:00:00.0000180" startTime="2026-09-17T11:35:57.2025013+09:00" endTime="2026-09-17T11:35:57.2025194+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5c870c08-9ac3-4088-ac62-ad0c66479344" />
+    <UnitTestResult executionId="c26d38fa-ca4e-492c-9166-516ccd8c4973" testId="16c3d930-5fe9-bad7-109f-a263c69a04bf" testName="golden_metapoint_disclosed_apply_runs_5" computerName="カズマのパソコ" duration="00:00:00.0000100" startTime="2026-09-17T11:35:57.2061987+09:00" endTime="2026-09-17T11:35:57.2062083+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c26d38fa-ca4e-492c-9166-516ccd8c4973" />
+    <UnitTestResult executionId="d5457161-1652-404f-9829-4c5015370b44" testId="3dc288b0-8574-939e-0d4a-65401f8f0bb9" testName="NegativeDelta_DoesNotRewindTimer" computerName="カズマのパソコ" duration="00:00:00.0001030" startTime="2026-09-17T11:35:57.1752715+09:00" endTime="2026-09-17T11:35:57.1753748+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d5457161-1652-404f-9829-4c5015370b44" />
+    <UnitTestResult executionId="4f1f13d1-671d-4873-8854-b1217dbbb9d4" testId="122a9416-4c37-1ff8-91fd-b7609bbbcdb0" testName="golden_metapoint_disclosed_apply_avail_1" computerName="カズマのパソコ" duration="00:00:00.0000100" startTime="2026-09-17T11:35:57.2060587+09:00" endTime="2026-09-17T11:35:57.2060684+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4f1f13d1-671d-4873-8854-b1217dbbb9d4" />
+    <UnitTestResult executionId="c7d067b3-e6a6-40cc-959e-8515fbb113ba" testId="16ee0a4d-9126-f781-5ded-4711e8e8e026" testName="golden_disclosed_skill_2" computerName="カズマのパソコ" duration="00:00:00.0000110" startTime="2026-09-17T11:35:57.2025583+09:00" endTime="2026-09-17T11:35:57.2025689+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c7d067b3-e6a6-40cc-959e-8515fbb113ba" />
+    <UnitTestResult executionId="f3a9c977-daed-4c71-8e9e-ccdc71399628" testId="05335f97-20ab-d9b2-7b10-37acacbfbfe1" testName="golden_disclosed_mental_3" computerName="カズマのパソコ" duration="00:00:00.0000090" startTime="2026-09-17T11:35:57.2025961+09:00" endTime="2026-09-17T11:35:57.2026053+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f3a9c977-daed-4c71-8e9e-ccdc71399628" />
+    <UnitTestResult executionId="b7152f63-c1db-4cdc-bf22-f3a949f63582" testId="2ea6c675-b955-1dd0-0458-7b399b38b1a0" testName="golden_disclosed_skill_1" computerName="カズマのパソコ" duration="00:00:00.0000100" startTime="2026-09-17T11:35:57.2025216+09:00" endTime="2026-09-17T11:35:57.2025317+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b7152f63-c1db-4cdc-bf22-f3a949f63582" />
+    <UnitTestResult executionId="106b65b5-0027-4ba6-b728-b0e42cbc02b2" testId="3da2e750-dca6-e08c-8230-ac43c535e896" testName="HugeDelta_EntersDashingAndKeepsTimerFinite" computerName="カズマのパソコ" duration="00:00:00.0002570" startTime="2026-09-17T11:35:57.1747486+09:00" endTime="2026-09-17T11:35:57.1750053+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="106b65b5-0027-4ba6-b728-b0e42cbc02b2" />
+    <UnitTestResult executionId="3769d488-d9c3-4502-b5cc-35dac77b580f" testId="2e7a9153-ba16-dd52-9409-4d4acd0fc0c6" testName="golden_metapoint_disclosed_calc_coeff_turn" computerName="カズマのパソコ" duration="00:00:00.0000020" startTime="2026-09-17T11:35:57.2039562+09:00" endTime="2026-09-17T11:35:57.2039581+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3769d488-d9c3-4502-b5cc-35dac77b580f" />
+    <UnitTestResult executionId="20e23d12-0a7d-452b-9b7d-e4e4daddb9bc" testId="e33243ba-1e14-c826-8570-2b0902418769" testName="golden_disclosed_mental_0" computerName="カズマのパソコ" duration="00:00:00.0000170" startTime="2026-09-17T11:35:57.2024816+09:00" endTime="2026-09-17T11:35:57.2024988+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="20e23d12-0a7d-452b-9b7d-e4e4daddb9bc" />
+    <UnitTestResult executionId="b719ea7b-bf5f-4a83-94c3-2a3183811c5e" testId="e645c243-b3dc-f890-02b6-63c2b541f2c3" testName="MetaPointGolden_SourceIsPresent" computerName="カズマのパソコ" duration="00:00:00.0019620" startTime="2026-09-17T11:35:57.2062531+09:00" endTime="2026-09-17T11:35:57.2082151+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b719ea7b-bf5f-4a83-94c3-2a3183811c5e" />
+    <UnitTestResult executionId="15948913-ed89-4c14-b7ac-056e84804363" testId="15607734-8db8-637a-361e-7f68b5c2599d" testName="golden_metapoint_disclosed_calc_skill_4" computerName="カズマのパソコ" duration="00:00:00.0000050" startTime="2026-09-17T11:35:57.2039425+09:00" endTime="2026-09-17T11:35:57.2039476+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="15948913-ed89-4c14-b7ac-056e84804363" />
+    <UnitTestResult executionId="bce31864-b80e-4862-9ac1-04560cf2eaca" testId="14b3a336-5851-3458-2956-ff3d2d4ba7e6" testName="golden_disclosed_turn_4" computerName="カズマのパソコ" duration="00:00:00.0000090" startTime="2026-09-17T11:35:57.2026068+09:00" endTime="2026-09-17T11:35:57.2026162+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bce31864-b80e-4862-9ac1-04560cf2eaca" />
+    <UnitTestResult executionId="25f64ac4-1915-41ce-88fb-3e25554eddd9" testId="f4b45554-4270-6b3b-c90e-6f2a5c92ddf0" testName="golden_metapoint_disclosed_apply_earned_2" computerName="カズマのパソコ" duration="00:00:00.0000110" startTime="2026-09-17T11:35:57.2061189+09:00" endTime="2026-09-17T11:35:57.2061295+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="25f64ac4-1915-41ce-88fb-3e25554eddd9" />
+    <UnitTestResult executionId="0eb6e239-fc83-4721-a796-7e484a3944ae" testId="28f033be-79f3-adbb-546d-c5e33599b029" testName="golden_metapoint_disclosed_calc_turn_4" computerName="カズマのパソコ" duration="00:00:00.0000020" startTime="2026-09-17T11:35:57.2039388+09:00" endTime="2026-09-17T11:35:57.2039410+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0eb6e239-fc83-4721-a796-7e484a3944ae" />
+    <UnitTestResult executionId="3f25560b-fa05-43ef-92bc-9c9f82275ffe" testId="da1cf43f-cd23-97d3-7471-5650777242eb" testName="golden_metapoint_disclosed_apply_earned_4" computerName="カズマのパソコ" duration="00:00:00.0000090" startTime="2026-09-17T11:35:57.2061774+09:00" endTime="2026-09-17T11:35:57.2061866+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3f25560b-fa05-43ef-92bc-9c9f82275ffe" />
+    <UnitTestResult executionId="43a1b921-9a85-4bab-ab95-e1e6b0cf60af" testId="ba3436ee-ceff-6b66-46bc-9026dc5da5d8" testName="golden_metapoint_disclosed_apply_unlocked_dup" computerName="カズマのパソコ" duration="00:00:00.0000090" startTime="2026-09-17T11:35:57.2062320+09:00" endTime="2026-09-17T11:35:57.2062413+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="43a1b921-9a85-4bab-ab95-e1e6b0cf60af" />
+    <UnitTestResult executionId="8bf89f08-e800-4e00-9742-6e45282bc58b" testId="0ca81de7-e717-29ab-d9aa-29bfa8184a5d" testName="BeginCharge_EntersChargingWithEmptyTimer" computerName="カズマのパソコ" duration="00:00:00.0055240" startTime="2026-09-17T11:35:57.1681384+09:00" endTime="2026-09-17T11:35:57.1736344+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8bf89f08-e800-4e00-9742-6e45282bc58b" />
+    <UnitTestResult executionId="ce2d85fb-eb13-461f-b739-3fc5c2dd2d21" testId="f51f2f83-35dc-a945-29e7-d6b142c07cf1" testName="golden_metapoint_disclosed_apply_avail_2" computerName="カズマのパソコ" duration="00:00:00.0000090" startTime="2026-09-17T11:35:57.2060955+09:00" endTime="2026-09-17T11:35:57.2061039+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ce2d85fb-eb13-461f-b739-3fc5c2dd2d21" />
+    <UnitTestResult executionId="34cad2b8-1cf1-42a1-b0fe-2fc39df0c8af" testId="a4f43f10-e9b3-9178-8d1b-7c0ae451d529" testName="Update_AccumulatedBelowThreshold_StaysCharging" computerName="カズマのパソコ" duration="00:00:00.0000440" startTime="2026-09-17T11:35:57.1756452+09:00" endTime="2026-09-17T11:35:57.1756894+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="34cad2b8-1cf1-42a1-b0fe-2fc39df0c8af" />
+    <UnitTestResult executionId="a8cc1d2b-ecb5-414d-b8fd-56ca860df16a" testId="84f2e936-d299-e753-1d67-83073fe71e10" testName="ZeroDelta_DoesNotAdvanceTimer" computerName="カズマのパソコ" duration="00:00:00.0000670" startTime="2026-09-17T11:35:57.1759893+09:00" endTime="2026-09-17T11:35:57.1760567+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a8cc1d2b-ecb5-414d-b8fd-56ca860df16a" />
+    <UnitTestResult executionId="e16ffadc-f221-4e40-897f-97b410bb9462" testId="41f77ce2-9d3c-9386-4fba-a0fae4b0b78d" testName="golden_disclosed_mental_1" computerName="カズマのパソコ" duration="00:00:00.0000120" startTime="2026-09-17T11:35:57.2025335+09:00" endTime="2026-09-17T11:35:57.2025458+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e16ffadc-f221-4e40-897f-97b410bb9462" />
+    <UnitTestResult executionId="fde84bba-204e-41c5-b069-d4a5709dc778" testId="22e7398f-8908-6991-2825-cdcc23cde8db" testName="Update_AboveThreshold_EntersDashing" computerName="カズマのパソコ" duration="00:00:00.0000340" startTime="2026-09-17T11:35:57.1756088+09:00" endTime="2026-09-17T11:35:57.1756430+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="fde84bba-204e-41c5-b069-d4a5709dc778" />
+    <UnitTestResult executionId="124e1f22-e56a-4958-815f-722b2b791abe" testId="c183a52a-427e-8b3b-c871-15eec8f4c01f" testName="golden_metapoint_disclosed_apply_total_3" computerName="カズマのパソコ" duration="00:00:00.0000090" startTime="2026-09-17T11:35:57.2061311+09:00" endTime="2026-09-17T11:35:57.2061404+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="124e1f22-e56a-4958-815f-722b2b791abe" />
+    <UnitTestResult executionId="42d136e7-e9b5-4cf4-a4c3-0f74ada0f150" testId="56ca124f-1a5a-b830-bdc8-b5d0996fffc1" testName="golden_metapoint_disclosed_calc_turn_0" computerName="カズマのパソコ" duration="00:00:00.0000210" startTime="2026-09-17T11:35:57.2038627+09:00" endTime="2026-09-17T11:35:57.2038842+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="42d136e7-e9b5-4cf4-a4c3-0f74ada0f150" />
+    <UnitTestResult executionId="6c61c013-2ed8-4b5e-bcf0-55b8d381d95b" testId="fd59b6ac-ff78-cae9-6d88-5668866fb078" testName="golden_metapoint_disclosed_apply_runs_3" computerName="カズマのパソコ" duration="00:00:00.0000120" startTime="2026-09-17T11:35:57.2061421+09:00" endTime="2026-09-17T11:35:57.2061537+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6c61c013-2ed8-4b5e-bcf0-55b8d381d95b" />
+    <UnitTestResult executionId="7e873f7e-1966-4e95-8680-724a7714e34a" testId="1474cbff-4c9b-4221-bae2-eeb6e44fe2d3" testName="golden_disclosed_stamina_2" computerName="カズマのパソコ" duration="00:00:00.0000090" startTime="2026-09-17T11:35:57.2025474+09:00" endTime="2026-09-17T11:35:57.2025568+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7e873f7e-1966-4e95-8680-724a7714e34a" />
+    <UnitTestResult executionId="55b5f60c-3402-4042-a51c-b8e138632df7" testId="068e1f8f-d1d7-759f-edb1-21c46b9d4907" testName="Idle_BeforeBeginCharge_NeverDashes" computerName="カズマのパソコ" duration="00:00:00.0000670" startTime="2026-09-17T11:35:57.1750114+09:00" endTime="2026-09-17T11:35:57.1750781+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="55b5f60c-3402-4042-a51c-b8e138632df7" />
+    <UnitTestResult executionId="f83255fd-7558-43c9-a544-f963fccfa7f5" testId="065b5921-79ba-586d-8405-37b85ac222d0" testName="Reset_ReturnsToIdleAndStopsTheTimer" computerName="カズマのパソコ" duration="00:00:00.0000850" startTime="2026-09-17T11:35:57.1754588+09:00" endTime="2026-09-17T11:35:57.1755443+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f83255fd-7558-43c9-a544-f963fccfa7f5" />
+    <UnitTestResult executionId="b93061db-a420-4a94-b39e-22836977cdc6" testId="ec227425-b361-016c-6802-f337eb536340" testName="Update_ZeroPointOneSecond_StaysCharging" computerName="カズマのパソコ" duration="00:00:00.0000440" startTime="2026-09-17T11:35:57.1758835+09:00" endTime="2026-09-17T11:35:57.1759273+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b93061db-a420-4a94-b39e-22836977cdc6" />
+    <UnitTestResult executionId="5535c86c-0c18-4698-a924-bd65f4de5ee9" testId="527792e8-c29a-1b17-86ff-ee145c6f1692" testName="golden_metapoint_disclosed_apply_runs_0" computerName="カズマのパソコ" duration="00:00:00.0000080" startTime="2026-09-17T11:35:57.2060484+09:00" endTime="2026-09-17T11:35:57.2060568+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5535c86c-0c18-4698-a924-bd65f4de5ee9" />
+    <UnitTestResult executionId="ae6829a7-d18a-4db0-9a5a-ad3b0d56a13a" testId="fc785a54-0461-9a4f-ce42-0dbb26aee69b" testName="golden_metapoint_disclosed_calc_coeff_edge_0" computerName="カズマのパソコ" duration="00:00:00.0000020" startTime="2026-09-17T11:35:57.2039696+09:00" endTime="2026-09-17T11:35:57.2039716+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ae6829a7-d18a-4db0-9a5a-ad3b0d56a13a" />
+    <UnitTestResult executionId="bb6fa8e6-5d40-4aaa-abb8-ff7af86df4b5" testId="b4c4ad26-f684-c990-2d8a-51e9111c9332" testName="golden_disclosed_stamina_5" computerName="カズマのパソコ" duration="00:00:00.0000160" startTime="2026-09-17T11:35:57.2026397+09:00" endTime="2026-09-17T11:35:57.2026558+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bb6fa8e6-5d40-4aaa-abb8-ff7af86df4b5" />
+    <UnitTestResult executionId="ebad6042-b573-43f2-b0b9-46cd08cf82bd" testId="41c2373a-51e6-8682-86c4-8ca7265344c7" testName="golden_disclosed_turn_3" computerName="カズマのパソコ" duration="00:00:00.0000110" startTime="2026-09-17T11:35:57.2025705+09:00" endTime="2026-09-17T11:35:57.2025815+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ebad6042-b573-43f2-b0b9-46cd08cf82bd" />
+    <UnitTestResult executionId="1b6b0930-ef1a-4462-a6b8-bdb0e1319ef2" testId="8175c7dc-5274-53f1-f124-bda004fb77c1" testName="golden_disclosed_unused_pmin" computerName="カズマのパソコ" duration="00:00:00.0000100" startTime="2026-09-17T11:35:57.2026690+09:00" endTime="2026-09-17T11:35:57.2026787+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="1b6b0930-ef1a-4462-a6b8-bdb0e1319ef2" />
+    <UnitTestResult executionId="d8561bd4-3416-4725-b0dc-d0cad656ab27" testId="39b50d8a-f9af-8739-2f12-ad5e0a28f37e" testName="DefaultChargeSeconds_IsZeroPointTwo" computerName="カズマのパソコ" duration="00:00:00.0000580" startTime="2026-09-17T11:35:57.1746858+09:00" endTime="2026-09-17T11:35:57.1747436+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d8561bd4-3416-4725-b0dc-d0cad656ab27" />
+    <UnitTestResult executionId="57e151a6-475e-44be-9497-a1394093baff" testId="c268aba7-f75b-dd36-7856-9ae5e8ed0273" testName="golden_metapoint_disclosed_calc_skill_2" computerName="カズマのパソコ" duration="00:00:00.0000020" startTime="2026-09-17T11:35:57.2039216+09:00" endTime="2026-09-17T11:35:57.2039236+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="57e151a6-475e-44be-9497-a1394093baff" />
+    <UnitTestResult executionId="2252fa59-ad88-4d03-8ad9-7304eb41e4f0" testId="1889fdb1-dd48-12eb-760c-358f1bfe83bb" testName="golden_metapoint_disclosed_apply_unlocked_one" computerName="カズマのパソコ" duration="00:00:00.0000090" startTime="2026-09-17T11:35:57.2062217+09:00" endTime="2026-09-17T11:35:57.2062304+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2252fa59-ad88-4d03-8ad9-7304eb41e4f0" />
+    <UnitTestResult executionId="0e99a11a-ee4e-4a30-979d-bed6d417f93d" testId="909d974e-23c1-a660-3079-e224ec060952" testName="Dashing_IsTerminalUntilBeginChargeOrReset" computerName="カズマのパソコ" duration="00:00:00.0000940" startTime="2026-09-17T11:35:57.1745853+09:00" endTime="2026-09-17T11:35:57.1746794+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0e99a11a-ee4e-4a30-979d-bed6d417f93d" />
+    <UnitTestResult executionId="07c521e9-b9e3-461c-8527-ddafb584226a" testId="3d466478-fcb3-94f2-4440-49b60edbc5f8" testName="golden_metapoint_disclosed_calc_null_state" computerName="カズマのパソコ" duration="00:00:00.0005750" startTime="2026-09-17T11:35:57.2027978+09:00" endTime="2026-09-17T11:35:57.2033725+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="07c521e9-b9e3-461c-8527-ddafb584226a" />
+    <UnitTestResult executionId="a3e6b156-84af-423b-a631-f8ec273249db" testId="d1b2c451-333e-d5f0-11f8-3fe8f89fc745" testName="golden_disclosed_stamina_3" computerName="カズマのパソコ" duration="00:00:00.0000120" startTime="2026-09-17T11:35:57.2025830+09:00" endTime="2026-09-17T11:35:57.2025946+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a3e6b156-84af-423b-a631-f8ec273249db" />
+    <UnitTestResult executionId="b75afa87-dad2-4c3a-84d0-88b3dc70ebdc" testId="247674ce-8e87-1139-4c22-156d614483f8" testName="golden_metapoint_disclosed_apply_total_4" computerName="カズマのパソコ" duration="00:00:00.0000090" startTime="2026-09-17T11:35:57.2061663+09:00" endTime="2026-09-17T11:35:57.2061757+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b75afa87-dad2-4c3a-84d0-88b3dc70ebdc" />
+    <UnitTestResult executionId="4ac4b116-6945-47eb-89a3-fb85230f03b1" testId="5e197ca7-bb63-1a7b-c210-f09dbd6411f2" testName="golden_metapoint_disclosed_calc_turn_1" computerName="カズマのパソコ" duration="00:00:00.0000030" startTime="2026-09-17T11:35:57.2039025+09:00" endTime="2026-09-17T11:35:57.2039052+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4ac4b116-6945-47eb-89a3-fb85230f03b1" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="golden_metapoint_disclosed_calc_skill_5" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="ad171d11-eb73-479a-bb19-4e94a8a0fd0f">
+      <Execution id="4a94f632-246b-4a70-aee4-4ed20d91ae99" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_skill_5" />
+    </UnitTest>
+    <UnitTest name="NegativeChargeSeconds_IsClampedToZero" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="12b1ad37-97f3-91ec-4672-7dfd731f8ec4">
+      <Execution id="114ee723-a8e1-47fc-ba99-79ceeee0f207" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="NegativeChargeSeconds_IsClampedToZero" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_total_1" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="f1b1ecb5-05eb-3012-08de-9088b49c7409">
+      <Execution id="56825a61-dcf2-43cb-9e65-c8c997717ad5" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_total_1" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_turn_2" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="cecad36a-6068-8f49-e609-8c46a1344d5d">
+      <Execution id="c9a3f316-84bd-46bb-8396-029597d10452" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_turn_2" />
+    </UnitTest>
+    <UnitTest name="Dashing_IsTerminalUntilBeginChargeOrReset" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="909d974e-23c1-a660-3079-e224ec060952">
+      <Execution id="0e99a11a-ee4e-4a30-979d-bed6d417f93d" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="Dashing_IsTerminalUntilBeginChargeOrReset" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_skill_1" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="a497c762-8ea1-e67b-0232-cd16dccfea91">
+      <Execution id="40265c17-9dc2-4189-9208-374e6c87a88a" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_skill_1" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_turn_4" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="14b3a336-5851-3458-2956-ff3d2d4ba7e6">
+      <Execution id="bce31864-b80e-4862-9ac1-04560cf2eaca" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_turn_4" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_avail_4" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="96fcc687-d97b-370c-d2fa-04c90ceef545">
+      <Execution id="afbaa81a-0ffb-44e0-8506-df98f5b9f11d" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_avail_4" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_coeff_edge_0" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="fc785a54-0461-9a4f-ce42-0dbb26aee69b">
+      <Execution id="ae6829a7-d18a-4db0-9a5a-ad3b0d56a13a" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_coeff_edge_0" />
+    </UnitTest>
+    <UnitTest name="NonFiniteDelta_IsIgnored" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="9d603c4e-49b1-b58a-5662-132714d9a71f">
+      <Execution id="942a9be2-308d-4e22-8c7d-7816eac2d4ec" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="NonFiniteDelta_IsIgnored" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_earned_2" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="f4b45554-4270-6b3b-c90e-6f2a5c92ddf0">
+      <Execution id="25f64ac4-1915-41ce-88fb-3e25554eddd9" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_earned_2" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_stamina_5" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="b4c4ad26-f684-c990-2d8a-51e9111c9332">
+      <Execution id="bb6fa8e6-5d40-4aaa-abb8-ff7af86df4b5" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_stamina_5" />
+    </UnitTest>
+    <UnitTest name="LongerChargeSeconds_DelaysDash" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="bbc42528-965f-994f-ffe4-3bf96ea83078">
+      <Execution id="7be63170-b654-487e-8e49-6335be65b776" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="LongerChargeSeconds_DelaysDash" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_null_state" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="3d466478-fcb3-94f2-4440-49b60edbc5f8">
+      <Execution id="07c521e9-b9e3-461c-8527-ddafb584226a" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_null_state" />
+    </UnitTest>
+    <UnitTest name="Update_ExactlyAtThreshold_EntersDashing" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="faf102cf-80a4-6819-9b31-4342ddbb9682">
+      <Execution id="cecde9ff-e952-441d-9730-abcfc4f13af4" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="Update_ExactlyAtThreshold_EntersDashing" />
+    </UnitTest>
+    <UnitTest name="IntMinValueDelta_IsIgnored" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="8f8f4e7e-3f5a-b7af-e627-f16c73d1ef94">
+      <Execution id="2fb97fc9-97ed-4fae-8b0f-594a5ea5fe67" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="IntMinValueDelta_IsIgnored" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_skill_3" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="30627d18-d5a2-6fe0-64ae-e4b4ff2c6110">
+      <Execution id="d9b7b8e1-9b87-417d-be5b-5f50913cdb24" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_skill_3" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_skill_4" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="8035e081-96f4-bc31-55f3-4d3b60e5e8b9">
+      <Execution id="9b484ac0-2233-4189-a6b0-45d8295aaa61" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_skill_4" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_turn_1" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="5e197ca7-bb63-1a7b-c210-f09dbd6411f2">
+      <Execution id="4ac4b116-6945-47eb-89a3-fb85230f03b1" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_turn_1" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_unlocked_dup" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="ba3436ee-ceff-6b66-46bc-9026dc5da5d8">
+      <Execution id="43a1b921-9a85-4bab-ab95-e1e6b0cf60af" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_unlocked_dup" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_mental_1" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="41f77ce2-9d3c-9386-4fba-a0fae4b0b78d">
+      <Execution id="e16ffadc-f221-4e40-897f-97b410bb9462" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_mental_1" />
+    </UnitTest>
+    <UnitTest name="Update_AccumulatedBelowThreshold_StaysCharging" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="a4f43f10-e9b3-9178-8d1b-7c0ae451d529">
+      <Execution id="34cad2b8-1cf1-42a1-b0fe-2fc39df0c8af" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="Update_AccumulatedBelowThreshold_StaysCharging" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_avail_2" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="f51f2f83-35dc-a945-29e7-d6b142c07cf1">
+      <Execution id="ce2d85fb-eb13-461f-b739-3fc5c2dd2d21" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_avail_2" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_runs_5" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="16c3d930-5fe9-bad7-109f-a263c69a04bf">
+      <Execution id="c26d38fa-ca4e-492c-9166-516ccd8c4973" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_runs_5" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_unused_pmin" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="8175c7dc-5274-53f1-f124-bda004fb77c1">
+      <Execution id="1b6b0930-ef1a-4462-a6b8-bdb0e1319ef2" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_unused_pmin" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_base" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="96cf2da7-c3b7-c18e-2c64-7e6e0ae8c417">
+      <Execution id="50b8a22a-ec96-4d39-9f54-e91e975a8f3c" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_base" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_earned_5" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="40d36346-7c5c-e106-020d-0e6b5ce00f19">
+      <Execution id="40780299-cd8c-4bd3-9171-349ebbbc559e" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_earned_5" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_turn_1" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="c59f0b2e-89dd-f7d6-b074-1d67f911fca2">
+      <Execution id="5c870c08-9ac3-4088-ac62-ad0c66479344" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_turn_1" />
+    </UnitTest>
+    <UnitTest name="BeginCharge_WhileDashing_RestartsTheWindup" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="b1fb8dae-4162-faea-2cb5-77ee6a6c3e01">
+      <Execution id="e9e0f4b6-9ccc-4751-93f3-49db1042f4c5" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="BeginCharge_WhileDashing_RestartsTheWindup" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_earned_4" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="da1cf43f-cd23-97d3-7471-5650777242eb">
+      <Execution id="3f25560b-fa05-43ef-92bc-9c9f82275ffe" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_earned_4" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_mental_4" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="4f620000-c0c7-678d-8d42-3b8f962476cc">
+      <Execution id="f5d0b665-365d-4245-b77d-c7b20e4587aa" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_mental_4" />
+    </UnitTest>
+    <UnitTest name="MetaPointGolden_SourceIsPresent" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="e645c243-b3dc-f890-02b6-63c2b541f2c3">
+      <Execution id="b719ea7b-bf5f-4a83-94c3-2a3183811c5e" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="MetaPointGolden_SourceIsPresent" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_skill_2" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="c268aba7-f75b-dd36-7856-9ae5e8ed0273">
+      <Execution id="57e151a6-475e-44be-9497-a1394093baff" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_skill_2" />
+    </UnitTest>
+    <UnitTest name="AlwaysPasses_ControlGroup" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="5a5b08c5-30c7-1542-775c-f3f19e6c0f2b">
+      <Execution id="371687a6-20db-48d3-9583-02d250c94167" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="AlwaysPasses_ControlGroup" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_stamina_0" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="70ad3c53-d6b7-6384-3e3c-51d0370353f1">
+      <Execution id="879123a2-b3f0-4032-a8aa-dd84fe186769" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_stamina_0" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_skill_5" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="e6ef0aec-dd56-180b-e81d-3167128c3621">
+      <Execution id="4971a43a-f731-4c3f-bd1e-f3f6e8cb3748" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_skill_5" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_total_3" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="c183a52a-427e-8b3b-c871-15eec8f4c01f">
+      <Execution id="124e1f22-e56a-4958-815f-722b2b791abe" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_total_3" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_skill_4" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="15607734-8db8-637a-361e-7f68b5c2599d">
+      <Execution id="15948913-ed89-4c14-b7ac-056e84804363" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_skill_4" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_turn_0" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="56ca124f-1a5a-b830-bdc8-b5d0996fffc1">
+      <Execution id="42d136e7-e9b5-4cf4-a4c3-0f74ada0f150" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_turn_0" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_total_0" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="9c314665-5e6e-d3d3-e51e-eedbfb75d86b">
+      <Execution id="6652e2e8-c02d-4b99-9eb7-cb11260c8809" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_total_0" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_stamina_3" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="d1b2c451-333e-d5f0-11f8-3fe8f89fc745">
+      <Execution id="a3e6b156-84af-423b-a631-f8ec273249db" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_stamina_3" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_skill_2" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="16ee0a4d-9126-f781-5ded-4711e8e8e026">
+      <Execution id="c7d067b3-e6a6-40cc-959e-8515fbb113ba" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_skill_2" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_runs_0" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="527792e8-c29a-1b17-86ff-ee145c6f1692">
+      <Execution id="5535c86c-0c18-4698-a924-bd65f4de5ee9" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_runs_0" />
+    </UnitTest>
+    <UnitTest name="Update_JustBelowThreshold_StaysCharging" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="63e7d3cc-50cf-1f83-34f8-d79d1c5f22ab">
+      <Execution id="a994e9e0-aa28-4832-88a1-59065728943e" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="Update_JustBelowThreshold_StaysCharging" />
+    </UnitTest>
+    <UnitTest name="BeginCharge_EntersChargingWithEmptyTimer" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="0ca81de7-e717-29ab-d9aa-29bfa8184a5d">
+      <Execution id="8bf89f08-e800-4e00-9742-6e45282bc58b" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="BeginCharge_EntersChargingWithEmptyTimer" />
+    </UnitTest>
+    <UnitTest name="DefaultChargeSeconds_IsZeroPointTwo" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="39b50d8a-f9af-8739-2f12-ad5e0a28f37e">
+      <Execution id="d8561bd4-3416-4725-b0dc-d0cad656ab27" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="DefaultChargeSeconds_IsZeroPointTwo" />
+    </UnitTest>
+    <UnitTest name="Update_AccumulatedExactlyAtThreshold_EntersDashing" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="12ee24c8-c602-f75d-5288-c84bca80bf0f">
+      <Execution id="79958dc4-0b86-42f8-a891-a2833a2c2eef" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="Update_AccumulatedExactlyAtThreshold_EntersDashing" />
+    </UnitTest>
+    <UnitTest name="ShorterChargeSeconds_DashesEarlierThanDefault" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="00db002a-a4f9-0efa-a34c-2e5ac73b3acc">
+      <Execution id="94ec3acd-7dc8-4e69-8c64-72d35d7bcdf9" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="ShorterChargeSeconds_DashesEarlierThanDefault" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_coeff_clear" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="5ccc670b-7e39-e6d3-bedb-5e8ad6ce605a">
+      <Execution id="366f3844-d81f-469c-8c37-653bef069b66" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_coeff_clear" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_turn_0" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="5547bce0-babb-a17c-9f95-5a61a46483d0">
+      <Execution id="e5761cbc-1a14-459d-a860-5c65ab700e77" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_turn_0" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_earned_1" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="cad12163-131b-a9ef-2c72-8524126589d8">
+      <Execution id="8c6382b9-93e7-4631-bbbc-55f32eb503f8" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_earned_1" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_stamina_2" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="1474cbff-4c9b-4221-bae2-eeb6e44fe2d3">
+      <Execution id="7e873f7e-1966-4e95-8680-724a7714e34a" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_stamina_2" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_null_profile" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="90975da5-953f-f633-e812-be54b5576fe4">
+      <Execution id="9bb7162b-c796-424f-b653-b1395904fc94" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_null_profile" />
+    </UnitTest>
+    <UnitTest name="Idle_BeforeBeginCharge_NeverDashes" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="068e1f8f-d1d7-759f-edb1-21c46b9d4907">
+      <Execution id="55b5f60c-3402-4042-a51c-b8e138632df7" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="Idle_BeforeBeginCharge_NeverDashes" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_coeff_skill" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="69ed97ce-cf3f-e133-39b6-a709c447f0e3">
+      <Execution id="8ad47833-9570-4a8b-86ae-9d061a3566b5" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_coeff_skill" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_skill_0" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="293d9cdf-be69-6684-b0cd-149b65672b5a">
+      <Execution id="45a3a21f-a213-40b5-895c-76704d6dd86b" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_skill_0" />
+    </UnitTest>
+    <UnitTest name="Update_AboveThreshold_EntersDashing" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="22e7398f-8908-6991-2825-cdcc23cde8db">
+      <Execution id="fde84bba-204e-41c5-b069-d4a5709dc778" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="Update_AboveThreshold_EntersDashing" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_unlocked_one" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="1889fdb1-dd48-12eb-760c-358f1bfe83bb">
+      <Execution id="2252fa59-ad88-4d03-8ad9-7304eb41e4f0" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_unlocked_one" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_turn_3" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="705f67bf-3c77-51e6-1e96-510d14a5add2">
+      <Execution id="79b9c1a5-2077-4aeb-9e84-a7c2070a8f66" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_turn_3" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_unused_pmax" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="5e0fae94-79c6-0ff6-5036-0558faf3b9c8">
+      <Execution id="08618638-ef49-4689-9eb7-d74081f3c0dd" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_unused_pmax" />
+    </UnitTest>
+    <UnitTest name="ZeroDelta_DoesNotAdvanceTimer" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="84f2e936-d299-e753-1d67-83073fe71e10">
+      <Execution id="a8cc1d2b-ecb5-414d-b8fd-56ca860df16a" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="ZeroDelta_DoesNotAdvanceTimer" />
+    </UnitTest>
+    <UnitTest name="HugeDelta_EntersDashingAndKeepsTimerFinite" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="3da2e750-dca6-e08c-8230-ac43c535e896">
+      <Execution id="106b65b5-0027-4ba6-b728-b0e42cbc02b2" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="HugeDelta_EntersDashingAndKeepsTimerFinite" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_turn_5" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="8a9a61b2-5496-44d8-29ac-fcf911b80810">
+      <Execution id="909d53f9-1008-4d80-8ab2-0be9d67f3322" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_turn_5" />
+    </UnitTest>
+    <UnitTest name="Update_ZeroPointOneSecond_StaysCharging" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="ec227425-b361-016c-6802-f337eb536340">
+      <Execution id="b93061db-a420-4a94-b39e-22836977cdc6" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="Update_ZeroPointOneSecond_StaysCharging" />
+    </UnitTest>
+    <UnitTest name="Reset_ReturnsToIdleAndStopsTheTimer" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="065b5921-79ba-586d-8405-37b85ac222d0">
+      <Execution id="f83255fd-7558-43c9-a544-f963fccfa7f5" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="Reset_ReturnsToIdleAndStopsTheTimer" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_turn_4" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="28f033be-79f3-adbb-546d-c5e33599b029">
+      <Execution id="0eb6e239-fc83-4721-a796-7e484a3944ae" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_turn_4" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_mental_3" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="05335f97-20ab-d9b2-7b10-37acacbfbfe1">
+      <Execution id="f3a9c977-daed-4c71-8e9e-ccdc71399628" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_mental_3" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_mental_0" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="e33243ba-1e14-c826-8570-2b0902418769">
+      <Execution id="20e23d12-0a7d-452b-9b7d-e4e4daddb9bc" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_mental_0" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_skill_1" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="2ea6c675-b955-1dd0-0458-7b399b38b1a0">
+      <Execution id="b7152f63-c1db-4cdc-bf22-f3a949f63582" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_skill_1" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_runs_3" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="fd59b6ac-ff78-cae9-6d88-5668866fb078">
+      <Execution id="6c61c013-2ed8-4b5e-bcf0-55b8d381d95b" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_runs_3" />
+    </UnitTest>
+    <UnitTest name="Update_CrossesThresholdInSecondStep_EntersDashing" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="34ead38a-58ba-63fc-09ee-0eef87424c47">
+      <Execution id="f22218c2-46c0-48e2-afcc-ca6ad2b0ed6b" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="Update_CrossesThresholdInSecondStep_EntersDashing" />
+    </UnitTest>
+    <UnitTest name="NegativeDelta_DoesNotRewindTimer" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="3dc288b0-8574-939e-0d4a-65401f8f0bb9">
+      <Execution id="d5457161-1652-404f-9829-4c5015370b44" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="NegativeDelta_DoesNotRewindTimer" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_coeff_turn" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="2e7a9153-ba16-dd52-9409-4d4acd0fc0c6">
+      <Execution id="3769d488-d9c3-4502-b5cc-35dac77b580f" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_coeff_turn" />
+    </UnitTest>
+    <UnitTest name="ZeroChargeSeconds_DashesOnFirstUpdate" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="4024617e-dcef-9ced-2e10-ccdcf1d3e650">
+      <Execution id="21930dd3-1109-43ed-8b0e-5c9cf277b1c4" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.BossChargeStateTests" name="ZeroChargeSeconds_DashesOnFirstUpdate" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_calc_not_clear" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="39438eff-d23a-5c6b-19c8-609640671739">
+      <Execution id="e12a3a58-d454-4cc7-947e-db5c6175ac60" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_calc_not_clear" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_avail_1" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="122a9416-4c37-1ff8-91fd-b7609bbbcdb0">
+      <Execution id="4f1f13d1-671d-4873-8854-b1217dbbb9d4" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_avail_1" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_total_4" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="247674ce-8e87-1139-4c22-156d614483f8">
+      <Execution id="b75afa87-dad2-4c3a-84d0-88b3dc70ebdc" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_total_4" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_runs_2" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="e66871d2-b2ee-d009-a811-c3a9c4b4f88b">
+      <Execution id="3b2e1b2d-bea9-4954-a415-f493079a275a" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_runs_2" />
+    </UnitTest>
+    <UnitTest name="golden_disclosed_turn_3" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="41c2373a-51e6-8682-86c4-8ca7265344c7">
+      <Execution id="ebad6042-b573-43f2-b0b9-46cd08cf82bd" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.GoldenMasterTests" name="golden_disclosed_turn_3" />
+    </UnitTest>
+    <UnitTest name="golden_metapoint_disclosed_apply_avail_5" storage="c:\src\.local\wt\ms3-sandbox\tests\core.tests\bin\debug\net8.0\core.tests.dll" id="73fda8df-d506-89ec-6b36-187af9579cf5">
+      <Execution id="742aab0a-52a9-4739-b2bb-51e86e343c43" />
+      <TestMethod codeBase="C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="StandaloneCore.Tests.MetaPointGoldenTests" name="golden_metapoint_disclosed_apply_avail_5" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="cecad36a-6068-8f49-e609-8c46a1344d5d" executionId="c9a3f316-84bd-46bb-8396-029597d10452" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="faf102cf-80a4-6819-9b31-4342ddbb9682" executionId="cecde9ff-e952-441d-9730-abcfc4f13af4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5e0fae94-79c6-0ff6-5036-0558faf3b9c8" executionId="08618638-ef49-4689-9eb7-d74081f3c0dd" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b1fb8dae-4162-faea-2cb5-77ee6a6c3e01" executionId="e9e0f4b6-9ccc-4751-93f3-49db1042f4c5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="34ead38a-58ba-63fc-09ee-0eef87424c47" executionId="f22218c2-46c0-48e2-afcc-ca6ad2b0ed6b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="69ed97ce-cf3f-e133-39b6-a709c447f0e3" executionId="8ad47833-9570-4a8b-86ae-9d061a3566b5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4f620000-c0c7-678d-8d42-3b8f962476cc" executionId="f5d0b665-365d-4245-b77d-c7b20e4587aa" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="96fcc687-d97b-370c-d2fa-04c90ceef545" executionId="afbaa81a-0ffb-44e0-8506-df98f5b9f11d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="30627d18-d5a2-6fe0-64ae-e4b4ff2c6110" executionId="d9b7b8e1-9b87-417d-be5b-5f50913cdb24" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ad171d11-eb73-479a-bb19-4e94a8a0fd0f" executionId="4a94f632-246b-4a70-aee4-4ed20d91ae99" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e66871d2-b2ee-d009-a811-c3a9c4b4f88b" executionId="3b2e1b2d-bea9-4954-a415-f493079a275a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="12b1ad37-97f3-91ec-4672-7dfd731f8ec4" executionId="114ee723-a8e1-47fc-ba99-79ceeee0f207" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="39438eff-d23a-5c6b-19c8-609640671739" executionId="e12a3a58-d454-4cc7-947e-db5c6175ac60" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="73fda8df-d506-89ec-6b36-187af9579cf5" executionId="742aab0a-52a9-4739-b2bb-51e86e343c43" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5547bce0-babb-a17c-9f95-5a61a46483d0" executionId="e5761cbc-1a14-459d-a860-5c65ab700e77" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9d603c4e-49b1-b58a-5662-132714d9a71f" executionId="942a9be2-308d-4e22-8c7d-7816eac2d4ec" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="cad12163-131b-a9ef-2c72-8524126589d8" executionId="8c6382b9-93e7-4631-bbbc-55f32eb503f8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8f8f4e7e-3f5a-b7af-e627-f16c73d1ef94" executionId="2fb97fc9-97ed-4fae-8b0f-594a5ea5fe67" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5a5b08c5-30c7-1542-775c-f3f19e6c0f2b" executionId="371687a6-20db-48d3-9583-02d250c94167" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e6ef0aec-dd56-180b-e81d-3167128c3621" executionId="4971a43a-f731-4c3f-bd1e-f3f6e8cb3748" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="00db002a-a4f9-0efa-a34c-2e5ac73b3acc" executionId="94ec3acd-7dc8-4e69-8c64-72d35d7bcdf9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="12ee24c8-c602-f75d-5288-c84bca80bf0f" executionId="79958dc4-0b86-42f8-a891-a2833a2c2eef" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9c314665-5e6e-d3d3-e51e-eedbfb75d86b" executionId="6652e2e8-c02d-4b99-9eb7-cb11260c8809" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="70ad3c53-d6b7-6384-3e3c-51d0370353f1" executionId="879123a2-b3f0-4032-a8aa-dd84fe186769" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8035e081-96f4-bc31-55f3-4d3b60e5e8b9" executionId="9b484ac0-2233-4189-a6b0-45d8295aaa61" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f1b1ecb5-05eb-3012-08de-9088b49c7409" executionId="56825a61-dcf2-43cb-9e65-c8c997717ad5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4024617e-dcef-9ced-2e10-ccdcf1d3e650" executionId="21930dd3-1109-43ed-8b0e-5c9cf277b1c4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="96cf2da7-c3b7-c18e-2c64-7e6e0ae8c417" executionId="50b8a22a-ec96-4d39-9f54-e91e975a8f3c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="63e7d3cc-50cf-1f83-34f8-d79d1c5f22ab" executionId="a994e9e0-aa28-4832-88a1-59065728943e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a497c762-8ea1-e67b-0232-cd16dccfea91" executionId="40265c17-9dc2-4189-9208-374e6c87a88a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="40d36346-7c5c-e106-020d-0e6b5ce00f19" executionId="40780299-cd8c-4bd3-9171-349ebbbc559e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8a9a61b2-5496-44d8-29ac-fcf911b80810" executionId="909d53f9-1008-4d80-8ab2-0be9d67f3322" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="bbc42528-965f-994f-ffe4-3bf96ea83078" executionId="7be63170-b654-487e-8e49-6335be65b776" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="705f67bf-3c77-51e6-1e96-510d14a5add2" executionId="79b9c1a5-2077-4aeb-9e84-a7c2070a8f66" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="90975da5-953f-f633-e812-be54b5576fe4" executionId="9bb7162b-c796-424f-b653-b1395904fc94" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="293d9cdf-be69-6684-b0cd-149b65672b5a" executionId="45a3a21f-a213-40b5-895c-76704d6dd86b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5ccc670b-7e39-e6d3-bedb-5e8ad6ce605a" executionId="366f3844-d81f-469c-8c37-653bef069b66" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c59f0b2e-89dd-f7d6-b074-1d67f911fca2" executionId="5c870c08-9ac3-4088-ac62-ad0c66479344" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="16c3d930-5fe9-bad7-109f-a263c69a04bf" executionId="c26d38fa-ca4e-492c-9166-516ccd8c4973" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3dc288b0-8574-939e-0d4a-65401f8f0bb9" executionId="d5457161-1652-404f-9829-4c5015370b44" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="122a9416-4c37-1ff8-91fd-b7609bbbcdb0" executionId="4f1f13d1-671d-4873-8854-b1217dbbb9d4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="16ee0a4d-9126-f781-5ded-4711e8e8e026" executionId="c7d067b3-e6a6-40cc-959e-8515fbb113ba" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="05335f97-20ab-d9b2-7b10-37acacbfbfe1" executionId="f3a9c977-daed-4c71-8e9e-ccdc71399628" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2ea6c675-b955-1dd0-0458-7b399b38b1a0" executionId="b7152f63-c1db-4cdc-bf22-f3a949f63582" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3da2e750-dca6-e08c-8230-ac43c535e896" executionId="106b65b5-0027-4ba6-b728-b0e42cbc02b2" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2e7a9153-ba16-dd52-9409-4d4acd0fc0c6" executionId="3769d488-d9c3-4502-b5cc-35dac77b580f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e33243ba-1e14-c826-8570-2b0902418769" executionId="20e23d12-0a7d-452b-9b7d-e4e4daddb9bc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e645c243-b3dc-f890-02b6-63c2b541f2c3" executionId="b719ea7b-bf5f-4a83-94c3-2a3183811c5e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="15607734-8db8-637a-361e-7f68b5c2599d" executionId="15948913-ed89-4c14-b7ac-056e84804363" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="14b3a336-5851-3458-2956-ff3d2d4ba7e6" executionId="bce31864-b80e-4862-9ac1-04560cf2eaca" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f4b45554-4270-6b3b-c90e-6f2a5c92ddf0" executionId="25f64ac4-1915-41ce-88fb-3e25554eddd9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="28f033be-79f3-adbb-546d-c5e33599b029" executionId="0eb6e239-fc83-4721-a796-7e484a3944ae" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="da1cf43f-cd23-97d3-7471-5650777242eb" executionId="3f25560b-fa05-43ef-92bc-9c9f82275ffe" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ba3436ee-ceff-6b66-46bc-9026dc5da5d8" executionId="43a1b921-9a85-4bab-ab95-e1e6b0cf60af" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0ca81de7-e717-29ab-d9aa-29bfa8184a5d" executionId="8bf89f08-e800-4e00-9742-6e45282bc58b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f51f2f83-35dc-a945-29e7-d6b142c07cf1" executionId="ce2d85fb-eb13-461f-b739-3fc5c2dd2d21" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a4f43f10-e9b3-9178-8d1b-7c0ae451d529" executionId="34cad2b8-1cf1-42a1-b0fe-2fc39df0c8af" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="84f2e936-d299-e753-1d67-83073fe71e10" executionId="a8cc1d2b-ecb5-414d-b8fd-56ca860df16a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="41f77ce2-9d3c-9386-4fba-a0fae4b0b78d" executionId="e16ffadc-f221-4e40-897f-97b410bb9462" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="22e7398f-8908-6991-2825-cdcc23cde8db" executionId="fde84bba-204e-41c5-b069-d4a5709dc778" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c183a52a-427e-8b3b-c871-15eec8f4c01f" executionId="124e1f22-e56a-4958-815f-722b2b791abe" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="56ca124f-1a5a-b830-bdc8-b5d0996fffc1" executionId="42d136e7-e9b5-4cf4-a4c3-0f74ada0f150" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="fd59b6ac-ff78-cae9-6d88-5668866fb078" executionId="6c61c013-2ed8-4b5e-bcf0-55b8d381d95b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1474cbff-4c9b-4221-bae2-eeb6e44fe2d3" executionId="7e873f7e-1966-4e95-8680-724a7714e34a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="068e1f8f-d1d7-759f-edb1-21c46b9d4907" executionId="55b5f60c-3402-4042-a51c-b8e138632df7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="065b5921-79ba-586d-8405-37b85ac222d0" executionId="f83255fd-7558-43c9-a544-f963fccfa7f5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ec227425-b361-016c-6802-f337eb536340" executionId="b93061db-a420-4a94-b39e-22836977cdc6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="527792e8-c29a-1b17-86ff-ee145c6f1692" executionId="5535c86c-0c18-4698-a924-bd65f4de5ee9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="fc785a54-0461-9a4f-ce42-0dbb26aee69b" executionId="ae6829a7-d18a-4db0-9a5a-ad3b0d56a13a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b4c4ad26-f684-c990-2d8a-51e9111c9332" executionId="bb6fa8e6-5d40-4aaa-abb8-ff7af86df4b5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="41c2373a-51e6-8682-86c4-8ca7265344c7" executionId="ebad6042-b573-43f2-b0b9-46cd08cf82bd" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8175c7dc-5274-53f1-f124-bda004fb77c1" executionId="1b6b0930-ef1a-4462-a6b8-bdb0e1319ef2" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="39b50d8a-f9af-8739-2f12-ad5e0a28f37e" executionId="d8561bd4-3416-4725-b0dc-d0cad656ab27" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c268aba7-f75b-dd36-7856-9ae5e8ed0273" executionId="57e151a6-475e-44be-9497-a1394093baff" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1889fdb1-dd48-12eb-760c-358f1bfe83bb" executionId="2252fa59-ad88-4d03-8ad9-7304eb41e4f0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="909d974e-23c1-a660-3079-e224ec060952" executionId="0e99a11a-ee4e-4a30-979d-bed6d417f93d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3d466478-fcb3-94f2-4440-49b60edbc5f8" executionId="07c521e9-b9e3-461c-8527-ddafb584226a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d1b2c451-333e-d5f0-11f8-3fe8f89fc745" executionId="a3e6b156-84af-423b-a631-f8ec273249db" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="247674ce-8e87-1139-4c22-156d614483f8" executionId="b75afa87-dad2-4c3a-84d0-88b3dc70ebdc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5e197ca7-bb63-1a7b-c210-f09dbd6411f2" executionId="4ac4b116-6945-47eb-89a3-fb85230f03b1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="一覧に存在しない結果" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="読み込まれたすべての結果" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="80" executed="80" passed="80" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>NUnit Adapter 4.5.0.0: Test execution started&#xD;
+Running all tests in C:\src\.local\wt\ms3-sandbox\tests\Core.Tests\bin\Debug\net8.0\Core.Tests.dll&#xD;
+   NUnit3TestExecutor discovered 80 of 80 NUnit test cases using Current Discovery mode, Non-Explicit run&#xD;
+NUnit Adapter 4.5.0.0: Test execution complete&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

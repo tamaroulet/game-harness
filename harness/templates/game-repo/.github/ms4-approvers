@@ -1,0 +1,4 @@
+# ms4:approved を付けてよい人の GitHub login（1 行 1 人）。
+# 配布元: tamaroulet/game-harness の harness/templates/game-repo/。
+# このファイルは base ブランチから読まれる。PR の中で書き換えても、その PR の判定には効かない。
+tamaroulet

@@ -1,0 +1,479 @@
+"""進捗の外部主記憶（docs/progress.yaml）と、その 2 つの見え方（ADR-003 §4、B3.1-PREP）。
+
+    python -m harness.progress anchor          LLM に注入する極小アンカー（現在地・検証・制約だけ）
+    python -m harness.progress tree [--all]    人間と PR 本文用のツリー（既定は現在の段だけ展開）
+    python -m harness.progress complete <id>   検証コマンドを実行し、期待した終了コードのときだけ完了にする
+    python -m harness.progress check           progress.yaml の形を検査する
+    python -m harness.progress report          チャット報告の全文（ツリーと状態。20 行以内）
+    python -m harness.progress review <url>    現在のタスクを PR のレビュー待ちにする（complete で解除）
+    python -m harness.progress hook            anchor を Claude Code の hook の出力形（JSON）で出す（B4-PREP）
+
+**hook について**: `hook` は UserPromptSubmit の hook から呼ぶと、毎ターンの文脈に anchor を足す形で出力する。
+登録（settings の hooks）はこのリポジトリでは行わない。`.claude/settings.json` には防壁①の deny 設定が
+入っているので、エージェントは触らない（2026-09-23 オーナー指示）。使うかどうか・どこに登録するかは人間が決める。
+
+**なぜ要るか**: 進捗をチャットやメモリで持つと、表記が崩れ、推測の件数が混ざり、手で「完了」にできてしまう。
+状態はファイルに置き、書き換えはこの CLI だけが行う。完了への遷移は、検証コマンドの終了コードを
+このスクリプトが実測したときだけ起きる。
+
+**検証コマンドの改ざん防止**: complete は、手元の progress.yaml の検証コマンドが origin/main の版と
+一字一句同じであることを確かめてから実行する。検証を差し替えるには、main への PR（人間のレビュー）が要る。
+"""
+import argparse
+import datetime
+import json
+import os
+import re
+import subprocess
+import sys
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+_STARTUPINFO = None
+if sys.platform == "win32":
+    _STARTUPINFO = subprocess.STARTUPINFO()
+    _STARTUPINFO.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    _STARTUPINFO.wShowWindow = 0  # SW_HIDE
+from pathlib import Path
+
+import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import exitcode  # noqa: E402  python -m harness.progress でも python harness/progress.py でも読めるように
+
+ROOT = Path(__file__).resolve().parent.parent
+REL_PATH = "docs/progress.yaml"
+STATUSES = ("pending", "in_progress", "completed")
+TAIL_LINES = 20
+VERIFY_TTL = 1800
+GIT_TTL = 120
+ORDER_FREE_ENV = "HLINE_PROGRESS_ORDER_FREE"   # "1" のとき main の complete が、現在のタスクでなくても記録する（H ライン用）
+
+
+EXECUTORS = ("pilot", "hline")   # タスクの執行者 by。省略は hline
+PR_REF = re.compile(r"^[A-Za-z0-9_.-]+#\d+$")
+
+
+class ProgressError(Exception):
+    pass
+
+
+def is_pilot(t):
+    return (t or {}).get("by") == "pilot"
+
+
+def _label(t):
+    """ツリーに出すタスクの題（操縦士のタスクは後ろに印を付ける）。"""
+    return t["title"] + ("（操縦士）" if is_pilot(t) else "")
+
+
+# ============================================================ 読み書き
+
+def load(path):
+    return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+
+
+def dump(state):
+    return yaml.safe_dump(state, allow_unicode=True, sort_keys=False, width=1000)
+
+
+def save(state, path):
+    Path(path).write_text(dump(state), encoding="utf-8", newline="\n")
+
+
+def _deps(t):
+    return t.get("depends_on") or []
+
+
+def dependency_problems(tasks):
+    """depends_on の問題（依存先が無い・循環・完了したのに依存先が未完了）。"""
+    problems = []
+    by_id = {t.get("id"): t for t in tasks}
+    for t in tasks:
+        deps = _deps(t)
+        if not isinstance(deps, list):
+            problems.append(f"task {t.get('id')} の depends_on はタスク ID の列です")
+            continue
+        for d in deps:
+            if d not in by_id:
+                problems.append(f"task {t.get('id')} の depends_on {d} が tasks にありません")
+            elif t.get("status") == "completed" and by_id[d].get("status") != "completed":
+                problems.append(f"task {t.get('id')} は完了ですが、依存先 {d} が完了ではありません")
+    # 循環（色塗りの深さ優先。自分自身への依存も含む）
+    state_of = {}
+    cyclic = set()
+
+    def visit(tid, trail):
+        if state_of.get(tid) == 2 or tid not in by_id:
+            return
+        if state_of.get(tid) == 1:
+            cyclic.update(trail[trail.index(tid):])
+            return
+        state_of[tid] = 1
+        deps = _deps(by_id[tid])
+        for d in deps if isinstance(deps, list) else []:
+            visit(d, trail + [tid])
+        state_of[tid] = 2
+
+    for t in tasks:
+        visit(t.get("id"), [])
+    for tid in sorted(cyclic, key=str):
+        problems.append(f"task {tid} の depends_on が循環しています")
+    return problems
+
+
+def unmet_dependencies(state, t):
+    """t の依存先のうち、完了でないものの ID。"""
+    done = {x["id"] for x in state["tasks"] if x["status"] == "completed"}
+    return [d for d in _deps(t) if d not in done]
+
+
+def validate(state):
+    """問題の一覧（空なら合格）。"""
+    problems = []
+    if not isinstance(state, dict):
+        return ["最上位が辞書ではありません"]
+    for key in ("project_goal", "nodes", "tasks", "constraints"):
+        if key not in state:
+            problems.append(f"{key} がありません")
+    if problems:
+        return problems
+    node_ids = [n.get("id") for n in state["nodes"]]
+    if len(set(node_ids)) != len(node_ids):
+        problems.append("nodes の id が重複しています")
+    for n in state["nodes"]:
+        if not n.get("title"):
+            problems.append(f"node {n.get('id')} に title がありません")
+        if n.get("parent") is not None and n["parent"] not in node_ids:
+            problems.append(f"node {n.get('id')} の parent {n['parent']} がありません")
+        if n.get("status") not in (None, "completed"):
+            problems.append(f"node {n.get('id')} の status は completed か省略だけです")
+    task_ids = [t.get("id") for t in state["tasks"]]
+    if len(set(task_ids)) != len(task_ids):
+        problems.append("tasks の id が重複しています")
+    for t in state["tasks"]:
+        tid = t.get("id")
+        for key in ("id", "title", "group", "target_repo", "status"):
+            if not t.get(key):
+                problems.append(f"task {tid} に {key} がありません")
+        if t.get("group") not in node_ids:
+            problems.append(f"task {tid} の group {t.get('group')} が nodes にありません")
+        if t.get("status") not in STATUSES:
+            problems.append(f"task {tid} の status {t.get('status')} は {STATUSES} のどれでもありません")
+        if t.get("review_pr") is not None and not str(t["review_pr"]).startswith("https://"):
+            problems.append(f"task {tid} の review_pr は https の URL です")
+        if "by" in t and t["by"] not in EXECUTORS:
+            problems.append(f"task {tid} の by {t['by']} は {EXECUTORS} のどちらかです")
+        if "pr" in t and not (isinstance(t["pr"], str) and PR_REF.match(t["pr"])):
+            problems.append(f"task {tid} の pr {t['pr']} は <リポジトリ名>#<数> の形です")
+        v = t.get("verification")
+        if v is not None and (not isinstance(v, dict) or not isinstance(v.get("command"), str)
+                              or not isinstance(v.get("expected_exit_code"), int)):
+            problems.append(f"task {tid} の verification は command（文字列）と expected_exit_code（整数）を持ちます")
+    problems += dependency_problems(state["tasks"])
+    active = [t["id"] for t in state["tasks"] if t.get("status") == "in_progress"]
+    if len(active) > 1:
+        problems.append(f"in_progress が {len(active)} 件あります（1 件まで）")
+    if state.get("active_task_id") != (active[0] if active else None):
+        problems.append(f"active_task_id {state.get('active_task_id')} が in_progress のタスク {active} と一致しません")
+    return problems
+
+
+def task(state, task_id):
+    for t in state["tasks"]:
+        if t["id"] == task_id:
+            return t
+    raise ProgressError(f"タスク {task_id} がありません")
+
+
+# ============================================================ 見え方
+
+def anchor(state):
+    """LLM 用。現在地・直前の検証・脱出条件・制約だけを出す。ツリーは出さない。"""
+    tid = state.get("active_task_id")
+    lines = ["<!-- [SYSTEM-INJECTED TASK ANCHOR] -->"]
+    if not tid:
+        lines += ["## 📍 CURRENT FOCUS: (none)", "- All tasks are completed. Ask the human for the next goal."]
+        return "\n".join(lines) + "\n"
+    t = task(state, tid)
+    lines += [f"## 📍 CURRENT FOCUS: [{t['id']}] {t['title']}",
+              f"- Target Repo: {t['target_repo']}"]
+    if t.get("target_files"):
+        lines.append(f"- Target Files: {', '.join(t['target_files'])}")
+    lines += ["", "## 🛑 MECHANICAL VERIFICATION"]
+    v = t.get("verification")
+    if v:
+        lines += [f"- Verification Command: `{v['command']}`",
+                  f"- Exit Condition: Expected Exit Code {v['expected_exit_code']}"]
+    else:
+        lines.append("- Verification Command: (undefined — define it in docs/progress.yaml via a PR to main; "
+                     "complete is refused until then)")
+    last = state.get("last_verification")
+    if last and last.get("task") == tid:
+        lines.append(f"- Last Verification: exit {last['exit_code']} at {last['at']}")
+    lines += ["", "## ⛔ CONSTRAINTS"]
+    lines += [f"- {c}" for c in state["constraints"]]
+    lines.append(f"- Call `python -m harness.progress complete {tid}` ONLY after verification passes.")
+    return "\n".join(lines) + "\n"
+
+
+def _children(state, parent):
+    return [n for n in state["nodes"] if n.get("parent") == parent]
+
+
+def _tasks_under(state, node_id):
+    out = [t for t in state["tasks"] if t["group"] == node_id]
+    for c in _children(state, node_id):
+        out += _tasks_under(state, c["id"])
+    return out
+
+
+def _done(state, node):
+    ts = _tasks_under(state, node["id"])
+    if ts:
+        return all(t["status"] == "completed" for t in ts)
+    return node.get("status") == "completed"
+
+
+def _contains_active(state, node_id):
+    return any(t["id"] == state.get("active_task_id") for t in _tasks_under(state, node_id))
+
+
+def tree(state, expand_all=False):
+    """人間と PR 用。既定では現在のタスクを含む枝だけを展開し、他の枝は件数に畳む。
+
+    既定の表示では、続けて並ぶ完了した兄弟の段を 1 行にまとめる。展開した枝のタスクは完了も未完了もすべて出す。
+    行数の上限は設けない。--all では現在地を含まない枝もすべて出す。
+    """
+    lines = []
+
+    def line(node, depth):
+        ts = _tasks_under(state, node["id"])
+        mark = "[x]" if _done(state, node) else "[ ]"
+        count = f"（{sum(t['status'] == 'completed' for t in ts)}/{len(ts)}）" if ts else ""
+        lines.append(f"{'  ' * depth}- {mark} {node['id']} {node['title']}{count}")
+
+    def siblings(nodes, depth):
+        done = []
+
+        def flush():
+            if len(done) >= 2:
+                lines.append(f"{'  ' * depth}- [x] {'・'.join(n['id'] for n in done)}（完了。tree --all で内訳）")
+            elif done:
+                line(done[0], depth)
+            done.clear()
+        for n in nodes:
+            if not expand_all and _done(state, n) and not _contains_active(state, n["id"]):
+                done.append(n)
+                continue
+            flush()
+            walk(n, depth)
+        flush()
+
+    def walk(node, depth):
+        line(node, depth)
+        if not (expand_all or _contains_active(state, node["id"])):
+            return
+        siblings(_children(state, node["id"]), depth + 1)
+        # 展開した枝のタスクは、完了も未完了も台帳の並びのまますべて出す
+        for t in state["tasks"]:
+            if t["group"] != node["id"]:
+                continue
+            here = " ← 現在地" if t["id"] == state.get("active_task_id") else ""
+            tmark = "[x]" if t["status"] == "completed" else "[ ]"
+            lines.append(f"{'  ' * (depth + 1)}- {tmark} {t['id']} {_label(t)}{here}")
+
+    for root in _children(state, None):
+        # 根は常に 1 段目まで開く（全体の位置づけを示すため）
+        lines.append(f"- {root['id']} {root['title']}")
+        siblings(_children(state, root["id"]), 1)
+    return "\n".join(lines) + "\n"
+
+
+def hook_output(state):
+    """UserPromptSubmit の hook が返す JSON。anchor を文脈に足すだけで、判定や停止はしない。"""
+    return json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+                                              "additionalContext": anchor(state)}}, ensure_ascii=False)
+
+
+def report(state):
+    """チャット報告の全文。ツリーと状態だけで、作文を挟む余地を残さない。"""
+    tid = state.get("active_task_id")
+    t = task(state, tid) if tid else None
+    v = (t or {}).get("verification")
+    pr = (t or {}).get("review_pr")
+    if pr:
+        human = f"- 人間作業: REVIEW_REQUIRED {pr}"
+    elif is_pilot(t):
+        human = f"- 人間作業: TASK {tid} {t['title']}（操縦士）"
+    else:
+        human = "- 人間作業: NONE"
+    lines =["## 進捗ツリー"] + tree(state).splitlines() + [
+        "",
+        "## 状態",
+        f"- 現在タスク: {tid}（{t['title']}）" if t else "- 現在タスク: NONE",
+        f"- リポジトリ: {t['target_repo']}" if t else "- リポジトリ: NONE",
+        f"- 検証コマンド: {v['command'] if v else '(undefined)'}",
+        human,
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def review(task_id, url, path):
+    """現在のタスクを PR のレビュー待ちにする。解除は complete だけが行う。"""
+    state = load(path)
+    if state.get("active_task_id") != task_id:
+        raise ProgressError(f"{task_id} は現在のタスクではありません（現在：{state.get('active_task_id')}）")
+    if not url.startswith("https://"):
+        raise ProgressError("PR の URL（https://…）を渡してください")
+    task(state, task_id)["review_pr"] = url
+    save(state, path)
+
+
+# ============================================================ 検証連動の遷移（Gatekeeper）
+
+def _is_remote_ref(repo_root, ref):
+    remote, sep, branch = ref.partition("/")
+    if not sep or not branch:
+        return False
+    r = subprocess.run(["git", "remote"], cwd=repo_root, capture_output=True, text=True, timeout=GIT_TTL,
+                       creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
+    return r.returncode == 0 and remote in r.stdout.split()
+
+
+def main_version(repo_root, ref, fetch=True):
+    remote, _, branch = ref.partition("/")
+    if fetch and _is_remote_ref(repo_root, ref):
+        r = subprocess.run(["git", "fetch", "-q", remote, branch], cwd=repo_root, capture_output=True, text=True,
+                           timeout=GIT_TTL)
+        if r.returncode != 0:
+            raise ProgressError(f"git fetch に失敗しました: {r.stderr.strip()[:200]}")
+    r = subprocess.run(["git", "show", f"{ref}:{REL_PATH}"], cwd=repo_root, capture_output=True,
+                       text=True, encoding="utf-8", errors="replace", timeout=GIT_TTL)
+    if r.returncode != 0:
+        raise ProgressError(f"{ref} に {REL_PATH} がありません。検証コマンドは main に入ってから有効になります")
+    return yaml.safe_load(r.stdout)
+
+
+def advance_active(state):
+    """依存先がすべて完了した未完了のタスクのうち、進捗の順で最初のものを現在のタスクにする（ほかの in_progress は pending に戻す）。新しい id（無ければ None）を返す。"""
+    nxt = next((x for x in state["tasks"] if x["status"] != "completed" and not unmet_dependencies(state, x)), None)
+    for x in state["tasks"]:
+        if x["status"] == "in_progress" and x is not nxt:
+            x["status"] = "pending"
+    if nxt:
+        nxt["status"] = "in_progress"
+    state["active_task_id"] = nxt["id"] if nxt else None
+    return state["active_task_id"]
+
+
+def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, now=None, *, require_active=True):
+    """0 = 完了にした、1 = 拒絶（REJECT）、2 = 検証コマンドが環境異常で終わった（ABORT）。
+    require_active=False は、現在のタスクでなくても（検証の照合と実行は同じに通して）完了にする。"""
+    path = Path(repo_root) / REL_PATH
+    state = load(path)
+    problems = validate(state)
+    if problems:
+        raise ProgressError("progress.yaml の形が壊れています: " + " / ".join(problems))
+    if require_active and state.get("active_task_id") != task_id:
+        raise ProgressError(f"{task_id} は現在のタスクではありません（現在：{state.get('active_task_id')}）")
+    t = task(state, task_id)
+    unmet = unmet_dependencies(state, t)
+    if unmet:
+        raise ProgressError(f"{task_id} の依存先 {', '.join(unmet)} が完了していません。完了にできません")
+    v = t.get("verification")
+    if not v:
+        raise ProgressError(f"{task_id} には検証コマンドがありません。main への PR で定義してください")
+    try:
+        ref_v = task(main_version(repo_root, ref, fetch), task_id).get("verification")
+    except ProgressError as e:
+        raise ProgressError(f"{ref} の版と照合できません: {e}")
+    if ref_v != v:
+        raise ProgressError(f"{task_id} の検証が {ref} の版と違います。手元での書き換えは受け付けません")
+
+    out(f"検証: {v['command']}")
+    try:
+        r = subprocess.run(v["command"], shell=True, cwd=repo_root, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=VERIFY_TTL,
+                           creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
+        rc, log = r.returncode, (r.stdout or "") + (r.stderr or "")
+    except subprocess.TimeoutExpired:
+        rc, log = -1, f"{VERIFY_TTL} 秒で打ち切りました"
+    at = (now or datetime.datetime.now)().isoformat(timespec="seconds")
+    state["last_verification"] = {"task": task_id, "exit_code": rc, "at": at}
+    if rc != v["expected_exit_code"]:
+        save(state, path)
+        tail = log.strip().splitlines()[-TAIL_LINES:]
+        out("\n".join(tail))
+        if rc == exitcode.ABORT:
+            out(f"ABORT: 検証コマンドが環境異常（rc={rc}）で終わりました。{task_id} は完了にしません。実装の不合格とは扱いません")
+            return exitcode.ABORT
+        out(f"REJECT: 終了コード {rc}（期待 {v['expected_exit_code']}）。{task_id} は完了にしません")
+        return 1
+    t["status"] = "completed"
+    t.pop("review_pr", None)
+    advance_active(state)
+    save(state, path)
+    out(f"完了: {task_id}（終了コード {rc}）。次の現在地：{state['active_task_id'] or 'なし'}")
+    out(f"{REL_PATH} の変更をコミットして main に入れてください")
+    return 0
+
+
+# ============================================================ CLI
+
+def _complete_cli(task_id, ref=None):
+    kw = {"ref": ref} if ref else {}
+    if os.environ.get(ORDER_FREE_ENV) == "1":
+        return complete(task_id, require_active=False, **kw)
+    return complete(task_id, **kw)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="進捗の外部主記憶（docs/progress.yaml）")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("anchor")
+    tp = sub.add_parser("tree")
+    tp.add_argument("--all", action="store_true", help="すべての枝を展開する")
+    cp = sub.add_parser("complete")
+    cp.add_argument("task_id")
+    cp.add_argument("--ref", default=None, help="検証コマンドを照合する rev（既定は origin/main）")
+    sub.add_parser("check")
+    sub.add_parser("report")
+    sub.add_parser("hook")
+    rp = sub.add_parser("review")
+    rp.add_argument("task_id")
+    rp.add_argument("url")
+    args = ap.parse_args(argv)
+    path = ROOT / REL_PATH
+    try:
+        if args.cmd == "complete":
+            return _complete_cli(args.task_id, args.ref)
+        if args.cmd == "review":
+            review(args.task_id, args.url, path)
+            print(report(load(path)), end="")
+            return 0
+        state = load(path)
+        problems = validate(state)
+        if args.cmd == "check" or problems:
+            for p in problems:
+                print(f"NG: {p}")
+            if args.cmd == "check" and dump(state) != path.read_text(encoding="utf-8"):
+                print("NG: 正規の書式ではありません（手で編集した可能性があります）")
+                return 1
+            print(f"{'合格' if not problems else '不合格'}（{len(problems)} 件）")
+            return 0 if not problems else 1
+        if args.cmd == "report":
+            print(report(state), end="")
+        elif args.cmd == "hook":
+            print(hook_output(state))
+        else:
+            print(anchor(state) if args.cmd == "anchor" else tree(state, args.all), end="")
+    except ProgressError as e:
+        # 状態・前提の不備（照合できない、現在のタスクではない等）。検証の不合格（1）と区別する
+        print(f"ABORT: {e}")
+        return exitcode.ABORT
+    return 0
+
+
+if __name__ == "__main__":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.exit(exitcode.normalized(main))

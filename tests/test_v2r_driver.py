@@ -1,0 +1,273 @@
+"""再実験 v2r の 4 条件のドライバ・前提の成立回数・思考と出力の検査（docs/design/v2r_protocol.md §1・§8・§9）。
+
+    python -m unittest tests.test_v2r_driver
+
+**なぜ要るか**: 2 × 2 の要因計画（仕様の形 × 門）で、条件の違いは「仕様の節」と「門の知らせの有無」だけでなければならない。
+ここでは、A0・A1・B-G・B が、それぞれ期待どおりの仕様の形と門で動き、それ以外（作業場所・interface・埋め込み・決まり・
+ステートレス）が全条件で同じであることを、agy を使わずに縛る。
+"""
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(ROOT / "tests"))
+
+import agy_stream  # noqa: E402
+import propgen  # noqa: E402
+import test_propgen as tp  # noqa: E402
+from ab import common, driver, v2r  # noqa: E402
+from adapters import dotnet  # noqa: E402
+
+PROPS = {"properties": [
+    {"id": "P-T1-01", "task": "T1", "rule": "RL-16", "given": "input.Left && !input.Right",
+     "then": "after.Score == before.Score"},
+]}
+FAIL = "PROPERTY_FAIL id=P-T1-01 rule=RL-16 ops=[Left] expected=Score:0 actual=Score:1"
+FORMAL = "## タスク：左右移動\n\n## このタスクの性質（受入）\n\n- P-T1-01（RL-16）：前提 input.Left && !input.Right のとき、after.Score == before.Score"
+
+
+class Factors(unittest.TestCase):
+    def test_the_two_by_two_design(self):
+        self.assertEqual({c: (f["form"], f["gate"]) for c in v2r.ORDER for f in [v2r.factors(c)]},
+                         {"A0": ("nl", False), "A1": ("nl", True), "B-G": ("formal", False), "B": ("formal", True)})
+        with self.assertRaises(common.ABError):
+            v2r.factors("A")
+
+    def test_every_v2r_condition_has_its_own_paths(self):
+        """paths が V2 の A・B だけを通し、v2r-dry-01 の driver と guard が起動の直後に止まった（2026-09-27）。"""
+        self.assertEqual(v2r.ORDER, common.V2R_CONDITIONS)
+        ps = [common.paths("v2r-dry-01", c, wt_root="W", out_root="O") for c in v2r.ORDER]
+        self.assertEqual([p["out"] for p in ps], [Path("O") / "v2r-dry-01" / c for c in v2r.ORDER])
+        self.assertEqual(len({p["wt"] for p in ps} | {p["sandbox"] for p in ps}), 8)
+        self.assertEqual(common.paths("v2-run-01", "A", out_root="O")["out"], Path("O") / "v2-run-01" / "A")
+        with self.assertRaises(common.ABError):
+            common.paths("v2r-dry-01", "C")
+
+    def test_cleanup_covers_the_v2r_conditions(self):
+        seen = []
+        with tempfile.TemporaryDirectory() as d:
+            for c in ("A0", "B-G"):
+                (Path(d) / f"v2r-dry-01-{c}").mkdir()
+            with mock.patch.object(driver.project, "load", return_value={"repo_dir": d}), \
+                    mock.patch.object(driver.common, "git", side_effect=lambda args, *a, **k: seen.append(args)):
+                driver.cleanup("v2r-dry-01", wt_root=d)
+        removed = sorted(Path(a[-1]).name for a in seen if a[:2] == ["worktree", "remove"])
+        self.assertEqual(removed, ["v2r-dry-01-A0", "v2r-dry-01-B-G"])
+
+    def test_the_order_rotates_per_replicate(self):
+        self.assertEqual([v2r.order_for(k) for k in (1, 2, 5)],
+                         [("A0", "A1", "B-G", "B"), ("A1", "B-G", "B", "A0"), ("A0", "A1", "B-G", "B")])
+
+    def test_run_all_uses_the_rotation_for_a_v2r_manifest(self):
+        seen = []
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            f.write("{}")
+        self.addCleanup(Path(f.name).unlink)
+        with mock.patch.object(driver.common, "load_manifest", return_value={"kind": "v2r"}), \
+                mock.patch.object(driver, "run_condition", side_effect=lambda m, c, r: seen.append((r, c))):
+            driver.run_all(f.name, 2, "v2r-run")
+        self.assertEqual(seen, [("v2r-run-01", c) for c in v2r.order_for(1)] + [("v2r-run-02", c) for c in v2r.order_for(2)])
+
+
+class Dispatch(unittest.TestCase):
+    """条件ごとに、仕様の形と門の有無が期待どおりで、ほかは同じ。"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        base, wt = self.tmp / "exp", self.tmp / "wt"
+        (base).mkdir()
+        (base / "properties.json").write_text(json.dumps(PROPS), encoding="utf-8")
+        (wt / "Core").mkdir(parents=True)
+        (wt / "Core" / "GameState.cs").write_text("class GameState {}", encoding="utf-8")
+        self.unit = {"title": "左右移動", "prompt": FORMAL, "whitelist": ["Core/GameState.cs"], "interface": {"types": []}}
+        self.task = {"id": "T1", "title": "左右移動"}
+        self.m = {"_base": str(base), "properties": "properties.json", "max_attempts": 3, "test_dir": "tests"}
+        self.wt = wt
+        for patch in (mock.patch.object(driver.measure, "place_frozen_tests"),
+                      mock.patch.object(driver.pipeline, "save_changes"), mock.patch("builtins.print")):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def run_condition(self, condition, writes=True, verdicts=None):
+        prompts, cids, judged = [], [], []
+
+        def call(imp, prompt, cwd, cid, ttl):
+            prompts.append(prompt)
+            cids.append(cid)
+            if writes:
+                (Path(cwd) / "Core" / "GameState.cs").write_text(f"class GameState {{}} // {len(prompts)}",
+                                                                 encoding="utf-8")
+            return {"rc": 0, "seconds": 1.0, "conversation_id": "c", "model": "m", "usage": {"input_tokens": 1},
+                    "out": "", "err": "", "outcome": {"status": "SUCCESS"}, "steps": [], "cli_version": "1.2.14"}
+
+        def judge(n):
+            judged.append(n)
+            if verdicts is not None:
+                return verdicts[min(n, len(verdicts)) - 1]
+            return ("SUCCESS", "") if n >= 2 else ("PROPERTY_FAIL", FAIL)
+        ctx = {"m": self.m, "wt": self.wt, "out": self.tmp / f"out-{condition}", "impl_dir": "Core", "index": 1,
+               "imp": {"model_name": "m", "output_format_args": ["--output-format", "stream-json"]}, "ttl": 60,
+               "v2r": v2r.factors(condition), "condition": condition}
+        ctx["out"].mkdir()
+        rec = driver.run_task_v2r(ctx, self.task, self.unit, {}, call=call,
+                                  judge=judge if ctx["v2r"]["gate"] else None)
+        return rec, prompts, cids, judged
+
+    def test_a0_is_natural_language_without_the_gate(self):
+        rec, prompts, cids, judged = self.run_condition("A0")
+        self.assertEqual((len(prompts), judged, rec["attempts"]), (1, [], 1))
+        self.assertIn("左の入力がある、かつ右の入力が無い", prompts[0])
+        self.assertNotIn("input.Left", prompts[0], "自然言語の条件に式を出さない")
+
+    def test_b_g_is_formal_without_the_gate(self):
+        rec, prompts, cids, judged = self.run_condition("B-G")
+        self.assertEqual((len(prompts), judged), (1, []))
+        self.assertIn("前提 input.Left && !input.Right のとき", prompts[0])
+
+    def test_a1_is_natural_language_with_the_gate_and_annotated_feedback(self):
+        rec, prompts, cids, judged = self.run_condition("A1")
+        self.assertEqual((len(prompts), judged, rec["accepted"]), (2, [1, 2], True))
+        self.assertIn(FAIL + "\n  （この性質：P-T1-01（RL-16）：", prompts[1])
+        self.assertNotIn("input.Left", prompts[1])
+
+    def test_b_is_formal_with_the_gate_and_the_same_feedback_line(self):
+        rec, prompts, cids, judged = self.run_condition("B")
+        self.assertEqual((len(prompts), judged, rec["accepted"]), (2, [1, 2], True))
+        self.assertIn("前回の失敗:\n" + FAIL, prompts[1])
+        self.assertNotIn("この性質", prompts[1], "形式の条件は知らせの行だけ")
+
+    def test_two_attempts_without_changes_stop_the_retries(self):
+        """原則 P4：2 回続けて何も書かなければ、同じ門で測り直さずに打ち切る（v2r-dry-02 の B の T6）。"""
+        rec, prompts, cids, judged = self.run_condition("B", writes=False)
+        self.assertEqual((len(prompts), judged, rec["accepted"]), (2, [1], False))
+        self.assertEqual(rec["calls"][-1]["verdict"], "NO_PROGRESS")
+
+    def test_a_vacuous_constructible_property_is_an_instrument_fault(self):
+        """原則 P2：前提が after を使わない性質の PROPERTY_VACUOUS は、実装役に渡さずに走行を止める。"""
+        vac = "PROPERTY_VACUOUS id=P-T1-01 rule=RL-16 given=0"
+        with self.assertRaises(common.ABError) as ctx:
+            self.run_condition("B", verdicts=[("PROPERTY_FAIL", vac)])
+        self.assertIn("測定器の故障", str(ctx.exception))
+
+    def test_every_call_record_keeps_what_the_call_measured(self):
+        """v2r-smoke-02：agy_call が測った版（cli_version）が、呼び出しの記録の手書きの写しから落ちて metrics で null になった。
+        4 条件のすべてで、agy_call の結果から写すもの（CALL_FROM_RESULT）が metrics の要約まで残ること。"""
+        for c in v2r.ORDER:
+            with self.subTest(condition=c):
+                rec, *_ = self.run_condition(c)
+                for summary in driver.call_records(rec["calls"]):
+                    self.assertEqual(summary["cli_version"], "1.2.14")
+                    self.assertEqual(summary["model"], "m")
+                    self.assertIsNotNone(summary["outcome"])
+
+    def test_everything_but_the_spec_and_the_feedback_is_shared_and_stateless(self):
+        # 作業ツリーを共有するので、書かない呼び出しで比べる（書くと後の条件の埋め込みの字数が変わる）
+        recs = {c: self.run_condition(c, writes=False) for c in v2r.ORDER}
+        first = {c: r[0]["calls"][0]["prompt_parts"] for c, r in recs.items()}
+        for key in ("where", "interface", "embed", "protocol"):
+            self.assertEqual(len({first[c][key] for c in v2r.ORDER}), 1, f"{key} の字数が条件で違う")
+        self.assertEqual(first["A0"]["spec"] != first["B-G"]["spec"], True, "違うのは仕様の節")
+        for c, (_, _, cids, _) in recs.items():
+            self.assertEqual(set(cids), {None}, f"{c}：呼び出しごとに新しい会話（ステートレス）")
+        for c in ("A0", "B-G"):
+            self.assertNotIn("feedback", first[c])
+
+
+class Hits(unittest.TestCase):
+    def test_the_generator_emits_the_hits_line_only_when_asked(self):
+        plain = propgen.generate(tp.DECL, tp.SPEC, tp.GDD, tp.INTERFACE, "tests")
+        hits = propgen.generate(tp.DECL, tp.SPEC, tp.GDD, tp.INTERFACE, "tests", report_hits=True)
+        model = next(k for k in plain if k.endswith("PropertyModel.cs"))
+        self.assertNotIn("PROPERTY_HITS", plain[model], "V2 の生成物（sha256 を凍結した）は変えない")
+        self.assertIn("PROPERTY_HITS id=", hits[model])
+        self.assertEqual({k: v for k, v in plain.items() if k != model}, {k: v for k, v in hits.items() if k != model})
+
+    def test_a_phase_other_than_the_start_is_not_a_start_precondition(self):
+        """before.Phase == GameOver は開始状態（Playing）では成り立たない。開始状態の前提に入れると、実装に依らず
+        PROPERTY_UNSATISFIABLE になっていた（v2r の T10 の宣言で見つけた）。系列の途中で起きる状態として扱う。"""
+        p = {"id": "P-T10-01", "given": "before.Phase == GameOver && input.Left", "then": "true"}
+        self.assertEqual(propgen.directed(p, "Playing")[0], [], "開始状態の前提から外す")
+        self.assertEqual(len(propgen.directed(p)[0]), 1, "start_phase を渡さなければ従来どおり")
+        same = {"id": "P-T1-01", "given": "before.Phase == GamePhase.Playing", "then": "true"}
+        self.assertEqual(len(propgen.directed(same, "Playing")[0]), 1, "開始状態の局面と同じなら前提に残す")
+        ne = {"id": "P-X-01", "given": "before.Phase != Playing", "then": "true"}
+        self.assertEqual(propgen.directed(ne, "Playing")[0], [])
+
+    def test_gap_rows_is_opt_in_and_validated(self):
+        """start.gap_rows（ライン消去の前提を起こす開始状態）。書かなければ生成物は同じ（V2 の凍結した sha256）。"""
+        import copy
+        plain = propgen.generate(tp.DECL, tp.SPEC, tp.GDD, tp.INTERFACE, "tests")
+        d = copy.deepcopy(tp.DECL)
+        d["start"]["gap_rows"] = 2
+        self.assertEqual(propgen.validate(d, tp.SPEC, tp.GDD, tp.INTERFACE), [])
+        gapped = propgen.generate(d, tp.SPEC, tp.GDD, tp.INTERFACE, "tests")
+        model = next(k for k in plain if k.endswith("PropertyModel.cs"))
+        self.assertNotIn("GapRows", plain[model])
+        self.assertIn("const int GapRows = 2;", gapped[model])
+        self.assertEqual(gapped[model].count("{"), gapped[model].count("}"), "括弧の釣り合い")
+        self.assertEqual({k: v for k, v in plain.items() if k != model}, {k: v for k, v in gapped.items() if k != model})
+        for bad in (5, -1, True, "2"):
+            d["start"]["gap_rows"] = bad
+            self.assertTrue(propgen.validate(d, tp.SPEC, tp.GDD, tp.INTERFACE), bad)
+
+    def test_hits_are_read_from_the_test_output_and_the_smallest_wins(self):
+        ns = dotnet.TRX_NS.strip("{}")
+        rows = "".join(
+            f'<UnitTestResult testName="t{i}" outcome="Passed"><Output><StdOut>{line}</StdOut></Output></UnitTestResult>'
+            for i, line in enumerate(["PROPERTY_HITS id=P-T1-01 rule=RL-16 given=12 runs=30",
+                                      "PROPERTY_HITS id=P-T1-01 rule=RL-16 given=0 runs=20",
+                                      "PROPERTY_HITS id=P-T1-02 rule=RL-40 given=7 runs=30\nほかの出力"]))
+        with tempfile.TemporaryDirectory() as d:
+            trx = Path(d) / "r.trx"
+            trx.write_text(f'<?xml version="1.0"?><TestRun xmlns="{ns}"><Results>{rows}</Results></TestRun>',
+                           encoding="utf-8")
+            self.assertEqual(dotnet.property_hits(trx), {"P-T1-01": 0, "P-T1-02": 7})
+            self.assertEqual(dotnet.property_hits(Path(d) / "none.trx"), {})
+
+
+def step(i, out, think, inp=10, cache=0):
+    return json.dumps({"event": "step_update", "step_update": {
+        "step_index": i, "state": "DONE", "step_type": "agent_response",
+        "usage": {"input_tokens": inp, "output_tokens": out, "thinking_tokens": think, "cache_read_tokens": cache}}})
+
+
+class TokensAndCache(unittest.TestCase):
+    def test_thinking_above_output_is_reported(self):
+        ok = agy_stream.parse("\n".join([step(1, 100, 90), step(2, 10, 10)]))
+        self.assertEqual(ok["token_problems"], [])
+        bad = agy_stream.parse(step(1, 100, 120))
+        self.assertEqual(bad["token_problems"], ["step 1: thinking=120 > output=100"])
+
+    def test_cache_statistics(self):
+        c = agy_stream.parse("\n".join([step(1, 5, 1, inp=1000, cache=0), step(2, 5, 1, inp=100, cache=900),
+                                        step(3, 5, 1, inp=100, cache=0)]))["cache"]
+        self.assertEqual(c, {"first_step_input": 1000, "first_step_cache_read": 0, "later_misses": 1,
+                             "hit_ratio": round(900 / 2100, 4)})
+        self.assertIsNone(agy_stream.parse("")["cache"])
+
+    def test_guard_stops_on_thinking_above_output(self):
+        from ab import guard
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "out"
+            out.mkdir()
+            (out / "T1_a1.implementer.log").write_text(f"# prompt\nx\n\n# stdout\n{step(1, 10, 20)}\n\n# stderr\n",
+                                                       encoding="utf-8")
+            lines, stopped = [], []
+            with mock.patch.object(guard, "CONDITIONS", ("A0",)), \
+                    mock.patch.object(guard.common, "paths", return_value={"out": out, "wt": Path(d), "sandbox": Path(d)}):
+                rc = guard.watch(["r1"], 50, interval=0, out=lines.append, stop=lambda rid=None: stopped.append(rid),
+                                 out_root=d)
+            # STOP の行は、見ていた走行の記録にも残る（原則 P5。v2r-dry-02 は guard の画面にしか残らなかった）
+            recorded = (Path(d) / "r1" / "guard_stops.jsonl").read_text(encoding="utf-8")
+        self.assertEqual(rc, 1)
+        self.assertTrue(any("thinking > output" in l for l in lines), lines)
+        self.assertIn("thinking > output", recorded)
+
+
+if __name__ == "__main__":
+    unittest.main()

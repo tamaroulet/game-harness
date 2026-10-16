@@ -1,0 +1,53 @@
+name: approval
+
+# 配布元: tamaroulet/game-harness の harness/templates/game-repo/。直接編集しない。
+#
+# PR の必須チェック「approval」。人間の承認（ms4:approved ラベル）が、
+# 今の head SHA に対して、承認者によって付けられているかを判定する。
+#
+# pull_request_target を使う理由: pull_request は PR 側のワークフロー定義で動くので、
+# PR の中でこのファイルを書き換えれば承認チェックを骨抜きにできる。
+# pull_request_target は base ブランチ側の定義で動く。PR のコードは checkout しない。
+#
+# GitHub-hosted runner だけで動く（API を読むだけ）。self-hosted は使わない。
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: approval-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  approval:
+    runs-on: ubuntu-latest
+    steps:
+      # 既定ブランチ（保護されたブランチ）の「今の最新」を checkout する。PR の head は取らない。
+      #
+      # pull_request.base.sha は使わない。PR のイベントが持つ base の SHA は PR 作成時点の
+      # コミットに固定されうるので、main で承認者一覧や判定スクリプトを直しても、
+      # 既存の PR の判定に反映されない。ブランチ名で指定すると checkout の時点で
+      # そのブランチの先頭を fetch する。
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      # どのコミットの判定スクリプトと承認者一覧で判定したかを、ログに必ず残す
+      - name: show trusted config
+        run: |
+          echo "trusted ref: ${{ github.event.repository.default_branch }} @ $(git rev-parse HEAD)"
+          echo "event base.sha: ${{ github.event.pull_request.base.sha }}"
+          echo "approvers:"
+          grep -v '^#' .github/ms4-approvers || true
+
+      - name: approval gate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/ms4_approval_gate.py

@@ -1,0 +1,15 @@
+{
+  "_comment": "不変条件テストの実行（harness/invrun.py、docs/design/mechanical_barriers.md §4）の設定。",
+
+  "_placement_note": "不変条件テストはゲームのリポジトリにもサンドボックスにも置かない。宣言は harness の projects/<id>/invariants.json、生成物と csproj は pipeline の出力先（out_dir/invariants/）に毎回作り、サンドボックスの実装を外から参照してビルドする",
+  "decl_filename": "invariants.json",
+
+  "_project_note": "生成する csproj の設定。Core は Pure C#（noEngineReferences）なので dotnet だけでビルドできる",
+  "target_framework": "net8.0",
+  "lang_version": "9.0",
+  "packages": {
+    "Microsoft.NET.Test.Sdk": "17.8.0",
+    "NUnit": "3.14.0",
+    "NUnit3TestAdapter": "4.5.0"
+  }
+}

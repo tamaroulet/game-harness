@@ -1,0 +1,24 @@
+{
+  "_comment": "unity-2d（ボス・コマンド・レリックのあるターン制ゲーム）。リポジトリの位置はここにだけ書く。",
+
+  "id": "unity-2d",
+  "repo_slug": "tamaroulet/unity-2d",
+  "repo_dir": "C:\\src\\unity-2d",
+  "base_branch": "main",
+
+  "_adapters_note": "エンジン固有・言語固有の処理を選ぶ（harness/adapters/）。unity_project_subdir は Unity アダプタが読むキーで、unity-2d の ms3_capture_golden.ps1 も読むため名前を変えない",
+  "adapters": { "engine": "unity", "fast": "dotnet" },
+  "unity_project_subdir": "Game",
+
+  "test_dir": "tests/Core.Tests",
+  "impl_dir": "Game/Assets/Core",
+  "fast_test_project": "tests/Core.Tests/Core.Tests.csproj",
+
+  "_units_note": "単位定義はゲーム側の記録として残す（分解役の出力で、コミット履歴の証拠になる）",
+  "units_dir": "tools/units",
+
+  "_checks_note": "マージ前に success を要求するチェック名（ジョブ名）。test は core-tests.yml、approval は approval.yml（A4 で配置）",
+  "required_checks": ["test", "approval"],
+
+  "out_dir": "C:\\src\\.local\\out\\harness\\unity-2d"
+}

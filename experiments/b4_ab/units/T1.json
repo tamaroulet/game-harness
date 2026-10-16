@@ -1,0 +1,646 @@
+{
+  "schema": 2,
+  "id": "b4ab_t1",
+  "title": "左右移動（盤面外・固定ブロックの判定、同時入力の無効化）",
+  "task_kind": "feature",
+  "prompt": "進行中のミノの左右 1 マス移動を、Pure C# の Core に足す。作る型とメンバーの形は単位定義の interface に従い、既存の公開メンバーの名前と型と引数は変えない。消さない。\n\n1 ティック分の入力をまとめた読み取り専用の構造体 `TickInput` を `Game/Assets/Core/TickInput.cs` に新しく作る。コンストラクタの引数は left と right と rotateCw と rotateCcw と softDrop と hardDrop の 6 つで、すべて bool とし、この名前と順序は以後の単位でも変えない。先頭を大文字にした同名の読み取り専用プロパティで公開する。rotateCw と rotateCcw と softDrop と hardDrop は、この単位では受け取るだけで振る舞いを持たせない。\n\n`GameState` に、`TickInput` を 1 つ引数に取る `GameState.Tick` を足す。既存の引数の無い `GameState.Tick` はそのまま残し、すべての入力が偽の `TickInput` を渡した場合と同じ振る舞いにする。入力の無いティックは、すべて偽の `TickInput` を渡して表す。\n\n`GameState` に、事前状態を作るための復元用コンストラクタを足す。引数は phase と activeMino の 2 つで、phase は `GamePhase`、activeMino は未配置を表せる `ActiveMino` とする。渡された値をそのまま `GameState.Phase` と `GameState.ActiveMino` の初期値とし、盤面は固定ブロックの無い空の状態、経過ティック数と `GameState.Score` と `GameState.LinesCleared` と `GameState.BlockCount` と `GameState.LockedMinoCount` は 0、自然落下カウンタは 0 から始める。既存の引数の無いコンストラクタの振る舞いは変えない。\n\n1 ティックの処理は `LP-07` の順序に従い、① で `RL-42` のとおり入力を取り込み、② で左右移動を適用する。`RL-16` に従って、左の入力だけが真のティックは基準位置の X を 1 小さくし、右の入力だけが真のティックは X を 1 大きくする。Y と向きは変えない。`RL-20` に従って、左と右が同時に真のティックは移動しない。`RL-41` に従って左右の入力は 1 ティック分の離散入力として扱い、自動連射や次のティックへの持ち越しをしない。\n\n移動の可否は、移動後の基準位置と現在の向きから `RL-12` で求めた 4 マスで判定する。向きごとの相対座標は `PR-18` から `PR-51` までの形状定義から引く。`RL-40` に従って盤面外は固定ブロックが存在するものとして扱い、4 マスのいずれかが盤面外または固定ブロックに重なるときは移動を失敗とし、基準位置も向きも変えない。盤面外の範囲は `RL-16` のとおり、X が 0 未満、X が `PR-06` 以上、Y が 0 未満、Y が `PR-08` 以上とする。\n\n`ST-09` に従って、開始待機の状態で受けた左右の入力は無視する。開始待機の状態で `GameState.Tick` を受けたティックは `LP-03` のとおり出現の処理だけを行い、左右移動を適用しないので、出現したミノの基準位置は `PR-09` のままとする。`ST-10` に従って、終了の状態では左右の入力もティック進行も無視し、内部状態を一切変えない。\n\n自然落下は既存の `RL-24` の振る舞いのまま残す。移動が成功しても自然落下カウンタはリセットしない。保存則 `RL-36` は常に成り立たせ、`GameState.BlockCount` と `GameState.LockedMinoCount` を読み取り専用で公開し続ける。この単位では固定もライン消去も起きないので、この 2 つと `GameState.LinesCleared` と `GameState.Score` は 0 のままとする。\n\n形状の相対座標表は `Game/Assets/Core/MinoShape.cs` に、公開しない内部の型として置く。\n\nこの単位で実装しないこと: 回転、壁キック、ソフトドロップ、ハードドロップ、接地判定、ロック猶予、固定、ライン消去、スコアの加算、ゲームオーバー判定。\n\nしてはいけないこと: テストの追加・修正・削除。whitelist 以外のファイルの変更（.meta の追加を含む）。UnityEngine・MonoBehaviour・グローバルな時間・非決定な乱数・実時間の参照。時間量や座標に浮動小数を使うこと。\n\n制約: C# 9 相当で、file-scoped namespace など C# 10 以降の構文は使わない。暗黙 using は無効、Nullable は有効。差分は追加 250 行以下かつ削除 100 行以下。各ファイル先頭の SPDX-AI-Disclosure 表示は残す。型とメンバーには日本語の XML doc コメントを付け、仕様 ID を根拠として書く。",
+  "interface": {
+    "types": [
+      {
+        "name": "GamePhase",
+        "kind": "enum",
+        "values": [
+          "Ready",
+          "Playing",
+          "GameOver"
+        ]
+      },
+      {
+        "name": "MinoType",
+        "kind": "enum",
+        "values": [
+          "I",
+          "O",
+          "T",
+          "S",
+          "Z",
+          "J",
+          "L"
+        ]
+      },
+      {
+        "name": "Rotation",
+        "kind": "enum",
+        "values": [
+          "Spawn",
+          "Right",
+          "Two",
+          "Left"
+        ]
+      },
+      {
+        "name": "ActiveMino",
+        "kind": "struct",
+        "members": [
+          {
+            "name": "ActiveMino",
+            "kind": "ctor",
+            "params": [
+              {
+                "name": "type",
+                "type": "MinoType"
+              },
+              {
+                "name": "x",
+                "type": "int"
+              },
+              {
+                "name": "y",
+                "type": "int"
+              },
+              {
+                "name": "rotation",
+                "type": "Rotation"
+              }
+            ]
+          },
+          {
+            "name": "Type",
+            "kind": "property",
+            "type": "MinoType"
+          },
+          {
+            "name": "X",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "Y",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "Rotation",
+            "kind": "property",
+            "type": "Rotation"
+          }
+        ]
+      },
+      {
+        "name": "TickInput",
+        "kind": "struct",
+        "members": [
+          {
+            "name": "TickInput",
+            "kind": "ctor",
+            "params": [
+              {
+                "name": "left",
+                "type": "bool"
+              },
+              {
+                "name": "right",
+                "type": "bool"
+              },
+              {
+                "name": "rotateCw",
+                "type": "bool"
+              },
+              {
+                "name": "rotateCcw",
+                "type": "bool"
+              },
+              {
+                "name": "softDrop",
+                "type": "bool"
+              },
+              {
+                "name": "hardDrop",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "Left",
+            "kind": "property",
+            "type": "bool"
+          },
+          {
+            "name": "Right",
+            "kind": "property",
+            "type": "bool"
+          },
+          {
+            "name": "RotateCw",
+            "kind": "property",
+            "type": "bool"
+          },
+          {
+            "name": "RotateCcw",
+            "kind": "property",
+            "type": "bool"
+          },
+          {
+            "name": "SoftDrop",
+            "kind": "property",
+            "type": "bool"
+          },
+          {
+            "name": "HardDrop",
+            "kind": "property",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "GameState",
+        "kind": "class",
+        "members": [
+          {
+            "name": "GameState",
+            "kind": "ctor",
+            "params": [
+              {
+                "name": "phase",
+                "type": "GamePhase"
+              },
+              {
+                "name": "activeMino",
+                "type": "ActiveMino?"
+              }
+            ]
+          },
+          {
+            "name": "Phase",
+            "kind": "property",
+            "type": "GamePhase"
+          },
+          {
+            "name": "ActiveMino",
+            "kind": "property",
+            "type": "ActiveMino?"
+          },
+          {
+            "name": "NextQueue",
+            "kind": "property",
+            "type": "System.Collections.Generic.IReadOnlyList<MinoType>"
+          },
+          {
+            "name": "Score",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "LinesCleared",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "TickCount",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "BlockCount",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "LockedMinoCount",
+            "kind": "property",
+            "type": "int"
+          },
+          {
+            "name": "InjectSeed",
+            "kind": "method",
+            "type": "void",
+            "params": [
+              {
+                "name": "seed",
+                "type": "uint"
+              }
+            ]
+          },
+          {
+            "name": "Tick",
+            "kind": "method",
+            "type": "void",
+            "params": [
+              {
+                "name": "input",
+                "type": "TickInput"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "whitelist": [
+    "Game/Assets/Core/TickInput.cs",
+    "Game/Assets/Core/MinoShape.cs",
+    "Game/Assets/Core/GameState.cs"
+  ],
+  "acceptance": {
+    "cases": [
+      {
+        "id": "move-left-in-open-field",
+        "rule": "RL-16",
+        "given": {
+          "GameState.Phase": "Playing",
+          "GameState.ActiveMino": {
+            "type": "T",
+            "x": 3,
+            "y": 10,
+            "rotation": "Spawn"
+          }
+        },
+        "op": {
+          "call": "GameState.Tick",
+          "args": {
+            "input": {
+              "left": true,
+              "right": false,
+              "rotateCw": false,
+              "rotateCcw": false,
+              "softDrop": false,
+              "hardDrop": false
+            }
+          }
+        },
+        "expect": {
+          "GameState.ActiveMino.X": {
+            "given": "GameState.ActiveMino.X",
+            "add": -1
+          },
+          "GameState.ActiveMino.Y": {
+            "same": true
+          },
+          "GameState.ActiveMino.Rotation": {
+            "same": true
+          }
+        }
+      },
+      {
+        "id": "move-right-in-open-field",
+        "rule": "RL-16",
+        "given": {
+          "GameState.Phase": "Playing",
+          "GameState.ActiveMino": {
+            "type": "T",
+            "x": 3,
+            "y": 10,
+            "rotation": "Spawn"
+          }
+        },
+        "op": {
+          "call": "GameState.Tick",
+          "args": {
+            "input": {
+              "left": false,
+              "right": true,
+              "rotateCw": false,
+              "rotateCcw": false,
+              "softDrop": false,
+              "hardDrop": false
+            }
+          }
+        },
+        "expect": {
+          "GameState.ActiveMino.X": {
+            "given": "GameState.ActiveMino.X",
+            "add": 1
+          },
+          "GameState.ActiveMino.Y": {
+            "same": true
+          },
+          "GameState.ActiveMino.Rotation": {
+            "same": true
+          }
+        }
+      },
+      {
+        "id": "blocked-at-left-edge",
+        "rule": "RL-40",
+        "given": {
+          "GameState.Phase": "Playing",
+          "GameState.ActiveMino": {
+            "type": "T",
+            "x": 0,
+            "y": 10,
+            "rotation": "Spawn"
+          }
+        },
+        "op": {
+          "call": "GameState.Tick",
+          "args": {
+            "input": {
+              "left": true,
+              "right": false,
+              "rotateCw": false,
+              "rotateCcw": false,
+              "softDrop": false,
+              "hardDrop": false
+            }
+          }
+        },
+        "expect": {
+          "GameState.ActiveMino.X": {
+            "same": true
+          },
+          "GameState.ActiveMino.Y": {
+            "same": true
+          },
+          "GameState.ActiveMino.Rotation": {
+            "same": true
+          }
+        }
+      },
+      {
+        "id": "blocked-at-right-edge",
+        "rule": "RL-40",
+        "given": {
+          "GameState.Phase": "Playing",
+          "GameState.ActiveMino": {
+            "type": "T",
+            "x": 7,
+            "y": 10,
+            "rotation": "Spawn"
+          }
+        },
+        "op": {
+          "call": "GameState.Tick",
+          "args": {
+            "input": {
+              "left": false,
+              "right": true,
+              "rotateCw": false,
+              "rotateCcw": false,
+              "softDrop": false,
+              "hardDrop": false
+            }
+          }
+        },
+        "expect": {
+          "GameState.ActiveMino.X": {
+            "same": true
+          },
+          "GameState.ActiveMino.Y": {
+            "same": true
+          },
+          "GameState.ActiveMino.Rotation": {
+            "same": true
+          }
+        }
+      },
+      {
+        "id": "left-and-right-together-is-void",
+        "rule": "RL-20",
+        "given": {
+          "GameState.Phase": "Playing",
+          "GameState.ActiveMino": {
+            "type": "T",
+            "x": 3,
+            "y": 10,
+            "rotation": "Spawn"
+          }
+        },
+        "op": {
+          "call": "GameState.Tick",
+          "args": {
+            "input": {
+              "left": true,
+              "right": true,
+              "rotateCw": false,
+              "rotateCcw": false,
+              "softDrop": false,
+              "hardDrop": false
+            }
+          }
+        },
+        "expect": {
+          "GameState.ActiveMino.X": {
+            "same": true
+          },
+          "GameState.ActiveMino.Y": {
+            "same": true
+          },
+          "GameState.ActiveMino.Rotation": {
+            "same": true
+          }
+        }
+      },
+      {
+        "id": "ready-ignores-horizontal-input",
+        "rule": "ST-09",
+        "given": {
+          "GameState.Phase": "Ready",
+          "GameState.ActiveMino": null
+        },
+        "op": {
+          "call": "GameState.Tick",
+          "args": {
+            "input": {
+              "left": true,
+              "right": false,
+              "rotateCw": false,
+              "rotateCcw": false,
+              "softDrop": false,
+              "hardDrop": false
+            }
+          }
+        },
+        "expect": {
+          "GameState.Phase": "Playing",
+          "GameState.ActiveMino.X": {
+            "param": "PR-09",
+            "index": 0
+          },
+          "GameState.ActiveMino.Y": {
+            "param": "PR-09",
+            "index": 1
+          },
+          "GameState.ActiveMino.Rotation": "Spawn"
+        }
+      },
+      {
+        "id": "gameover-ignores-horizontal-input",
+        "rule": "ST-10",
+        "given": {
+          "GameState.Phase": "GameOver",
+          "GameState.ActiveMino": {
+            "type": "T",
+            "x": 3,
+            "y": 10,
+            "rotation": "Spawn"
+          }
+        },
+        "op": {
+          "call": "GameState.Tick",
+          "args": {
+            "input": {
+              "left": true,
+              "right": false,
+              "rotateCw": false,
+              "rotateCcw": false,
+              "softDrop": false,
+              "hardDrop": false
+            }
+          }
+        },
+        "expect": {
+          "GameState.Phase": {
+            "same": true
+          },
+          "GameState.ActiveMino.X": {
+            "same": true
+          },
+          "GameState.ActiveMino.Y": {
+            "same": true
+          },
+          "GameState.ActiveMino.Rotation": {
+            "same": true
+          },
+          "GameState.TickCount": {
+            "same": true
+          }
+        }
+      },
+      {
+        "id": "no-auto-repeat-without-input",
+        "rule": "RL-41",
+        "given": {
+          "GameState.Phase": "Playing",
+          "GameState.ActiveMino": {
+            "type": "T",
+            "x": 3,
+            "y": 10,
+            "rotation": "Spawn"
+          }
+        },
+        "op": {
+          "call": "GameState.Tick",
+          "args": {
+            "input": {
+              "left": false,
+              "right": false,
+              "rotateCw": false,
+              "rotateCcw": false,
+              "softDrop": false,
+              "hardDrop": false
+            }
+          },
+          "repeat": {
+            "param": "PR-02"
+          }
+        },
+        "expect": {
+          "GameState.ActiveMino.X": {
+            "same": true
+          },
+          "GameState.ActiveMino.Y": {
+            "same": true
+          },
+          "GameState.ActiveMino.Rotation": {
+            "same": true
+          }
+        }
+      },
+      {
+        "id": "conservation-holds-through-move",
+        "rule": "RL-36",
+        "given": {
+          "GameState.Phase": "Playing",
+          "GameState.ActiveMino": {
+            "type": "T",
+            "x": 3,
+            "y": 10,
+            "rotation": "Spawn"
+          }
+        },
+        "op": {
+          "call": "GameState.Tick",
+          "args": {
+            "input": {
+              "left": true,
+              "right": false,
+              "rotateCw": false,
+              "rotateCcw": false,
+              "softDrop": false,
+              "hardDrop": false
+            }
+          }
+        },
+        "expect": {
+          "GameState.BlockCount": 0,
+          "GameState.LockedMinoCount": 0,
+          "GameState.LinesCleared": 0,
+          "GameState.Score": 0
+        }
+      }
+    ],
+    "required_tests": [
+      "B4abT1Cases"
+    ]
+  },
+  "human_check_point": "不要。Pure C# の状態遷移だけで、シーンにも画面にも変化が無い（構造化仕様 §6 は該当なし）",
+  "playtest": "none",
+  "fast_test_project": "tests/Core.Tests/Core.Tests.csproj",
+  "forbidden_leftover": "NotImplementedException",
+  "forbidden_skip_attribute_regex": "\\[\\s*(Ignore|Explicit)\\b",
+  "max_impl_lines": 250,
+  "max_add_lines": 250,
+  "max_del_lines": 100,
+  "forbidden_patterns": [
+    [
+      "\\bUnityEngine\\b",
+      "UnityEngine への依存"
+    ],
+    [
+      "\\bMonoBehaviour\\b",
+      "MonoBehaviour への依存"
+    ],
+    [
+      "\\bTime\\.(deltaTime|time|fixedDeltaTime)\\b",
+      "グローバル時間への依存"
+    ],
+    [
+      "\\bUnityEngine\\.Random\\b|\\bnew Random\\s*\\(\\s*\\)",
+      "非決定な乱数"
+    ]
+  ],
+  "selftest_forbidden_probe": "UnityEngine.Debug.Log(0);",
+  "impl_files": [
+    "Game/Assets/Core/TickInput.cs",
+    "Game/Assets/Core/MinoShape.cs",
+    "Game/Assets/Core/GameState.cs"
+  ],
+  "required_symbols": [
+    "GamePhase",
+    "MinoType",
+    "Rotation",
+    "ActiveMino",
+    "TickInput",
+    "GameState",
+    "ActiveMino.Type",
+    "ActiveMino.X",
+    "ActiveMino.Y",
+    "ActiveMino.Rotation",
+    "TickInput.Left",
+    "TickInput.Right",
+    "TickInput.RotateCw",
+    "TickInput.RotateCcw",
+    "TickInput.SoftDrop",
+    "TickInput.HardDrop",
+    "GameState.Phase",
+    "GameState.ActiveMino",
+    "GameState.NextQueue",
+    "GameState.Score",
+    "GameState.LinesCleared",
+    "GameState.TickCount",
+    "GameState.BlockCount",
+    "GameState.LockedMinoCount",
+    "GameState.InjectSeed",
+    "GameState.Tick"
+  ]
+}

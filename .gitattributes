@@ -1,0 +1,3 @@
+# 改行は LF に固定する。Windows の Python の write_text は CRLF で書くため、
+# 置換スクリプトを通すたびに差分が全行になる（移設作業で実測）。
+* text=auto eol=lf
