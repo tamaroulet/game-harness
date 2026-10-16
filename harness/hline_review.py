@@ -88,6 +88,7 @@ def call(cfg, prompt, log):
     args = hline_base.implementer_args(agent, proc.resolve_cli(agent["cli"]))
     code, out, err = proc.run(args, ROOT, cfg["ttl_seconds"]["reviewer"], "監修役", input=prompt)
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
+    hline_base.save_prompt(log, prompt)
     if hit := hline_quota.message(out, err):
         raise Unavailable(f"監修役の利用枠が尽きました: {hit}")
     if code in infra_retry.INFRA_EXIT_CODES:

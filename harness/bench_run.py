@@ -12,7 +12,10 @@ manifest.json と <clone>/bench/records/<id>/factory-<r>.json を書く。factor
 import argparse
 import datetime
 import hashlib
+import getpass
+import importlib.metadata
 import json
+import os
 import platform
 import re
 import shutil
@@ -51,6 +54,11 @@ sleep = time.sleep
 
 def sha256_file(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def child_env():
+    """Python の子プロセスに UTF-8 で書かせる環境（Windows の既定の文字コードで書かれると、読む側で文字化けする）。"""
+    return {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
 
 
 def run_dir(out, task, run_id):
@@ -153,8 +161,37 @@ def sessions_now(sessions):
     return {p for p in Path(sessions).rglob("*.jsonl")} if Path(sessions).is_dir() else set()
 
 
+def log_role(path):
+    """生ログの置き場から役を決める。呼び出しの生ログでないもの（gate-*.log など）は None。"""
+    if path.parent.name == "planner":
+        return "planner"
+    if path.parent.name == "review":
+        return "reviewer"
+    return "implementer" if path.name.startswith("implementer-") else None
+
+
+def log_calls(out, skip_sids):
+    """生ログ（CLI の出力が JSON のもの）を呼び出し 1 回ごとに。セッションの記録で拾えた分（skip_sids）は除く。"""
+    calls = []
+    for p in sorted(Path(out).rglob("*.log")) if Path(out).is_dir() else []:
+        role = log_role(p)
+        if role is None or (role == "planner" and p.with_name(p.stem + "-1.log").exists()):   # <名前>.log は最後の回の写し
+            continue
+        try:
+            doc = json.loads(p.read_text(encoding="utf-8", errors="replace").split(LOG_SPLIT, 1)[0])
+        except ValueError:
+            continue
+        if not isinstance(doc, dict) or not ({"usage", "modelUsage", "session_id"} & doc.keys()) or doc.get("session_id") in skip_sids:
+            continue
+        prompt = hline_base.prompt_path(p)
+        calls.append({"role": role, "path": None, "ts": f"{p.stat().st_mtime:020.6f}", "result": doc,
+                      "prompt": prompt.read_text(encoding="utf-8", errors="replace") if prompt.is_file() else ""})
+    return sorted(calls, key=lambda c: c["ts"])
+
+
 def collect_calls(sessions, before, work):
-    """この走行の間に増えたセッションの記録を、LLM の呼び出し 1 回ごとに。時刻の順。役は作業ディレクトリで決める。"""
+    """この走行の呼び出しを、LLM の 1 回ごとに。セッションの記録（時刻の順。役は作業ディレクトリで決める）に、
+    記録の見つからなかった呼び出しを生ログから足す。"""
     outputs, calls = cli_outputs(work / "out"), []
     for p in sorted(sessions_now(sessions) - before):
         info = read_session(p)
@@ -162,7 +199,8 @@ def collect_calls(sessions, before, work):
         role = ("planner" if _under(cwd, work / "plan") else "implementer" if _under(cwd, work / "wt") else "reviewer")
         calls.append({"role": role, "path": p, "prompt": info["prompt"] or "", "ts": info["ts"],
                       "result": outputs.get(info["sid"], info["result"])})
-    return sorted(calls, key=lambda c: (c["ts"], str(c["path"])))
+    calls.sort(key=lambda c: (c["ts"], str(c["path"])))
+    return calls + log_calls(work / "out", {c["result"].get("session_id") for c in calls})
 
 
 def tokens_of(calls):
@@ -176,7 +214,8 @@ def write_calls(rundir, calls):
         d.mkdir(parents=True, exist_ok=True)
         (d / "prompt.txt").write_text(c["prompt"], encoding="utf-8")
         hline_base.write_json(d / "result.json", c["result"])
-        shutil.copy2(c["path"], d / "session.jsonl")
+        if c["path"] is not None:
+            shutil.copy2(c["path"], d / "session.jsonl")
 
 
 # ============================================================ 時間
@@ -253,7 +292,7 @@ class Factory:
 
     def guard(self, cfg):
         code, out, err = proc.run([PY, "-m", "harness.bench_guard", "check", "--config", str(self.config_path)],
-                                  self.repo, 600, "bench_guard check")
+                                  self.repo, 600, "bench_guard check", env=child_env())
         if code != 0:
             self.invalid("REQ-10", f"bench_guard check が終了コード {code}: {(out + err).strip()[-400:]}")
             return False
@@ -284,7 +323,7 @@ class Factory:
         hline_base.write_json(plan_cfg, line_config(cfg, self.work, plan_inbox, self.run["base"], self.branch))
         code, out, err = proc.run([PY, "-m", "harness.plan_loop", "--spec", str(spec), "--package", package, "--inbox",
                                    str(plan_inbox), "--config", str(plan_cfg)], self.repo,
-                                  max(1, LIMIT_SECONDS - self.timer.elapsed()), "plan_loop")
+                                  max(1, LIMIT_SECONDS - self.timer.elapsed()), "plan_loop", env=child_env())
         (self.rundir / "factory").mkdir(parents=True, exist_ok=True)
         (self.rundir / "factory" / "plan.txt").write_text(out + LOG_SPLIT + err, encoding="utf-8")
         doc = read_json(plan_inbox / "planner.json", {})
@@ -308,7 +347,7 @@ class Factory:
 
     def start(self, plan_inbox):
         code, out, err = proc.run([PY, "-m", "harness.bench_start", "--repo", str(self.repo), "--base", self.run["base"],
-                                   "--task", self.task, "--ledger", str(plan_inbox / "ledger.yaml")], ROOT, 300, "bench_start")
+                                   "--task", self.task, "--ledger", str(plan_inbox / "ledger.yaml")], ROOT, 300, "bench_start", env=child_env())
         lines = out.strip().splitlines()
         if code != 0 or not lines:
             self.invalid("plan", f"bench_start が終了コード {code}: {(out + err).strip()[-400:]}")
@@ -352,7 +391,7 @@ class Factory:
         git(self.clone, ["checkout", "-q", "-f", "--detach", tip])
         ttl = min(LIMIT_SECONDS - self.timer.elapsed(), POLL_TTL)
         code, out, err = proc.run([PY, "-m", "harness.hline", "poll", "--config", str(self.line_path)], self.clone, ttl,
-                                  "hline poll")
+                                  "hline poll", env=child_env())
         self.polls.append({"code": code, "ending": list(ending(code, err)) if code else None, "ttl": ttl})
         return code, err
 
@@ -393,6 +432,25 @@ class Factory:
         return changed
 
     # ---- 書き出し
+    def cli_version(self):
+        try:
+            code, out, _ = proc.run(proc.resolve_cli(self.cfg()["implementer"]["cli"]) + ["--version"], self.repo, 60, "claude --version")
+        except (OSError, KeyError, ValueError, SystemExit):
+            return None
+        return out.strip() if code == 0 and out.strip() else None
+
+    def env(self):
+        """走行の環境の記録（REQ-31）。"""
+        try:
+            mujoco = importlib.metadata.version("mujoco")
+        except importlib.metadata.PackageNotFoundError:
+            mujoco = None
+        return {"task": self.task, "run_id": self.run_id, "os": platform.platform(), "platform": platform.platform(),
+                "cli_version": self.cli_version(), "python": platform.python_version(), "mujoco": mujoco,
+                "base": self.run["base"], "start": self.run["start"], "account": getpass.getuser(),
+                "started_at": self.started_at, "finished_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+                "quota_wait_seconds": int(round(self.timer.waited(clock())))}
+
     def finalize(self):
         run, rundir = self.run, self.rundir
         st = hline_queue.load_state(self.line_cfg) if getattr(self, "line_cfg", None) else {"items": {}}
@@ -416,9 +474,7 @@ class Factory:
         for sub in ("inputs", "calls", "factory", "git"):
             (rundir / sub).mkdir(parents=True, exist_ok=True)
         hline_base.write_json(rundir / "factory" / "polls.json", self.polls)
-        hline_base.write_json(rundir / "env.json", {"task": self.task, "run_id": self.run_id, "base": run["base"],
-                                                     "python": platform.python_version(), "platform": platform.platform(),
-                                                     "started_at": self.started_at})
+        hline_base.write_json(rundir / "env.json", self.env())
         hline_base.write_json(rundir / "factory" / "run.json", run)
 
 
@@ -497,12 +553,14 @@ def finish(a):
         invalid, reason = run.get("invalid"), run.get("reason")
         if not invalid:
             code, text, err = proc.run([PY, "-m", "harness.bench_guard", "scan", str(rundir), "--config",
-                                        str(repo / "config" / "hline.json")], ROOT, 600, "bench_guard scan")
+                                        str(repo / "config" / "hline.json")], ROOT, 600, "bench_guard scan", env=child_env())
             (rundir / "guard.txt").write_text(text + err, encoding="utf-8")
             if code == 1:
                 invalid, reason = "REQ-11", "漏れの跡があります（guard.txt）"
             elif code != 0:
                 raise BenchError(f"bench_guard scan が終了コード {code}: {(text + err).strip()[-400:]}")
+        if not invalid and not list((rundir / "calls").glob("*/result.json")):
+            invalid, reason = "REQ-22", "呼び出しの記録がありません"
         if not invalid and (bad := model_problem(rundir, cfg)):
             invalid, reason = "REQ-02", f"許されないモデルが使われました: {', '.join(bad)}"
         violations, passed, total, timed_out = [], 0, 0, False

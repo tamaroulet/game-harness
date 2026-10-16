@@ -26,15 +26,28 @@ if sys.platform == "win32":
     _STARTUPINFO.wShowWindow = 0  # SW_HIDE
 
 
+def decoded(data):
+    """子プロセスの出力。UTF-8 で読めなければ Windows の既定（cp932）、それも読めなければ置き換えて読む。改行は \\n にそろえる。"""
+    if isinstance(data, str):
+        return data
+    data = data or b""
+    for enc in ("utf-8", "cp932"):
+        try:
+            return data.decode(enc).replace("\r\n", "\n")
+        except UnicodeDecodeError:
+            pass
+    return data.decode("utf-8", "replace").replace("\r\n", "\n")
+
+
 def run(args, cwd, ttl, label, env=None, input=None):
     """shell=False。stdin は塞ぐ（input を渡したときだけ、それを標準入力に流す）。ウィンドウも出さない。TTL は必須。"""
     child = job_object.Child(args, cwd=str(cwd), stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
-                             errors="replace", env=env, creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             env=env, creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
     try:
         with child as p:
-            out, err = p.communicate(input=input, timeout=ttl)
-        return p.returncode, out or "", err or ""
+            out, err = p.communicate(input=input.encode("utf-8") if input is not None else None, timeout=ttl)
+        return p.returncode, decoded(out), decoded(err)
     except subprocess.TimeoutExpired as e:
         child.kill_tree()  # 孫以下まで止める。パイプを握られたままだと次の communicate が返らない
         try:
@@ -43,7 +56,7 @@ def run(args, cwd, ttl, label, env=None, input=None):
             pass
         # 打ち切った時点までの標準出力は返す。実装役の stream-json は、終わった手番の利用量をそこに
         # 出しているので、捨てると打ち切った呼び出しの費用が丸ごと消える（v2.1 §1.2）
-        out = e.stdout.decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
+        out = decoded(e.stdout)
         return 124, out, f"TTL超過 ({ttl}s): {label}"
     except FileNotFoundError as e:
         return 127, "", f"コマンドが見つかりません: {e}"

@@ -228,10 +228,22 @@ def pinned_models(agent, out, label):
         raise Infra(f"{e}（CLI: {str(detail)[:200]}）")
 
 
+def prompt_path(log):
+    """生ログ（X.log）の隣の、渡した入力の全文の置き場（X.prompt.txt）。"""
+    text = str(log)
+    return Path((text[:-4] if text.endswith(".log") else text) + ".prompt.txt")
+
+
+def save_prompt(log, prompt):
+    """生ログの隣に渡した入力の全文を置く（工廠の呼び出しの記録 calls/ が読む。REQ-08）。"""
+    prompt_path(log).write_text(str(prompt), encoding="utf-8")
+
+
 def run_agent(agent, wt, ttl, label, prompt, log):
     """エージェント（実装役・分解役）を 1 回呼び、使ったモデルを照合して記録する（作業規約：model_pin）。
     (CLI の終了コード, 使われたモデルの列, CLI の標準出力)。"""
     args = implementer_args(agent, proc.resolve_cli(agent["cli"]))
     code, out, err = proc.run(args, wt, ttl, label, input=prompt)
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
+    save_prompt(log, prompt)
     return code, pinned_models(agent, out, label), out
