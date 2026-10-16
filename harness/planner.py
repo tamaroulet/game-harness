@@ -29,9 +29,14 @@ LEDGER = "ledger.yaml"
 RESULT = "planner.json"
 
 
-def build_input(instruction, inbox, package, spec_text):
-    """計画役への入力：指示の全文、区切り、受信箱とパッケージの 2 行、区切り、仕様の全文。"""
-    return f"{instruction}{SEPARATOR}受信箱: {inbox}\nパッケージ: {package}{SEPARATOR}{spec_text}"
+def build_input(instruction, inbox, package, spec_text, feedback=None):
+    """計画役への入力：指示の全文、区切り、受信箱とパッケージの 2 行、区切り、仕様の全文。
+    差し戻し（feedback：{"stage", "target", "reason"} の列）があれば、その後ろに区切りと「## 差し戻された項目」の節を足す。"""
+    text = f"{instruction}{SEPARATOR}受信箱: {inbox}\nパッケージ: {package}{SEPARATOR}{spec_text}"
+    if feedback:
+        items = "\n".join(f"- {f['stage']}（{f['target'] or '全体'}）: {f['reason']}" for f in feedback)
+        text += f"{SEPARATOR}## 差し戻された項目\n{items}\n"
+    return text
 
 
 def sha256_file(path):
@@ -126,13 +131,13 @@ def check(inbox):
     return {n: sha256_file(inbox / n) for n in names}, found
 
 
-def plan(cfg, spec, package, inbox, log=None):
+def plan(cfg, spec, package, inbox, log=None, feedback=None):
     """計画役を 1 回呼び、受信箱を確かめて planner.json を書く。problems を返す。"""
     agent = cfg["planner"]
     inbox = Path(inbox)
     inbox.mkdir(parents=True, exist_ok=True)
     instruction = (ROOT / agent["instruction"]).read_text(encoding="utf-8")
-    prompt = build_input(instruction, inbox, package, Path(spec).read_text(encoding="utf-8"))
+    prompt = build_input(instruction, inbox, package, Path(spec).read_text(encoding="utf-8"), feedback)
     if log is None:
         out = Path(cfg["out"]) / "planner"
         out.mkdir(parents=True, exist_ok=True)
