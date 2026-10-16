@@ -125,4 +125,5 @@ D-109（10-15）により、段 3 ではチャット型を走らせず、主要�
 | 日付 | 変えたもの | PR | 理由 | 根拠にした走行 |
 |:--|:--|:--|:--|:--|
 | 2026-10-16 | 監修役の oversize と計画役の追加 300 行を外した（`auditor.md`・`planner.md`） | #215 | 実装役の上限でなく、事前の見積もりで分けさせていた（D-110） | なし（工廠の走行の前） |
-| 2026-10-16 | ベンチの台帳の根のノードに `title` を入れ、`progress.validate` がノードの `title` を確かめる（`bench_start.py`・`plan_loop.py`・`progress.py`） | （この PR） | 道具の誤り：検査を通った台帳を `progress.tree` が `KeyError` で落とした（D-113） | W-48 の B06 の走行（REQ-22 で無効） |
+| 2026-10-16 | ベンチの台帳の根のノードに `title` を入れ、`progress.validate` がノードの `title` を確かめる（`bench_start.py`・`plan_loop.py`・`progress.py`） | #220 | 道具の誤り：検査を通った台帳を `progress.tree` が `KeyError` で落とした（D-113） | W-48 の B06 の走行（REQ-22 で無効） |
+| 2026-10-16 | キューの What の写しを受信箱のファイルとバイト単位で同じにした（`hline_queue.py`） | （この PR） | 測定器の誤り：改行の書き換えで sha256 が計画役の出力と食い違い、人の介入と誤って判じた（D-114） | W-48 の B06 の run-id 6 |
