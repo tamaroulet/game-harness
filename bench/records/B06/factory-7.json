@@ -1,0 +1,41 @@
+{
+ "task": "B06",
+ "run_id": "7",
+ "base": "e238e1f6e4553c78bd426a2bcb1231815c861ef4",
+ "start": "f5714ad6115bff260a34994167c671450b61d934",
+ "head": "b5c83d007410ae9dd47c97ab3e8d855d251b95ce",
+ "started_at": "2026-10-16T18:35:32+09:00",
+ "invalid": false,
+ "reason": null,
+ "violations": [],
+ "passed": 2,
+ "total": 11,
+ "rate": 0.18181818181818182,
+ "timed_out": false,
+ "stop": "done",
+ "plan_rounds": 3,
+ "plan_confirmed": true,
+ "planner_sha256": {
+  "P-01.md": "3ae74d570bda957d77d2b242d691ce59bab74ac1d23ffbddde5f832c22af6923",
+  "P-02.md": "aa16aa87b8f0f335ef1236e14d901d4598f257853a5601d82b0f552a8d808fd3",
+  "P-03.md": "bf57238d698de3ed59ab4dbc8e3d4dfd617f868a0710924c94fe81e90f5536d6",
+  "ledger.yaml": "75882f02c3fd2d8b7ce04c15972e386a366eff26118ed77a745df55cf6683761"
+ },
+ "queue_sha256": {
+  "P-01": "3ae74d570bda957d77d2b242d691ce59bab74ac1d23ffbddde5f832c22af6923",
+  "P-02": "aa16aa87b8f0f335ef1236e14d901d4598f257853a5601d82b0f552a8d808fd3",
+  "P-03": "bf57238d698de3ed59ab4dbc8e3d4dfd617f868a0710924c94fe81e90f5536d6"
+ },
+ "replaced": 0,
+ "tries": 2,
+ "intake_revised": 0,
+ "tokens": {
+  "input_tokens": 0,
+  "cache_creation_tokens": 0,
+  "cache_read_tokens": 0,
+  "output_tokens": 0,
+  "total": 0
+ },
+ "quota_wait_seconds": 0,
+ "manifest_sha256": "fa1c25819afe55af87952514e363a4e46e26ac3d98ccc6245f3cb45543837d64"
+}
