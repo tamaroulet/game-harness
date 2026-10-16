@@ -2253,6 +2253,7 @@ tasks:
   verification:
     command: python -m harness.bench_verify --all --min-runs 1 --frozen
     expected_exit_code: 0
+  deliverable: docs/design/review_after_baseline.md
 - id: W-97
   title: 固定の計画で工廠を走らせる（bench_run plan で計画を作って固定し、factory --plan で固定の計画から走らせ、記録に FPSR と HRR を書く）
   group: W-18
@@ -2315,6 +2316,7 @@ tasks:
   verification:
     command: python -m harness.bench_run plan --check --all
     expected_exit_code: 0
+  deliverable: bench/plans/
 - id: W-100
   title: 実物の agy のスモーク（B06 の固定の計画で 1 走行し、実物の agy が What を解いて Gate 1 を通るのを確かめる）
   group: W-18
@@ -2332,7 +2334,8 @@ tasks:
   - 実装役を agy にしたベンチの設定で、bench_run factory --task B06 --run-id smoke-1 --plan bench/plans/B06 を走らせ、finish を掛ける。記録の invalid が偽で、少なくとも 1 件の What が agy の試行で Gate 1 を通り、calls/ に agy の呼び出しが入り、tokens が 0 でなく、models が gemini-3.8-flash-medium だけで、命令の実行の手番による不合格が 0 件。満たさなければ、直してから同じ命令を新しい run-id で走らせる
   oracle:
   - path: harness/bench_verify.py
-    from: W-47
+    from: existing
   verification:
     command: python -m harness.bench_verify --task B06 --min-runs 1
     expected_exit_code: 0
+  deliverable: bench/records/B06/factory-smoke-*.json
