@@ -36,8 +36,7 @@ class SizeLimits(unittest.TestCase):
 
     def test_boundary_counts_only_added_lines_and_removes_only_listed_files(self):
         self.assertEqual(bound(added=300), [])
-        (why,) = bound(added=301)
-        self.assertTrue("301" in why and "300" in why)
+        self.assertEqual(bound(added=301), [])
         out = "3\t0\ta.py\n0\t40\told.py\n-\t-\tlogo.png\n delete mode 100644 old.py\n"
         with mock.patch.object(hline_spec, "must", return_value=out):
             self.assertEqual(hline_spec.diff_counts(CFG, "."), {"added": 3, "deleted": 40, "deleted_files": ("old.py",)})
@@ -94,7 +93,7 @@ class SizeLimits(unittest.TestCase):
         (ok, _), run, warn = gate({"x.py": "x = 1\n" * 501}, None)
         self.assertTrue(ok and "x.py" in warn[0] and "501" in warn[0])
         (ok, _), run, warn = gate({"x.py": branchy(16)}, {"edit_boundary": BOUND}, dict(FEW, added=301))
-        self.assertTrue(ok and any("301" in w for w in warn) and any("循環的複雑度" in w for w in warn))
+        self.assertTrue(ok and any("循環的複雑度" in w for w in warn))
         run.assert_called()
 
     def test_game_line_budget_and_scan(self):

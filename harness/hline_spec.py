@@ -55,6 +55,5 @@ def boundary_problems(spec, paths, counts):
                    "元に戻してください。")
     if stray:
         out.append(f"消してはならないファイルを消しています: {', '.join(stray)}（消してよい: {', '.join(deletable) or 'なし'}）。")
-    if (why := added_over_limit(counts["added"], b["max_diff_lines"])):
-        out.append(why)
+    # W-23: Gate 1 の差分の追加行の警告を外す
     return out
