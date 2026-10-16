@@ -73,7 +73,7 @@ def ledger_text(path):
 
 def ledger_state(tasks, package):
     rows = [{**{"group": GROUP, "target_repo": package, "status": "pending"}, **t} for t in tasks]
-    return {"project_goal": GROUP, "nodes": [{"id": GROUP, "parent": None}], "tasks": rows, "constraints": []}
+    return {"project_goal": GROUP, "nodes": [{"id": GROUP, "title": GROUP, "parent": None}], "tasks": rows, "constraints": []}
 
 
 def build(repo, base, task, ledger):

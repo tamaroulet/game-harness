@@ -108,7 +108,7 @@ class BenchStartTests(unittest.TestCase):
         self.assertEqual([t["id"] for t in state["tasks"]], ["P-01", "P-02"])
         self.assertTrue(all(t["group"] == "bench" and t["target_repo"] == "launcher" and t["status"] == "pending"
                             for t in state["tasks"]))
-        self.assertEqual(state["nodes"], [{"id": "bench", "parent": None}])
+        self.assertEqual(state["nodes"], [{"id": "bench", "title": "bench", "parent": None}])
         self.assertEqual(state["constraints"], [])
         self.assertNotIn("active_task_id", state)
 
