@@ -2208,6 +2208,7 @@ tasks:
   verification:
     command: python -m harness.progress check
     expected_exit_code: 0
+  deliverable: docs/design/review_before_baseline.md
 - id: W-94
   title: 段 4 の判定の前の再判断（見送った指摘を、外側の周期の実走の一次情報を踏まえて決め直す。R5 の台帳の起草の前）
   group: W-18
@@ -2228,3 +2229,4 @@ tasks:
   verification:
     command: python -m harness.progress check
     expected_exit_code: 0
+  deliverable: docs/design/review_before_r4.md
