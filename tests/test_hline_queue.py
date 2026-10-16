@@ -113,7 +113,7 @@ class Boundary(unittest.TestCase):
         warn = []
         ok, msg, run = self.gate(["harness/x.py"], lines=101, warn=warn)
         self.assertTrue(ok)
-        self.assertIn("101", "\n".join(warn))
+        self.assertEqual(warn, [])
         run.assert_called()
 
     def test_failing_tests_still_fail_inside_the_boundary(self):
