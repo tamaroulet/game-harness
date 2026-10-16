@@ -4,10 +4,10 @@ constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-23
+  task: W-93
   exit_code: 0
-  at: '2026-10-16T20:58:36'
-next_id: 95
+  at: '2026-10-16T21:24:40'
+next_id: 96
 nodes:
 - id: A
   parent: null
@@ -2117,6 +2117,7 @@ tasks:
   - W-23
   - W-88
   - W-93
+  - W-95
   acceptance:
   - freeze.json の base から、bench_run stage --tag base で 10 本を工廠で 1 回ずつ走らせ、記録を PR で main に入れる
   oracle:
@@ -2192,7 +2193,7 @@ tasks:
   title: 基準の走行の前の再判断（見送った基盤・型契約・環境・外部連携の指摘を、段 3 の実走の一次情報を踏まえて決め直す）
   group: W-18
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'review: before-baseline'
   by: pilot
   serves: R4
@@ -2230,3 +2231,24 @@ tasks:
     command: python -m harness.progress check
     expected_exit_code: 0
   deliverable: docs/design/review_before_r4.md
+- id: W-95
+  title: 工廠の走行の記録を本物の走行で欠けなく取る（呼び出しとトークン・env.json・子プロセスの出力の文字コード）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: record-completeness'
+  serves: R4
+  purpose: 基準の走行の前に、測定器が REQ-02・REQ-17・REQ-20・REQ-31 を本物の走行で満たすようにする（B06 の run-id 7 で、calls/ が空・トークンが 0・env.json の欄が欠け・理由の文字化けが見つかった。W-93）
+  deliverable: harness/bench_run.py、tests/test_bench_run_records.py
+  depends_on:
+  - W-46
+  acceptance:
+  - 本物の CLI が書く形の出力（実装役・監修役・計画役の生ログと queue.json の usage。試験の材料は run-id 7 の走行の写しの形にそろえる）だけがあり、セッションの記録が見つからない走行でも、finish の記録の tokens が 3 つの役のすべての呼び出しの 4 つの内訳の和になり、calls/ に呼び出しごとの result.json があり、800 万の上限と REQ-02 のモデルの照合がその値で効く
+  - env.json が REQ-31 の欄（OS の版・CLI の版・Python の版・MuJoCo の版・ハーネスの base・開始のコミット・走らせたアカウントの名前・開始と終了の時刻・回復待ちの秒）を持つ
+  - 子プロセスの標準出力と標準エラーが UTF-8 でないとき（Windows の cp932 など）も、記録の reason と guard.txt に読める文字で入る
+  oracle:
+  - path: tests/test_bench_run_records.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_bench_run_records
+    expected_exit_code: 0
