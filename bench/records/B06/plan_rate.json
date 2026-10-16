@@ -1,0 +1,130 @@
+{
+  "target": "W-48",
+  "description": "B06 および練習課題 P1・P2 の計画監修ループ確定率測定",
+  "total_runs": 9,
+  "confirmed_runs": 8,
+  "rate": "8/9 (88.9%)",
+  "passed_gate": true,
+  "gate_threshold": ">= 7/9",
+  "trials": [
+    {
+      "task": "B06",
+      "run": 1,
+      "package": "launcher",
+      "spec": "docs/bench/B06/spec.md",
+      "inbox": "C:\\src\\.local\\bench\\repo\\.bench\\plan_trials\\B06_1",
+      "returncode": 0,
+      "confirmed": true,
+      "rounds": 3,
+      "failed": [],
+      "elapsed_sec": 200.45
+    },
+    {
+      "task": "B06",
+      "run": 2,
+      "package": "launcher",
+      "spec": "docs/bench/B06/spec.md",
+      "inbox": "C:\\src\\.local\\bench\\repo\\.bench\\plan_trials\\B06_2",
+      "returncode": 0,
+      "confirmed": true,
+      "rounds": 3,
+      "failed": [],
+      "elapsed_sec": 212.8
+    },
+    {
+      "task": "B06",
+      "run": 3,
+      "package": "launcher",
+      "spec": "docs/bench/B06/spec.md",
+      "inbox": "C:\\src\\.local\\bench\\repo\\.bench\\plan_trials\\B06_3",
+      "returncode": 0,
+      "confirmed": true,
+      "rounds": 2,
+      "failed": [],
+      "elapsed_sec": 175.38
+    },
+    {
+      "task": "P1",
+      "run": 1,
+      "package": "pendulum",
+      "spec": "docs/bench/practice/P1/spec.md",
+      "inbox": "C:\\src\\.local\\bench\\repo\\.bench\\plan_trials\\P1_1",
+      "returncode": 1,
+      "confirmed": false,
+      "rounds": 3,
+      "failed": [
+        {
+          "stage": "plan_check",
+          "target": "P-01",
+          "reason": "acceptance の項目数"
+        },
+        {
+          "stage": "what",
+          "target": "P-01",
+          "reason": "`## 合格条件` の箇条が 5 件です（1〜4 件で書いてください）"
+        }
+      ],
+      "elapsed_sec": 177.17
+    },
+    {
+      "task": "P1",
+      "run": 2,
+      "package": "pendulum",
+      "spec": "docs/bench/practice/P1/spec.md",
+      "inbox": "C:\\src\\.local\\bench\\repo\\.bench\\plan_trials\\P1_2",
+      "returncode": 0,
+      "confirmed": true,
+      "rounds": 2,
+      "failed": [],
+      "elapsed_sec": 145.37
+    },
+    {
+      "task": "P1",
+      "run": 3,
+      "package": "pendulum",
+      "spec": "docs/bench/practice/P1/spec.md",
+      "inbox": "C:\\src\\.local\\bench\\repo\\.bench\\plan_trials\\P1_3",
+      "returncode": 0,
+      "confirmed": true,
+      "rounds": 3,
+      "failed": [],
+      "elapsed_sec": 199.48
+    },
+    {
+      "task": "P2",
+      "run": 1,
+      "package": "stock",
+      "spec": "docs/bench/practice/P2/spec.md",
+      "inbox": "C:\\src\\.local\\bench\\repo\\.bench\\plan_trials\\P2_1",
+      "returncode": 0,
+      "confirmed": true,
+      "rounds": 2,
+      "failed": [],
+      "elapsed_sec": 128.42
+    },
+    {
+      "task": "P2",
+      "run": 2,
+      "package": "stock",
+      "spec": "docs/bench/practice/P2/spec.md",
+      "inbox": "C:\\src\\.local\\bench\\repo\\.bench\\plan_trials\\P2_2",
+      "returncode": 0,
+      "confirmed": true,
+      "rounds": 2,
+      "failed": [],
+      "elapsed_sec": 129.56
+    },
+    {
+      "task": "P2",
+      "run": 3,
+      "package": "stock",
+      "spec": "docs/bench/practice/P2/spec.md",
+      "inbox": "C:\\src\\.local\\bench\\repo\\.bench\\plan_trials\\P2_3",
+      "returncode": 0,
+      "confirmed": true,
+      "rounds": 2,
+      "failed": [],
+      "elapsed_sec": 138.48
+    }
+  ]
+}
