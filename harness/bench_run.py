@@ -527,9 +527,112 @@ def finish(a):
     return 0
 
 
+# ============================================================ stage
+
+ES_CONTINUOUS = 0x80000000
+ES_SYSTEM_REQUIRED = 0x00000001
+
+
+def set_execution_state(flags):   # 試験が差し替える。OS の眠りの止めを掛ける所
+    import ctypes
+    ctypes.windll.kernel32.SetThreadExecutionState(ctypes.c_uint(flags))
+
+
+class KeepAwake:
+    def __enter__(self):
+        if sys.platform == "win32":
+            set_execution_state(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
+        return self
+
+    def __exit__(self, *exc):
+        if sys.platform == "win32":
+            set_execution_state(ES_CONTINUOUS)
+        return False
+
+
+def stage_tasks(repo, base):
+    names = git(repo, ["ls-tree", "-d", "--name-only", base, "docs/bench/"]).decode("utf-8").split("\n")
+    return sorted(n.rsplit("/", 1)[-1] for n in names if n.rsplit("/", 1)[-1].startswith("B"))
+
+
+def stage_state(out, repo, task, tag):
+    """(済みか, 仕上げ待ちの回の一覧, 使った最大の回)。"""
+    pat = re.compile(rf"factory-{re.escape(tag)}-(\d+)")
+    done, recorded, rounds = False, set(), {}
+    for p in (Path(repo) / "bench" / "records" / task).glob(f"factory-{tag}-*.json"):
+        if m := pat.fullmatch(p.stem):
+            recorded.add(int(m.group(1)))
+            rounds[int(m.group(1))] = True
+            done = done or not read_json(p, {}).get("invalid", True)
+    waiting = []
+    for p in (Path(out) / "runs" / task).glob(f"factory-{tag}-*"):
+        if (m := pat.fullmatch(p.name)) and p.is_dir():
+            n = int(m.group(1))
+            rounds[n] = True
+            run = read_json(p / "factory" / "run.json", {})
+            if run and not run.get("invalid") and n not in recorded:
+                waiting.append(n)
+    return done, sorted(waiting), max(rounds, default=0)
+
+
+def stage_finish(a, out):
+    worst = 0
+    for task in stage_tasks(a.repo, a.base) if a.base else sorted(p.name for p in (Path(out) / "runs").glob("*") if p.is_dir()):
+        _, waiting, _ = stage_state(out, a.repo, task, a.tag)
+        for n in waiting:
+            code = finish(argparse.Namespace(task=task, run_id=f"{a.tag}-{n}", repo=a.repo, out=a.out, oracles=a.oracles))
+            worst = max(worst, code)
+    return worst
+
+
+def stage(a):
+    out = Path(a.out) if a.out else Path(a.repo) / ".bench"
+    if a.finish:
+        return stage_finish(a, out)
+    if not a.base:
+        print("--base が要ります", file=sys.stderr)
+        return 2
+    try:
+        tasks = stage_tasks(a.repo, a.base)
+    except BenchError as e:
+        print(f"ABORT: {e}", file=sys.stderr)
+        return 2
+    with KeepAwake():
+        for task in tasks:
+            done, waiting, last = stage_state(out, a.repo, task, a.tag)
+            if done or waiting:
+                continue
+            streak = 0
+            while True:
+                last += 1
+                run_id = f"{a.tag}-{last}"
+                code = factory(argparse.Namespace(task=task, run_id=run_id, repo=a.repo, base=a.base, out=a.out, sessions=None))
+                if code != 0:
+                    print(f"{task}: factory が終了コード {code}（{run_id}）", file=sys.stderr)
+                    return code
+                run = read_json(run_dir(out, task, run_id) / "factory" / "run.json", {})
+                if not run:
+                    print(f"{task}: factory/run.json がありません（{run_id}）", file=sys.stderr)
+                    return 2
+                if not run.get("invalid"):
+                    break
+                streak += 1
+                if streak >= SAME_ENDING:
+                    print(f"{task}: 無効の走行が {SAME_ENDING} 回続きました: {run.get('reason') or run.get('invalid')}", file=sys.stderr)
+                    return 1
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="harness.bench_run", description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
+    sp = sub.add_parser("stage")
+    sp.add_argument("--tag", required=True)
+    sp.add_argument("--repo", required=True)
+    sp.add_argument("--base")
+    sp.add_argument("--out")
+    sp.add_argument("--oracles")
+    sp.add_argument("--finish", action="store_true")
     for name in ("factory", "finish"):
         p = sub.add_parser(name)
         p.add_argument("--task", required=True)
@@ -543,7 +646,7 @@ def main(argv=None):
         a = ap.parse_args(argv)
     except SystemExit as e:
         return 2 if e.code else 0
-    return factory(a) if a.cmd == "factory" else finish(a)
+    return {"factory": factory, "finish": finish, "stage": stage}[a.cmd](a)
 
 
 if __name__ == "__main__":
