@@ -7,7 +7,7 @@ last_verification:
   task: W-88
   exit_code: 0
   at: '2026-10-16T14:25:39'
-next_id: 93
+next_id: 95
 nodes:
 - id: A
   parent: null
@@ -1659,6 +1659,7 @@ tasks:
   depends_on:
   - W-61
   - W-92
+  - W-94
   acceptance:
   - outer_cycles が、4 週続けて周期が回り、改善が 1 件以上あることを示す（D-058）
   oracle:
@@ -2115,6 +2116,7 @@ tasks:
   depends_on:
   - W-23
   - W-88
+  - W-93
   acceptance:
   - freeze.json の base から、bench_run stage --tag base で 10 本を工廠で 1 回ずつ走らせ、記録を PR で main に入れる
   oracle:
@@ -2186,3 +2188,45 @@ tasks:
   verification:
     command: python -m unittest tests.test_implementer_run_tests
     expected_exit_code: 0
+- id: W-93
+  title: 基準の走行の前の再判断（見送った基盤・型契約・環境・外部連携の指摘を、段 3 の実走の一次情報を踏まえて決め直す）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'review: before-baseline'
+  by: pilot
+  serves: R4
+  purpose: 見送った指摘を総監督の記憶に預けず、工廠を変えられる最後の時点（基準の走行の前）で、実走をもとに公式に決め直す。W-89 の後に工廠を変えると基準の取り直しが要る（D-111）
+  depends_on:
+  - W-23
+  acceptance:
+  - 総監督が、受信箱の drafts/director/deferred.md の「次の再判断」が W-93 のすべての行について、段 3 の一次情報（走行のディレクトリ・記録・report.md・停止の記録）を読み、その課題で実際にどれだけ足止めを食らったか、手を打つ要があると見るかを、率直な見解として書く。手を打つと見る行は、W-89 の前に入れるタスクか操縦士の作業として台帳の PR の完成形を出す
+  - 操縦士が行ごとに承認か拒否を決め、決めた結果（数字・判断・理由）を docs/design/review_before_baseline.md として PR で main に入れる。拒否した行も、理由とともに残す
+  oracle:
+  - path: harness/progress.py
+    from: existing
+  verification:
+    command: python -m harness.progress check
+    expected_exit_code: 0
+  deliverable: docs/design/review_before_baseline.md
+- id: W-94
+  title: 段 4 の判定の前の再判断（見送った指摘を、外側の周期の実走の一次情報を踏まえて決め直す。R5 の台帳の起草の前）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'review: before-r4'
+  by: pilot
+  serves: R4
+  purpose: 段 4 で見送った指摘と、R5（G1 を作り切る）の前に要る外部エンジンの境界の判断を、外側の周期の実走をもとに公式に決め直す
+  depends_on:
+  - W-61
+  acceptance:
+  - 総監督が、受信箱の drafts/director/deferred.md の「次の再判断」が W-94 のすべての行について、段 4 の一次情報（週次の報告（W-54）・記録・report.md・停止の記録）を読み、その課題で実際にどれだけ足止めを食らったか、手を打つ要があると見るかを、率直な見解として書く。手を打つと見る行は、R5 の台帳か段 4 の周期の題材として台帳の PR の完成形を出す
+  - 操縦士が行ごとに承認か拒否を決め、結果を docs/design/review_before_r4.md として PR で main に入れる
+  oracle:
+  - path: harness/progress.py
+    from: existing
+  verification:
+    command: python -m harness.progress check
+    expected_exit_code: 0
+  deliverable: docs/design/review_before_r4.md
