@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
 import sys
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -138,11 +139,19 @@ def plan(cfg, spec, package, inbox, log=None, feedback=None):
     inbox.mkdir(parents=True, exist_ok=True)
     instruction = (ROOT / agent["instruction"]).read_text(encoding="utf-8")
     prompt = build_input(instruction, inbox, package, Path(spec).read_text(encoding="utf-8"), feedback)
-    if log is None:
+    latest = None
+    if log is None:   # 回ごとの生ログ（<名前>-<回>.log）を残し、<名前>.log は最後の回の写しにする
         out = Path(cfg["out"]) / "planner"
         out.mkdir(parents=True, exist_ok=True)
-        log = out / f"{hline_base.slug(package)}.log"
-    code, _models, _out = run_agent(agent, inbox, agent["ttl_seconds"], "計画役", prompt, log)
+        name, n = hline_base.slug(package), 1
+        while hline_base.prompt_path(out / f"{name}-{n}.log").exists():
+            n += 1
+        latest, log = out / f"{name}.log", out / f"{name}-{n}.log"
+    try:
+        code, _models, _out = run_agent(agent, inbox, agent["ttl_seconds"], "計画役", prompt, log)
+    finally:
+        if latest is not None and Path(log).is_file():
+            shutil.copyfile(log, latest)
     files, problems = check(inbox)
     if code != 0:
         problems.insert(0, f"計画役の CLI が終了コード {code} で終わりました")

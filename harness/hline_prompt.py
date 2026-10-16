@@ -10,7 +10,7 @@ import infra_retry
 import hline_queue
 import oracle_deny
 import yaml
-from hline_base import Infra, Quota
+from hline_base import Infra, Quota, save_prompt
 from hline_budget import capped_args, outcome, resume_turn_cap, turn_cap
 
 
@@ -66,10 +66,12 @@ def implement(host, cfg, wt, what, feedback, log):
     follow, host.follow_up = getattr(host, "follow_up", False), False   # run_task が試行ごとに置く。読んだら戻す
     host.turn_cap_used = cap = (resume_turn_cap if follow else turn_cap)(agent)   # 試行の記録に入れる
     began = time.monotonic()
+    prompt = host.build_prompt(what, feedback, shown)
     code, out, err = host.proc.run(capped_args(oracle_deny.with_deny(impacted.scoped_agent(agent), cfg), host.proc.resolve_cli(agent["cli"]), cap),
-                                   wt, cfg["ttl_seconds"]["implementer"], "実装役", input=host.build_prompt(what, feedback, shown))
+                                   wt, cfg["ttl_seconds"]["implementer"], "実装役", input=prompt)
     host.implement_seconds = round(time.monotonic() - began)   # 時間切れの理由に出す（hline_task.run_task が読む）
     Path(log).write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
+    save_prompt(log, prompt)
     if hit := hline_quota.message(out, err):   # モデルの照合・打ち切りの判定より先に見る（試行に数えない）
         raise Quota(f"実装役の利用枠が尽きました（終了コード {code}）: {hit}")
     if code == TIMEOUT_EXIT:   # 環境の異常にしない。呼び直さず、run_task が試行を記録して未収束にする
