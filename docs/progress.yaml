@@ -7,7 +7,7 @@ last_verification:
   task: W-43
   exit_code: 0
   at: '2026-10-16T11:04:26'
-next_id: 91
+next_id: 93
 nodes:
 - id: A
   parent: null
@@ -1367,7 +1367,7 @@ tasks:
   - W-68
   - W-71
   acceptance:
-  - python -m harness.bench_run factory --task <id> --run-id <r> --repo <clone> --base <rev> は、監修つきの計画（W-43）・開始のコミット・走行ごとの受信箱と設定（open_pr false・統合ブランチ bench/<id>/factory-<r>）で clone の H ラインを、待ちと処理中が 0 になるか 3 時間まで回し、枝の先端を採点した記録を書く
+  - python -m harness.bench_run factory --task <id> --run-id <r> --repo <clone> --base <rev> は、制限のアカウントで、監修つきの計画（W-43）・開始のコミット・走行ごとの受信箱と設定（open_pr false・統合ブランチ bench/<id>/factory-<r>）で clone の H ラインを、待ちと処理中が 0 になるか 3 時間まで回し、走行のディレクトリを書く。python -m harness.bench_run finish --task <id> --run-id <r> --repo <clone> は、操縦士のアカウントで、そのディレクトリに漏れの走査（REQ-11）と枝の先端の採点（REQ-18）を掛けて記録を書く
   - 記録に、計画役の出力の sha256・キューが取り込んだ What の sha256・置き直しの数・What の試行の合計・監修の差し戻しの回数・トークン・利用枠の回復待ちの秒が入る。計画が確定しなかった走行は、score が 0 の有効な走行として理由が入る（REQ-23）。3 時間は利用枠の回復待ちを除いて数える（REQ-17）
   - 走行ごとに REQ-31 のディレクトリ（factory/ を含む）を書き、記録に manifest.json の sha256 を入れる
   - clone の poll は 1 回ずつ TTL つきの子プロセスで起こし、0 以外で終わっても次の poll を起こす。同じ終わり方（終了コードと標準エラーの最後の行）が 3 回続いたら、走らせ役の異常として invalid の記録に理由を書いて止める（REQ-22）
@@ -1391,7 +1391,7 @@ tasks:
   acceptance:
   - python -m harness.bench_verify (--task <id>... | --all) --min-runs <n> [--frozen] は、floor.json が合格で指紋が今と同じ・factory の有効な記録が n 件以上・各記録の head を採点し直すと passed と tests が一致、のときだけ 0
   - factory の記録は、キューの What の sha256 がすべて計画役の出力にあり、置き直しが 0 のときだけ有効（人の介入 0 回の測り方）。--frozen は、freeze.json の base・指紋に合い、凍結の時刻より後に始まった記録だけを数える
-  - --package <dir> と --oracles <dir> を渡すと、展開した走行の束の manifest.json の sha256 を照合し、git の bundle の先端を渡したオラクルで採点し直し、記録の score と一致すること、bench_stats の判定を計算し直して記録と一致することを確かめ、すべて一致すれば 0（REQ-36）
+  - --package <dir> と --oracles <dir> を渡すと、展開した走行の束の manifest.json の sha256 を照合し、git の bundle の先端を渡したオラクルで採点し直し、記録の score と一致することを確かめ、すべて一致すれば 0（REQ-36）
   oracle:
   - path: tests/test_bench_verify.py
     from: self
@@ -1473,6 +1473,7 @@ tasks:
   - W-90
   acceptance:
   - bench_freeze --freeze が 0 で、freeze.json を PR で main に入れる
+  - 同じ PR で、凍結する工廠の設定から次の 2 つを外す：Gate 1 の差分の追加行の警告（harness/hline_spec.py の boundary_problems の追加行の上限と、それを確かめる tests/test_size_limits.py の 300・301 の期待）、保護パスの判定役 10 行（config/protected_paths.json の tests/<名前>_judge.py の 10 行を tests/*_judge.py の 1 行に替える）
   oracle:
   - path: harness/bench_freeze.py
     from: W-50
@@ -1635,6 +1636,7 @@ tasks:
   - W-59
   - W-60
   - W-89
+  - W-91
   acceptance:
   - 週次の報告 → 総監督の改善の What（`計器:` で対象を名指し）→ 監修 → hline/outer → 非劣性の合格 → マージ、が 1 週の中で通る
   oracle:
@@ -1656,6 +1658,7 @@ tasks:
   deliverable: 4 週の周期の記録
   depends_on:
   - W-61
+  - W-92
   acceptance:
   - outer_cycles が、4 週続けて周期が回り、改善が 1 件以上あることを示す（D-058）
   oracle:
@@ -2090,7 +2093,7 @@ tasks:
   depends_on:
   - W-46
   acceptance:
-  - python -m harness.bench_run stage --tag <t> --repo <clone> --base <rev> は、凍結の 10 本を課題の ID の順に 1 本ずつ工廠の走らせ役で走らせる。run-id は <t>-<回>。bench/records/<課題>/factory-<t>-*.json に invalid でない記録がある課題は飛ばす（止まった段を同じ命令で再開できる）
+  - python -m harness.bench_run stage --tag <t> --repo <clone> --base <rev> は、凍結の 10 本を課題の ID の順に 1 本ずつ工廠の走らせ役（factory）で走らせる。run-id は <t>-<回>。invalid でない記録か、finish を待つ走行のディレクトリがある課題は飛ばす（止まった段を同じ命令で再開できる）。python -m harness.bench_run stage --tag <t> --finish は、操縦士のアカウントで、finish を待つすべての走行に finish を掛ける
   - 無効の走行は次の回の run-id で走らせ直し、同じ課題で 3 回続けて無効なら、止めて終了コード 1 で理由を出す（REQ-22・REQ-24）。10 走行がそろえば 0 で終わる
   - 走っている間は OS の眠りを止める（Windows の SetThreadExecutionState）
   oracle:
@@ -2138,4 +2141,48 @@ tasks:
     from: self
   verification:
     command: python -m unittest tests.test_goal_distance
+    expected_exit_code: 0
+- id: W-91
+  title: 統合 PR が開いている間も、受信箱の What を取って実装と Gate 1 を進める（開いている PR の head は変えない）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: work-while-pr-open'
+  serves: R4
+  purpose: 統合 PR の CI と承認を待つ間にラインが止まらないようにする（10-15〜16 の統合 PR
+  deliverable: harness/hline.py の並行処理、tests/test_hline_work_while_pr_open.py
+  depends_on:
+  - W-56
+  - W-58
+  acceptance:
+  - 内側の統合 PR が開いている間も、H ラインは受信箱の What を取り、依存のそろった What を実装して Gate 1 に掛ける。通ったものは、開いている統合 PR の head を変えずに積んでおき、その PR が閉じた後の次の統合 PR に入る
+  - 開いている統合 PR に入っている What に依存する What も、その間に処理できる。統合 PR が閉じられた（マージされない）ときは、今の扱い（統合ブランチは残り、次の PR に前の積みも入る）と同じになる
+  oracle:
+  - path: tests/test_hline_work_while_pr_open.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hline_work_while_pr_open
+    expected_exit_code: 0
+- id: W-92
+  title: 制限のアカウントの中の走行で、実装役に構文の確かめと unittest の実行を許す
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: implementer-may-run-tests'
+  serves: R4
+  purpose: 実装役が Gate 1 に出す前に、自分で構文と試験を確かめられるようにする（複数のモジュールにまたがる R5 の製品の What の前に）。オラクルを守るのは道具の禁止ではなく、W-71 の OS のアカウント
+  deliverable: harness/hline_symbols.py のテスト実行許可、tests/test_implementer_run_tests.py
+  depends_on:
+  - W-57
+  - W-71
+  after:
+  - W-91
+  acceptance:
+  - 設定の欄が真の走行（W-71 の制限のアカウントで回すベンチと製品の走行）では、実装役は python -m py_compile と python -m unittest で始まる命令だけを実行できる。ほかの命令・本線の H ラインの走行の許しは今のまま
+  - 欄の無い設定（config/hline.json）では、実装役の道具は今と同じ
+  oracle:
+  - path: tests/test_implementer_run_tests.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_implementer_run_tests
     expected_exit_code: 0
