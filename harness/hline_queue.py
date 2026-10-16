@@ -159,7 +159,7 @@ def intake(cfg, st):
             skipped.append({"file": src.name, "reason": why})
             continue
         what_path(cfg, name).parent.mkdir(parents=True, exist_ok=True)
-        what_path(cfg, name).write_text(text, encoding="utf-8")
+        what_path(cfg, name).write_bytes(src.read_bytes())   # 読み直した文字列でなく、元のバイト列を写す（改行を替えない。D-114）
         st["items"][name] = {"status": "waiting", "title": title_of(text), "replaced": bool(old),
                              "header_deps": list(meta["deps"]), **meta}
         save_state(cfg, st)    # 状態に入れてから受信箱を消す（途中で落ちても What は失われず、取り直しは同じ結果になる）

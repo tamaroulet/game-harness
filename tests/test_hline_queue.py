@@ -1118,3 +1118,15 @@ class Config(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class QueueCopyIsByteExact(World):
+    def test_the_queue_copy_keeps_the_bytes_of_the_inbox_what(self):
+        want = {}
+        for name, newline in (("lf", "\n"), ("crlf", "\r\n")):
+            lines = [f"# T-{name}", "マイルストーン: B8.1", f"タスク: {name}", "", "## What", "本文", "", "## 合格条件", "1. 満たす", ""]
+            want[name] = newline.join(lines).encode("utf-8")
+            (self.inbox / f"{name}.md").write_bytes(want[name])
+        self.poll()
+        for name, data in want.items():
+            self.assertEqual(hline_queue.what_path(self.cfg, name).read_bytes(), data, name)
+
