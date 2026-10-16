@@ -8,7 +8,7 @@
 
 0. `goal_mismatch`：What を満たしても、タスクの purpose と、寄与する横木の acceptance に近づかない（的外れ・寄り道）
 
-1. `acceptance_mismatch`：What の合格条件が、タスクの acceptance の項目を取りこぼしているか、acceptance に無い要求を足している
+1. `acceptance_mismatch`：What の合格条件が、タスクの acceptance と食い違う（acceptance と異なる振る舞いを求めるか、acceptance の項目を満たさなくてよいと読める）。What が acceptance の言葉通りでなくても、合格条件が acceptance の項目を包んでいれば当たらない（実装役には台帳の全文も渡る）。acceptance の言及の読み替えとして、名前・引数・戻り値の形・範囲の端の具体化は、acceptance と食い違わなければ当たらない
 2. `unverifiable`：合格条件のうち、タスクの oracle と verification の命令では確かめられない項目がある（確かめられない約束は書かせない）
 3. `internal_prescription`：外から見える振る舞い（入口の名前・引数・出力の形・パス・オラクル）を超えて、内部の作り方（関数の分け方・使う手順・データの持ち方・テストの書き方）を指定している。変えてよいファイルの名指し（許可）は指定に当たらない
 4. `ambiguity`：実装役が読み違えうる言い回しがあり、読み方によって合否が変わる
