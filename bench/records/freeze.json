@@ -1,0 +1,18 @@
+{
+  "base": "f7d448db6189d1f7772e9b516120e610bd8bcd71",
+  "tasks": {
+    "B01": "60dbfcbb2bb225314e735ce5aeacf8bd47747f7d0c1fee55cb03428f89489402",
+    "B02": "929b5c1bb07eb6fce97979ea068ce698bac2b3963b864e3baf1e0a01ad6f3ec4",
+    "B03": "52132c2619b7892c5dda0dcd5f3a08eb7fef33cbde10b82d2606230374cfbdc1",
+    "B04": "a44f5b925cdc838f469f42457d981294f22cb8be3ea7aba906fe441a736325c3",
+    "B05": "a6934f1b1fdc6245144ff92ee4cf6af2b86ac16cc6bdda8c6eb1f7cd698797ba",
+    "B06": "fc4463655e46f826f16f7cb72f7ee14d1c31a6abd0e652cc80d6de1a05871a41",
+    "B07": "29b22104cb3d474d2ac63ed921afae6aa09655ce90466d458cb799f77f3fc83b",
+    "B08": "2d2f1413db00b518bbd11fe280b18c45fc3fc14626c3b50ce912ed53e58a4b94",
+    "B09": "01e859679214fa6c48eac133bcf36294e1be022dd7d41ed09a719fcaa058fc17",
+    "B10": "c631a2d38b947c5fd44d2d57855701dc2e6d5081ab613cadbaf850c2dabbd611"
+  },
+  "frozen_at": "2026-10-16T20:58:30+09:00",
+  "cli_version": "2.1.295 (Claude Code)",
+  "model": "claude-sonnet-5-5"
+}

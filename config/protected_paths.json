@@ -11,18 +11,9 @@
     "tests/test_testbed_judge_stress.py",
     "tests/testbed_judge_util.py",
     "docs/bench/",
-    "tests/launcher_judge.py",
-    "tests/rollgame_judge.py",
-    "tests/tower_judge.py",
+    "tests/*_judge.py",
     "tests/test_ledger_double_check.py",
     "docs/prompts/",
-    "bench/records/",
-    "tests/cartpole_judge.py",
-    "tests/billiards_judge.py",
-    "tests/domino_judge.py",
-    "tests/hillcar_judge.py",
-    "tests/springchain_judge.py",
-    "tests/catcher_judge.py",
-    "tests/maze_judge.py"
+    "bench/records/"
   ]
 }
