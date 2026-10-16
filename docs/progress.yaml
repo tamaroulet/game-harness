@@ -1658,6 +1658,7 @@ tasks:
   deliverable: 4 週の周期の記録
   depends_on:
   - W-61
+  - W-92
   acceptance:
   - outer_cycles が、4 週続けて周期が回り、改善が 1 件以上あることを示す（D-058）
   oracle:
@@ -2149,6 +2150,7 @@ tasks:
   slug: 'hline: work-while-pr-open'
   serves: R4
   purpose: 統合 PR の CI と承認を待つ間にラインが止まらないようにする（10-15〜16 の統合 PR
+  deliverable: harness/hline.py の並行処理、tests/test_hline_work_while_pr_open.py
   depends_on:
   - W-56
   - W-58
@@ -2169,6 +2171,7 @@ tasks:
   slug: 'hline: implementer-may-run-tests'
   serves: R4
   purpose: 実装役が Gate 1 に出す前に、自分で構文と試験を確かめられるようにする（複数のモジュールにまたがる R5 の製品の What の前に）。オラクルを守るのは道具の禁止ではなく、W-71 の OS のアカウント
+  deliverable: harness/hline_symbols.py のテスト実行許可、tests/test_implementer_run_tests.py
   depends_on:
   - W-57
   - W-71
