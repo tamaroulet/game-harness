@@ -3,8 +3,7 @@
     python -m unittest tests.test_no_inline_review -v
 
 合格条件 1〜4 に 1 対 1 で対応する。判定は決定的な検査（テストの終了コード・編集境界・規模）だけで決まり、
-LLM の応答を入力にしない。ファイルの走査は、リポジトリの根からの明示のパスの集合で行う（.git・experiments・reports は見ない）。
-"""
+LLM の応答を入力にしない。"""
 import inspect
 import json
 import os
