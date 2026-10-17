@@ -1,0 +1,56 @@
+- id: P-01
+  title: 積み木の塔のシミュレーション入口 simulate
+  depends_on: []
+  acceptance:
+  - tower.simulate(offsets, steps) は長さ steps の list を返し、各要素は長さ k の list で、要素は pos（3 個の float）と vel（3 個の float）を持つ辞書である
+  - 1 歩目の各箱の中心は置いた位置（offsets[j], 0, 0.025 + 0.05·j）から 0.001 m 以内で、どの歩でも各箱の z は 0.015 以上である
+  - offsets が長さ 1〜6 の list か tuple・各要素が絶対値 0.5 以下の有限の数（bool 不可）・隣り合う差が 0.1 以下、steps が 1〜20000 の整数（bool 不可）から外れると ValueError を投げ、端の値は受け入れる
+  - 同じ引数で 2 回呼ぶと、返り値のすべての値がビット単位で一致する
+  files:
+  - tower/__init__.py
+  - tower/simulate.py
+  - tests/test_tower_simulate.py
+  oracle:
+  - path: tests/test_tower_simulate.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_tower_simulate
+    expected_exit_code: 0
+- id: P-02
+  title: 立つかどうかの判定 stands
+  depends_on:
+  - P-01
+  acceptance:
+  - tower.stands(offsets) は bool を返し、simulate(offsets, 2000) の最後の歩で一番上の箱の z が 0.025 + 0.05·(k−1) の 0.95 倍以上のとき、かつそのときだけ True である
+  - すべての j で d_j ≤ 0.04 なら stands は True で、simulate(offsets, 2000) のどの歩でも各箱の中心は置いた位置から 0.005 m 以内にある
+  - ある j で d_j ≥ 0.06 なら stands は False である
+  - offsets の符号を反転した積み方では simulate の x が符号反転し、全体に同じ数 c を足した積み方では x が c だけずれ（どちらも差 1e-3 以内）、stands の値は元と同じである。offsets が範囲外なら ValueError を投げる
+  files:
+  - tower/__init__.py
+  - tower/stands.py
+  - tests/test_tower_stands.py
+  oracle:
+  - path: tests/test_tower_stands.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_tower_stands
+    expected_exit_code: 0
+- id: P-03
+  title: 調和の積み方 harmonic
+  depends_on:
+  - P-02
+  acceptance:
+  - tower.harmonic(k) は k 個の float の list を返し、offsets[0] ＝ 0 で、j ＝ 0 … k−2 について offsets[j+1] − offsets[j] ＝ 0.8 × 0.05 / (k − 1 − j)（差は 1e-12 以内）である
+  - k ＝ 1〜6 のどれでも stands(harmonic(k)) は True で、k ≥ 4 では offsets[k−1] − offsets[0] ＞ 0.05 である
+  - k が 1〜6 の整数でない（範囲外・bool・整数でない数）と ValueError を投げる
+  - 同じ引数で 2 回呼ぶと、返り値がビット単位で一致する
+  files:
+  - tower/__init__.py
+  - tower/harmonic.py
+  - tests/test_tower_harmonic.py
+  oracle:
+  - path: tests/test_tower_harmonic.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_tower_harmonic
+    expected_exit_code: 0

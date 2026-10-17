@@ -1,0 +1,16 @@
+{
+ "files": {
+  "P-01.md": "1ff6ae435c23ef7f483b280b1811bc38bcf74de0e50899eae79348cb3c00bdc7",
+  "P-02.md": "bf499e166408d781326f9ff30206f6b63e6c512d5e3f0a0851797efd2a5c2a86",
+  "P-03.md": "bc5e8dd0cbdf3f542bd32939cfd8bdfeb96bc0234158fbb12cf9c3b01b776232",
+  "P-04.md": "4ab6cf45ac6e9f93ab022e4bb338c331c802e70061441fe0aa8169dedea0db70",
+  "ledger.yaml": "a402202f00033c72041ad4a25d72b720b2a708b1d0e486f0a70cfd75ff71868e"
+ },
+ "problems": [],
+ "plan_check": [],
+ "loop": {
+  "rounds": 3,
+  "confirmed": true,
+  "failed": []
+ }
+}

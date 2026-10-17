@@ -1,0 +1,55 @@
+- id: P-01
+  title: 倒立振子の simulate（力を加えて進める）
+  depends_on: []
+  acceptance:
+  - cartpole.simulate(theta0, forces, x0) は長さ len(forces) の list を返し、各要素は x・x_dot・theta・theta_dot を持つ辞書である。simulate(theta0, [0.0], x0) の状態は |x-x0|<=1e-4、|theta-theta0|<=1e-3、|x_dot|<=0.1、|theta_dot|<=0.1 を満たす
+  - theta0=0・x0=0 から絶対値 3 以上 8 以下の一定の力 f を 25 歩かけた後、x_dot/(f*0.05) は 0.96 以上 0.99 以下、theta_dot/(f*0.05) は -3.1 以上 -2.8 以下である。力が常に 0 のとき、重心 (1.0*x + 0.1*(x+0.25*sin(theta)))/1.1 はどの歩でも始めの値から 0.002 以内である
+  - 同じ引数で 2 回呼ぶと返り値はビット単位で一致する。simulate(-theta0, [-f for f in forces], -x0) の各歩の 4 つの値は、simulate(theta0, forces, x0) の同じ歩の値の符号を反転したものと 1e-6 以内で等しい
+  - theta0 の絶対値が 0.4 を超える・x0 の絶対値が 0.95 を超える・forces が空か 20000 を超える長さか list/tuple でない・forces の要素が絶対値 10 を超えるか有限の数でない・bool や数でない値、のいずれでも ValueError を投げ、ちょうど端の値は受け入れる
+  files:
+  - cartpole/__init__.py
+  - cartpole/sim.py
+  - tests/test_cartpole_simulate.py
+  oracle:
+  - path: tests/test_cartpole_simulate.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_cartpole_simulate
+    expected_exit_code: 0
+- id: P-02
+  title: 倒立振子の episode（終わりの判定つきで進める）
+  depends_on:
+  - P-01
+  acceptance:
+  - cartpole.episode(theta0, policy, max_steps=5000, x0=0.0) は {"status", "steps", "state"} の辞書を返す。各歩の前に現在の状態の辞書を policy に渡し、返った力で 1 歩進め、1 歩ごとに |theta|>0.5 なら "fallen"、そうでなく |x|>1 なら "out"、そうでなく歩数が max_steps なら "timeout" で終わる
+  - 力が常に 0 の policy で、0.005<=|theta0|<=0.02・x0=0 から始めると status は "fallen"、steps は 250 以上 1500 以下、最後の状態の theta は theta0 と同じ符号である。同じ policy で max_steps を 20 以上 200 以下にすると status は "timeout"、steps は max_steps である
+  - 0.9<=|x0|<=0.95・theta0=0 から、x0 と同じ符号の向きに大きさ 10 の一定の力をかける policy で始めると、status は "out"、steps は 100 以下、最後の状態で |x|>1 である
+  - theta0 や x0 が範囲の外、max_steps が 1 以上 20000 以下の整数でない（bool を含む）、policy が呼び出せない、policy が絶対値 10 以下の有限の数でない値（bool を含む）を返す、のいずれでも ValueError を投げる
+  files:
+  - cartpole/__init__.py
+  - cartpole/run.py
+  - tests/test_cartpole_episode.py
+  oracle:
+  - path: tests/test_cartpole_episode.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_cartpole_episode
+    expected_exit_code: 0
+- id: P-03
+  title: 倒立振子の balance（立て直す制御器）
+  depends_on:
+  - P-02
+  acceptance:
+  - cartpole.balance(state) は、4 つの鍵を持ち値がどれも有限の数の辞書のどれに対しても、絶対値 10 以下の float を返す。鍵が足りない・辞書でない・値が bool や数でない・有限でない、のいずれでも ValueError を投げる
+  - 始めの状態が |theta0|<=0.1・|x0|<=0.3 のどれ（範囲の四隅と 0 を含む格子）でも、episode(theta0, balance, 5000, x0) は status が "timeout"、steps が 5000 で、最後の状態で |theta|<=0.01・|x|<=0.05 である
+  - 同じ引数で episode(theta0, balance, 5000, x0) を 2 回呼ぶと、返り値はすべての値がビット単位で一致する
+  files:
+  - cartpole/__init__.py
+  - cartpole/control.py
+  - tests/test_cartpole_balance.py
+  oracle:
+  - path: tests/test_cartpole_balance.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_cartpole_balance
+    expected_exit_code: 0

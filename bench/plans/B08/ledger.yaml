@@ -1,0 +1,70 @@
+- id: P-01
+  title: ばねの鎖の入口と始めの状態
+  depends_on: []
+  acceptance:
+  - springchain.simulate(n, mass, stiffness, damping, steps, x0=None, v0=None) は、長さ steps の list を返し、各要素は x と v（どちらも長さ n の float の list）を持つ辞書である
+  - 同じ引数で 2 回呼ぶと、返り値のすべての値がビット単位で一致する
+  - 1 歩目の状態で、各 i について |x_i − (x0_i ＋ 0.002·v0_i)| ≤ 0.001 かつ |v_i − v0_i| ≤ 0.05
+  - x0・v0 がすべて 0（または省く）なら、どの歩でも、すべての x_i と v_i の絶対値は 1e-12 以下
+  files:
+  - springchain/__init__.py
+  - tests/test_springchain_basic.py
+  oracle:
+  - path: tests/test_springchain_basic.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_springchain_basic
+    expected_exit_code: 0
+- id: P-02
+  title: 入力の範囲の検査
+  depends_on:
+  - P-01
+  acceptance:
+  - n が 2 以上 12 以下の整数でない、または mass が 0.05 以上 0.5 以下の有限の数でないと、ValueError を投げる
+  - stiffness が有限の正の数でない、または stiffness/mass が 4 以上 25 以下でないと、ValueError を投げる
+  - damping が 0 以上 0.2 以下の有限の数でない、または steps が 1 以上 20000 以下の整数でないと、ValueError を投げる
+  - x0・v0 が None でも長さ n の list・tuple でもない、x0 の要素が絶対値 0.03 を超える・v0 の要素が絶対値 1 を超える・要素が有限の数でない、またはどれかの引数が bool であると、ValueError を投げる。範囲の端の値は受け入れる
+  files:
+  - springchain/__init__.py
+  - tests/test_springchain_validation.py
+  oracle:
+  - path: tests/test_springchain_validation.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_springchain_validation
+    expected_exit_code: 0
+- id: P-03
+  title: エネルギー・減衰・固有振動の確かめ
+  depends_on:
+  - P-02
+  acceptance:
+  - damping が 0 なら、5000 歩までのどの歩でも、状態のエネルギー E は E0 の 0.97 倍以上 1.03 倍以下である
+  - damping が 0.1 以上 0.2 以下・mass が 0.1 以下・n が 6 以下で E0 が正なら、5000 歩までのどの歩でも E ≤ 1.03·E0 で、5000 歩目の E ≤ 0.5·E0 である
+  - damping が 0 で x0 ＝ A·s_p・v0 ＝ 0 なら、N ＝ round(T/0.002) 歩目の x_i と A·s_p,i の差、H ＝ round(T/0.004) 歩目の x_i と −A·s_p,i の差が、どれも 0.02·A 以内である
+  - damping が 0.02 以下・mass が 0.1 以上・stiffness/mass が 16 以上で x0 ＝ A·s_p・v0 ＝ 0 なら、1000 歩目の E ÷ E0 は exp(−(damping/mass)·(ω_p/ω0)²·2) の 0.9 倍以上 1.1 倍以下である
+  files:
+  - tests/test_springchain_physics.py
+  - springchain/__init__.py
+  oracle:
+  - path: tests/test_springchain_physics.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_springchain_physics
+    expected_exit_code: 0
+- id: P-04
+  title: 相似・線形・鏡の確かめ
+  depends_on:
+  - P-03
+  acceptance:
+  - mass・stiffness・damping をすべて 2 倍にした（範囲の内）simulate の各歩の x_i と v_i は、元との差が 1e-9 以内である
+  - x0・v0 をすべて 2 倍にした（範囲の内）simulate の各歩の x_i と v_i は、元の 2 倍との差が 1e-9 以内である
+  - x0・v0 を並びの逆順にして符号を反転した simulate の各歩で、x_i と v_i は、元の x_{n−1−i} と v_{n−1−i} の符号を反転したものとの差が 1e-9 以内である
+  files:
+  - tests/test_springchain_symmetry.py
+  - springchain/__init__.py
+  oracle:
+  - path: tests/test_springchain_symmetry.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_springchain_symmetry
+    expected_exit_code: 0
