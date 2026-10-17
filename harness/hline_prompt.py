@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 import hline_abort
+import hline_agy
 import hline_quota
 import impacted
 import infra_retry
@@ -67,6 +68,11 @@ def implement(host, cfg, wt, what, feedback, log):
     host.turn_cap_used = cap = (resume_turn_cap if follow else turn_cap)(agent)   # 試行の記録に入れる
     began = time.monotonic()
     prompt = host.build_prompt(what, feedback, shown)
+    if agent.get("cli") == "agy":
+        try:
+            return hline_agy.implement(host, cfg, wt, prompt, log)
+        finally:
+            host.implement_seconds = round(time.monotonic() - began)
     code, out, err = host.proc.run(capped_args(oracle_deny.with_deny(impacted.scoped_agent(agent), cfg), host.proc.resolve_cli(agent["cli"]), cap),
                                    wt, cfg["ttl_seconds"]["implementer"], "実装役", input=prompt)
     host.implement_seconds = round(time.monotonic() - began)   # 時間切れの理由に出す（hline_task.run_task が読む）
