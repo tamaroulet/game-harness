@@ -9,6 +9,8 @@ plan は plan_loop を 1 回走らせ、確定すれば <clone>/bench/plans/<id>
 確定しなければ書かずに 1、すでにあれば上書きせず・環境の異常は 2。--check --all は、固定のすべての計画が
 plan_check・要件の網羅・planner.json の sha256 に通れば 0、どれかが欠ければ 1。
 factory --plan <dir> は plan_loop を呼ばず、固定の計画から走る。stage --plans <dir> は課題ごとに <dir>/<課題> を渡す。
+固定の計画の走行は、H ラインを始める前に、受信箱の P-*.md のそれぞれに取り込みの監修役の控え（pass）を同じ鍵で置き、監修役を呼ばない（W-102）。
+factory と stage は、走らせ役の harness/ の木と <rev> の harness/ の木が違えば（求められないときも）、何も走らせず終了コード 2 で止まる。
 
 factory（制限のアカウント）は、走行のディレクトリ <out>/runs/<id>/factory-<r>/（env.json・inputs/・calls/・factory/・git/）を書く。
 終了コード：書けば 0（無効でも 0）、<clone> の HEAD が <rev> でない・書けないときは 2。
@@ -31,6 +33,8 @@ import tempfile
 import time
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_score  # noqa: E402
 import bench_start  # noqa: E402
@@ -38,6 +42,7 @@ import exitcode  # noqa: E402
 import hline_base  # noqa: E402
 import hline_queue  # noqa: E402
 import hline_quota  # noqa: E402
+import hline_review  # noqa: E402
 import hline_usage  # noqa: E402
 import plan_check  # noqa: E402
 import plan_loop  # noqa: E402
@@ -532,6 +537,32 @@ class Factory:
         self.run["start"] = self.run["head"] = lines[-1].strip()
         return True
 
+    def seed_reviews(self):
+        """固定の計画の走行：受信箱の P-*.md のそれぞれに、取り込みの監修役の控え（pass）を置く。H ラインは同じ鍵でそれを読み、監修役を呼ばない。
+        すでに控えがあれば上書きしない。指示・台帳を読めない・What が台帳のタスクを宣言しないときは置かず、H ラインに任せる（今どおり監修役が呼ばれる）。"""
+        cfg, start = self.line_cfg, self.run["start"]
+        rel = (cfg.get("reviewer") or {}).get("instruction")
+        if not rel:
+            return
+        ttl = cfg["ttl_seconds"]["git"]
+        code, instr, _ = proc.run(["git", "show", f"{start}:{rel}"], self.clone, ttl, "git show (reviewer instruction)")
+        code2, text, _ = proc.run(["git", "show", f"{start}:{hline_queue.progress.REL_PATH}"], self.clone, ttl, "git show (ledger)")
+        if code != 0 or code2 != 0:
+            return
+        try:
+            rows = {t["id"]: t for t in yaml.safe_load(text)["tasks"]}
+        except Exception:   # noqa: BLE001
+            return
+        for p in sorted((self.work / "inbox").glob("P-*.md")):
+            what = p.read_text(encoding="utf-8")
+            row = rows.get(hline_queue.parse_header(what)["task"])
+            if row is None:
+                continue
+            path = hline_review.store_dir(cfg) / f"{hline_review.key_of(instr, what, row)}.json"
+            if not path.exists():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                hline_base.write_json(path, {"verdict": "pass", "findings": [], "frozen_plan": self.run["planner_sha256"].get(p.name)})
+
     def setup_clone(self, plan_inbox, cfg):
         start, origin, clone = self.run["start"], self.work / "origin.git", self.work / "clone"
         git(self.work, ["init", "-q", "--bare", str(origin)])
@@ -545,6 +576,9 @@ class Factory:
         self.line_cfg = line_config(cfg, self.work, self.work / "inbox", start, self.branch, self.impl)
         self.line_path = self.work / "hline.json"
         hline_base.write_json(self.line_path, self.line_cfg)
+        self.clone = clone
+        if self.frozen is not None:
+            self.seed_reviews()
         if self.impl is not None:
             (self.rundir / "factory").mkdir(parents=True, exist_ok=True)
             hline_base.write_json(self.rundir / "factory" / "config.json", self.line_cfg)
@@ -661,8 +695,23 @@ class Factory:
         hline_base.write_json(rundir / "factory" / "run.json", run)
 
 
+def version_problem(repo, rev):
+    """走らせ役の harness/ の木と、clone の <rev> の harness/ の木が違う（または求められない）ときの理由。同じなら None。"""
+    try:
+        mine = git(ROOT, ["rev-parse", "HEAD:harness"]).decode().strip()
+        theirs = git(repo, ["rev-parse", f"{rev}:harness"]).decode().strip()
+    except BenchError as e:
+        return f"harness/ の木の hash を求められません: {e}"
+    if mine != theirs:
+        return f"走らせ役の harness/ の木 {mine} と {rev} の harness/ の木 {theirs} が違います"
+    return None
+
+
 def factory(a):
     f = Factory(a)
+    if (why := version_problem(f.repo, f.rev)):
+        print(f"ABORT: {why}", file=sys.stderr)
+        return 2
     try:
         f.check_head()
         f.check_plan()
@@ -848,6 +897,9 @@ def stage(a):
         return stage_finish(a, out)
     if not a.base:
         print("--base が要ります", file=sys.stderr)
+        return 2
+    if (why := version_problem(Path(a.repo), a.base)):
+        print(f"ABORT: {why}", file=sys.stderr)
         return 2
     try:
         tasks = stage_tasks(a.repo, a.base)

@@ -124,6 +124,7 @@ class RecordTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()), \
                 mock.patch.object(bench_run.proc, "run", self.fake_run), \
                 mock.patch.object(bench_run.proc, "resolve_cli", lambda name: ["claude"]), \
+                mock.patch.object(bench_run, "version_problem", lambda repo, rev: None), \
                 mock.patch.object(bench_run, "sleep", lambda s: None):
             return bench_run.main(argv)
 
