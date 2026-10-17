@@ -3,6 +3,7 @@
   "headless_flag": "-p",
   "auto_approve_flag": "--dangerously-skip-permissions",
   "model_flag": "--model",
+  "model": "gemini-3.8-flash-medium",
   "model_name": "gemini-3.8-flash-medium",
   "output_format_args": [
     "--output-format",
