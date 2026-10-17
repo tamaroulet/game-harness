@@ -108,8 +108,10 @@ class Stub(unittest.TestCase):
         with agy_stub.disabled(), mock.patch.object(pipeline, "run", side_effect=AssertionError):
             self.assertIsNone(pipeline.guard_implementer({"cli": "agy"}))
         self.assertIs(pipeline.guard_implementer, original)
+        def mismatch():
+            raise pipeline.agy_pinned.AgyDigestError("導入先が期待値と違う")
         with self.assertRaises(SystemExit):
-            pipeline.guard_implementer({"cli": "agy"})
+            pipeline.guard_implementer({"cli": "agy"}, verify=mismatch)
 
     def test_disabled_restores_the_guard_when_the_body_raises(self):
         original = pipeline.guard_implementer
