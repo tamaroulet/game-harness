@@ -20,7 +20,7 @@ AGY = "gemini-3.8-flash-medium"
 CLAUDE_AUX = ["claude-haiku-"]
 AGY_EXPECTED = {
     "cli": "agy", "headless_flag": "-p", "auto_approve_flag": "--dangerously-skip-permissions", "model_flag": "--model",
-    "model_name": AGY, "output_format_args": ["--output-format", "stream-json"], "extra_flags": ["--sandbox"],
+    "model": AGY, "model_name": AGY, "output_format_args": ["--output-format", "stream-json"], "extra_flags": ["--sandbox"],
     "usage_format": "agy", "version": "1.2.14", "budget": {"max_turns": 15, "resume_max_turns": 8},
 }
 
