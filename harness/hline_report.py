@@ -146,6 +146,9 @@ def failure_lines(cfg, name):
     except Exception:   # noqa: BLE001
         return [f"    - {NO_FAILURE}"]
     if not points:
+        first = [l.strip() for l in text.splitlines() if l.strip()]
+        if first:
+            return [f"    - {first[0][:EXC_MAX]}"]
         return ["    - 落ちた試験を読み取れず"]
     return [f"    - {p}" for p in points[:POINTS_MAX]]
 
