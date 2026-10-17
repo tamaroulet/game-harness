@@ -50,8 +50,23 @@ def instructions():
             "原因（どのファイルの何が、どの合格条件とぶつかるか）を書く")
 
 
+def command_reason(log):
+    """生ログの先頭の要約の JSON（agy の実装役）の commands の最初の 1 つの理由（REQ-09）。無い・読めないときは None。"""
+    try:
+        doc = json.loads(Path(log).read_text(encoding="utf-8").split("\n--- stderr ---\n", 1)[0])
+    except (OSError, ValueError):
+        return None
+    ran = doc.get("commands") if isinstance(doc, dict) else None
+    first = ran[0] if isinstance(ran, list) and ran and isinstance(ran[0], dict) else None
+    if first is None:
+        return None
+    return f"命令の実行（REQ-09）：手番 {first.get('step')} {first.get('tool')} {first.get('command')}"
+
+
 def abort_reason(log, digest, prev):
-    """試行を打ち切る理由。断念の宣言が先、次に前の試行と同じ差分（prev が None の初回は見ない）。打ち切らないなら None。"""
+    """試行を打ち切る理由。命令の実行（agy の要約の JSON の commands）が先、次に断念の宣言、次に前の試行と同じ差分（prev が None の初回は見ない）。打ち切らないなら None。"""
+    if (ran := command_reason(log)) is not None:
+        return ran
     why = abandon_reason(log)
     if why is not None:
         return why or NO_REASON

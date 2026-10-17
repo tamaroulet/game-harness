@@ -10,12 +10,45 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 FALLBACK = datetime.timedelta(minutes=60)   # リセットの時刻が読めないときの待ち
 HIT = re.compile(r"hit your (?:\w+ )?limit", re.I)
+AGY_HIT = re.compile(r"RESOURCE_EXHAUSTED|quota exceeded|Rate limit exceeded", re.I)
+AGY_429 = re.compile(r"(?<![0-9A-Za-z])429(?![0-9A-Za-z])")
 RESET = re.compile(r"resets\s+(?:([A-Za-z]{3})\s+(\d{1,2}),?\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b(?:\s*\(([^)]+)\))?", re.I)
 MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 
 
-def message(out, err):
-    """実装役の出力が利用枠切れなら、その文（JSON の result、無ければ標準エラーの行）。違えば None。終了コードは見ない。"""
+def agy_message(out, err):
+    """agy の出力が利用枠切れなら、その文。違えば None。
+    RESOURCE_EXHAUSTED・quota exceeded・Rate limit exceeded は標準出力と標準エラーのどこでも当てる。
+    429 は、標準エラーか、stream-json の result の error の中の、前後が数字でも英字でもない 429 だけ（応答の本文は見ない）。"""
+    for text in (out, err):
+        hit = next((line.strip()[:300] for line in (text or "").splitlines() if AGY_HIT.search(line)), None)
+        if hit:
+            return hit
+    texts = [err or "", *_result_errors(out)]
+    return next((line.strip()[:300] for t in texts for line in t.splitlines() if AGY_429.search(line)), None)
+
+
+def _result_errors(out):
+    """stream-json の result イベントの error（文字列）。"""
+    for line in (out or "").splitlines():
+        if not line.lstrip().startswith("{"):
+            continue
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        r = e.get("result") if isinstance(e, dict) and e.get("event") == "result" else None
+        if isinstance(r, dict) and isinstance(r.get("error"), str):
+            yield r["error"]
+
+
+def message(out, err, agy=False):
+    """実装役の出力が利用枠切れなら、その文（JSON の result、無ければ標準エラーの行）。違えば None。終了コードは見ない。
+    agy=True は agy の文言（agy_message）も見る。claude の判定は変えない。"""
+    return _claude_message(out, err) or (agy_message(out, err) if agy else None)
+
+
+def _claude_message(out, err):
     try:
         doc = json.loads(out)
     except (ValueError, TypeError):
