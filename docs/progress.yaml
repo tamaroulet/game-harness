@@ -7,7 +7,7 @@ last_verification:
   task: W-98
   exit_code: 0
   at: '2026-10-17T11:33:15'
-next_id: 102
+next_id: 106
 nodes:
 - id: A
   parent: null
@@ -2144,6 +2144,10 @@ tasks:
   - W-99
   - W-100
   - W-101
+  - W-102
+  - W-103
+  - W-104
+  - W-105
   acceptance:
   - freeze.json の base から、実装役を agy にしたベンチの設定で、bench_run stage --tag base --plans bench/plans で 10 本を 1 回ずつ走らせ、記録を PR で main に入れる
   oracle:
@@ -2268,6 +2272,7 @@ tasks:
   - W-89
   acceptance:
   - 総監督が、受信箱の drafts/director/deferred.md の「次の再判断」が W-96 のすべての行について、W-89 の 10 本の記録と走行のディレクトリ（quota_wait_seconds・tries・tokens・env.json・base）と report.md を読み、率直な見解を書く。手を打つと見る行は、W-61 の前に入れるタスクか操縦士の作業として台帳の PR の完成形を出す
+  - X-25（非劣性の検査の重さ）と X-28（本線の監修役）は、次の指標と分岐で決める。X-25：W-89 の 10 本の所要の和（env.json の started_at から finished_at までから quota_wait_seconds を引いたもの）を T として、2T が 168 時間以下なら W-57 の What を 10 本を 1 回ずつで起草し、超えれば所要の小さい課題から走らせて区間の上限が −0.05 を下回った時点で打ち切る形で起草する。X-28：report.md の「受信箱に残した What」で監修役が差し戻した What のうち、直して置き直して通ったものが半分未満なら、本線の監修役の見直しを W-61 の後の外側の周期の題材にする。半分以上なら今のまま。どちらも、使った値と決めた分岐を docs/design/review_after_baseline.md に書く
   - 操縦士が行ごとに承認か拒否を決め、結果を docs/design/review_after_baseline.md として PR で main に入れる。基準の記録を使えないと決めた課題は、走らせ直すか、W-61 で使わないかも、ここで決める
   oracle:
   - path: harness/bench_verify.py
@@ -2352,6 +2357,7 @@ tasks:
   - W-98
   - W-99
   - W-101
+  - W-105
   acceptance:
   - 最初に、制限のアカウントの agy の導入先を python -m harness.agy_pinned --measure で実測して config/agy_digests.json に書いた PR を main に入れ、python -m harness.agy_pinned が 0 になる
   - 実装役を agy にしたベンチの設定で、bench_run factory --task B06 --run-id smoke-1 --plan bench/plans/B06 を走らせ、finish を掛ける。記録の invalid が偽で、少なくとも 1 件の What が agy の試行で Gate 1 を通り、calls/ に agy の呼び出しが入り、tokens が 0 でなく、models が gemini-3.8-flash-medium だけで、命令の実行の手番による不合格が 0 件。満たさなければ、直してから同じ命令を新しい run-id で走らせる
@@ -2362,3 +2368,87 @@ tasks:
     command: python -m harness.bench_verify --task B06 --min-runs 1
     expected_exit_code: 0
   deliverable: bench/records/B06/factory-smoke-*.json
+- id: W-102
+  title: 固定の計画の走行では、取り込みの監修役を呼ばずに、計画のループの判定を控えとして使う
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: frozen-plan-review-store'
+  serves: R4
+  purpose: 固定の計画（W-99 で監修を通った）を走らせるたびに監修役を呼び直す費用と、実装役の評価が監修役の認証・利用枠に結びつくことを外す（D-126、deferred.md の X-27）
+  deliverable: harness/bench_run.py、tests/test_bench_run_frozen_review.py
+  depends_on:
+  - W-101
+  acceptance:
+  - 'bench_run factory --plan <dir> は、H ラインを始める前に、固定の計画のそれぞれの P-*.md について、H ラインの取り込みの監修と同じ鍵（harness/hline_review.py の key_of に、その走行の設定の監修役の指示・What の全文・開始のコミットの台帳の行を渡したもの）で、out/review/<key>.json に {"verdict": "pass", "findings": [], "frozen_plan": <planner_sha256>} を書く。--plan の無い走行は変わらない'
+  - 固定の計画の走行で、取り込みの監修役の CLI が 1 回も呼ばれず、P-*.md がすべて取り込まれる。鍵が控えと食い違う What は、今どおり監修役が呼ばれる
+  - 走行の記録の calls/ に監修役の呼び出しが無くても、finish のモデルの照合（W-101）と呼び出しの記録の検査は、その走行を無効にしない。また factory と stage は、走らせ役自身の harness/ の木（git の tree の hash）が --base の harness/ の木と違えば、走らせる前に終了コード 2 で止め、両方の hash を出す（改訂 2：走らせ役と走らされるハーネスの版を 1 つにする）
+  oracle:
+  - path: tests/test_bench_run_frozen_review.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_bench_run_frozen_review
+    expected_exit_code: 0
+- id: W-103
+  title: 固定の計画と、ベンチの実装役の設定が、今のコードで読めることを CI で確かめる
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: frozen-contract-ci'
+  serves: R4
+  purpose: 固定した物（bench/plans/ の計画・config/bench_implementer_*.json）と、それを読むコード（plan_check・取り込み・load_config）の契約の破れを、走行の前に PR の CI で落とす（D-126、D-125 ①、deferred.md の X-26）
+  deliverable: tests/test_bench_frozen_contract.py
+  depends_on:
+  - W-101
+  acceptance:
+  - bench/plans/ のそれぞれの課題の計画が、planner.json の files の sha256 と一致し、harness/plan_check.py の check に通り、P-*.md が H ラインの取り込みのヘッダの読み（harness/hline_queue.py の parse_header）で読めることを、tests/ の試験が確かめる。bench/plans/ が無いか空なら、その試験は課題 0 本として通る
+  - config/bench_implementer_*.json のそれぞれを config/hline.json の implementer に差し替えた設定が、harness/hline_base.py の load_config と同じ検査（model_pin）に通ることを、同じ試験が確かめる
+  oracle:
+  - path: tests/test_bench_frozen_contract.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_bench_frozen_contract
+    expected_exit_code: 0
+- id: W-104
+  title: 凍結の base を、異種の構成の道具（W-97〜W-103）の入った main に取り直す
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: refreeze-base'
+  by: pilot
+  serves: R4
+  purpose: 基準の走行 W-89 と段 4 の非劣性の検査を、固定の計画・agy の実装役・監修の控え・契約の検査の入ったハーネスで走らせる。今の freeze.json の base（f7d448d）はそれらより前の版で、工廠が agy を claude の経路で起こす（D-126 改訂 1）
+  deliverable: bench/records/freeze.json
+  depends_on:
+  - W-102
+  - W-103
+  acceptance:
+  - W-102・W-103 の入った main の HEAD で bench_freeze を取り直し、bench/records/freeze.json の base をその HEAD にして PR で main に入れる。tasks の 10 本の指紋は今の値と同じであること（docs/bench/ は変えない）。cli_version と model は、計画役・監修役の claude の版とモデルに加え、実装役の agy の版（1.2.14）とモデル（gemini-3.8-flash-medium）を記録する（REQ-01・REQ-03）
+  - 取り直した base で bench_run plan --check --all が 0
+  oracle:
+  - path: harness/bench_run.py
+    from: W-97
+  verification:
+    command: python -m harness.bench_run plan --check --all
+    expected_exit_code: 0
+- id: W-105
+  title: agy の命令の道具の呼び出しは、成功したときだけ試行を打ち切り、sandbox に拒まれた呼び出しは数えるだけにする
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: agy-blocked-commands'
+  serves: R4
+  purpose: agy は命令の道具を CLI で断れず、探索のために呼んでは --sandbox に拒まれる。拒まれた試みで試行を打ち切ると What が未収束になり、基準の走行が点 0 で埋まる。REQ-09 の守り（命令を実行させない）は保ったまま、実行されなかった試みでは打ち切らない（D-131）
+  deliverable: harness/hline_agy.py、harness/hline_abort.py、tests/test_hline_agy_blocked.py
+  depends_on:
+  - W-98
+  acceptance:
+  - 実装役が agy の試行で、命令の道具（引数に CommandLine を持つ道具）の手番のうち、道具の呼び出しが成功した手番が 1 つでもあれば、今どおり Gate 1 に掛けずに不合格にし、abort に「命令の実行（REQ-09）：手番 <番号> <道具の名前> <命令の先頭の語>」を書く
+  - 道具の呼び出しが失敗した（--sandbox に拒まれた）命令の手番だけなら、試行を打ち切らずに Gate 1 に掛け、試行の記録の blocked_commands にその手番の数を書く
+  - agy への指示の頭に、命令の道具は使えないこと、ファイルの一覧と検索は読みと検索の道具で行うことを 1 行で足す。claude の実装役の指示と経路は変わらない
+  oracle:
+  - path: tests/test_hline_agy_blocked.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hline_agy_blocked
+    expected_exit_code: 0
