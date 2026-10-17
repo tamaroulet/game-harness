@@ -1,0 +1,54 @@
+- id: P-01
+  title: 玉の打ち出しと飛行の記録（simulate と入力の検査）
+  depends_on: []
+  acceptance:
+  - launcher.simulate(angle, speed, steps) は長さ steps の列を返し、各要素は pos と vel（それぞれ 3 個の float）を持つ辞書で、i 番目は i+1 歩進んだ後の状態である
+  - angle が 5 以上 85 以下、speed が 0.5 以上 10 以下、steps が 1 以上 20000 以下の整数でないとき、および bool・数でない値のとき ValueError を投げる
+  - 着地より前の各歩で pos の y と vel の y の絶対値は 1e-9 以下で、pos の x は前の歩の x 以上であり、返す値はすべて有限である
+  files:
+  - launcher/__init__.py
+  - launcher/sim.py
+  - tests/test_launcher_simulate.py
+  oracle:
+  - path: tests/test_launcher_simulate.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_launcher_simulate
+    expected_exit_code: 0
+- id: P-02
+  title: 着地の点と床（landing）
+  depends_on:
+  - P-01
+  acceptance:
+  - landing(angle, speed) は、i−1 歩目の z が 0.02 より大きく i 歩目の z が 0.02 以下になる最初の i について、simulate の i−1 歩目と i 歩目の状態から z について線形に補間した x を float で返す
+  - angle が 15 以上 75 以下で speed が 1 以上 8 以下のとき、landing と v²·sin(2θ)/9.81 の差は 0.01·R ＋ v·cos(θ)·0.002 以内である
+  - speed·sin(angle) が 4 以下のとき、simulate のすべての歩で z は 0 以上で、着地の歩から 1000 歩後の z は 0.015 以上 0.025 以下である
+  files:
+  - launcher/__init__.py
+  - launcher/landing.py
+  - tests/test_launcher_landing.py
+  oracle:
+  - path: tests/test_launcher_landing.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_launcher_landing
+    expected_exit_code: 0
+- id: P-03
+  title: 狙いの角度（aim）と決定論
+  depends_on:
+  - P-02
+  acceptance:
+  - speed が 2 以上 10 以下で distance·9.81/speed² が 0.25 以上 0.95 以下のとき、aim(distance, speed) は 5 以上 45 以下の角度（低いほうの解）を返し、landing(その角度, speed) と distance の差は 0.02 m 以内である
+  - distance·9.81/speed² が 1.05 を超えるとき aim は None を返す
+  - distance が 0 以下・非有限・bool・数でないとき aim は ValueError を投げる
+  - 同じ引数で 2 回呼ぶと simulate・landing・aim の返り値はすべての値がビット単位で一致する
+  files:
+  - launcher/__init__.py
+  - launcher/aim.py
+  - tests/test_launcher_aim.py
+  oracle:
+  - path: tests/test_launcher_aim.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_launcher_aim
+    expected_exit_code: 0

@@ -1,0 +1,54 @@
+- id: P-01
+  title: 公開の入口・入力の検査・決定論・始めの状態
+  depends_on: []
+  acceptance:
+  - billiards.simulate(cue, target, speed, angle, steps) は長さ steps の list を返し、各要素は pos・vel・pocketed を持つ球の状態の辞書 cue と target の対である
+  - billiards.shot(cue, target, speed, angle) は steps（整数）・cue・target を持つ辞書を返し、20000 歩で打ち切る
+  - 範囲外や有限でない値、数でない値（bool を含む）、整数でない steps は ValueError になり、範囲の端の値は受け入れる
+  - 同じ引数で 2 回呼ぶと全ての値がビット単位で一致し、simulate の 1 歩目は手球の pos が cue の 0.005 m 以内、vel が打ち出しの速度と 0.01·speed 以内、的球が静止、pocketed が False である
+  files:
+  - billiards/__init__.py
+  - billiards/table.py
+  - tests/test_billiards_api.py
+  oracle:
+  - path: tests/test_billiards_api.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_billiards_api
+    expected_exit_code: 0
+- id: P-02
+  title: 減速・止まる・正面衝突・鏡
+  depends_on:
+  - P-01
+  acceptance:
+  - 縁にも的球にも触れずに止まる打ち出しで、shot の最後の手球の pos と cue の距離は speed÷1.5 の 0.99〜1.01 倍で、向きは angle と 0.001 rad 以内で一致する
+  - shot の steps は 3000 以下で、ポケットに入っていない球の最後の速さはどれも 0.001 未満である
+  - y が等しく angle 0 の正面衝突で、接触の終わりの手球の速さは始めの 0.2 倍以下、的球の速さは 0.75〜1.0 倍で、的球の vel の y の絶対値は 1e-6 以下である
+  - y 反転と angle の符号反転、x 反転と angle を 180−angle にした打ち出しは、各歩の pos と vel が鏡像に 1e-6 以内で一致し、pocketed は元と同じである
+  files:
+  - billiards/table.py
+  - tests/test_billiards_motion.py
+  oracle:
+  - path: tests/test_billiards_motion.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_billiards_motion
+    expected_exit_code: 0
+- id: P-03
+  title: 縁の反発とポケット
+  depends_on:
+  - P-02
+  acceptance:
+  - ポケットに入っていない球の中心は、どの歩でも |x| が 0.49 以下かつ |y| が 0.24 以下である
+  - angle 0 で他の球に触れず +x の縁に当たる手球で、反発の比 −v2÷v1 は 0.6〜1.0 で、そのあいだの y は cue の y と 1e-6 以内で一致する
+  - 球の中心が四隅から 0.05 以内に入った最初の歩に pocketed が True になり、以後 pos は変わらず vel は [0.0, 0.0] である
+  - 隅 C から x 軸と 35°〜55° の角をなす直線の上から C の向きに打つ。手球を C から L 0.2〜0.35 に置き speed 0.8〜1.5（的球は直線から 0.1 m 以上離れる）なら手球が、的球を C から L 0.15〜0.25 に置き手球をその 0.1 m 後ろに置いて speed 1.0〜1.5 なら的球が、ポケットに入る
+  files:
+  - billiards/table.py
+  - tests/test_billiards_pocket.py
+  oracle:
+  - path: tests/test_billiards_pocket.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_billiards_pocket
+    expected_exit_code: 0

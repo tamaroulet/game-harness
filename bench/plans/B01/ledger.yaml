@@ -1,0 +1,68 @@
+- id: P-01
+  title: 玉転がしの土台：Game の入口・入力の検査・決定論・静止・盤の上の高さ
+  depends_on: []
+  acceptance:
+  - "`from rollgame import Game` で `Game()` を作り、`step(tx, ty)` が `pos`（float 3 個の list）・`vel`（float 3 個の list）・`outcome` を持つ辞書を返す（この段の `outcome` は `None`）"
+  - "`tx`・`ty` が -0.2 未満・0.2 超・`nan`・`inf`・文字列・`None`・`bool` のとき `ValueError` を投げ、±0.2 の境界の値は通る"
+  - "同じ入力の列で進めた 2 つの `Game` が返す `pos`・`vel` はビット単位で一致する"
+  - "傾き (0, 0) で 1000 歩進めても、x・y は初めの位置から 0.001 m 以内にあり、`outcome` は `None` のまま。x・y がともに -0.45〜0.45 の歩では z が 0.015〜0.025"
+  files:
+  - rollgame/__init__.py
+  - rollgame/game.py
+  - tests/test_rollgame_core.py
+  oracle:
+  - path: tests/test_rollgame_core.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_rollgame_core
+    expected_exit_code: 0
+- id: P-02
+  title: 玉転がしの転がりと対称
+  depends_on:
+  - P-01
+  acceptance:
+  - "傾き (0, 0) で 100 歩進めた後、傾き (t, 0)（0.05 ≤ |t| ≤ 0.2）を n 歩（100 ≤ n ≤ 180）続けると、x の変化 Δx は t と同符号で、|Δx| は ½·9.81·|sin t|·(0.002·n)² の 0.64 倍以上 0.80 倍以下、y の変化は絶対値 0.001 m 未満"
+  - "傾き (0, t) でも x と y を入れ替えて同じ振る舞いになる"
+  - "各歩の (tx, ty) を (ty, tx) に替えた遊びでは、各歩の `pos`・`vel` の x と y が入れ替わり（差 1e-4 以内）、`outcome` の列は同じ"
+  files:
+  - rollgame/game.py
+  - tests/test_rollgame_roll.py
+  oracle:
+  - path: tests/test_rollgame_roll.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_rollgame_roll
+    expected_exit_code: 0
+- id: P-03
+  title: 玉転がしの落ちる・ゴール
+  depends_on:
+  - P-01
+  - P-02
+  acceptance:
+  - "中心の z が -0.05 未満になった最初の歩の `outcome` が `\"fell\"`（それより前は `None`）。傾き (t, s)（-0.2 ≤ t ≤ -0.1、|s| ≤ 0.05）を続けると 5000 歩以内に `\"fell\"` になる"
+  - "中心の z が 0 以上で (x, y) がゴールの円（中心 (0.35, 0.35)、半径 0.05、境界を含む）の中にある最初の歩の `outcome` が `\"goal\"`。傾き (t, t)（0.06 ≤ t ≤ 0.15）を続けると 5000 歩以内に `\"goal\"` になる"
+  files:
+  - rollgame/game.py
+  - tests/test_rollgame_outcome.py
+  oracle:
+  - path: tests/test_rollgame_outcome.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_rollgame_outcome
+    expected_exit_code: 0
+- id: P-04
+  title: 玉転がしの時間切れと終わった後
+  depends_on:
+  - P-03
+  acceptance:
+  - "ほかの終わりが無いまま 5000 歩目を進めた歩の `outcome` は `\"timeout\"`（4999 歩目までは `None`）。同じ歩で `\"fell\"`・`\"goal\"` の条件も満たすときは `\"fell\"`、`\"goal\"`、`\"timeout\"` の順に先のものになる"
+  - "`outcome` が `None` でなくなった後の `step` は、玉の状態を変えず、終わった歩と同じ `pos`・`vel`・`outcome` を返し、範囲の外・不正な入力には `ValueError` を投げる"
+  files:
+  - rollgame/game.py
+  - tests/test_rollgame_end.py
+  oracle:
+  - path: tests/test_rollgame_end.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_rollgame_end
+    expected_exit_code: 0

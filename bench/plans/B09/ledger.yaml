@@ -1,0 +1,51 @@
+- id: P-01
+  title: play の入口・入力検査・パドル
+  depends_on: []
+  acceptance:
+  - play(seed, controller, steps) が caught・missed・events・paddle を持つ辞書を返し、paddle は長さ steps で、controller の返した速さを [-1, 1] に切り詰めて p += 0.002*v とし p を [-0.5, 0.5] に切り詰めた値と 1e-12 以内で一致する
+  - seed が 0 以上 2**32 未満の int でない（bool・float・範囲外を含む）、steps が 1 以上 5000 以下の int でない、controller が呼び出せない、または controller が bool・None・NaN・無限大を返すとき、ValueError を投げる
+  - controller に渡した state の各要素を書き換えても、返り値は変わらない。同じ seed と同じ controller の 2 回の呼び出しの返り値は完全に一致する
+  - controller が受け取る state["balls"] は長さ 10 で、i 番目の x は random.Random(seed) の i+1 回目の random() から -0.4 + 0.8*u と 1e-12 以内で一致する
+  files:
+  - catcher/__init__.py
+  - tests/test_catcher_play.py
+  oracle:
+  - path: tests/test_catcher_play.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_catcher_play
+    expected_exit_code: 0
+- id: P-02
+  title: 玉の落下と一度だけの判定
+  depends_on:
+  - P-01
+  acceptance:
+  - state の各玉の z・vz は、止まって保たれる間は 1.0 と 0.0、落ち始めて j 歩目の後は 1 - 9.81*0.002**2*j*(j+1)/2 と -9.81*0.002*j に 1e-9 以内で一致する（i 番の玉は 375*i+1 歩目から落ちる）
+  - events は steps 歩までに判定の歩（375*i+226）が来た玉のすべてを、ちょうど一度ずつ、判定の歩の順に持ち、各要素の ball・step・caught は玉の番号・判定の歩・|x_i - p| <= 0.1 の判定（p はその歩の後のパドルの中心）と一致する
+  - 返り値の caught は events の caught が真の数、missed は偽の数で、合計は events の長さ
+  - state の resolved・caught は、判定の歩の後の呼び出しから判定を表し、それ以前は False と None である
+  files:
+  - catcher/__init__.py
+  - tests/test_catcher_fall.py
+  oracle:
+  - path: tests/test_catcher_fall.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_catcher_fall
+    expected_exit_code: 0
+- id: P-03
+  title: 自動の操作 auto_play
+  depends_on:
+  - P-02
+  acceptance:
+  - catcher.auto_play(state) が有限の数（bool でない）を返し、play の controller としてそのまま使える
+  - seed が 0・1・2**32-1 を含む 100 個以上のどれでも、play(seed, auto_play, 3700) の caught は 9 以上である
+  files:
+  - catcher/__init__.py
+  - tests/test_catcher_auto.py
+  oracle:
+  - path: tests/test_catcher_auto.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_catcher_auto
+    expected_exit_code: 0

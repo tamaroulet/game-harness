@@ -1,0 +1,52 @@
+- id: P-01
+  title: simulate と入力の検査
+  depends_on: []
+  acceptance:
+  - simulate(n, spacing, steps, origin, direction) は長さ steps の list を返し、各要素は長さ n の板の状態（pos と tilt を持つ辞書）の list である。範囲外・bool・非有限・整数でない n と steps・不正な origin と direction は ValueError になり、範囲の端は通る
+  - 同じ引数で 2 回呼ぶと、返り値のすべての値がビット単位で一致する
+  - 1 歩目の状態で、1 番から後の板の中心は置いた位置から 0.001 m 以内で tilt は 0.01 以下、0 番の板の中心は置いた位置から 0.002 m 以内で tilt と 0.2 の差は 0.01 以内である（direction は 4 つとも）
+  - どの歩でも、各板の中心の高さは 0 以上である
+  files:
+  - domino/__init__.py
+  - domino/sim.py
+  - tests/test_domino_simulate.py
+  oracle:
+  - path: tests/test_domino_simulate.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_domino_simulate
+    expected_exit_code: 0
+- id: P-02
+  title: fall_steps と倒れ方
+  depends_on:
+  - P-01
+  acceptance:
+  - fall_steps(n, spacing, steps=3000, origin, direction) は長さ n の list を返し、i 番目は i 番の tilt が 1.2 を超えた最初の歩（1 歩目を 1 と数える整数）で、steps 歩までに超えなければ None である。入力の検査は simulate と同じである。同じ引数で 2 回呼ぶと返り値が一致する
+  - spacing が 0.125 以上なら、3000 歩のどの歩でも 1 番から後の板の中心は置いた位置から 0.002 m 以内で tilt は 0.02 以下、fall_steps は 0 番が 1000 以下の整数でほかはすべて None である
+  - spacing が 0.125 以上のとき、3000 歩目の 0 番の板の中心は高さが 0.01 以下で、origin から進む向きに 0.04 以上 0.07 以下、進む向きに垂直な向きに 0.01 以内にある
+  - spacing が 0.05 以上 0.065 以下で n が 3 以上 10 以下なら、fall_steps の要素はすべて整数で 0 番から順に減らず、3000 歩目にどの板の tilt も 1.2 より大きい
+  files:
+  - domino/__init__.py
+  - domino/sim.py
+  - tests/test_domino_fall.py
+  oracle:
+  - path: tests/test_domino_fall.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_domino_fall
+    expected_exit_code: 0
+- id: P-03
+  title: 平行移動と回転で値が変わらない
+  depends_on:
+  - P-02
+  acceptance:
+  - n が 3 以上 10 以下で spacing が 0.05 以上 0.065 以下のとき、origin（各要素の絶対値 1 以下）を変えても、direction を 4 つのどれに替えても、fall_steps(n, spacing, 3000, origin, direction) の各要素は origin が (0, 0) で direction が "+x" のときの値との差が 10 歩以内である
+  files:
+  - domino/sim.py
+  - tests/test_domino_symmetry.py
+  oracle:
+  - path: tests/test_domino_symmetry.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_domino_symmetry
+    expected_exit_code: 0

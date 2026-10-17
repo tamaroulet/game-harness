@@ -1,0 +1,70 @@
+- id: P-01
+  title: simulate の入口と入力検査・決定論・静止
+  depends_on: []
+  acceptance:
+  - simulate(grid, tilts) は長さ len(tilts) の list を返し、各要素は x・y・z（float）の辞書で、k 番目は k＋1 歩目の後の状態。始めの位置は、1 辺 0.1 m のセル（r 行 c 列の中心は x = 0.1·c + 0.05、y = 0.1·(R − 1 − r) + 0.05）の S の中心で、z の初期値は 0.03
+  - 範囲外の grid（行数・列数が 5〜9 の外、行の長さ違い、# . S G 以外の文字、S や G が 1 個でない、外周が # でない）と範囲外の tilts（長さが 1〜20000 の外、要素が 2 つの有限の数でない、bool、絶対値が 0.1 超）には ValueError を投げる
+  - 同じ引数で 2 回呼ぶと、すべての値がビット単位で一致する
+  - tilts がすべて (0, 0) なら、どの歩でも x・y は始めの位置から 1e-6 以内
+  files:
+  - maze/__init__.py
+  - maze/sim.py
+  - tests/test_maze_sim_basic.py
+  oracle:
+  - path: tests/test_maze_sim_basic.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_maze_sim_basic
+    expected_exit_code: 0
+- id: P-02
+  title: 転がり・壁・鏡の物理の確かめ
+  depends_on:
+  - P-01
+  acceptance:
+  - S のまわりの 7 × 7 に # が無い盤で、tilts がすべて同じ (a_x, a_y) のとき、400 歩までの各 k 歩目（t = 0.002·k）で、x − x_S と ½·(5/7)·9.81·a_x·t² の差、y − y_S と ½·(5/7)·9.81·a_y·t² の差は、どちらも 0.03·|その値| + 0.002 以内
+  - どんな tilts でも、どの歩でも、玉は # のセルの中に無く、0 < z < 0.1
+  - 各行の文字の並びを逆にした格子と、a_x の符号を反転した tilts の simulate の各歩で、x は元の 0.1·C − x と 1e-6 以内、y と z は元と 1e-6 以内で一致する（S のまわり 7 × 7 に # が無い盤、400 歩まで）
+  files:
+  - maze/sim.py
+  - tests/test_maze_sim_physics.py
+  oracle:
+  - path: tests/test_maze_sim_physics.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_maze_sim_physics
+    expected_exit_code: 0
+- id: P-03
+  title: solve の入口と、解けない格子
+  depends_on:
+  - P-01
+  acceptance:
+  - S と G が # でないセルを上下左右に辿ってつながっていない格子では solve(grid) は None を返す（斜めにしかつながらない格子を含む）
+  - S と G がつながっている格子では solve(grid) は list を返し、各要素は絶対値 0.1 以下の 2 つの float の tuple
+  - 範囲外の grid には solve も ValueError を投げる
+  files:
+  - maze/__init__.py
+  - maze/solver.py
+  - tests/test_maze_solve_basic.py
+  oracle:
+  - path: tests/test_maze_solve_basic.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_maze_solve_basic
+    expected_exit_code: 0
+- id: P-04
+  title: 解ける格子を実際に運ぶ
+  depends_on:
+  - P-02
+  - P-03
+  acceptance:
+  - S と G がつながっている格子（直線の廊下・曲がり角・行き止まりのある迷路・9 × 9 を含む）で、solve(grid) は長さ 20000 以下の list を返す
+  - simulate(grid, solve(grid)) の状態のどれかで、玉は G のセルの中にある（x・y の両方が G の中心から 0.05 未満）
+  files:
+  - maze/solver.py
+  - tests/test_maze_solve_reach.py
+  oracle:
+  - path: tests/test_maze_solve_reach.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_maze_solve_reach
+    expected_exit_code: 0

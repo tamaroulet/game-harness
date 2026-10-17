@@ -1,0 +1,66 @@
+- id: P-01
+  title: 坂を登る車の模型と simulate の入口
+  depends_on: []
+  acceptance:
+  - 有効な引数で simulate(slope, torque, steps) を呼ぶと、長さ steps の list を返し、各要素は x・z・pitch（float）と flipped（bool）の 4 つの鍵だけを持つ辞書である。同じ引数で 2 回呼ぶと、返り値のすべての値がビット単位で一致する
+  - slope 0・torque 1.2・steps 1000 では、どの歩でも pitch は −π より大きく π 以下で、flipped は一度 True になったら以後 False に戻らず、最後の歩の flipped は True である
+  - 1 歩目の状態は |x| ≤ 0.001・|z − 0.1| ≤ 0.001・|pitch| ≤ 0.01・flipped は False である
+  - slope 0・torque 0 では、どの歩でも |x| ≤ 1e-6・|pitch| ≤ 1e-6・flipped は False である
+  files:
+  - hillcar/__init__.py
+  - tests/test_hillcar_sim.py
+  oracle:
+  - path: tests/test_hillcar_sim.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hillcar_sim
+    expected_exit_code: 0
+- id: P-02
+  title: simulate の入力の範囲の検査
+  depends_on:
+  - P-01
+  acceptance:
+  - slope が −40 以上 40 以下の有限の数でないとき（範囲外・nan・inf・文字列・None・bool）は ValueError を投げ、両端の −40 と 40 は有効である
+  - torque が −1.2 以上 1.2 以下の有限の数でないとき（範囲外・nan・inf・文字列・None・bool）は ValueError を投げ、両端の −1.2 と 1.2 は有効である
+  - steps が 1 以上 20000 以下の整数でないとき（0・負・20000 超・bool・float・文字列）は ValueError を投げ、端の 1 は有効である
+  files:
+  - hillcar/__init__.py
+  - tests/test_hillcar_input.py
+  oracle:
+  - path: tests/test_hillcar_input.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hillcar_input
+    expected_exit_code: 0
+- id: P-03
+  title: 転がり：坂と輪の回りにくさを含む動き
+  depends_on:
+  - P-02
+  acceptance:
+  - −20 ≤ slope ≤ 40 かつ −0.1 ≤ torque ≤ 0.8·τ*(α)（τ*(α) ＝ 0.05·1.5·9.81·cos α）なら、1000 歩までの各 k 歩目（t ＝ 0.002·k）で、a ＝ (torque／0.1 − 1.5·9.81·sin α)／1.7 として |x − ½·a·t²| ≤ 0.03·|½·a·t²| ＋ 0.1、|pitch| ≤ 0.02、flipped は False である
+  - slope 30 以上で torque が 0.8·τ*(α) のとき、1000 歩目の x は負である
+  files:
+  - hillcar/__init__.py
+  - tests/test_hillcar_roll.py
+  oracle:
+  - path: tests/test_hillcar_roll.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hillcar_roll
+    expected_exit_code: 0
+- id: P-04
+  title: ひっくり返りと鏡の対称
+  depends_on:
+  - P-03
+  acceptance:
+  - "|slope| ≤ 20 かつ 1.5·τ*(α) ≤ |torque| ≤ 1.2 なら、600 歩目の flipped は True で、|pitch| が初めて 0.5 を超えた歩の pitch は torque と同じ符号である"
+  - "|slope| ≤ 10 かつ |torque| ≤ 0.1 なら、simulate(−slope, −torque, n) の各歩（n ≤ 500）で、x は元の −x との差が 0.01·|x| ＋ 0.02 以内、pitch は元の −pitch との差が 0.001 以内、z は元との差が 0.0001 以内である"
+  files:
+  - hillcar/__init__.py
+  - tests/test_hillcar_flip.py
+  oracle:
+  - path: tests/test_hillcar_flip.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hillcar_flip
+    expected_exit_code: 0
