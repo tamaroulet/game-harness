@@ -445,11 +445,11 @@ def record_transients(c, prompt, workdir, retries):
     return out
 
 
-def guard_implementer(imp, verify=agy_pinned.require):
+def guard_implementer(imp, verify=None):
     """agy のときは、起動の前に導入先のファイルの SHA-256 を照合する。落ちれば環境の異常として止める。"""
     if imp.get("cli") == "agy":
         try:
-            verify()
+            (verify or agy_pinned.require)()
         except agy_pinned.AgyDigestError as e:
             sys.exit(f"ABORT: {e}")
 
