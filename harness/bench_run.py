@@ -87,10 +87,16 @@ def read_json(path, default):
     return data if isinstance(data, type(default)) else default
 
 
-def line_config(base_cfg, work, inbox, base, branch):
-    """clone の config/hline.json の 8 つの欄を走行用に上書きしたもの。"""
-    return {**base_cfg, "inbox": str(inbox), "out": str(work / "out"), "worktrees": str(work / "wt"), "base": base,
-            "integration_branch": branch, "milestones": [GROUP], "open_pr": False, "gate_always_modules": []}
+def line_config(base_cfg, work, inbox, base, branch, implementer=None):
+    """clone の config/hline.json の 8 つの欄を走行用に上書きしたもの。implementer があれば実装役の設定もそれに替える。"""
+    cfg = {**base_cfg, "inbox": str(inbox), "out": str(work / "out"), "worktrees": str(work / "wt"), "base": base,
+           "integration_branch": branch, "milestones": [GROUP], "open_pr": False, "gate_always_modules": []}
+    return {**cfg, "implementer": implementer} if implementer is not None else cfg
+
+
+def role_cli(cfg, role):
+    """役の CLI の名前。planner の欄が無い設定では実装役のものを使う。"""
+    return ((cfg.get(role) or {}).get("cli")) or cfg["implementer"]["cli"]
 
 
 # ============================================================ 呼び出しの記録
@@ -408,8 +414,24 @@ class Factory:
                     "replaced": 0, "tries": 0, "first_pass": None, "recovered": None,
                     "intake_revised": 0, "tokens": {}, "quota_wait_seconds": 0}
         self.revised, self.polls, self.before = set(), [], set()
+        self.implementer_path = getattr(a, "implementer", None)
+        self.impl = None
 
     # ---- 準備
+    def load_implementer(self):
+        if self.implementer_path:
+            doc = json.loads(Path(self.implementer_path).read_text(encoding="utf-8"))
+            if not isinstance(doc, dict):
+                raise BenchError(f"--implementer の中身がオブジェクトではありません: {self.implementer_path}")
+            self.impl = doc
+
+    def effective(self, cfg):
+        return {**cfg, "implementer": self.impl} if self.impl is not None else cfg
+
+    def version_of(self, cli):
+        _, out, err = proc.run(proc.resolve_cli(cli) + ["--version"], self.repo, 60, f"{cli} --version")
+        return out.strip()
+
     def check_head(self):
         self.run["base"] = git(self.repo, ["rev-parse", "--verify", "-q", f"{self.rev}^{{commit}}"]).decode().strip()
         if git(self.repo, ["rev-parse", "HEAD"]).decode().strip() != self.run["base"]:
@@ -429,12 +451,18 @@ class Factory:
         if code != 0:
             self.invalid("REQ-10", f"bench_guard check が終了コード {code}: {(out + err).strip()[-400:]}")
             return False
+        cfg = self.effective(cfg)
+        planner_cli, impl_cli = role_cli(cfg, "planner"), cfg["implementer"]["cli"]
         want = self.freeze_version()
         if want is not None:
-            _, out, err = proc.run(proc.resolve_cli(cfg["implementer"]["cli"]) + ["--version"], self.repo, 60, "claude --version")
-            have = out.strip()
+            have = self.version_of(planner_cli)
             if want not in (have, have.split()[0] if have else ""):
                 self.invalid("REQ-03", f"CLI の版が凍結の記録と違います: 記録 {want} ／ 実物 {have}")
+                return False
+        if impl_cli != planner_cli and cfg["implementer"].get("version") is not None:
+            want, have = str(cfg["implementer"]["version"]), self.version_of(impl_cli)
+            if want not in (have, have.split()[0] if have else ""):
+                self.invalid("REQ-03", f"実装役の CLI の版が設定と違います: 設定 {want} ／ 実物 {have}")
                 return False
         return True
 
@@ -514,9 +542,12 @@ class Factory:
         git(clone, ["checkout", "-q", "--detach", start])
         for p in plan_inbox.glob("P-*.md"):
             shutil.copy2(p, self.work / "inbox" / p.name)
-        self.line_cfg = line_config(cfg, self.work, self.work / "inbox", start, self.branch)
+        self.line_cfg = line_config(cfg, self.work, self.work / "inbox", start, self.branch, self.impl)
         self.line_path = self.work / "hline.json"
         hline_base.write_json(self.line_path, self.line_cfg)
+        if self.impl is not None:
+            (self.rundir / "factory").mkdir(parents=True, exist_ok=True)
+            hline_base.write_json(self.rundir / "factory" / "config.json", self.line_cfg)
         self.clone = clone
 
     # ---- H ライン
@@ -581,9 +612,11 @@ class Factory:
         return changed
 
     # ---- 書き出し
-    def cli_version(self):
+    def cli_version(self, role="planner"):
         try:
-            code, out, _ = proc.run(proc.resolve_cli(self.cfg()["implementer"]["cli"]) + ["--version"], self.repo, 60, "claude --version")
+            cfg = self.effective(self.cfg())
+            cli = cfg["implementer"]["cli"] if role == "implementer" else role_cli(cfg, role)
+            code, out, _ = proc.run(proc.resolve_cli(cli) + ["--version"], self.repo, 60, f"{cli} --version")
         except (OSError, KeyError, ValueError, SystemExit):
             return None
         return out.strip() if code == 0 and out.strip() else None
@@ -595,7 +628,7 @@ class Factory:
         except importlib.metadata.PackageNotFoundError:
             mujoco = None
         return {"task": self.task, "run_id": self.run_id, "os": platform.platform(), "platform": platform.platform(),
-                "cli_version": self.cli_version(), "python": platform.python_version(), "mujoco": mujoco,
+                "cli_version": self.cli_version(), "implementer_cli_version": self.cli_version("implementer"), "python": platform.python_version(), "mujoco": mujoco,
                 "base": self.run["base"], "start": self.run["start"], "account": getpass.getuser(),
                 "started_at": self.started_at, "finished_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
                 "quota_wait_seconds": int(round(self.timer.waited(clock())))}
@@ -633,6 +666,7 @@ def factory(a):
     try:
         f.check_head()
         f.check_plan()
+        f.load_implementer()
         cfg = f.cfg()
         f.before = sessions_now(f.sessions)
         f.rundir.mkdir(parents=True, exist_ok=True)
@@ -682,12 +716,26 @@ def grade(run, rundir, repo, task, oracles, package):
     return violations, score["passed"], score["total"], bool(score.get("timed_out"))
 
 
+def model_allowed(model, role_cfg):
+    if role_cfg.get("cli") == "agy":
+        return model == role_cfg.get("model_name")
+    return model == role_cfg.get("model") or any(model.startswith(p) for p in role_cfg.get("auxiliary_models") or [])
+
+
 def model_problem(rundir, cfg):
+    used = read_json(rundir / "factory" / "config.json", {})
     allowed = cfg["implementer"]["model"]
     bad = set()
     for p in sorted((rundir / "calls").glob("*/result.json")):
         usage = read_json(p, {}).get("modelUsage")
-        bad |= {m for m in usage if m != allowed and not m.startswith("claude-haiku-")} if isinstance(usage, dict) else set()
+        if not isinstance(usage, dict):
+            continue
+        if used:
+            role = p.parent.name.split("-", 1)[-1]
+            role_cfg = used.get(role) if role in ("planner", "reviewer") and isinstance(used.get(role), dict) else used.get("implementer", {})
+            bad |= {m for m in usage if not model_allowed(m, role_cfg)}
+        else:
+            bad |= {m for m in usage if m != allowed and not m.startswith("claude-haiku-")}
     return sorted(bad)
 
 
@@ -820,7 +868,8 @@ def stage(a):
                 last += 1
                 run_id = f"{a.tag}-{last}"
                 code = factory(argparse.Namespace(task=task, run_id=run_id, repo=a.repo, base=a.base, out=a.out, sessions=None,
-                                                  plan=str(plans / task) if plans is not None else None))
+                                                  plan=str(plans / task) if plans is not None else None,
+                                                  implementer=getattr(a, "implementer", None)))
                 if code != 0:
                     print(f"{task}: factory が終了コード {code}（{run_id}）", file=sys.stderr)
                     return code
@@ -848,7 +897,8 @@ def main(argv=None):
     sp.add_argument("--oracles")
     sp.add_argument("--finish", action="store_true")
     sp.add_argument("--plans")
-    pp = sub.add_parser("plan")
+    sp.add_argument("--implementer")
+    pp =sub.add_parser("plan")
     pp.add_argument("--task")
     pp.add_argument("--repo", required=True)
     pp.add_argument("--base", required=True)
@@ -864,6 +914,7 @@ def main(argv=None):
     sub.choices["factory"].add_argument("--base", required=True)
     sub.choices["factory"].add_argument("--sessions")
     sub.choices["factory"].add_argument("--plan")
+    sub.choices["factory"].add_argument("--implementer")
     sub.choices["finish"].add_argument("--oracles")
     try:
         a = ap.parse_args(argv)
