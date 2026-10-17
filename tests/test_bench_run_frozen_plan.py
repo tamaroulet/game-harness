@@ -265,7 +265,7 @@ class StagePlansTests(unittest.TestCase):
         self.repo.mkdir()
         self.calls = []
         for target, new in (("stage_tasks", lambda repo, base: list(TASKS)), ("factory", self.fake_factory),
-                            ("set_execution_state", lambda flags: None)):
+                            ("set_execution_state", lambda flags: None), ("version_problem", lambda repo, rev: None)):
             p = mock.patch.object(bench_run, target, new)
             p.start()
             self.addCleanup(p.stop)

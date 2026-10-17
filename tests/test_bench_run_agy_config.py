@@ -77,6 +77,7 @@ class AgyFactoryTests(tf.FactoryTests):
         with contextlib.redirect_stderr(err), \
                 mock.patch.object(bench_run.proc, "run", self.fake_run), \
                 mock.patch.object(bench_run.proc, "resolve_cli", lambda name: [name]), \
+                mock.patch.object(bench_run, "version_problem", lambda repo, rev: None), \
                 mock.patch.object(bench_run, "clock", self.clock), mock.patch.object(bench_run, "sleep", self.clock.sleep):
             return bench_run.main(argv)
 

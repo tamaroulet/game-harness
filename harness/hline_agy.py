@@ -18,6 +18,7 @@ from hline_base import Infra, Quota, save_prompt
 LOG_SPLIT = "\n--- stderr ---\n"
 SANDBOX = "--sandbox"
 TIMEOUT_EXIT = 124
+NOTE = "命令の実行の道具（run_command など）は使えません。ファイルの一覧と検索は、読みと検索の道具で行ってください\n"
 
 
 def _int(v):
@@ -25,8 +26,15 @@ def _int(v):
 
 
 def commands(steps):
-    """命令の実行の手番（CommandLine を持つ道具）。[{"step": 番号（最初の手番が 1）, "tool": 道具の名前, "command": 命令の先頭の語}]。"""
-    return [{"step": n, "tool": s.get("tool"), "command": s["verb"]} for n, s in enumerate(steps, 1) if s.get("verb")]
+    """打ち切る命令の実行の手番（CommandLine を持つ道具で、--sandbox に拒まれた ERROR でないもの）。
+    [{"step": 番号（最初の手番が 1）, "tool": 道具の名前, "command": 命令の先頭の語}]。"""
+    return [{"step": n, "tool": s.get("tool"), "command": s["verb"]}
+            for n, s in enumerate(steps, 1) if s.get("verb") and s.get("state") != "ERROR"]
+
+
+def blocked_commands(steps):
+    """--sandbox に拒まれた（実行されなかった）命令の手番の数。"""
+    return sum(1 for s in steps if s.get("verb") and s.get("state") == "ERROR")
 
 
 def summary(parsed, log):
@@ -36,7 +44,8 @@ def summary(parsed, log):
            "cache_read_input_tokens": _int(u.get("cache_read_tokens")), "output_tokens": _int(u.get("output_tokens"))}
     models = {model: {"inputTokens": row["input_tokens"], "cacheCreationInputTokens": 0,
                       "cacheReadInputTokens": row["cache_read_input_tokens"], "outputTokens": row["output_tokens"]}} if model else {}
-    return {"session_id": "agy-" + Path(log).stem, "usage": row, "modelUsage": models, "commands": commands(parsed["steps"])}
+    return {"session_id": "agy-" + Path(log).stem, "usage": row, "modelUsage": models, "commands": commands(parsed["steps"]),
+            "blocked_commands": blocked_commands(parsed["steps"])}
 
 
 def usage_record(parsed):
@@ -62,7 +71,7 @@ def call(host, agent, wt, ttl, prompt):
     args = agy_stream.args(agent, host.proc.resolve_cli(agent["cli"]), prompt, ttl)
     if SANDBOX not in args:
         args.append(SANDBOX)
-    return host.proc.run(args, wt, ttl, "実装役", input=agy_stream.stdin_for(agent, prompt))
+    return host.proc.run(args, wt, ttl, "実装役", input=agy_stream.stdin_for(agent, NOTE + prompt))
 
 
 def implement(host, cfg, wt, prompt, log):
@@ -72,6 +81,7 @@ def implement(host, cfg, wt, prompt, log):
     parsed = agy_stream.parse(out, wt)
     Path(log).write_text(json.dumps(summary(parsed, log), ensure_ascii=False) + LOG_SPLIT + out + LOG_SPLIT + err, encoding="utf-8")
     save_prompt(log, prompt)
+    host.blocked_commands = blocked_commands(parsed["steps"])   # 試行の記録に入れる（hline_task.map_size が読む）
     if hit := hline_quota.message(out, err, agy=True):
         raise Quota(f"実装役の利用枠が尽きました（終了コード {code}）: {hit}")
     if code == TIMEOUT_EXIT:

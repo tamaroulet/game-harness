@@ -26,7 +26,8 @@ class StageTest(unittest.TestCase):
         self.plan = {}       # (task, run_id) -> 無効の理由
         self.states = []
         for target, new in (("stage_tasks", lambda repo, base: list(TASKS)), ("factory", self.fake_factory),
-                            ("finish", self.fake_finish), ("set_execution_state", self.states.append)):
+                            ("finish", self.fake_finish), ("set_execution_state", self.states.append),
+                            ("version_problem", lambda repo, rev: None)):
             p = mock.patch.object(bench_run, target, new)
             p.start()
             self.addCleanup(p.stop)
