@@ -2,6 +2,13 @@
 
     python -m harness.bench_run factory --task <id> --run-id <r> --repo <clone> --base <rev> [--out <dir>] [--sessions <dir>]
     python -m harness.bench_run finish  --task <id> --run-id <r> --repo <clone> [--out <dir>] [--oracles <dir>]
+    python -m harness.bench_run plan --task <id> --repo <clone> --base <rev> [--out <dir>]
+    python -m harness.bench_run plan --check --all --repo <clone> --base <rev>
+
+plan は plan_loop を 1 回走らせ、確定すれば <clone>/bench/plans/<id>/ に P-*.md・ledger.yaml・planner.json を写して 0、
+確定しなければ書かずに 1、すでにあれば上書きせず・環境の異常は 2。--check --all は、固定のすべての計画が
+plan_check・要件の網羅・planner.json の sha256 に通れば 0、どれかが欠ければ 1。
+factory --plan <dir> は plan_loop を呼ばず、固定の計画から走る。stage --plans <dir> は課題ごとに <dir>/<課題> を渡す。
 
 factory（制限のアカウント）は、走行のディレクトリ <out>/runs/<id>/factory-<r>/（env.json・inputs/・calls/・factory/・git/）を書く。
 終了コード：書けば 0（無効でも 0）、<clone> の HEAD が <rev> でない・書けないときは 2。
@@ -32,7 +39,10 @@ import hline_base  # noqa: E402
 import hline_queue  # noqa: E402
 import hline_quota  # noqa: E402
 import hline_usage  # noqa: E402
+import plan_check  # noqa: E402
+import plan_loop  # noqa: E402
 import proc  # noqa: E402
+import reqcov  # noqa: E402
 from bench_start import BenchError, git  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -250,6 +260,16 @@ class Timer:
         return now - self.start - self.waited(now)
 
 
+def pass_rates(items):
+    """(first_pass, recovered)：試行のある What のうち最初の試行で Gate 1 を通った割合と、最初に落ちた What のうち後で通った割合。"""
+    tried = [[isinstance(t, dict) and bool(t.get("gate")) for t in i.get("tries") or []] for i in items.values()]
+    tried = [g for g in tried if g]
+    if not tried:
+        return None, None
+    failed = [g for g in tried if not g[0]]
+    return (len(tried) - len(failed)) / len(tried), (sum(any(g[1:]) for g in failed) / len(failed) if failed else None)
+
+
 def ending(code, err):
     """0 以外で終わった poll の終わり方（終了コード、標準エラーの最後の空でない行）。TTL 切れは (124, "TTL")。"""
     if code == 124:
@@ -258,11 +278,123 @@ def ending(code, err):
     return code, lines[-1] if lines else ""
 
 
+# ============================================================ 計画
+
+def plan_files(d):
+    """計画のディレクトリの P-*.md・ledger.yaml・planner.json（あるものだけ、名前の順）。"""
+    return sorted(p for p in Path(d).iterdir() if p.is_file() and (
+        (p.name.startswith("P-") and p.suffix == ".md") or p.name in ("ledger.yaml", "planner.json")))
+
+
+def frozen_missing(d):
+    """固定の計画に欠けているものの名前。"""
+    if not Path(d).is_dir():
+        return [str(d)]
+    names = [p.name for p in plan_files(d)]
+    return [w for w, ok in (("P-*.md", any(n.startswith("P-") for n in names)), ("ledger.yaml", "ledger.yaml" in names),
+                            ("planner.json", "planner.json" in names)) if not ok]
+
+
+def run_plan_loop(repo, base, task, cfg, work, branch, seconds):
+    """作業の場所 <work>/plan を受信箱にして plan_loop を 1 回走らせる。(終了コード, 標準出力, 標準エラー, 受信箱, 仕様)。"""
+    package = bench_start.package_of(repo, base, task)
+    spec = repo / "docs" / "bench" / task / "spec.md"
+    plan_inbox = work / "plan"
+    for d in (plan_inbox, work / "out", work / "wt", work / "inbox"):
+        d.mkdir(parents=True, exist_ok=True)
+    plan_cfg = work / "plan-config.json"
+    hline_base.write_json(plan_cfg, line_config(cfg, work, plan_inbox, base, branch))
+    code, out, err = proc.run([PY, "-m", "harness.plan_loop", "--spec", str(spec), "--package", package, "--inbox",
+                               str(plan_inbox), "--config", str(plan_cfg)], repo, max(1, seconds), "plan_loop", env=child_env())
+    return code, out, err, plan_inbox, spec
+
+
+def plan_problems(d, spec):
+    """固定の計画 d の欠け（sha256・plan_check・要件の網羅）の理由の列。通れば空。"""
+    d = Path(d)
+    if not d.is_dir():
+        return ["計画がありません"]
+    files = read_json(d / "planner.json", {}).get("files")
+    if not isinstance(files, dict) or not files:
+        return ["planner.json に files がありません"]
+    found = []
+    for name in sorted(set(files) | {p.name for p in plan_files(d) if p.name != "planner.json"}):
+        if name not in files:
+            found.append(f"{name} が planner.json の files にありません")
+        elif not (d / name).is_file():
+            found.append(f"{name} がありません")
+        elif sha256_file(d / name) != files[name]:
+            found.append(f"{name} の sha256 が planner.json と違います")
+    found += [f"plan_check: {rule}（{task or '全体'}）" for rule, task in plan_check.check(d)]
+    try:
+        defined = reqcov.definitions(spec)
+    except (reqcov.InputError, OSError) as e:
+        return found + [f"仕様を読めません: {e}"]
+    return found + [f"reqcov: {i['reason']}" for i in plan_loop.stage_reqcov(d, defined)]
+
+
+def plan_one(a):
+    repo = Path(a.repo)
+    out = Path(a.out) if a.out else repo / ".bench"
+    dest = repo / "bench" / "plans" / a.task
+    if dest.exists():
+        print(f"ABORT: 固定の計画がすでにあります: {dest}", file=sys.stderr)
+        return 2
+    try:
+        base = git(repo, ["rev-parse", "--verify", "-q", f"{a.base}^{{commit}}"]).decode().strip()
+        if git(repo, ["rev-parse", "HEAD"]).decode().strip() != base:
+            raise BenchError(f"{repo} の HEAD が {a.base} ではありません")
+        cfg = json.loads((repo / "config" / "hline.json").read_text(encoding="utf-8"))
+        work = work_dir(out, a.task, "plan")
+        shutil.rmtree(work, ignore_errors=True)
+        code, text, err, inbox, _ = run_plan_loop(repo, base, a.task, cfg, work, f"bench/{a.task}/plan", LIMIT_SECONDS)
+        if code != 0:
+            print((text + err).strip()[-800:], file=sys.stderr)
+            return 1 if code == 1 else 2
+        dest.mkdir(parents=True)
+        for p in plan_files(inbox):
+            shutil.copy2(p, dest / p.name)
+    except (BenchError, OSError, KeyError, ValueError) as e:
+        print(f"ABORT: {e}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def plan_check_all(a):
+    repo = Path(a.repo)
+    try:
+        tasks = stage_tasks(repo, a.base)
+    except BenchError as e:
+        print(f"ABORT: {e}", file=sys.stderr)
+        return 2
+    bad = 0
+    for task in tasks:
+        for why in plan_problems(repo / "bench" / "plans" / task, repo / "docs" / "bench" / task / "spec.md"):
+            print(f"{task}: {why}", file=sys.stderr)
+            bad += 1
+    if not tasks:
+        print("課題がありません", file=sys.stderr)
+    return 1 if bad or not tasks else 0
+
+
+def plan(a):
+    if a.check:
+        if not a.all:
+            print("--check には --all が要ります", file=sys.stderr)
+            return 2
+        return plan_check_all(a)
+    if not a.task:
+        print("--task が要ります", file=sys.stderr)
+        return 2
+    return plan_one(a)
+
+
 # ============================================================ factory
 
 class Factory:
     def __init__(self, a):
         self.task, self.run_id, self.repo, self.rev = a.task, a.run_id, Path(a.repo), a.base
+        self.frozen = Path(a.plan) if getattr(a, "plan", None) else None
         self.out = Path(a.out) if a.out else self.repo / ".bench"
         self.sessions = Path(a.sessions) if a.sessions else Path.home() / ".claude" / "projects"
         self.rundir, self.work = run_dir(self.out, self.task, self.run_id), work_dir(self.out, self.task, self.run_id)
@@ -272,7 +404,8 @@ class Factory:
         self.started_at = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
         self.run = {"task": self.task, "run_id": self.run_id, "base": None, "start": None, "head": None,
                     "started_at": self.started_at, "invalid": None, "reason": None, "stop": None, "plan_rounds": 0,
-                    "plan_confirmed": False, "planner_sha256": {}, "queue_sha256": {}, "replaced": 0, "tries": 0,
+                    "plan_confirmed": False, "plan_frozen": bool(self.frozen), "planner_sha256": {}, "queue_sha256": {},
+                    "replaced": 0, "tries": 0, "first_pass": None, "recovered": None,
                     "intake_revised": 0, "tokens": {}, "quota_wait_seconds": 0}
         self.revised, self.polls, self.before = set(), [], set()
 
@@ -313,29 +446,45 @@ class Factory:
         return str(doc.get("cli_version")) if isinstance(doc, dict) and doc.get("cli_version") is not None else None
 
     # ---- 計画
-    def plan(self, cfg):
-        package = bench_start.package_of(self.repo, self.run["base"], self.task)
+    def check_plan(self):
+        if self.frozen is not None and (missing := frozen_missing(self.frozen)):
+            raise BenchError(f"固定の計画 {self.frozen} に {', '.join(missing)} がありません")
+
+    def keep_plan(self, plan_inbox, spec):
+        """計画のファイルと仕様を、走行のディレクトリの inputs/ に写す。"""
+        inputs = self.rundir / "inputs"
+        inputs.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(spec, inputs / "spec.md")
+        for p in plan_files(plan_inbox):
+            shutil.copy2(p, inputs / p.name)
+
+    def frozen_plan(self):
         spec = self.repo / "docs" / "bench" / self.task / "spec.md"
         plan_inbox = self.work / "plan"
         for d in (plan_inbox, self.work / "out", self.work / "wt", self.work / "inbox"):
             d.mkdir(parents=True, exist_ok=True)
-        plan_cfg = self.work / "plan-config.json"
-        hline_base.write_json(plan_cfg, line_config(cfg, self.work, plan_inbox, self.run["base"], self.branch))
-        code, out, err = proc.run([PY, "-m", "harness.plan_loop", "--spec", str(spec), "--package", package, "--inbox",
-                                   str(plan_inbox), "--config", str(plan_cfg)], self.repo,
-                                  max(1, LIMIT_SECONDS - self.timer.elapsed()), "plan_loop", env=child_env())
+        (self.rundir / "factory").mkdir(parents=True, exist_ok=True)
+        for p in plan_files(self.frozen):
+            shutil.copy2(p, plan_inbox / p.name)
+        loop = read_json(self.frozen / "planner.json", {}).get("loop")
+        self.run["plan_rounds"] = _int(loop.get("rounds")) if isinstance(loop, dict) else 0
+        self.run["planner_sha256"] = {p.name: sha256_file(p) for p in plan_files(self.frozen) if p.name != "planner.json"}
+        self.keep_plan(plan_inbox, spec)
+        self.run["plan_confirmed"] = True
+        return plan_inbox
+
+    def plan(self, cfg):
+        if self.frozen is not None:
+            return self.frozen_plan()
+        code, out, err, plan_inbox, spec = run_plan_loop(self.repo, self.run["base"], self.task, cfg, self.work, self.branch,
+                                                         LIMIT_SECONDS - self.timer.elapsed())
         (self.rundir / "factory").mkdir(parents=True, exist_ok=True)
         (self.rundir / "factory" / "plan.txt").write_text(out + LOG_SPLIT + err, encoding="utf-8")
         doc = read_json(plan_inbox / "planner.json", {})
         loop = doc.get("loop") if isinstance(doc.get("loop"), dict) else {}
         self.run["plan_rounds"] = _int(loop.get("rounds"))
         self.run["planner_sha256"] = doc.get("files") if isinstance(doc.get("files"), dict) else {}
-        inputs = self.rundir / "inputs"
-        inputs.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(spec, inputs / "spec.md")
-        for p in plan_inbox.iterdir():
-            if p.is_file() and (p.name.startswith("P-") or p.name in ("ledger.yaml", "planner.json")):
-                shutil.copy2(p, inputs / p.name)
+        self.keep_plan(plan_inbox, spec)
         if code == 1:
             self.run["reason"] = loop.get("failed", [])
             return None
@@ -457,6 +606,7 @@ class Factory:
         items = st["items"]
         run["replaced"] = sum(1 for i in items.values() if i.get("replaced"))
         run["tries"] = sum(len(i.get("tries") or []) for i in items.values())
+        run["first_pass"], run["recovered"] = pass_rates(items)
         run["intake_revised"] = len(self.revised)
         run["queue_sha256"] = {n: sha256_file(hline_queue.what_path(self.line_cfg, n)) for n in sorted(items)
                                if hline_queue.what_path(self.line_cfg, n).is_file()}
@@ -482,6 +632,7 @@ def factory(a):
     f = Factory(a)
     try:
         f.check_head()
+        f.check_plan()
         cfg = f.cfg()
         f.before = sessions_now(f.sessions)
         f.rundir.mkdir(parents=True, exist_ok=True)
@@ -571,8 +722,8 @@ def finish(a):
         mf = manifest(rundir)
         hline_base.write_json(rundir / "manifest.json", mf)
         keys = ("task", "run_id", "base", "start", "head", "started_at")
-        tail = ("stop", "plan_rounds", "plan_confirmed", "planner_sha256", "queue_sha256", "replaced", "tries",
-                "intake_revised", "tokens", "quota_wait_seconds")
+        tail = ("stop", "plan_rounds", "plan_confirmed", "plan_frozen", "planner_sha256", "queue_sha256", "replaced", "tries",
+                "first_pass", "recovered", "intake_revised", "tokens", "quota_wait_seconds")
         record = {**{k: run.get(k) for k in keys}, "invalid": invalid or False, "reason": reason, "violations": violations,
                   "passed": passed, "total": total, "rate": passed / total if total else 0.0, "timed_out": timed_out,
                   **{k: run.get(k) for k in tail}, "manifest_sha256": sha256_file(rundir / "manifest.json")}
@@ -655,6 +806,10 @@ def stage(a):
     except BenchError as e:
         print(f"ABORT: {e}", file=sys.stderr)
         return 2
+    plans = Path(a.plans) if getattr(a, "plans", None) else None
+    if plans is not None and (missing := [t for t in tasks if not (plans / t).is_dir()]):
+        print(f"固定の計画がありません: {', '.join(missing)}（{plans}）", file=sys.stderr)
+        return 1
     with KeepAwake():
         for task in tasks:
             done, waiting, last = stage_state(out, a.repo, task, a.tag)
@@ -664,7 +819,8 @@ def stage(a):
             while True:
                 last += 1
                 run_id = f"{a.tag}-{last}"
-                code = factory(argparse.Namespace(task=task, run_id=run_id, repo=a.repo, base=a.base, out=a.out, sessions=None))
+                code = factory(argparse.Namespace(task=task, run_id=run_id, repo=a.repo, base=a.base, out=a.out, sessions=None,
+                                                  plan=str(plans / task) if plans is not None else None))
                 if code != 0:
                     print(f"{task}: factory が終了コード {code}（{run_id}）", file=sys.stderr)
                     return code
@@ -691,6 +847,14 @@ def main(argv=None):
     sp.add_argument("--out")
     sp.add_argument("--oracles")
     sp.add_argument("--finish", action="store_true")
+    sp.add_argument("--plans")
+    pp = sub.add_parser("plan")
+    pp.add_argument("--task")
+    pp.add_argument("--repo", required=True)
+    pp.add_argument("--base", required=True)
+    pp.add_argument("--out")
+    pp.add_argument("--check", action="store_true")
+    pp.add_argument("--all", action="store_true")
     for name in ("factory", "finish"):
         p = sub.add_parser(name)
         p.add_argument("--task", required=True)
@@ -699,12 +863,13 @@ def main(argv=None):
         p.add_argument("--out")
     sub.choices["factory"].add_argument("--base", required=True)
     sub.choices["factory"].add_argument("--sessions")
+    sub.choices["factory"].add_argument("--plan")
     sub.choices["finish"].add_argument("--oracles")
     try:
         a = ap.parse_args(argv)
     except SystemExit as e:
         return 2 if e.code else 0
-    return {"factory": factory, "finish": finish, "stage": stage}[a.cmd](a)
+    return {"factory": factory, "finish": finish, "stage": stage, "plan": plan}[a.cmd](a)
 
 
 if __name__ == "__main__":

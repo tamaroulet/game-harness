@@ -20,8 +20,8 @@ SPEC = "# B1\n\nリポジトリの根の `calc` パッケージを作る。\n"
 MODEL = "claude-sonnet-5-5"
 GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"]
 KEYS = ("task", "run_id", "base", "start", "head", "started_at", "invalid", "reason", "violations", "passed", "total",
-        "rate", "timed_out", "stop", "plan_rounds", "plan_confirmed", "planner_sha256", "queue_sha256", "replaced", "tries",
-        "intake_revised", "tokens", "quota_wait_seconds", "manifest_sha256")
+        "rate", "timed_out", "stop", "plan_rounds", "plan_confirmed", "plan_frozen", "planner_sha256", "queue_sha256",
+        "replaced", "tries", "first_pass", "recovered", "intake_revised", "tokens", "quota_wait_seconds", "manifest_sha256")
 RUN_KEYS = set(KEYS) - {"violations", "passed", "total", "rate", "timed_out", "manifest_sha256"}
 ALL_WAITING = {"P-01": ("waiting", [], False, 0)}
 ALL_DONE = {"P-01": ("done", [], False, 1)}
