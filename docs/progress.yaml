@@ -7,7 +7,7 @@ last_verification:
   task: W-95
   exit_code: 0
   at: '2026-10-16T21:49:43'
-next_id: 96
+next_id: 101
 nodes:
 - id: A
   parent: null
@@ -1637,6 +1637,7 @@ tasks:
   - W-60
   - W-89
   - W-91
+  - W-96
   acceptance:
   - 週次の報告 → 総監督の改善の What（`計器:` で対象を名指し）→ 監修 → hline/outer → 非劣性の合格 → マージ、が 1 週の中で通る
   oracle:
@@ -1658,7 +1659,6 @@ tasks:
   deliverable: 4 週の周期の記録
   depends_on:
   - W-61
-  - W-92
   - W-94
   acceptance:
   - outer_cycles が、4 週続けて周期が回り、改善が 1 件以上あることを示す（D-058）
@@ -2104,7 +2104,7 @@ tasks:
     command: python -m unittest tests.test_bench_run_stage
     expected_exit_code: 0
 - id: W-89
-  title: 工廠の基準の走行（凍結の 10 本を工廠で 1 回ずつ。段 4 の非劣性の検査の基準）
+  title: 工廠の基準の走行（凍結の 10 本を、固定の計画と agy の実装役で 1 回ずつ。段 4 の非劣性の検査の基準）
   group: W-18
   target_repo: game-harness
   status: pending
@@ -2118,8 +2118,12 @@ tasks:
   - W-88
   - W-93
   - W-95
+  - W-97
+  - W-98
+  - W-99
+  - W-100
   acceptance:
-  - freeze.json の base から、bench_run stage --tag base で 10 本を工廠で 1 回ずつ走らせ、記録を PR で main に入れる
+  - freeze.json の base から、実装役を agy にしたベンチの設定で、bench_run stage --tag base --plans bench/plans で 10 本を 1 回ずつ走らせ、記録を PR で main に入れる
   oracle:
   - path: harness/bench_verify.py
     from: W-47
@@ -2165,29 +2169,6 @@ tasks:
     from: self
   verification:
     command: python -m unittest tests.test_hline_work_while_pr_open
-    expected_exit_code: 0
-- id: W-92
-  title: 制限のアカウントの中の走行で、実装役に構文の確かめと unittest の実行を許す
-  group: W-18
-  target_repo: game-harness
-  status: pending
-  slug: 'hline: implementer-may-run-tests'
-  serves: R4
-  purpose: 実装役が Gate 1 に出す前に、自分で構文と試験を確かめられるようにする（複数のモジュールにまたがる R5 の製品の What の前に）。オラクルを守るのは道具の禁止ではなく、W-71 の OS のアカウント
-  deliverable: harness/hline_symbols.py のテスト実行許可、tests/test_implementer_run_tests.py
-  depends_on:
-  - W-57
-  - W-71
-  after:
-  - W-91
-  acceptance:
-  - 設定の欄が真の走行（W-71 の制限のアカウントで回すベンチと製品の走行）では、実装役は python -m py_compile と python -m unittest で始まる命令だけを実行できる。ほかの命令・本線の H ラインの走行の許しは今のまま
-  - 欄の無い設定（config/hline.json）では、実装役の道具は今と同じ
-  oracle:
-  - path: tests/test_implementer_run_tests.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_implementer_run_tests
     expected_exit_code: 0
 - id: W-93
   title: 基準の走行の前の再判断（見送った基盤・型契約・環境・外部連携の指摘を、段 3 の実走の一次情報を踏まえて決め直す）
@@ -2252,3 +2233,109 @@ tasks:
   verification:
     command: python -m unittest tests.test_bench_run_records
     expected_exit_code: 0
+- id: W-96
+  title: 基準の走行の検め（W-89 の記録の妥当性と、回数・利用枠の待ち・並行の消費・物差しの固定の扱いを決め直す）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'review: after-baseline'
+  by: pilot
+  serves: R4
+  purpose: 基準の走行の記録を、非劣性の検査（W-57・W-61）で使う前に検める。N=1 の揺れ・利用枠の待ちによる試行の巻き戻し・本線との利用枠の取り合い・物差しの clone の固定は、W-89 の実測を見て初めて要否と程度を決められる（10-17 の指摘）
+  depends_on:
+  - W-89
+  acceptance:
+  - 総監督が、受信箱の drafts/director/deferred.md の「次の再判断」が W-96 のすべての行について、W-89 の 10 本の記録と走行のディレクトリ（quota_wait_seconds・tries・tokens・env.json・base）と report.md を読み、率直な見解を書く。手を打つと見る行は、W-61 の前に入れるタスクか操縦士の作業として台帳の PR の完成形を出す
+  - 操縦士が行ごとに承認か拒否を決め、結果を docs/design/review_after_baseline.md として PR で main に入れる。基準の記録を使えないと決めた課題は、走らせ直すか、W-61 で使わないかも、ここで決める
+  oracle:
+  - path: harness/bench_verify.py
+    from: W-47
+  verification:
+    command: python -m harness.bench_verify --all --min-runs 1 --frozen
+    expected_exit_code: 0
+  deliverable: docs/design/review_after_baseline.md
+- id: W-97
+  title: 固定の計画で工廠を走らせる（bench_run plan で計画を作って固定し、factory --plan で固定の計画から走らせ、記録に FPSR と HRR を書く）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: frozen-plan'
+  serves: R4
+  purpose: 計画の揺らぎと、毎回の計画のトークンを、工廠の走行から外す。実装役と防壁の効きを、同じ計画の上で比べられるようにする（D-120）
+  deliverable: harness/bench_run.py、tests/test_bench_run_frozen_plan.py
+  depends_on:
+  - W-95
+  acceptance:
+  - python -m harness.bench_run plan --task <id> --repo <clone> --base <rev> は、plan_loop で計画を作り、確定すれば bench/plans/<id>/ に P-*.md・ledger.yaml・planner.json を書いて 0、確定しなければ書かずに 1。--check --all は、固定のすべての計画が plan_check と要件の網羅に通り、planner.json の sha256 が実物と同じなら 0
+  - factory --plan <dir> は plan_loop を呼ばず、その計画から開始のコミットを作って走らせる。記録の planner_sha256 は固定の計画のファイルの sha256 で、plan_frozen が真。stage --plans <dir> は、課題ごとに <dir>/<課題>/ を factory --plan に渡し、その課題の計画が無ければ、どの課題も走らせる前に終了コード 1 で、無い課題を出す
+  - finish の記録が first_pass（最初の試行で Gate 1 を通った What の割合）と recovered（最初の試行で落ち、後の試行で通った What の割合。最初に落ちた What が 0 件なら null）を持つ
+  oracle:
+  - path: tests/test_bench_run_frozen_plan.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_bench_run_frozen_plan
+    expected_exit_code: 0
+- id: W-98
+  title: 設定の実装役が agy のとき、H ラインが agy を呼び、利用量・モデル・利用枠切れ・呼び出しの記録を claude と同じ形で残す
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'hline: agy-implementer'
+  serves: R4
+  purpose: ベンチの走行の実装役を agy に替える配管（D-120）。本線の設定（config/hline.json の claude）は変えない
+  deliverable: harness/hline_prompt.py、tests/test_hline_agy_implementer.py
+  depends_on:
+  - W-95
+  acceptance:
+  - 設定の implementer.cli が agy のとき、実装役は harness/agy_stream.py の引数と標準入力に --sandbox を足して呼ばれ、queue.json の試行の usage に 4 つの内訳（agy が出さない内訳は null）と models に stream-json の model が入る。model_pin の agy の照合か agy_pinned の導入先の照合に外れたら、今の claude と同じく環境の異常になる
+  - 試行の stream-json に命令の実行の手番（CommandLine を持つ道具）が 1 つでもあれば、その試行は Gate 1 に掛けずに不合格になり、試行の記録に手番と理由が残る
+  - agy の利用枠切れの出力（RESOURCE_EXHAUSTED・quota exceeded・Rate limit exceeded・429）で、今の claude と同じく What が待ちに戻り、quota_wait が立つ。W-95 の calls/ に、agy の呼び出しも prompt.txt と result.json で入る
+  - 設定の implementer.cli が claude のとき（config/hline.json）の振る舞いは変わらない
+  oracle:
+  - path: tests/test_hline_agy_implementer.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hline_agy_implementer
+    expected_exit_code: 0
+- id: W-99
+  title: 10 本の計画を 1 回だけ作って固定する
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: freeze-plans'
+  by: pilot
+  serves: R4
+  purpose: 基準の走行と段 4 の周期のすべてに、同じ計画を入れる（D-120）
+  depends_on:
+  - W-97
+  acceptance:
+  - D-119 の後の main で、bench_run plan を B01〜B10 に 1 回ずつ走らせ、確定した計画を bench/plans/ に置いて PR で main に入れる。確定しなかった課題は、同じ命令をあと 2 回まで走らせ、それでも確定しなければ、扱い（10 本から外す・総監督が計画を書く・計画の作り方を直す）を操縦士が決めて、決めたことを同じ PR に書く
+  oracle:
+  - path: harness/bench_run.py
+    from: W-97
+  verification:
+    command: python -m harness.bench_run plan --check --all
+    expected_exit_code: 0
+  deliverable: bench/plans/
+- id: W-100
+  title: 実物の agy のスモーク（B06 の固定の計画で 1 走行し、実物の agy が What を解いて Gate 1 を通るのを確かめる）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: agy-smoke'
+  by: pilot
+  serves: R4
+  purpose: 偽物の試験だけで基準の走行（10 本、約 30 時間）に入らない。実物の agy の起動・stream-json の標準入出力・Windows の文字コードと改行・認証・導入先の照合を、1 走行で先に通す（10-17 の操縦士の指摘。W-46 の calls/ の欠けと同じ型の誤りを防ぐ）
+  depends_on:
+  - W-98
+  - W-99
+  acceptance:
+  - 最初に、制限のアカウントの agy の導入先を python -m harness.agy_pinned --measure で実測して config/agy_digests.json に書いた PR を main に入れ、python -m harness.agy_pinned が 0 になる
+  - 実装役を agy にしたベンチの設定で、bench_run factory --task B06 --run-id smoke-1 --plan bench/plans/B06 を走らせ、finish を掛ける。記録の invalid が偽で、少なくとも 1 件の What が agy の試行で Gate 1 を通り、calls/ に agy の呼び出しが入り、tokens が 0 でなく、models が gemini-3.8-flash-medium だけで、命令の実行の手番による不合格が 0 件。満たさなければ、直してから同じ命令を新しい run-id で走らせる
+  oracle:
+  - path: harness/bench_verify.py
+    from: existing
+  verification:
+    command: python -m harness.bench_verify --task B06 --min-runs 1
+    expected_exit_code: 0
+  deliverable: bench/records/B06/factory-smoke-*.json
