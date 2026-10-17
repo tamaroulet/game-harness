@@ -7,7 +7,7 @@ last_verification:
   task: W-97
   exit_code: 0
   at: '2026-10-17T09:34:22'
-next_id: 101
+next_id: 102
 nodes:
 - id: A
   parent: null
@@ -2103,6 +2103,27 @@ tasks:
   verification:
     command: python -m unittest tests.test_bench_run_stage
     expected_exit_code: 0
+- id: W-101
+  title: 工廠の走行の実装役を設定のファイルで agy に替え、版とモデルを役ごとに確かめる（bench_run --implementer）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: agy-implementer-config'
+  serves: R4
+  purpose: 工廠の走行の実装役を agy に替える入口と、agy の混ざった走行を REQ-02・REQ-03 で誤って無効にしない記録の検査（D-120・D-121）。本線の H ラインの設定（config/hline.json の claude）は変えない
+  deliverable: harness/bench_run.py、config/bench_implementer_agy.json、tests/test_bench_run_agy_config.py
+  depends_on:
+  - W-97
+  acceptance:
+  - bench_run factory と stage は --implementer <json> を受け取り、渡されたときは H ラインの設定の implementer をそのファイルの中身に替え、使った H ラインの設定の全文を走行のディレクトリの factory/config.json に残す。渡されないときの振る舞いは変わらない。config/bench_implementer_agy.json は agy の実装役の設定（cli agy・model_name gemini-3.8-flash-medium・stream-json・--sandbox・version 1.2.14・config/hline.json と同じ budget）
+  - 版の確かめ（REQ-03）は、freeze.json の版を planner の CLI の --version と比べる。implementer の cli が planner の cli と違うときは、implementer の CLI の --version も設定の version と比べ、違えば REQ-03 で無効にする。env.json に implementer の CLI の版も残す
+  - finish のモデルの照合（REQ-02）は、calls/ の <連番>-<役> の役ごとに factory/config.json の値と照合する。planner・reviewer は model と auxiliary_models の前置き、implementer は claude なら model と auxiliary_models の前置き、agy なら model_name だけ。factory/config.json の無い走行は今のまま
+  oracle:
+  - path: tests/test_bench_run_agy_config.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_bench_run_agy_config
+    expected_exit_code: 0
 - id: W-89
   title: 工廠の基準の走行（凍結の 10 本を、固定の計画と agy の実装役で 1 回ずつ。段 4 の非劣性の検査の基準）
   group: W-18
@@ -2122,6 +2143,7 @@ tasks:
   - W-98
   - W-99
   - W-100
+  - W-101
   acceptance:
   - freeze.json の base から、実装役を agy にしたベンチの設定で、bench_run stage --tag base --plans bench/plans で 10 本を 1 回ずつ走らせ、記録を PR で main に入れる
   oracle:
@@ -2329,6 +2351,7 @@ tasks:
   depends_on:
   - W-98
   - W-99
+  - W-101
   acceptance:
   - 最初に、制限のアカウントの agy の導入先を python -m harness.agy_pinned --measure で実測して config/agy_digests.json に書いた PR を main に入れ、python -m harness.agy_pinned が 0 になる
   - 実装役を agy にしたベンチの設定で、bench_run factory --task B06 --run-id smoke-1 --plan bench/plans/B06 を走らせ、finish を掛ける。記録の invalid が偽で、少なくとも 1 件の What が agy の試行で Gate 1 を通り、calls/ に agy の呼び出しが入り、tokens が 0 でなく、models が gemini-3.8-flash-medium だけで、命令の実行の手番による不合格が 0 件。満たさなければ、直してから同じ命令を新しい run-id で走らせる
