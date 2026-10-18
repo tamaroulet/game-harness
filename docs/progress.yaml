@@ -1638,6 +1638,7 @@ tasks:
   - W-89
   - W-91
   - W-96
+  - W-107
   acceptance:
   - 週次の報告 → 総監督の改善の What（`計器:` で対象を名指し）→ 監修 → hline/outer → 非劣性の合格 → マージ、が 1 週の中で通る
   oracle:
@@ -2263,7 +2264,7 @@ tasks:
   title: 基準の走行の検め（W-89 の記録の妥当性と、回数・利用枠の待ち・並行の消費・物差しの固定の扱いを決め直す）
   group: W-18
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'review: after-baseline'
   by: pilot
   serves: R4
@@ -2451,4 +2452,24 @@ tasks:
     from: self
   verification:
     command: python -m unittest tests.test_hline_agy_blocked
+    expected_exit_code: 0
+- id: W-107
+  title: 工廠の設定の控えでは、非公開オラクルの場所を伏せる
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'bench: mask-oracles-in-config-copy'
+  serves: R4
+  purpose: 工廠の走行の控え rundir/factory/config.json に非公開オラクルのパスがそのまま入り、bench_guard scan が自分の控えを漏れと判じる。W-89 は手で伏せて通したが、W-57 の非劣性の走行は無人なので、控えを書く側で伏せる
+  deliverable: harness/bench_run.py の控えの書き出し、tests/test_bench_config_copy.py
+  depends_on:
+  - W-89
+  acceptance:
+  - 工廠の走行が書く rundir/factory/config.json に、config の oracles のパスの文字列が含まれず、bench_guard の leaks がその rundir で何も返さない
+  - 控えから役ごとの model を読む検査（model_problem）の結果は、伏せる前と同じ
+  oracle:
+  - path: tests/test_bench_config_copy.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_bench_config_copy
     expected_exit_code: 0
