@@ -2128,7 +2128,7 @@ tasks:
   title: 工廠の基準の走行（凍結の 10 本を、固定の計画と agy の実装役で 1 回ずつ。段 4 の非劣性の検査の基準）
   group: W-18
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'bench: factory-baseline'
   by: pilot
   serves: R4

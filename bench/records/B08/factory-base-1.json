@@ -1,0 +1,46 @@
+{
+ "task": "B08",
+ "run_id": "base-1",
+ "base": "18860f4781714af39583ed009a5a494ffb36ad49",
+ "start": "7b059e0fa237997e1c1e683b15d26a4267411117",
+ "head": "ee85bcae81161f77123bbcabad53b311cbc549f6",
+ "started_at": "2026-10-18T23:22:11+09:00",
+ "invalid": false,
+ "reason": null,
+ "violations": [],
+ "passed": 11,
+ "total": 11,
+ "rate": 1.0,
+ "timed_out": false,
+ "stop": "done",
+ "plan_rounds": 2,
+ "plan_confirmed": true,
+ "plan_frozen": true,
+ "planner_sha256": {
+  "ledger.yaml": "d1f3aa51b2f481162203c18816a41b1d03e02723327636b75918c06eca8bfbe3",
+  "P-01.md": "2a364a384f0da86f00b0c4080c5a3c9a2e44f68d4c52ff9b0be1518bf5e02c87",
+  "P-02.md": "d4c08feb80cab09b9eed2b897dacf44453a19bcf9cd24d53560293d9c960786f",
+  "P-03.md": "e51934b752437e99a23db66748409846682c7d65539918b4cbb2629867134ef3",
+  "P-04.md": "291cf0b91e8c0bdc4be0f8b5d73c31e96b002fec179ff5aa5720e9999e72ae67"
+ },
+ "queue_sha256": {
+  "P-01": "2a364a384f0da86f00b0c4080c5a3c9a2e44f68d4c52ff9b0be1518bf5e02c87",
+  "P-02": "d4c08feb80cab09b9eed2b897dacf44453a19bcf9cd24d53560293d9c960786f",
+  "P-03": "e51934b752437e99a23db66748409846682c7d65539918b4cbb2629867134ef3",
+  "P-04": "291cf0b91e8c0bdc4be0f8b5d73c31e96b002fec179ff5aa5720e9999e72ae67"
+ },
+ "replaced": 0,
+ "tries": 4,
+ "first_pass": 1.0,
+ "recovered": null,
+ "intake_revised": 0,
+ "tokens": {
+  "input_tokens": 440552,
+  "cache_creation_tokens": 0,
+  "cache_read_tokens": 2139349,
+  "output_tokens": 130248,
+  "total": 2710149
+ },
+ "quota_wait_seconds": 0,
+ "manifest_sha256": "45d0b939a99b18128a955de87a369785dd8d7219e152dad35bf688b1de4e0206"
+}
