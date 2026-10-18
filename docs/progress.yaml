@@ -2328,7 +2328,7 @@ tasks:
   title: 10 本の計画を 1 回だけ作って固定する
   group: W-18
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'bench: freeze-plans'
   by: pilot
   serves: R4
@@ -2348,7 +2348,7 @@ tasks:
   title: 実物の agy のスモーク（B06 の固定の計画で 1 走行し、実物の agy が What を解いて Gate 1 を通るのを確かめる）
   group: W-18
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'bench: agy-smoke'
   by: pilot
   serves: R4
@@ -2413,7 +2413,7 @@ tasks:
   title: 凍結の base を、異種の構成の道具（W-97〜W-103）の入った main に取り直す
   group: W-18
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'bench: refreeze-base'
   by: pilot
   serves: R4
