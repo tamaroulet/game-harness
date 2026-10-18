@@ -143,7 +143,7 @@ class DirectorRoom(unittest.TestCase):
     def settings(self):
         with tempfile.TemporaryDirectory() as d:
             src = Path(d)
-            for p in ("game-harness", "falling-blocks", ".local/inbox", ".local/wt", ".local/out"):
+            for p in ("game-harness", "falling-blocks", ".local/inbox", ".local/wt", ".local/out/hline", ".local/out/ms3"):
                 (src / p).mkdir(parents=True)
             (src / ".local" / "machine.toml").write_text("", encoding="utf-8")
             return hline.director_settings(src / ".local" / "inbox", src_root=src), src
@@ -166,11 +166,15 @@ class DirectorRoom(unittest.TestCase):
         self.assertNotIn(f"Edit({root}/.local/inbox/**)", deny)
         self.assertNotIn(f"Edit({root}/.local/**)", deny)
 
-    def test_raw_logs_and_worktrees_are_not_readable(self):
+    def test_hline_raw_logs_are_readable_but_worktrees_and_other_outputs_are_not(self):
         (s, src) = self.settings()
+        deny = s["permissions"]["deny"]
         root = "//" + src.as_posix().replace(":", "", 1).lower()
-        self.assertIn(f"Read({root}/.local/wt/**)", s["permissions"]["deny"])
-        self.assertIn(f"Read({root}/.local/out/**)", s["permissions"]["deny"])
+        self.assertIn(f"Read({root}/.local/wt/**)", deny)
+        self.assertIn(f"Read({root}/.local/out/ms3/**)", deny)
+        self.assertIn("Read(**/*.cs)", deny)
+        self.assertNotIn(f"Read({root}/.local/out/**)", deny)
+        self.assertFalse([r for r in deny if r.startswith(f"Read({root}/.local/out/hline")])
 
 
 if __name__ == "__main__":
