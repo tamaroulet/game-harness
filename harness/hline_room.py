@@ -20,7 +20,10 @@ def director_settings(inbox, src_root=Path("C:/src"), home_dirs=(".claude", ".ge
     outside += [p for p in sorted(inbox.parent.iterdir()) if p != inbox]
     edit = [rule(p) if p.is_dir() else rule(p)[:-3] for p in outside] + [f"~/{d}/**" for d in home_dirs]
     edit += [rule(inbox / ".claude")] + [rule(inbox).replace("/**", "/" + n) for n in sorted(RESERVED)]
-    read = [rule(Path(src_root) / ".local" / d) for d in ("wt", "out")] + ["**/*.cs"]
+    out = Path(src_root) / ".local" / "out"  # 走行の生ログ out/hline だけは読める。ほかは作った時点の一覧で拒否する
+    others = [p for p in sorted(out.iterdir()) if p.name != "hline"] if out.is_dir() else []
+    read = [rule(Path(src_root) / ".local" / "wt")] + [rule(p) if p.is_dir() else rule(p)[:-3] for p in others]
+    read += ["**/*.cs"]
     deny = (["Bash", "PowerShell", "NotebookEdit", "mcp__terminal"]
             + [f"Edit({r})" for r in edit] + [f"Read({r})" for r in read])
     return {"permissions": {"deny": deny, "disableBypassPermissionsMode": "disable"}}
