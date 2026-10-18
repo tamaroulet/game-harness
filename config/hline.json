@@ -12,8 +12,11 @@
   "_integration_note": "Gate 1 を通った変更はこのブランチの先端に積む（作業ツリーもここから作る。無ければ base から）。タスクごとの PR は作らず、積むものが尽きたら main への統合 PR を 1 本だけ出して止まる",
   "milestones": [
     "W-17",
-    "W-18"
+    "W-18",
+    "outer"
   ],
+  "outer_integration_branch": "hline/outer",
+  "_outer_note": "マイルストーン outer（基盤の改善。外側）の What はこのブランチに積む。統合 PR は週（ISO 週）に 1 本だけ。開いている間は外側の What を取らないが、内側は止めない（harness/hline_outer.py）",
   "_milestones_note": "このラインが取ってよいマイルストーン（進捗のグループの ID）。外のもの・宣言の無いものは受信箱に残す",
   "max_attempts": 2,
   "respecs": 0,

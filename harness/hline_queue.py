@@ -20,6 +20,7 @@ from pathlib import Path
 from hline_base import RESERVED, ROOT, title_of, write_json
 
 import hline_ledger_entry  # noqa: E402
+import hline_outer  # noqa: E402
 import hline_review  # noqa: E402
 import proc  # noqa: E402
 import progress  # noqa: E402
@@ -85,7 +86,8 @@ def load_state(cfg):
     p = state_path(cfg)
     st = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
     return {"items": st.get("items", {}), "awaiting_pr": st.get("awaiting_pr"), "skipped": st.get("skipped", []),
-            "infra_halt": st.get("infra_halt"), "quota_wait": st.get("quota_wait"), "pr_times": st.get("pr_times")}
+            "infra_halt": st.get("infra_halt"), "quota_wait": st.get("quota_wait"), "pr_times": st.get("pr_times"),
+            "outer": st.get("outer") or {}}
 
 
 def save_state(cfg, st):
@@ -151,6 +153,8 @@ def intake(cfg, st):
             why = "マイルストーンの宣言がありません"
         elif meta["milestone"] not in cfg["milestones"]:
             why = f"マイルストーン {meta['milestone']} はこのラインに許されていません（許可: {', '.join(cfg['milestones'])}）"
+        elif why := hline_outer.blocked_reason(st) if hline_outer.is_outer(meta["milestone"]) else None:
+            pass   # 外側の統合 PR が開いている間は外側の What を受信箱に残す（内側は取る）
         elif not meta["task"]:
             why = "`タスク:` の行がありません（すべての What は台帳のタスクを 1 つ宣言します）"
         elif meta["verify"]:
