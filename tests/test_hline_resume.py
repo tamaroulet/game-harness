@@ -68,7 +68,7 @@ class Resume(unittest.TestCase):
         self.edit(wt)
         return 0, ["claude-sonnet-5-5"], None, None, 1
 
-    def gate(self, cfg, wt, paths, spec=None, task=None, extended=(), warnings=None, verify=None):
+    def gate(self, cfg, wt, paths, spec=None, task=None, extended=(), warnings=None, verify=None, milestone=None):
         return (True, "") if self.gate_ok else (False, FAILURE)
 
     def state(self, replaced):

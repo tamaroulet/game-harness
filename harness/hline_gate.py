@@ -27,7 +27,7 @@ def syntax_problems(wt, paths):
     return found
 
 
-def gate(host,cfg, wt, paths, spec=None, task=None, extended=(), warnings=None, verify=None):
+def gate(host,cfg, wt, paths, spec=None, task=None, extended=(), warnings=None, verify=None, milestone=None):
     """H ラインの Gate 1。(通ったか, 実装役に返す出力)。不合格にするのは、変えてはならないパス（hline_protect）と「変更なし」だけ。
 
     差分の量・編集境界・規模・宣言したシンボルの食い違いは、不合格にせず warnings に積む（実装役には返さない。
@@ -38,6 +38,8 @@ def gate(host,cfg, wt, paths, spec=None, task=None, extended=(), warnings=None, 
         return False, "作業ツリーに変更がありません。TaskSpec を満たす変更を加えてください。"
     if bad := host.hline_protect.violations(paths):
         return False, host.hline_protect.reason(bad)
+    if milestone is not None and (base := host.hline_foundation.violations(paths, milestone)):   # 課題を解く What は基盤を変えられない（milestone を渡さない呼び出しは見ない）
+        return False, host.hline_foundation.reason(base, milestone)
     if broken := syntax_problems(wt, paths):   # 試験の全件の時間を、構文の誤りに使わない
         return False, SYNTAX_HEAD + "（試験は走らせていません）:\n" + "\n".join(broken)
     warn += host.boundary_problems(spec, paths, host.diff_counts(cfg, wt)) if spec else []

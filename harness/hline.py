@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import base_whitelist, exitcode, fastsuite, gate_order, hline_gate, hline_merge, hline_prompt, hline_protect, hline_quota, hline_suite, hline_task  # noqa: E402,F401
+import base_whitelist, exitcode, fastsuite, gate_order, hline_foundation, hline_gate, hline_merge, hline_prompt, hline_protect, hline_quota, hline_suite, hline_task  # noqa: E402,F401
 import infra_retry, model_pin, proc, progress, size_limits, symbolmap  # noqa: E402,F401  テストが hline.proc などを差し替える
 from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args, load_config, must, pinned_models, run_agent, slug, title_of  # noqa: E402,F401
 import hline_halt  # noqa: E402
@@ -29,7 +29,7 @@ def build_prompt(what, feedback=None, symbol_map=None): return hline_prompt.buil
 def implement(cfg, wt, what, feedback, log): return hline_prompt.implement(sys.modules[__name__], cfg, wt, what, feedback, log)
 
 
-def gate(cfg, wt, paths, spec=None, task=None, extended=(), warnings=None, verify=None): return hline_gate.gate(sys.modules[__name__], cfg, wt, paths, spec, task, extended, warnings, verify)
+def gate(cfg, wt, paths, spec=None, task=None, extended=(), warnings=None, verify=None, milestone=None): return hline_gate.gate(sys.modules[__name__], cfg, wt, paths, spec, task, extended, warnings, verify, milestone)
 
 
 def mark(cfg, st, name=None, stage=None):

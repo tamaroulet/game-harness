@@ -1,0 +1,4 @@
+{
+  "paths": ["harness/", "config/", "docs/prompts/", "docs/bench/prompts/"],
+  "milestones": ["W-17", "W-18", "outer"]
+}

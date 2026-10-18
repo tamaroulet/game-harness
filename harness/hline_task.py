@@ -42,6 +42,8 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
     extended = ()
     cmd = None if task or not isinstance(what, str) else hline_queue.parse_header(what)["verify"]   # タスクを宣言しない What の `検証:`（キューに残した本文の写しから読む）
     verify = {"verify": cmd} if cmd else {}
+    milestone = hline_queue.parse_header(what)["milestone"] if isinstance(what, str) else None   # 基盤のパスの検査（Gate 1）に渡す
+    verify = {**verify, "milestone": milestone} if milestone else verify
     for attempt in range(1, cfg["max_attempts"] + 1):
         log = outdir / f"implementer-{run}-{attempt}.log"
         on_stage(f"実装 {run + 1}-{attempt}")
