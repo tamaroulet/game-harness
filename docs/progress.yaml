@@ -4,9 +4,9 @@ constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-55
+  task: W-85
   exit_code: 0
-  at: '2026-10-18T15:27:13'
+  at: '2026-10-18T19:44:34'
 next_id: 106
 nodes:
 - id: A
@@ -2066,7 +2066,7 @@ tasks:
   title: What が持つ台帳の項目を、取り込みが確かめて統合ブランチの台帳に積み、別の台帳の PR を無くす
   group: W-18
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'hline: ledger-entry-from-what'
   serves: R4
   purpose: 段 4 の週次の周期では、総監督が改善のタスクの台帳の PR を書き、人がそれを当ててから What が取られる。人の手番が統合 PR の承認と台帳の PR の 2 つになり、無人の周期の律速になる。What が自分のタスクの台帳の項目を持ち、取り込みが二重の照合と同じ規則で確かめて統合ブランチの台帳に積めば、台帳の変更は統合 PR の点検に入り、別の台帳の PR が要らなくなる。検証コマンドを origin/main の台帳と照合する決まり（人が点検した検証だけが完了に使われる）は崩さない

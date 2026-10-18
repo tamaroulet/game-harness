@@ -71,7 +71,8 @@ def settle_pr(cfg, st):
 def open_integration_pr(cfg, st):
     """積むものが尽きたとき、統合ブランチに main に無いコミットがあれば、統合 PR をちょうど 1 本にして止まる。"""
     fresh = [i for i in st["items"].values() if i["status"] == "done" and not i.get("pr") and not i.get("merged")]
-    if not fresh or ahead(cfg) == 0:
+    entries = [i for i in st["items"].values() if i["status"] == "waiting" and i.get("entry_wait")]   # 台帳の項目のコミットだけでも PR を出す
+    if not (fresh or entries) or ahead(cfg) == 0:
         return
     if bad := problems(diff_files(cfg), cfg):   # 汚れた差分では PR を出さない。人間が統合ブランチを直す
         st["hygiene_halt"] = {"files": bad}

@@ -118,6 +118,12 @@ def integrate(cfg, wt, name, title, task, warnings=None):
     must(["git", "add", "-A"], wt, t["git"], "git add")
     must(["git", "commit", "-q", "-m", f"feat(hline): {title}\n\n{TRAILER}: {name}\n{cfg['commit_trailer']}\n"],
          wt, t["git"], "git commit")
+    push_tip(cfg, wt)
+
+
+def push_tip(cfg, wt):
+    """作業ツリーの HEAD を統合ブランチの先端として push する。失敗は Fatal か Infra。"""
+    t = cfg["ttl_seconds"]
     code, out, err = proc.run(["git", "push", "-q", "origin", f"HEAD:refs/heads/{cfg['integration_branch']}"], wt,
                               t["git"], "git push")
     if code != 0:
