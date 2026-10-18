@@ -19,6 +19,7 @@ from pathlib import Path
 
 from hline_base import RESERVED, ROOT, title_of, write_json
 
+import hline_ledger_entry  # noqa: E402
 import hline_review  # noqa: E402
 import proc  # noqa: E402
 import progress  # noqa: E402
@@ -103,9 +104,10 @@ def intake(cfg, st):
     base の台帳に無いか完了したタスクの What・台帳を読めないときの What は受信箱に残す（次の走行で取り直す）。
     未収束の What と同じ名前の What は、その記録を差し替える（再開）。"""
     skipped, taken, ledger, ledger_error = [], [], None, None
+    entry = None   # この What が持つ、規則を満たした台帳の項目（base の台帳に無いタスクのとき）
 
-    def task_problem(task):
-        nonlocal ledger, ledger_error
+    def task_problem(task, text):
+        nonlocal ledger, ledger_error, entry
         if ledger is None and ledger_error is None:
             try:
                 ledger = read_ledger(cfg)
@@ -114,7 +116,16 @@ def intake(cfg, st):
         if ledger_error:
             return f"base の台帳を読めないため、タスク {task} を確かめられません（次の走行で取り直します）: {ledger_error}"
         if task not in ledger:
-            return f"タスク {task} は base の台帳にありません"
+            try:
+                found, reasons = hline_ledger_entry.check(cfg, text, task)
+            except ValueError as e:
+                return f"base の台帳を読めないため、タスク {task} の台帳の項目を確かめられません（次の走行で取り直します）: {e}"
+            if found is None and not reasons:
+                return f"タスク {task} は base の台帳にありません"
+            if reasons:
+                return reasons
+            entry = found
+            return None
         if ledger[task].get("by") == "pilot":
             return f"タスク {task} は操縦士の作業（by: pilot）で、H ラインは取りません"
         if ledger[task]["done"]:
@@ -135,6 +146,7 @@ def intake(cfg, st):
     for src in candidates(cfg["inbox"]):
         name, text = src.stem, src.read_text(encoding="utf-8")
         meta, old = parse_header(text), st["items"].get(src.stem)
+        entry = None
         if not meta["milestone"]:
             why = "マイルストーンの宣言がありません"
         elif meta["milestone"] not in cfg["milestones"]:
@@ -143,9 +155,9 @@ def intake(cfg, st):
             why = "`タスク:` の行がありません（すべての What は台帳のタスクを 1 つ宣言します）"
         elif meta["verify"]:
             why = f"`検証:` の行のある What は取りません（タスク {meta['task']} の検証コマンドの正本は台帳です。行を消してください）"
-        elif why := task_problem(meta["task"]):
+        elif why := task_problem(meta["task"], text):
             pass
-        elif why := oracle_problem(meta["task"]):
+        elif entry is None and (why := oracle_problem(meta["task"])):
             pass
         elif why := shape_problem(text):
             pass
@@ -154,14 +166,17 @@ def intake(cfg, st):
         else:
             why = None
         if not why:   # 機械の監修をすべて通った What だけを、監修役（LLM）に 1 回かける
-            why = hline_review.review(cfg, ledger, meta["task"], text)
+            seen = {**ledger, meta["task"]: hline_ledger_entry.as_row(entry)} if entry else ledger   # 足す項目をタスクの欄として渡す
+            why = hline_review.review(cfg, seen, meta["task"], text)
         if why:
-            skipped.append({"file": src.name, "reason": why})
+            skipped.extend({"file": src.name, "reason": r} for r in ([why] if isinstance(why, str) else why))
             continue
+        if entry:   # 機械と監修役を通った。台帳の項目を統合ブランチに積んでから、What を待ちに入れる（積む前に落ちれば What は受信箱に残る）
+            hline_ledger_entry.stack(cfg, entry, name)
         what_path(cfg, name).parent.mkdir(parents=True, exist_ok=True)
         what_path(cfg, name).write_bytes(src.read_bytes())   # 読み直した文字列でなく、元のバイト列を写す（改行を替えない。D-114）
         st["items"][name] = {"status": "waiting", "title": title_of(text), "replaced": bool(old),
-                             "header_deps": list(meta["deps"]), **meta}
+                             "header_deps": list(meta["deps"]), **meta, **({"ledger_entry": True} if entry else {})}
         save_state(cfg, st)    # 状態に入れてから受信箱を消す（途中で落ちても What は失われず、取り直しは同じ結果になる）
         src.unlink()
         taken.append(name)
@@ -203,6 +218,10 @@ def apply_ledger(cfg, st):
             i["ledger_error"] = error
             continue
         i.pop("ledger_error", None)
+        if i.get("ledger_entry") and i["task"] not in ledger:   # 項目が main に入る（base の台帳に現れる）まで処理しない
+            i["entry_wait"] = True
+            continue
+        i.pop("entry_wait", None)
         own = ledger.get(i["task"], {}).get("deps", [])
         head = i.get("header_deps", i["deps"])
         i["deps"] = list(dict.fromkeys([*head, *own]))
@@ -287,7 +306,7 @@ def next_runnable(st):
     """依存がすべて済んだ待ちの What のうち、名前の順で最初のもの。"""
     for name in sorted(st["items"]):
         i = st["items"][name]
-        if (i["status"] == "waiting" and not i.get("ledger_error") and all(dep_done(st, i, d) for d in i["deps"])
+        if (i["status"] == "waiting" and not i.get("ledger_error") and not i.get("entry_wait") and all(dep_done(st, i, d) for d in i["deps"])
                 and not after_blockers(st, i)):
             return name
     return None

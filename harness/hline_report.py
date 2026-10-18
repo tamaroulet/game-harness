@@ -229,7 +229,7 @@ def h_section(cfg, st):
         return f"（凍結した下流 {len(hit)} 件・本線への影響 {'あり' if mainline else 'なし'}）"
 
     done = lambda i: (f"（警告 {warning_count(i)} 件）" if warning_count(i) else "") + after_note(i) + hline_usage.note(i) + hline_extend.note(i)   # noqa: E731
-    waiting = lambda i: (f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else "") + (f"（台帳を読めず待ち: {i['ledger_error']}）" if i.get("ledger_error") else "") + (f"（依存先なし: {', '.join(missing_deps(st, i))}）" if missing_deps(st, i) else "") + hline_extend.note(i)   # noqa: E731
+    waiting = lambda i: (f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else "") + (f"（台帳を読めず待ち: {i['ledger_error']}）" if i.get("ledger_error") else "") + (f"（依存先なし: {', '.join(missing_deps(st, i))}）" if missing_deps(st, i) else "") + ("（台帳の項目の main への取り込み待ち）" if i.get("entry_wait") else "") + hline_extend.note(i)   # noqa: E731
     frozen = lambda i: f"（上流の未収束: {', '.join(i.get('frozen_by', []))}）"   # noqa: E731
     lines = ["## H ライン", f"- 状態: {line_status(cfg, st)}", f"- 統合ブランチ: {cfg['integration_branch']}",
              f"- 統合 PR: {st['awaiting_pr'] or 'なし'}"] + ([f"- コード: {st['code']}"] if st.get("code") else []) + pr_wait_line(st.get("pr_times")) + ["", "## キュー",
