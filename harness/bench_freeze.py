@@ -90,6 +90,30 @@ def model_id():
     return cfg["implementer"]["model"]
 
 
+def implementer_cli_version(repo=ROOT):
+    cfg_path = Path(repo) / "config" / "bench_implementer_agy.json"
+    if cfg_path.exists():
+        try:
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+            if "version" in cfg:
+                return str(cfg["version"])
+        except (OSError, ValueError):
+            pass
+    return "1.2.14"
+
+
+def implementer_model_id(repo=ROOT):
+    cfg_path = Path(repo) / "config" / "bench_implementer_agy.json"
+    if cfg_path.exists():
+        try:
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+            if "model" in cfg:
+                return str(cfg["model"])
+        except (OSError, ValueError):
+            pass
+    return "gemini-3.8-flash-medium"
+
+
 def head_sha(repo):
     code, out, err = proc.run(["git", "rev-parse", "HEAD"], repo, TTL, "git rev-parse HEAD")
     if code != 0 or not out.strip():
@@ -111,7 +135,9 @@ def freeze(repo, root, err):
         return 1
     record = {"base": head_sha(repo), "tasks": prints,
               "frozen_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
-              "cli_version": cli_version(), "model": model_id()}
+              "cli_version": cli_version(), "model": model_id(),
+              "implementer_cli_version": implementer_cli_version(repo),
+              "implementer_model": implementer_model_id(repo)}
     out = freeze_path(repo)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
