@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import base_whitelist, exitcode, fastsuite, gate_order, hline_foundation, hline_gate, hline_merge, hline_prompt, hline_protect, hline_quota, hline_suite, hline_task  # noqa: E402,F401
 import infra_retry, model_pin, proc, progress, size_limits, symbolmap  # noqa: E402,F401  テストが hline.proc などを差し替える
 from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args, load_config, must, pinned_models, run_agent, slug, title_of  # noqa: E402,F401
-import hline_halt  # noqa: E402
+import hline_halt, weekly_report  # noqa: E402
 from hline_gc import sweep  # noqa: E402
 from hline_git import ahead, apply_patch, changed_paths, code_shas, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, merge_pr, open_pr, pr_checks, pr_state, record, record_refused  # noqa: E402,F401
 from hline_hygiene import diff_files, problems  # noqa: E402
@@ -97,7 +97,16 @@ def check_code(cfg, st):
     return bool(st["stale_code"])
 
 
+def weekly(cfg):
+    """前の週の報告が生ログの置き場に無ければ作る。作れなくても走行は止めず、理由を 1 行出す。"""
+    try:
+        weekly_report.ensure_previous(cfg)
+    except Exception as e:   # noqa: BLE001
+        print(f"週次の報告を作れませんでした: {' '.join(f'{type(e).__name__}: {e}'.split())}")
+
+
 def run_line(cfg):
+    weekly(cfg)
     st = load_state(cfg)
     if hline_quota.waiting(st):   # 利用枠の回復待ち。時刻を過ぎた記録は waiting が消し、下の save_state で残る
         write_report(cfg, st)
