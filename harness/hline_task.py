@@ -26,7 +26,9 @@ def digest_of(cfg, wt):
 def map_size(host):
     """直前の実装役の呼び出しで渡した目次の字数（host.map_chars）。記録が無い host では空。"""
     n, cap = getattr(host, "map_chars", None), getattr(host, "turn_cap_used", None)
+    blocked = getattr(host, "blocked_commands", None)   # agy の試行だけ（--sandbox に拒まれた命令の手番の数）
     return {**({"map_chars": n} if isinstance(n, int) and not isinstance(n, bool) else {}),
+            **({"blocked_commands": blocked} if isinstance(blocked, int) and not isinstance(blocked, bool) else {}),
             **({"max_turns": cap} if isinstance(cap, int) and not isinstance(cap, bool) else {})}   # max_turns はどちらの上限で呼んだか
 
 
@@ -43,6 +45,7 @@ def run_task(host, cfg, tid, what, outdir, first=None, task=None, on_stage=None,
     for attempt in range(1, cfg["max_attempts"] + 1):
         log = outdir / f"implementer-{run}-{attempt}.log"
         on_stage(f"実装 {run + 1}-{attempt}")
+        host.blocked_commands = None   # agy の呼び出しだけが置く
         host.follow_up, host.turn_cap_used = attempt > 1 or feedback is not None, None   # 前の差分から続ける試行は、上限を下げて失敗の出力を絞る
         shown = hline_followup.narrow(feedback, cfg.get("gate_tail_chars", 4000)) if host.follow_up else feedback
         code, models, *rest = host.implement(cfg, wt, what, with_cutoff(tries and tries[-1]["cutoff"], shown), log)   # rest は利用量・打ち切りの理由・ターン数

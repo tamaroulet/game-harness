@@ -90,7 +90,7 @@ class AgyCall(Base):
         self.assertIn("--sandbox", args)
         self.assertNotIn("--disallowedTools", args)
         self.assertNotIn("--max-turns", args)
-        self.assertEqual(stdin, agy_stream.stdin_for(agy_cfg()["implementer"], "PROMPT"))
+        self.assertEqual(stdin, agy_stream.stdin_for(agy_cfg()["implementer"], hline_agy.NOTE + "PROMPT"))
 
     def test_the_sandbox_flag_is_added_even_if_the_config_lacks_it(self):
         cfg = agy_cfg()
