@@ -581,7 +581,7 @@ class Factory:
             self.seed_reviews()
         if self.impl is not None:
             (self.rundir / "factory").mkdir(parents=True, exist_ok=True)
-            hline_base.write_json(self.rundir / "factory" / "config.json", self.line_cfg)
+            hline_base.write_json(self.rundir / "factory" / "config.json", hide_oracles(self.line_cfg))
         self.clone = clone
 
     # ---- H ライン
@@ -763,6 +763,27 @@ def grade(run, rundir, repo, task, oracles, package):
         shutil.copy2(out, rundir / "score.json")
         score = json.loads(out.read_text(encoding="utf-8"))
     return violations, score["passed"], score["total"], bool(score.get("timed_out"))
+
+
+def hide_oracles(value, oracles=None):
+    """控え用の写し。非公開オラクルの場所を含む文字列は伏せる（走行に使う設定は変えない）。"""
+    if oracles is None:
+        oracles = value.get("oracles") if isinstance(value, dict) else None
+        needles = {str(oracles), str(oracles).replace("\\", "/"), str(oracles).replace("/", "\\")} if oracles else set()
+        needles = {n.rstrip("/\\") for n in needles if n.strip("/\\")}
+        if not any(c in str(oracles) for c in "/\\"):
+            return value   # 場所を表さない名前（区切りの無い値）は伏せない。部分一致で無関係な欄まで潰すため
+        value = {k: v for k, v in value.items() if k != "oracles"} if isinstance(value, dict) else value
+        return hide_oracles(value, needles)
+    if isinstance(value, dict):
+        return {k: hide_oracles(v, oracles) for k, v in value.items()}
+    if isinstance(value, list):
+        return [hide_oracles(v, oracles) for v in value]
+    if isinstance(value, str):
+        low = value.replace("\\", "/").lower()
+        if any(n.replace("\\", "/").lower() in low for n in oracles):
+            return "<hidden>"
+    return value
 
 
 def model_allowed(model, role_cfg):
