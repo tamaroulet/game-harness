@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import base_whitelist, exitcode, fastsuite, gate_order, hline_foundation, hline_gate, hline_merge, hline_prompt, hline_protect, hline_quota, hline_suite, hline_task  # noqa: E402,F401
 import infra_retry, model_pin, proc, progress, size_limits, symbolmap  # noqa: E402,F401  テストが hline.proc などを差し替える
 from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args, load_config, must, pinned_models, run_agent, slug, title_of  # noqa: E402,F401
-import hline_halt, weekly_report  # noqa: E402
+import hline_halt, hline_outer, weekly_report  # noqa: E402
 from hline_gc import sweep  # noqa: E402
 from hline_git import ahead, apply_patch, changed_paths, code_shas, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, merge_pr, open_pr, pr_checks, pr_state, record, record_refused  # noqa: E402,F401
 from hline_hygiene import diff_files, problems  # noqa: E402
@@ -70,8 +70,9 @@ def settle_pr(cfg, st):
 
 def open_integration_pr(cfg, st):
     """積むものが尽きたとき、統合ブランチに main に無いコミットがあれば、統合 PR をちょうど 1 本にして止まる。"""
-    fresh = [i for i in st["items"].values() if i["status"] == "done" and not i.get("pr") and not i.get("merged")]
-    entries = [i for i in st["items"].values() if i["status"] == "waiting" and i.get("entry_wait")]   # 台帳の項目のコミットだけでも PR を出す
+    inner = hline_outer.view(st, False)   # 外側の What は hline/outer に積むので、内側の統合 PR の数にも本文にも入れない
+    fresh = [i for i in inner["items"].values() if i["status"] == "done" and not i.get("pr") and not i.get("merged")]
+    entries = [i for i in inner["items"].values() if i["status"] == "waiting" and i.get("entry_wait")]   # 台帳の項目のコミットだけでも PR を出す
     if not (fresh or entries) or ahead(cfg) == 0:
         return
     if bad := problems(diff_files(cfg), cfg):   # 汚れた差分では PR を出さない。人間が統合ブランチを直す
@@ -79,8 +80,8 @@ def open_integration_pr(cfg, st):
         save_state(cfg, st)
         print(f"統合 PR は作りません（差分に不要なファイル: {len(bad)} 件）")
         return
-    url = open_pr(cfg) or create_pr(cfg, pr_title(cfg, st), pr_body(cfg, st))
-    for i in st["items"].values():
+    url = open_pr(cfg) or create_pr(cfg, pr_title(cfg, inner), pr_body(cfg, inner))
+    for i in inner["items"].values():
         if i["status"] == "done" and not i.get("merged"):
             i["pr"] = url
     st["awaiting_pr"] = url
@@ -126,7 +127,8 @@ def run_line(cfg):
         print(f"走っているコードが統合ブランチの先端と違います（{st['stale_code']['running']} ／ {st['stale_code']['tip']}）。何もしません")
         return 0
     save_state(cfg, st)
-    recover(cfg, st, lambda n: integrated(cfg, n))
+    recover(cfg, st, lambda n: integrated(hline_outer.branch_cfg(cfg, st["items"][n].get("milestone")), n))
+    hline_outer.settle(sys.modules[__name__], cfg, st)   # 外側の統合 PR の待ちは内側と別。閉じていれば解くだけで、内側は止めない
     if st["awaiting_pr"] and not settle_pr(cfg, st):
         write_report(cfg, st)
         print(f"統合 PR のレビュー待ちです。受信箱は取りません: {st['awaiting_pr']}")
@@ -154,6 +156,7 @@ def run_line(cfg):
         return 0
     if only_orphans_wait(st) and cfg.get("open_pr") is not False:   # 依存先の欠けた待ちが残っても止めない。open_pr が false の設定（別の clone の工廠）は統合 PR を出さない
         open_integration_pr(cfg, st)
+        hline_outer.open_pr(sys.modules[__name__], cfg, st)
     write_report(cfg, st)
     return 1 if unconverged else 0
 

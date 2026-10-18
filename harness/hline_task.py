@@ -9,6 +9,7 @@ import hline_abort
 import hline_boundary
 import hline_extend
 import hline_followup
+import hline_outer
 import hline_quota
 import hline_suite
 import hline_queue
@@ -153,6 +154,7 @@ def process(host, cfg, st, name):
     Fatal（進捗の記録の拒否・push の拒否）は呼び直さず、未収束にして False。利用枠切れ（Quota）は待ちに戻して False（wait_quota）。
     ライン自身の変更を積んだときは st["self_change"] を置く（run_line が走行を区切る）。"""
     item = st["items"][name]
+    bcfg = hline_outer.branch_cfg(cfg, item.get("milestone"))   # 作業ツリーを作る・積む統合ブランチ（外側の What は hline/outer）
     what = host.what_path(cfg, name).read_text(encoding="utf-8")
     tid = f"{datetime.datetime.now():%Y%m%d-%H%M}-{host.slug(name)}"
     outdir = Path(cfg["out"]) / tid
@@ -169,7 +171,7 @@ def process(host, cfg, st, name):
 
     def attempt(n):   # 毎回、新しい作業ツリーから（実装役の試行の数えも 1 からやり直す）
         try:
-            wt, branch = host.new_worktree(cfg, tid)
+            wt, branch = host.new_worktree(bcfg, tid)
             item.update(tries=[])
             hline_resume.forget_attempt(outdir)
             resume = hline_resume.begin(host, cfg, name, wt, outdir) if item.get("replaced") else None   # 置き直し：残した変更を載せる
@@ -187,7 +189,7 @@ def process(host, cfg, st, name):
             if wt is None: return False
             own = host.self_change(host.changed_paths(wt, cfg))
             warnings = item["tries"][-1].setdefault("warnings", []) if item["tries"] else []   # 進捗の不整合もここに積む
-            host.integrate(cfg, wt, name, item["title"], None, warnings=warnings)   # 進捗の記録は run_task の最後の段で済んでいる
+            host.integrate(bcfg, wt, name, item["title"], None, warnings=warnings)   # 進捗の記録は run_task の最後の段で済んでいる
             if own:
                 st["self_change"] = {"name": name, "paths": own}
             return True
