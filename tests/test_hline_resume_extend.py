@@ -123,7 +123,7 @@ class Flow(unittest.TestCase):
         self.n += 1
         (Path(wt) / "b.txt").write_text(f"v{self.n}\n", encoding="utf-8")
 
-    def gate(self, cfg, wt, paths, spec=None, task=None, extended=(), warnings=None, verify=None):
+    def gate(self, cfg, wt, paths, spec=None, task=None, extended=(), warnings=None, verify=None, milestone=None):
         return False, self.outputs[min(len(self.calls) - 1, len(self.outputs) - 1)]
 
     def go(self, *outputs):
