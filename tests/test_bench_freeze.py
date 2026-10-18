@@ -77,6 +77,8 @@ class Freeze(unittest.TestCase):
         self.assertEqual(rec["tasks"], {t: self.fingerprint(t) for t in TASKS})
         self.assertEqual(rec["cli_version"], "9.9.9 (Claude Code)")
         self.assertEqual(rec["model"], "claude-test-1")
+        self.assertEqual(rec["implementer_cli_version"], "1.2.14")
+        self.assertEqual(rec["implementer_model"], "gemini-3.8-flash-medium")
         self.assertTrue(rec["frozen_at"])
         self.assertEqual(self.run_cli("--check")[0], 0)
 
