@@ -129,6 +129,40 @@
     ]
   },
   "_planner_note": "計画役（harness/planner.py）。課題の仕様から、受信箱（cwd）に What（P-01.md〜）と ledger.yaml を書かせる。実装役と同じ CLI とモデル。編集は受信箱の中だけ。呼び出しの後に受信箱を確かめ、planner.json に sha256 と満たさなかった項目を書く",
+  "director": {
+    "cli": "claude",
+    "headless_flag": "-p",
+    "model_flag": "--model",
+    "model": "claude-opus-5-5",
+    "auxiliary_models": [
+      "claude-haiku-"
+    ],
+    "extra_flags": [
+      "--permission-mode",
+      "acceptEdits",
+      "--allowedTools",
+      "Read,Grep,Glob,Edit,Write"
+    ],
+    "output_format_args": [
+      "--output-format",
+      "json"
+    ],
+    "director_budget": {
+      "files": {
+        "drafts/director/INDEX.md": 20000,
+        "drafts/director/roadmap.md": 50000,
+        "drafts/director/pipeline.md": 30000,
+        "notes/handoff.md": 10000,
+        "drafts/director/decisions.md": 20000,
+        "drafts/director/lessons.md": 20000
+      },
+      "total_max_chars": 100000,
+      "max_turns": 40,
+      "max_tokens": 3000000,
+      "ttl_seconds": 3600
+    }
+  },
+  "_director_note": "総監督の無人の起動の関所（harness/director_launch.py、D-091）。起こす前に director_budget.files の文書（受信箱からの相対パス）の字数を測り、1 つでも上限（files・total_max_chars）を超えていれば起こさない。上限の内なら受信箱を cwd にして 1 回だけ起こし、max_turns と ttl_seconds を掛ける。max_tokens は CLI に指定が無いので、走った後に利用量を照らして記録する。シェルの禁止と受信箱の外への書き込みの禁止は、受信箱の .claude/settings.json が受け持つ",
   "pr_hygiene": {
     "forbidden_globs": [
       "*.log",

@@ -4,9 +4,9 @@ constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-56
+  task: W-84
   exit_code: 0
-  at: '2026-10-19T02:53:10'
+  at: '2026-10-19T03:01:45'
 next_id: 106
 nodes:
 - id: A
@@ -2047,7 +2047,7 @@ tasks:
   title: 総監督の無人の起動の関所（config/hline.json の上限で起こすか決め、字数を記録する）
   group: W-18
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'outer: director-launch-gate'
   serves: R4
   purpose: 段 4 の週次の改善の周期では、総監督が What を自律で起草する。しかし総監督の前提資料（INDEX・roadmap・pipeline・handoff・decisions・lessons）が膨らむと、起動するだけでトークンを消費し、思考の文脈が狭まり、計画の質が落ちる。起こす前に字数を測って上限を掛け、超えていれば総監督を起こさず人に知らせる関所を作る（D-091）
