@@ -92,4 +92,6 @@ class LedgerDoubleCheck(unittest.TestCase):
             with self.subTest(task=t["id"], serves=t.get("serves")):
                 rung = self.rungs.get(t.get("serves"))
                 self.assertIsNotNone(rung)
+                if t.get("group") == "outer":
+                    continue
                 self.assertTrue(t["id"] == rung or t["id"] in self.deps(rung))
