@@ -1,12 +1,12 @@
-active_task_id: W-59
+active_task_id: W-60
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-58
+  task: W-59
   exit_code: 0
-  at: '2026-10-19T10:02:06'
+  at: '2026-10-19T18:46:34'
 next_id: 106
 nodes:
 - id: A
@@ -1582,7 +1582,7 @@ tasks:
   title: 外側の周期の記録の集計（報告 → 改善の What → 非劣性 → マージ → 対象の計器）
   group: W-18
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'outer: cycle-ledger'
   serves: R4
   purpose: 週次の周期が回ったか・改善が計器を良くしたかを数える（C4 の判定の材料）
@@ -1602,7 +1602,7 @@ tasks:
   title: 週次の起動を登録する（総監督の週ごとのセッションと非劣性の走行）
   group: W-18
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'outer: schedule-weekly'
   by: pilot
   serves: R4
