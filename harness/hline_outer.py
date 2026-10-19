@@ -55,7 +55,10 @@ def settle(host, cfg, st):
     ocfg = branch_cfg(cfg, OUTER)
     state = host.pr_state(ocfg, url)
     if state == "OPEN":
-        if hline_merge.settle(host, ocfg, st, url) != "merged":   # CI の失敗も待ちとして扱う（直す What は積み続けられる）
+        # 外側は非劣性の記録（W-58）も要る。CI の失敗も待ちとして扱う（直す What は積み続けられる）
+        if hline_merge.settle(host, ocfg, st, url, records=hline_merge.RECORDS) != "merged":
+            if outer_state(st).get("merge_note") != o.get("merge_note"):
+                host.save_state(cfg, st)
             return
         state = "MERGED"
     if state == "MERGED":
@@ -63,7 +66,7 @@ def settle(host, cfg, st):
         for i in view(st, True)["items"].values():
             if i["status"] == "done" and i.get("pr") == url:
                 i["merged"] = True
-    st["outer"] = {**o, "awaiting_pr": None}
+    st["outer"] = {**outer_state(st), "awaiting_pr": None, "merge_note": None}
     host.save_state(cfg, st)
 
 
@@ -96,4 +99,5 @@ def section(cfg, st):
     sent = o.get("week")
     return [f"- 外側の統合ブランチ: {cfg['outer_integration_branch']}", f"- 外側の統合 PR: {o.get('awaiting_pr') or 'なし'}",
             f"- 外側の統合 PR を今週（{week()}）出したか: {'出した' if sent == week() else 'まだ'}"
-            + (f"（最後に出した週: {sent}）" if sent and sent != week() else "")]
+            + (f"（最後に出した週: {sent}）" if sent and sent != week() else "")] \
+        + ([f"- 外側の統合 PR の非劣性: {o['merge_note']}"] if o.get("awaiting_pr") and o.get("merge_note") else [])

@@ -177,12 +177,13 @@ def pr_state(cfg, url):
 
 
 def pr_checks(cfg, url):
-    """今の head のチェックとラベル（statusCheckRollup・labels）。"""
-    return json.loads(gh(cfg, ["pr", "view", url, "--json", "statusCheckRollup,labels"], "gh pr view"))
+    """今の head のチェックとラベルと head の SHA（statusCheckRollup・labels・headRefOid）。"""
+    return json.loads(gh(cfg, ["pr", "view", url, "--json", "statusCheckRollup,labels,headRefOid"], "gh pr view"))
 
 
-def merge_pr(cfg, url):
-    gh(cfg, ["pr", "merge", url, "--merge"], "gh pr merge")
+def merge_pr(cfg, url, head=None):
+    """head を渡すと、PR の head がそのコミットのままのときだけマージする。"""
+    gh(cfg, ["pr", "merge", url, "--merge"] + (["--match-head-commit", head] if head else []), "gh pr merge")
 
 
 def drop_merged_branch(cfg):
