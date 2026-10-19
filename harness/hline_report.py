@@ -14,6 +14,7 @@ import yaml
 import director_launch
 import hline_checks
 import hline_extend
+import hline_outer
 import hline_probe
 import hline_quota
 import hline_resume
@@ -233,7 +234,7 @@ def h_section(cfg, st):
     waiting = lambda i: (f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else "") + (f"（台帳を読めず待ち: {i['ledger_error']}）" if i.get("ledger_error") else "") + (f"（依存先なし: {', '.join(missing_deps(st, i))}）" if missing_deps(st, i) else "") + ("（台帳の項目の main への取り込み待ち）" if i.get("entry_wait") else "") + hline_extend.note(i)   # noqa: E731
     frozen = lambda i: f"（上流の未収束: {', '.join(i.get('frozen_by', []))}）"   # noqa: E731
     lines = ["## H ライン", f"- 状態: {line_status(cfg, st)}", f"- 統合ブランチ: {cfg['integration_branch']}",
-             f"- 統合 PR: {st['awaiting_pr'] or 'なし'}"] + ([f"- コード: {st['code']}"] if st.get("code") else []) + pr_wait_line(st.get("pr_times")) + ([d] if (d := director_launch.latest_line(cfg)) else []) + ["", "## キュー",
+             f"- 統合 PR: {st['awaiting_pr'] or 'なし'}"] + hline_outer.section(cfg, st) + ([f"- コード: {st['code']}"] if st.get("code") else []) + pr_wait_line(st.get("pr_times")) + ([d] if (d := director_launch.latest_line(cfg)) else []) + ["", "## キュー",
              row("済み", "done", done, lambda ns: recent_done(items, ns)), row("待ち", "waiting", waiting),
              row("処理中", "processing", stage_note), *unconverged_rows(), row("凍結", "frozen", frozen)]
     lines += ["", northstar_section(items).rstrip("\n"), "", failure_section(items).rstrip("\n")]
