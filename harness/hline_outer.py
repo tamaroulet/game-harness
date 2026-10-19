@@ -46,6 +46,17 @@ def blocked_reason(st):
     return None
 
 
+def merge_facts(host, ocfg, url):
+    """マージの日時（ISO 8601）と、マージした PR の head（40 桁の SHA）。head を読めないときは空（H ラインを止めない）。"""
+    try:
+        head = host.pr_checks(ocfg, url).get("headRefOid")
+    except Exception:   # noqa: BLE001
+        return {}
+    if not isinstance(head, str) or not hline_merge.SHA.fullmatch(head):
+        return {}
+    return {"merged_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"), "merged_head": head}
+
+
 def settle(host, cfg, st):
     """外側の統合 PR が閉じられていたら（マージを含む）待ちを解く。まだ開いていれば何もしない。内側の待ちとは関係しない。"""
     o = outer_state(st)
@@ -63,9 +74,11 @@ def settle(host, cfg, st):
         state = "MERGED"
     if state == "MERGED":
         host.drop_merged_branch(ocfg)
+        facts = merge_facts(host, ocfg, url)
         for i in view(st, True)["items"].values():
             if i["status"] == "done" and i.get("pr") == url:
                 i["merged"] = True
+                i.update(facts)
     st["outer"] = {**outer_state(st), "awaiting_pr": None, "merge_note": None}
     host.save_state(cfg, st)
 
