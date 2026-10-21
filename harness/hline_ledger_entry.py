@@ -137,6 +137,8 @@ def command_problem(entry, command):
 
 
 def rung_problem(entry, tasks):
+    if entry.get("group") == "outer":
+        return None
     """規則 5：serves の横木が実在し、タスクがその横木そのものか、横木が推移的に依存するタスクである。"""
     rungs = {t["rung"]: tid for tid, t in tasks.items() if "rung" in t}
     rung = rungs.get(entry.get("serves"))

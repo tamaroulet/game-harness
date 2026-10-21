@@ -90,6 +90,9 @@ nodes:
 - id: W-18
   parent: A
   title: 段 4：Outer Loop の確立（C4）
+- id: outer
+  parent: W-18
+  title: 外側ループ（週次非劣性検証）
 project_goal: 自己改善できる自律開発環境（C4）を作る。段 1 軽い 3D 通し → 段 2 改善 → 段 3 物差しの凍結 → 段 4 Outer Loop の確立（C4）。段は nodes の W-15〜W-18。チャット型との比べ（C5）は、R5 の製品の付け足しで行い、そのときに改めて事前登録する（D-109）
 tasks:
 - group: B3.1
@@ -2229,6 +2232,7 @@ tasks:
   purpose: 段 4 で見送った指摘と、R5（G1 を作り切る）の前に要る外部エンジンの境界の判断を、外側の周期の実走をもとに公式に決め直す
   depends_on:
   - W-61
+  - W-111
   acceptance:
   - 総監督が、受信箱の drafts/director/deferred.md の「次の再判断」が W-94 のすべての行について、段 4 の一次情報（週次の報告（W-54）・記録・report.md・停止の記録）を読み、その課題で実際にどれだけ足止めを食らったか、手を打つ要があると見るかを、率直な見解として書く。手を打つと見る行は、R5 の台帳か段 4 の周期の題材として台帳の PR の完成形を出す
   - 操縦士が行ごとに承認か拒否を決め、結果を docs/design/review_before_r4.md として PR で main に入れる
@@ -2472,4 +2476,24 @@ tasks:
     from: self
   verification:
     command: python -m unittest tests.test_bench_config_copy
+    expected_exit_code: 0
+- id: 'W-111'
+  title: '衝突したWhatの再生成最適化と保留件数表示'
+  group: 'W-18'
+  target_repo: 'game-harness'
+  status: 'pending'
+  slug: 'hline: regenerate-conflicted-pending'
+  serves: 'R4'
+  purpose: 'マージ時に保留のWhatが衝突した場合、その差分を捨てて待ちに戻し再生成する最適化、およびreport.mdへの保留件数表示'
+  deliverable: 'harness/hline.py, tests/test_hline_work_while_pr_open.py'
+  depends_on:
+  - 'W-91'
+  acceptance:
+  - 'マージ時に保留のWhatが衝突した場合、そのWhatのみを待ちに戻して新しいmain先端の上で再生成する'
+  - 'report.mdに保留件数を表示する'
+  oracle:
+  - path: 'tests/test_hline_work_while_pr_open.py'
+    from: 'self'
+  verification:
+    command: 'python -m unittest tests.test_hline_work_while_pr_open'
     expected_exit_code: 0
