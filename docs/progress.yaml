@@ -1,12 +1,12 @@
-active_task_id: W-60
+active_task_id: W-91
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-59
+  task: W-60
   exit_code: 0
-  at: '2026-10-19T18:46:34'
+  at: '2026-10-21T19:55:17'
 next_id: 106
 nodes:
 - id: A
@@ -1602,7 +1602,7 @@ tasks:
   title: 週次の起動を登録する（総監督の週ごとのセッションと非劣性の走行）
   group: W-18
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'outer: schedule-weekly'
   by: pilot
   serves: R4
@@ -2180,7 +2180,7 @@ tasks:
   title: 統合 PR が開いている間も、受信箱の What を取って実装と Gate 1 を進める（開いている PR の head は変えない）
   group: W-18
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'hline: work-while-pr-open'
   serves: R4
   purpose: 統合 PR の CI と承認を待つ間にラインが止まらないようにする（10-15〜16 の統合 PR
