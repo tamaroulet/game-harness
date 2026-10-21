@@ -2477,23 +2477,23 @@ tasks:
   verification:
     command: python -m unittest tests.test_bench_config_copy
     expected_exit_code: 0
-- id: 'W-111'
-  title: '衝突したWhatの再生成最適化と保留件数表示'
-  group: 'W-18'
-  target_repo: 'game-harness'
-  status: 'pending'
+- id: W-111
+  title: 衝突したWhatの再生成最適化と保留件数表示
+  group: W-18
+  target_repo: game-harness
+  status: pending
   slug: 'hline: regenerate-conflicted-pending'
-  serves: 'R4'
-  purpose: 'マージ時に保留のWhatが衝突した場合、その差分を捨てて待ちに戻し再生成する最適化、およびreport.mdへの保留件数表示'
-  deliverable: 'harness/hline.py, tests/test_hline_work_while_pr_open.py'
+  serves: R4
+  purpose: マージ時に保留のWhatが衝突した場合、その差分を捨てて待ちに戻し再生成する最適化、およびreport.mdへの保留件数表示
+  deliverable: harness/hline.py, tests/test_hline_work_while_pr_open.py
   depends_on:
-  - 'W-91'
+  - W-91
   acceptance:
-  - 'マージ時に保留のWhatが衝突した場合、そのWhatのみを待ちに戻して新しいmain先端の上で再生成する'
-  - 'report.mdに保留件数を表示する'
+  - マージ時に保留のWhatが衝突した場合、そのWhatのみを待ちに戻して新しいmain先端の上で再生成する
+  - report.mdに保留件数を表示する
   oracle:
-  - path: 'tests/test_hline_work_while_pr_open.py'
-    from: 'self'
+  - path: tests/test_hline_work_while_pr_open.py
+    from: self
   verification:
-    command: 'python -m unittest tests.test_hline_work_while_pr_open'
+    command: python -m unittest tests.test_hline_work_while_pr_open
     expected_exit_code: 0
