@@ -63,6 +63,10 @@
     "max_chars": 30000
   },
   "_symbol_map_note": "実装役に渡すリポジトリの目次（harness/ のモジュール・クラス・関数・引数・行番号と、import しているテスト）の文字数の上限。作業ツリーから呼び出しのたびに作り直す。超えるときは引数 → メソッド → 末尾の順に省く（harness/symbolmap.py）。実装役には target_symbols のモジュールの節だけを渡す",
+  "agents_md": {
+    "max_chars": 8000
+  },
+  "_agents_md_note": "実装役への指示に入れる、作業ツリーの根の AGENTS.md の文字数の上限。超える分は切り詰める（harness/hline_prompt.py）",
   "implementer": {
     "cli": "claude",
     "headless_flag": "-p",

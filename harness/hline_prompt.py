@@ -58,12 +58,29 @@ def ledger_section(wt, what):
         return ""
 
 
+def agents_md_section(cfg, wt):
+    """作業ツリーの根の AGENTS.md を指示の節にする。上限（cfg["agents_md"]["max_chars"]）を超える分は切り詰め、その旨を 1 行書く。
+    上限の設定が無い・ファイルが無い・読めないときは例外を出さず空の文字列を返す。"""
+    try:
+        limit = cfg["agents_md"]["max_chars"]
+        text = (Path(wt) / "AGENTS.md").read_text(encoding="utf-8").strip()
+        if not text:
+            return ""
+        note = []
+        if len(text) > limit:
+            text = text[:limit]
+            note = [f"（AGENTS.md は {limit} 字で切り詰めました）"]
+        return "\n".join(["## リポジトリの約束事（AGENTS.md）", text, *note])
+    except Exception:   # noqa: BLE001  節を入れないだけで、実装役の呼び出しは止めない
+        return ""
+
+
 def implement(host, cfg, wt, what, feedback, log):
     """実装役を 1 回呼ぶ。使ったモデルを照合し記録する（model_pin）。起動の失敗は Infra。TTL 超過（124）は例外にせず、そのまま返す。ターン数の上限の打ち切りは例外にせず、照合しない（hline_budget.outcome）。"""
     agent = cfg["implementer"]
     shown = host.symbolmap.prompt_text(cfg, wt, None, what, scope=True)
     host.map_chars = len(shown)   # 試行の記録に入れる（hline_task.run_task が読む）。implement の戻り値の形は変えない
-    shown = "\n\n".join(filter(None, (ledger_section(wt, what), shown, impacted.prompt_note())))
+    shown = "\n\n".join(filter(None, (ledger_section(wt, what), agents_md_section(cfg, wt), shown, impacted.prompt_note())))
     follow, host.follow_up = getattr(host, "follow_up", False), False   # run_task が試行ごとに置く。読んだら戻す
     host.turn_cap_used = cap = (resume_turn_cap if follow else turn_cap)(agent)   # 試行の記録に入れる
     began = time.monotonic()
