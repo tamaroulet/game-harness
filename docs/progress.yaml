@@ -2517,3 +2517,23 @@ tasks:
   verification:
     command: python -m unittest tests.test_agents_md
     expected_exit_code: 0
+- id: W-109
+  title: README を今の構成に合わせ、書いたパスが実在することを試験で縛る
+  group: outer
+  target_repo: game-harness
+  status: pending
+  slug: 'outer: readme-current'
+  serves: R4
+  purpose: README が前の構成（audit.py・scheduler.py を主役）のまま残り、人と外部の読み手が実態を取り違える。今の構成に合わせ、また古びたら CI で気づけるようにする
+  deliverable: README.md、tests/test_readme_paths.py
+  depends_on:
+  - W-56
+  acceptance:
+  - README の役の表と構成が、今の H ライン・Gate 1・外側の周期・工廠とベンチ・台帳を主役として書き、前の経路のモジュールは別の節に分け、無いファイルを書かない
+  - README に書いたリポジトリの中のパスと python -m harness.<名前> のモジュールが、すべて実在することを試験が確かめる
+  oracle:
+  - path: tests/test_readme_paths.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_readme_paths
+    expected_exit_code: 0
