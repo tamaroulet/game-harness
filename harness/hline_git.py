@@ -45,11 +45,49 @@ def code_shas(cfg):
     return sha("HEAD"), sha(tip)
 
 
+def start_ref(cfg):
+    """作業ツリーの出発点：統合ブランチの先端、無ければ branch_from（保留の積みの土台＝開いている PR の head）、無ければ base。"""
+    if integration_exists(cfg):
+        return remote_ref(cfg)
+    under = {**cfg, "integration_branch": cfg.get("branch_from") or ""}
+    return remote_ref(under) if cfg.get("branch_from") and integration_exists(under) else cfg["base"]
+
+
+def pending_branch(cfg):
+    """保留の積み（開いている統合 PR に入っていない積み）のブランチ名。開いている PR の head（統合ブランチ）は変えない。"""
+    return cfg.get("pending_branch") or f"{cfg['integration_branch']}-pending"
+
+
+def pending_commits(cfg):
+    """保留のブランチにある、main に無いコミットの (SHA, What の名前)（古い順）。トレーラーの無いコミットは数えない。"""
+    pend = {**cfg, "integration_branch": pending_branch(cfg)}
+    if not integration_exists(pend):
+        return []
+    out = must(["git", "log", "--reverse", f"{cfg['base']}..{remote_ref(pend)}", f"--format=commit %H%n%(trailers:key={TRAILER},valueonly)"],
+               ROOT, cfg["ttl_seconds"]["git"], "git log")
+    found, sha = [], None
+    for line in out.splitlines():
+        if line.startswith("commit "):
+            sha = line.split()[1]
+        elif line.strip() and sha:
+            found.append((sha, line.strip()))
+    return found
+
+
+def cherry_pick(cfg, wt, sha):
+    """コミットを作業ツリーに積み直す。衝突したら取り消して False（作業ツリーは元のまま）。"""
+    t = cfg["ttl_seconds"]["git"]
+    if proc.run(["git", "cherry-pick", sha], wt, t, "git cherry-pick")[0] == 0:
+        return True
+    proc.run(["git", "cherry-pick", "--abort"], wt, t, "git cherry-pick --abort")
+    return False
+
+
 def new_worktree(cfg, tid):
-    """統合ブランチの先端から UUID の新しい作業ツリーを作る。統合ブランチがまだ無ければ base（main）から作る。"""
+    """統合ブランチの先端から UUID の新しい作業ツリーを作る。統合ブランチがまだ無ければ base（main）から作る（start_ref）。"""
     t = cfg["ttl_seconds"]["git"]
     fetch(cfg)
-    start = remote_ref(cfg) if integration_exists(cfg) else cfg["base"]
+    start = start_ref(cfg)
     for _ in range(5):   # 前の走行の残骸（同じ名前のディレクトリ・ブランチ）と重ならない名前を選ぶ
         branch = f"hline/{tid}-{uuid.uuid4().hex[:8]}"
         wt = Path(cfg["worktrees"]) / branch.replace("/", "-")

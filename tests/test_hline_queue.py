@@ -501,14 +501,15 @@ class IntegrationPr(World):
         self.assertEqual(self.created, [])
         self.assertEqual(self.state()["awaiting_pr"], self.open_pr)
 
-    def test_while_the_pr_is_open_the_inbox_is_not_taken(self):
+    def test_while_the_pr_is_open_the_inbox_is_taken_and_the_pr_is_not_made_again(self):
         self.put("010-a")
         self.poll()
         self.put("020-b")
         self.poll()
-        self.assertEqual(self.inbox_names(), ["020-b.md"])
-        self.assertEqual(self.implemented, ["T-010-a"])
+        self.assertEqual(self.inbox_names(), [])   # 開いている間も受信箱は取る（head は変えず、保留の積みに積む。tests/test_hline_work_while_pr_open.py）
+        self.assertEqual(self.implemented, ["T-010-a", "T-020-b"])
         self.assertEqual(len(self.created), 1)
+        self.assertEqual(self.state()["awaiting_pr"], "https://github.com/o/r/pull/1")
 
     def test_a_closed_pr_releases_the_line_and_the_next_whats_make_the_next_pr(self):
         self.put("010-a")

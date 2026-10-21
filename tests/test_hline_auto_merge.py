@@ -125,11 +125,12 @@ class AutoMerge(tq.World):
         self.assertEqual(len(self.merges()), 1)
         self.assertIn(f"MERGE_FAILED {URL}：", self.report())
         self.assertEqual(self.state()["awaiting_pr"], URL)
-        self.assertEqual(self.inbox_names(), ["020-b.md"])   # 待ちの継続：受信箱は取らない
+        self.assertEqual(self.inbox_names(), [])   # 待ちの継続でも受信箱は取る（開いている PR の head は変えない）
+        self.assertIn("T-020-b", self.implemented)
         self.merge_code = 0
         self.poll()
         self.assertEqual(len(self.merges()), 2)
-        self.assertEqual(self.dropped, [1])
+        self.assertEqual(self.dropped[:1], [1])   # 統合ブランチを消す。保留の積みの後始末（rebuild）の削除がその後ろに続いてよい
 
     def test_closed_and_merged_prs_are_handled_as_before(self):
         self.open_pr_waiting()
