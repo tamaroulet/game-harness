@@ -2497,3 +2497,23 @@ tasks:
   verification:
     command: python -m unittest tests.test_hline_work_while_pr_open
     expected_exit_code: 0
+- id: W-108
+  title: 作業するリポジトリの根の AGENTS.md を、H ラインの実装役への指示に入れる
+  group: outer
+  target_repo: game-harness
+  status: pending
+  slug: 'outer: agents-md'
+  serves: R4
+  purpose: 実装役がリポジトリの約束事を知らずに 1 回目で落ちるかターンを読みに使い切るのを減らす（外側の周期 第 1 週の改善。計器 first_try_rate）
+  deliverable: harness/hline_prompt.py の AGENTS.md の節、AGENTS.md、tests/test_agents_md.py
+  depends_on:
+  - W-56
+  acceptance:
+  - 実装役への指示に、作業ツリーの根の AGENTS.md の中身が、config/hline.json の上限の字数まで、What の本文の前に入る。無ければ今と同じ
+  - game-harness の根に AGENTS.md があり、H ラインの約束事（host の差し替え・exitcode.normalized・属性の戻し・並列の試験・保護パス・シェルを通さない命令）を書く
+  oracle:
+  - path: tests/test_agents_md.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_agents_md
+    expected_exit_code: 0
