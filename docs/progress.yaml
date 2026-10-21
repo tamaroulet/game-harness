@@ -2537,3 +2537,23 @@ tasks:
   verification:
     command: python -m unittest tests.test_readme_paths
     expected_exit_code: 0
+- id: W-110
+  title: report.md の probe と未収束の表示を実態に合わせる（統合ブランチが無いとき・取り直せない未収束）
+  group: outer
+  target_repo: game-harness
+  status: pending
+  slug: 'outer: report-settled'
+  serves: R4
+  purpose: 統合ブランチが無いときの probe の終了コード 128 と、取り直せない未収束が、故障や滞留に見えて、総監督と操縦士の判断を誤らせる。表示を実態に合わせる
+  deliverable: harness/hline_probe.py と report の未収束の表示、tests/test_report_settled.py
+  depends_on:
+  - W-56
+  acceptance:
+  - 統合ブランチがリモートに無いとき、probe はその行を取得失敗とせず「なし」と出す。あるのに読めないときは取得失敗のまま
+  - base の台帳で取り直せない未収束（完了・台帳に無い・タスクの宣言が無い）とその下流の凍結は、未収束の並びから外れ、精算の 1 行に件数と名前で出る。queue.json と計器の数え方は変わらない
+  oracle:
+  - path: tests/test_report_settled.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_report_settled
+    expected_exit_code: 0
