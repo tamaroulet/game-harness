@@ -2,8 +2,8 @@
 
 **なぜ要るか**: CI と承認を待つ間もラインを止めない。ただし開いている PR の head（統合ブランチの先端）は変えない。
 待っている間の内側の What は、保留のブランチ（統合ブランチ名 + "-pending"。出発点は PR の head）に積み、項目に pending を立てる。
-PR が閉じたら rebuild が、保留のコミットだけを新しい先端（マージ後は main、マージされず閉じたときは統合ブランチ）の上に積み直す。
-衝突した What は差分を捨てて待ちに戻し（試行に数えない）、依存する保留の What も待ちに戻す。
+PR が閉じたら rebuild が、保留のコミットだけを新しい先端（マージ後は main、マージされず閉じたときは統合ブランチ）の上に積み直す（W-111）。
+積み直せない（衝突した）What だけ差分を捨てて待ちに戻し（試行に数えない）、依存する保留の What も待ちに戻す。
 harness.hline を import しない（循環を作らない）。依存は第 1 引数 host（harness.hline 自身）の属性として読むので、テストの差し替えが効く。
 """
 import hline_git
@@ -54,13 +54,8 @@ def rebuild(host, cfg, st):
     if not names:
         return
     items = st["items"]
-    if not host.integration_exists(cfg):   # マージされた（統合ブランチは消えた）。main の新しい先端の上で実装し直す
-        for n in names:
-            regenerate(items[n])
-            print(f"[{n}] 統合 PR がマージされたので、保留の What を待ちに戻して実装し直します（試行に数えません）")
-        host.drop_merged_branch(pending_cfg(cfg))
-        host.save_state(cfg, st)
-        return
+    # マージ後は統合ブランチが無く、作業ツリーの出発点は main の新しい先端になる。保留のブランチには開いていた PR の
+    # コミットも見えるが、保留の印のある What（names）だけを積むので二重にはならない
     commits = host.pending_commits(cfg)
     done = {n for n in names if host.integrated(cfg, n)}   # 前の積み直しで積み終えている
     shas = {n: s for s, n in commits}

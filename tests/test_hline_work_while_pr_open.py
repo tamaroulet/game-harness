@@ -111,20 +111,59 @@ class WhilePrOpen(tq.World):
             self.assertIn(n, self.created[1][1])
         self.assertNotIn("pending", self.state()["items"]["020-b"])
 
-    def test_a_merged_pr_sends_the_pending_whats_back_to_waiting_without_counting_a_try_or_unconverging(self):
+    def merged_with_pending(self, squash, conflicts=(), extra=()):
+        """010-a の PR を開き、保留に 020-b（と extra の (名前, 依存)）を積んでから MERGED にして走らせる。"""
         self.open_first_pr()
         self.put("020-b")
+        for n, deps in extra:
+            self.put(n, deps=deps)
         self.poll()
+        if squash:   # squash では開いていた PR のコミットも保留のブランチの履歴に見える（トレーラーつき）
+            self.stacks[self.pending_branch].insert(0, "010-a")
+        self.conflicts = {f"sha-{n}" for n in conflicts}
+        self.patch(hline, "cherry_pick", side_effect=lambda c, wt, sha: sha not in self.conflicts and not self.staged.append(sha[4:]))
         self.pr_state = "MERGED"
         self.poll()
-        self.assertEqual(self.implemented, ["T-010-a", "T-020-b", "T-020-b"])   # 新しい先端の上で実装し直す
-        item = self.state()["items"]["020-b"]
-        self.assertEqual(item["status"], "done")
-        self.assertEqual(len(item["tries"]), 1)   # 作り直しは試行に数えない
-        self.assertNotIn("reason", item)
+
+    def check_restacked(self, names):
+        self.assertEqual(self.stacks[self.main_branch], names)   # 開いていた PR の 010-a は二重に入らない
+        for n in names:
+            item = self.state()["items"][n]
+            self.assertEqual((item["status"], len(item["tries"])), ("done", 1))
+            self.assertNotIn("pending", item)
+            self.assertNotIn("reason", item)
+
+    def test_a_squash_merged_pr_restacks_every_pending_what_on_the_new_tip_without_regenerating(self):
+        self.merged_with_pending(squash=True)
+        self.assertEqual(self.implemented, ["T-010-a", "T-020-b"])   # 作り直さない
+        self.check_restacked(["020-b"])
         self.assertEqual(self.state()["items"]["010-a"].get("merged"), True)
-        self.assertEqual(self.stacks[self.main_branch], ["020-b"])
-        self.assertEqual(self.status("020-b"), "done")
+
+    def test_a_merge_commit_merged_pr_restacks_every_pending_what_without_regenerating(self):
+        self.merged_with_pending(squash=False)
+        self.assertEqual(self.implemented, ["T-010-a", "T-020-b"])
+        self.check_restacked(["020-b"])
+
+    def test_a_conflicting_pending_what_and_its_dependent_go_back_to_waiting_and_the_others_are_restacked(self):
+        self.merged_with_pending(squash=True, conflicts=["020-b"], extra=[("030-c", ["020-b"]), ("040-d", [])])
+        self.assertEqual(self.implemented.count("T-040-d"), 1)   # 衝突しない What は作り直さない
+        self.assertEqual(self.implemented.count("T-020-b"), 2)
+        self.assertEqual(self.implemented.count("T-030-c"), 2)
+        self.assertEqual(self.stacks[self.main_branch].count("040-d"), 1)
+        for n in ("020-b", "030-c"):
+            item = self.state()["items"][n]
+            self.assertEqual(len(item["tries"]), 1)   # 試行の回数は増えない
+            self.assertNotEqual(item["status"], "unconverged")
+            self.assertNotIn("reason", item)
+        self.assertEqual(self.status("040-d"), "done")
+        self.assertNotIn("pending", self.state()["items"]["040-d"])
+
+    def test_the_report_shows_the_count_and_names_of_the_pending_stack(self):
+        self.open_first_pr()
+        self.put("020-b")
+        self.put("030-c")
+        self.poll()
+        self.assertIn("- 保留の積み（2 件）: 020-b, 030-c", self.report())
 
     def test_ci_failure_still_stacks_the_fix_on_the_same_pr_and_keeps_one_pr(self):
         self.open_first_pr()
