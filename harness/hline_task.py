@@ -10,6 +10,7 @@ import hline_boundary
 import hline_extend
 import hline_followup
 import hline_outer
+import hline_pending
 import hline_quota
 import hline_suite
 import hline_queue
@@ -154,7 +155,7 @@ def process(host, cfg, st, name):
     Fatal（進捗の記録の拒否・push の拒否）は呼び直さず、未収束にして False。利用枠切れ（Quota）は待ちに戻して False（wait_quota）。
     ライン自身の変更を積んだときは st["self_change"] を置く（run_line が走行を区切る）。"""
     item = st["items"][name]
-    bcfg = hline_outer.branch_cfg(cfg, item.get("milestone"))   # 作業ツリーを作る・積む統合ブランチ（外側の What は hline/outer）
+    bcfg = hline_pending.stack_cfg(cfg, st, item.get("milestone"))   # 作業ツリーを作る・積む統合ブランチ（外側の What は hline/outer、内側の統合 PR が開いている間は保留のブランチ）
     what = host.what_path(cfg, name).read_text(encoding="utf-8")
     tid = f"{datetime.datetime.now():%Y%m%d-%H%M}-{host.slug(name)}"
     outdir = Path(cfg["out"]) / tid
@@ -190,6 +191,9 @@ def process(host, cfg, st, name):
             own = host.self_change(host.changed_paths(wt, cfg))
             warnings = item["tries"][-1].setdefault("warnings", []) if item["tries"] else []   # 進捗の不整合もここに積む
             host.integrate(bcfg, wt, name, item["title"], None, warnings=warnings)   # 進捗の記録は run_task の最後の段で済んでいる
+            if bcfg.get("branch_from"):   # 開いている PR の head には積まなかった（保留の積み）
+                item["pending"] = True
+                item["pending_self"] = bool(own)
             if own:
                 st["self_change"] = {"name": name, "paths": own}
             return True

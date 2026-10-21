@@ -13,8 +13,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import base_whitelist, exitcode, fastsuite, gate_order, hline_foundation, hline_gate, hline_merge, hline_prompt, hline_protect, hline_quota, hline_suite, hline_task  # noqa: E402,F401
 import infra_retry, model_pin, proc, progress, size_limits, symbolmap  # noqa: E402,F401  テストが hline.proc などを差し替える
 from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args, load_config, must, pinned_models, run_agent, slug, title_of  # noqa: E402,F401
-import hline_halt, hline_outer, weekly_report  # noqa: E402
+import hline_halt, hline_outer, hline_pending, weekly_report  # noqa: E402
 from hline_gc import sweep  # noqa: E402
+from hline_git import cherry_pick, integration_exists, pending_commits, push_tip  # noqa: E402,F401
 from hline_git import ahead, apply_patch, changed_paths, code_shas, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, merge_pr, open_pr, pr_checks, pr_state, record, record_refused  # noqa: E402,F401
 from hline_hygiene import diff_files, problems  # noqa: E402
 from hline_queue import by_status, intake, load_state, next_runnable, only_orphans_wait, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
@@ -127,11 +128,19 @@ def run_line(cfg):
         print(f"走っているコードが統合ブランチの先端と違います（{st['stale_code']['running']} ／ {st['stale_code']['tip']}）。何もしません")
         return 0
     save_state(cfg, st)
-    recover(cfg, st, lambda n: integrated(hline_outer.branch_cfg(cfg, st["items"][n].get("milestone")), n))
-    hline_outer.settle(sys.modules[__name__], cfg, st)   # 外側の統合 PR の待ちは内側と別。閉じていれば解くだけで、内側は止めない
-    if st["awaiting_pr"] and not settle_pr(cfg, st):
+    host = sys.modules[__name__]
+    recover(cfg, st, lambda n: hline_pending.landed(host, cfg, st, n))
+    hline_outer.settle(host, cfg, st)   # 外側の統合 PR の待ちは内側と別。閉じていれば解くだけで、内側は止めない
+    st["pr_open"] = bool(st["awaiting_pr"]) and not settle_pr(cfg, st)
+    if st["pr_open"]:   # 開いている PR の head は変えない。以降の内側の What は保留の積みに積む
+        print(f"統合 PR は開いています。受信箱は取り、保留の積みに積みます: {st['awaiting_pr']}")
+    elif not st["awaiting_pr"]:
+        hline_pending.rebuild(host, cfg, st)   # 閉じた後：保留の積みを新しい先端の上に積み直す
+    if st["pr_open"] and hline_pending.self_held(st):   # 保留の積みのライン自身の変更は、まだ読み込めない古いコードのまま
+        st["stale_code"] = {"running": st["code"], "tip": "pending"}
+        save_state(cfg, st)
         write_report(cfg, st)
-        print(f"統合 PR のレビュー待ちです。受信箱は取りません: {st['awaiting_pr']}")
+        print("保留の積みにライン自身の変更があります。統合 PR が閉じるまで何もしません")
         return 0
     refresh(st)
     intake(cfg, st)
@@ -155,7 +164,8 @@ def run_line(cfg):
         write_report(cfg, st)
         return 0
     if only_orphans_wait(st) and cfg.get("open_pr") is not False:   # 依存先の欠けた待ちが残っても止めない。open_pr が false の設定（別の clone の工廠）は統合 PR を出さない
-        open_integration_pr(cfg, st)
+        if not st["pr_open"]:   # 内側の統合 PR は 1 本だけ
+            open_integration_pr(cfg, st)
         hline_outer.open_pr(sys.modules[__name__], cfg, st)
     write_report(cfg, st)
     return 1 if unconverged else 0
