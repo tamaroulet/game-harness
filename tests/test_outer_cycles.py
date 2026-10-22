@@ -1,9 +1,9 @@
-"""外側の周期の記録の集計（W-59）。
+"""外側の周期の記録の集計（W-59、W-119 で週から周期に）。
 
     python -m unittest tests.test_outer_cycles -v
 
-**なぜ要るか**: 週次の周期が回った週と、改善が計器を良くした件数を数える outer_cycles が、3 つの条件・続いた週・計器の向きを正しく数えるため。
-一時ディレクトリに queue.json・What の写し・週次の報告・非劣性の記録を作る。gh・ネットワーク・ベンチは使わない。
+**なぜ要るか**: 走行の周期が回った件数と、改善が計器を良くした件数を数える outer_cycles が、3 つの条件・続いた周期・計器の向きを正しく数えるため。
+一時ディレクトリに queue.json・What の写し・周期の報告・非劣性の記録を作る。gh・ネットワーク・ベンチは使わない。
 """
 import contextlib
 import datetime
@@ -21,6 +21,11 @@ import outer_cycles  # noqa: E402
 URL = "https://github.com/o/r/pull/9"
 HEAD, OTHER = "a" * 40, "b" * 40
 CFG = {"integration_branch": "hline/integration", "outer_integration_branch": "hline/outer"}
+BASE = datetime.datetime(2026, 10, 20, tzinfo=datetime.timezone(datetime.timedelta(hours=9)))
+
+
+def at(hours):
+    return (BASE + datetime.timedelta(hours=hours)).isoformat()
 
 
 class Env(unittest.TestCase):
@@ -31,18 +36,20 @@ class Env(unittest.TestCase):
         self.records = Path(self.tmp.name) / "root"
         self.items = {}
 
-    def report(self, week, **metrics):
-        d = self.out / "weekly"
+    def report(self, n, **metrics):
+        """周期の報告 n。終わりは 2n 時間後。"""
+        d = self.out / "cycles"
         d.mkdir(parents=True, exist_ok=True)
-        (d / f"{week}.json").write_text(json.dumps({"week": week, "metrics": metrics}), encoding="utf-8")
+        (d / f"{n:03d}.json").write_text(json.dumps({"cycle": n, "end": at(2 * n), "metrics": metrics}), encoding="utf-8")
 
     def regress(self, head, passed=True, rev=None):
         d = self.records / "bench" / "records" / "regress"
         d.mkdir(parents=True, exist_ok=True)
         (d / f"{head}.json").write_text(json.dumps({"rev": rev or head, "passed": passed}), encoding="utf-8")
 
-    def merged(self, name, day, head=HEAD, body="# 題\n", milestone="outer"):
-        self.items[name] = {"status": "done", "milestone": milestone, "merged": True, "merged_at": f"{day}T10:00:00+09:00",
+    def merged(self, name, k, head=HEAD, body="# 題\n", milestone="outer", offset=1):
+        """周期 k の中（報告 k−1 の終わりの offset 時間後）にマージした What。"""
+        self.items[name] = {"status": "done", "milestone": milestone, "merged": True, "merged_at": at(2 * (k - 1) + offset),
                             "merged_head": head}
         (self.out / "queue").mkdir(parents=True, exist_ok=True)
         (self.out / "queue" / f"{name}.md").write_text(body, encoding="utf-8")
@@ -56,64 +63,56 @@ class Env(unittest.TestCase):
             code = outer_cycles.main(["--out", str(self.out), "--records", str(self.records), *args])
         return code, buf.getvalue()
 
-    def cycle(self, name, day, week_before, head=HEAD, **kw):
-        """前の週の報告・非劣性の記録・その週のマージがそろった週。"""
-        self.report(week_before)
+    def cycle(self, name, k, head=HEAD, **kw):
+        """前の周期の報告・非劣性の記録・その周期のマージがそろった周期。"""
+        self.report(k - 1)
         self.regress(head)
-        self.merged(name, day, head, **kw)
+        self.merged(name, k, head, **kw)
 
 
 class Turned(Env):
-    def test_only_weeks_with_all_three_conditions_count(self):
-        self.cycle("ok", "2026-10-20", "2026-W42")                                   # W43 回った
-        self.merged("noreport", "2026-10-27")                                         # W44 前の週の報告が無い
-        self.report("2026-W44")                                                       # W45 に外側のマージが無い（報告だけ）
-        self.merged("noregress", "2026-11-10", head=OTHER)                            # W46 非劣性が無い
-        self.report("2026-W45")
-        self.merged("failed", "2026-11-17", head="c" * 40)                            # W47 不合格
-        self.report("2026-W46")
-        self.regress("c" * 40, passed=False)
-        self.merged("wrongrev", "2026-11-24", head="d" * 40)                          # W48 rev が違う
-        self.report("2026-W47")
-        self.regress("d" * 40, rev=OTHER)
-        self.merged("inner", "2026-12-01", milestone="issues")                        # W49 内側のマージは数えない
-        self.report("2026-W48")
+    def test_only_cycles_with_all_three_conditions_count(self):
+        for n in (0, 1, 3, 4, 5, 6, 7, 8):                     # 報告 2 だけが無い
+            self.report(n)
         self.regress(HEAD)
+        self.merged("ok", 1)                                   # 周期 1 回った
+        self.merged("noreport", 3)                             # 周期 3 前の周期の報告 2 が無い
+        self.merged("noregress", 5, head=OTHER)                # 周期 5 非劣性が無い（周期 4 は外側のマージが無い）
+        self.merged("failed", 6, head="c" * 40)                # 周期 6 不合格
+        self.regress("c" * 40, passed=False)
+        self.merged("wrongrev", 7, head="d" * 40)              # 周期 7 rev が違う
+        self.regress("d" * 40, rev=OTHER)
+        self.merged("inner", 8, milestone="issues")            # 周期 8 内側のマージは数えない
         code, text = self.run_main("--min", "1")
         self.assertEqual(code, 0)
-        self.assertIn("回った週 1、続いた週 1", text)
+        self.assertIn("回った周期 1、続いた周期 1", text)
         self.assertEqual(self.run_main("--min", "2")[0], 1)
 
-    def test_every_merged_head_in_the_week_must_pass(self):
-        self.cycle("a", "2026-10-20", "2026-W42")
-        self.merged("b", "2026-10-22", head=OTHER)   # 同じ週の 2 本目は記録が無い
+    def test_every_merged_head_in_the_cycle_must_pass(self):
+        self.cycle("a", 1)
+        self.merged("b", 1, head=OTHER, offset=1.5)   # 同じ周期の 2 本目は記録が無い
         code, text = self.run_main("--min", "1")
         self.assertEqual(code, 1)
-        self.assertIn("回った週 0", text)
+        self.assertIn("回った周期 0", text)
 
-    def test_consecutive_weeks(self):
-        self.cycle("w43", "2026-10-20", "2026-W42")
-        self.cycle("w44", "2026-10-27", "2026-W43")
+    def test_consecutive_cycles(self):
+        self.cycle("c1", 1)
+        self.cycle("c2", 2)
         self.assertEqual(self.run_main("--min", "2")[0], 0)
         self.assertEqual(self.run_main("--min", "3")[0], 1)
 
-    def test_a_missing_week_breaks_the_run(self):
-        self.cycle("w43", "2026-10-20", "2026-W42")
-        self.cycle("w44", "2026-10-27", "2026-W43")
-        self.cycle("w46", "2026-11-10", "2026-W45")   # W45 が抜けている
-        self.assertEqual(self.run_main("--min", "2")[0], 0)
-        self.assertEqual(self.run_main("--min", "3")[0], 1)
-
-    def test_iso_weeks_across_the_year_boundary_are_consecutive(self):
-        self.cycle("w53", "2026-12-29", "2026-W52")
-        self.cycle("w01", "2027-01-05", "2026-W53")
+    def test_a_missing_cycle_breaks_the_run(self):
+        self.cycle("c1", 1)
+        self.cycle("c2", 2)
+        self.report(2)
+        self.cycle("c4", 4)   # 周期 3 が抜けている
         self.assertEqual(self.run_main("--min", "2")[0], 0)
         self.assertEqual(self.run_main("--min", "3")[0], 1)
 
     def test_empty_storage_exits_1_without_raising(self):
         code, text = self.run_main("--min", "1")
         self.assertEqual(code, 1)
-        self.assertIn("回った週 0", text)
+        self.assertIn("回った周期 0", text)
 
     def test_missing_out_directory_exits_1(self):
         self.out = Path(self.tmp.name) / "nowhere"
@@ -121,36 +120,38 @@ class Turned(Env):
 
 
 class Improved(Env):
+    """周期 2 にマージした What を、報告 0・1（前の 2 周期）と報告 3（次の周期）で比べる。"""
+
     def setUp(self):
         super().setUp()
-        self.report("2026-W41", first_try_rate=0.5, failure={"full_suite": 4}, tokens_per_done={"median": 100}, nothing=None)
-        self.report("2026-W42", first_try_rate=0.7, failure={"full_suite": 2}, tokens_per_done={"median": 300}, nothing=None)
-        self.report("2026-W44", first_try_rate=0.8, failure={"full_suite": 1}, tokens_per_done={"median": 150}, nothing=None)
+        self.report(0, first_try_rate=0.5, failure={"full_suite": 4}, tokens_per_done={"median": 100}, nothing=None)
+        self.report(1, first_try_rate=0.7, failure={"full_suite": 2}, tokens_per_done={"median": 300}, nothing=None)
+        self.report(2)
+        self.report(3, first_try_rate=0.8, failure={"full_suite": 1}, tokens_per_done={"median": 150}, nothing=None)
         self.regress(HEAD)
 
     def improved(self, *args):
-        code, text = self.run_main("--min", "0", *args)
-        return code, text
+        return self.run_main("--min", "0", *args)
 
     def test_up_and_down_and_dotted_identifiers(self):
-        self.merged("up", "2026-10-20", body="# 題\n計器: first_try_rate 上\n")
-        self.merged("down", "2026-10-21", body="計器: failure.full_suite 下\n")
-        self.merged("dotted", "2026-10-22", body="計器: tokens_per_done.median 下\n")   # 150 < 平均 200
+        self.merged("up", 2, body="# 題\n計器: first_try_rate 上\n")
+        self.merged("down", 2, body="計器: failure.full_suite 下\n")
+        self.merged("dotted", 2, body="計器: tokens_per_done.median 下\n")   # 150 < 平均 200
         self.assertEqual(self.improved("--improved", "3")[0], 0)
         self.assertEqual(self.improved("--improved", "4")[0], 1)
 
     def test_wrong_direction_is_not_an_improvement(self):
-        self.merged("up", "2026-10-20", body="計器: first_try_rate 下\n")   # 0.8 は 0.6 より大きい
-        self.merged("down", "2026-10-21", body="計器: failure.full_suite 上\n")
+        self.merged("up", 2, body="計器: first_try_rate 下\n")   # 0.8 は 0.6 より大きい
+        self.merged("down", 2, body="計器: failure.full_suite 上\n")
         code, text = self.improved("--improved", "1")
         self.assertEqual(code, 1)
         self.assertIn("改善に数えない", text)
 
     def test_null_metric_missing_line_and_unreadable_line_do_not_count(self):
-        self.merged("null", "2026-10-20", body="計器: nothing 上\n")
-        self.merged("noline", "2026-10-21", body="# 題\n")
-        self.merged("broken", "2026-10-22", body="計器: first_try_rate 横\n")
-        self.merged("unknown", "2026-10-23", body="計器: no_such 上\n")
+        self.merged("null", 2, body="計器: nothing 上\n")
+        self.merged("noline", 2, body="# 題\n")
+        self.merged("broken", 2, body="計器: first_try_rate 横\n")
+        self.merged("unknown", 2, body="計器: no_such 上\n")
         code, text = self.improved("--improved", "1")
         self.assertEqual(code, 1)
         self.assertIn("値が数でない", text)
@@ -158,8 +159,8 @@ class Improved(Env):
         self.assertNotIn("noline", text)
         self.assertEqual(self.improved("--improved", "0")[0], 0)
 
-    def test_missing_report_for_the_week_after_is_not_an_improvement(self):
-        self.merged("late", "2026-11-03", body="計器: first_try_rate 上\n")   # W45。W46 の報告が無い
+    def test_missing_report_for_the_next_cycle_is_not_an_improvement(self):
+        self.merged("late", 4, body="計器: first_try_rate 上\n")   # 周期 4。報告 5 が無い
         code, text = self.improved("--improved", "1")
         self.assertEqual(code, 1)
         self.assertIn("報告が足りない", text)
