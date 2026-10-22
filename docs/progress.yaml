@@ -1665,6 +1665,7 @@ tasks:
   - W-61
   - W-94
   - W-119
+  - W-120
   acceptance:
   - outer_cycles が、4 周続けて周期が回り、改善が 1 件以上あることを示す（D-058。周期の単位は 10-21 の裁定で走行の周期）
   oracle:
@@ -2570,6 +2571,7 @@ tasks:
   depends_on:
   - W-56
   - W-59
+  - W-121
   acceptance:
   - 前の周期の報告の後に済みが下限の件数（config/hline.json、初期値 10）に届き、外側の統合 PR が開いていないとき、H ラインが次の周期の報告（週次の報告と同じ計器）を書く
   - 外側の統合 PR は周期に 1 本だけ出る。開いている間は周期の報告を書かない
@@ -2598,5 +2600,45 @@ tasks:
     from: self
   verification:
     command: python -m unittest tests.test_outer_cycles_by_cycle
+    expected_exit_code: 0
+  by: hline
+- id: W-120
+  title: 非劣性が不合格の外側の統合 PR を H ラインが閉じ、その周期を回らないとして次の周期へ進む
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'outer: regress-fail-close'
+  serves: R4
+  purpose: 非劣性の不合格で外側の統合 PR が開いたまま待ちになり、周期が人の手番まで止まる（X-31）のをなくす
+  deliverable: harness/hline_outer.py の不合格の扱い、tests/test_hline_regress_fail.py
+  depends_on:
+  - W-118
+  acceptance:
+  - 外側の統合 PR の head に不合格の非劣性の記録があると、H ラインはその PR を閉じ、外側の What を未収束（理由：非劣性の不合格）にし、周期の報告を書けるようにする。合格・記録なしの扱いは変えない
+  oracle:
+  - path: tests/test_hline_regress_fail.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hline_regress_fail
+    expected_exit_code: 0
+  by: hline
+- id: W-121
+  title: 失敗の分類に実装役のターン切れを分け、週次と周期の報告の計器に出す
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'report: failure-turns'
+  serves: R4
+  purpose: ターン切れ（W42 の試行の 23%）が test に数えられ、改善（W-108 など）の計器の動きの理由が読めない（X-32）。周期 0 の前に定義をそろえる
+  deliverable: 失敗の分類の turns、週次の報告の failure.turns、tests/test_failure_turns.py
+  depends_on:
+  - W-54
+  acceptance:
+  - 実装役の結果がターン切れで終わり Gate 1 に落ちた試行は、失敗の分類で test でなく turns に数えられ、週次の報告の metrics に failure.turns が出る
+  oracle:
+  - path: tests/test_failure_turns.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_failure_turns
     expected_exit_code: 0
   by: hline
