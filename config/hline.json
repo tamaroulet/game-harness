@@ -16,7 +16,9 @@
     "outer"
   ],
   "outer_integration_branch": "hline/outer",
-  "_outer_note": "マイルストーン outer（基盤の改善。外側）の What はこのブランチに積む。統合 PR は週（ISO 週）に 1 本だけ。開いている間は外側の What を取らないが、内側は止めない（harness/hline_outer.py）",
+  "_outer_note": "マイルストーン outer（基盤の改善。外側）の What はこのブランチに積む。統合 PR は周期（最新の周期の報告の後）に 1 本だけ。開いている間は外側の What を取らないが、内側は止めない（harness/hline_outer.py）",
+  "cycle_min_done": 10,
+  "_cycle_note": "外側の周期の区切り。前の周期の報告の後に済みになった What（内側・外側の両方）がこの件数以上になり、外側の統合 PR が開いていないとき、H ラインが次の周期の報告を out の下の cycles/ に書く（harness/cycle_report.py）",
   "_milestones_note": "このラインが取ってよいマイルストーン（進捗のグループの ID）。外のもの・宣言の無いものは受信箱に残す",
   "max_attempts": 2,
   "respecs": 0,

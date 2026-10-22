@@ -1,4 +1,4 @@
-"""外側の What を別の統合ブランチ hline/outer に積み、外側の統合 PR は週に 1 本だけ出す（W-56）。
+"""外側の What を別の統合ブランチ hline/outer に積み、外側の統合 PR は周期に 1 本だけ出す（W-56、W-118）。
 
     python -m unittest tests.test_hline_outer_branch -v
 
@@ -86,19 +86,37 @@ class Routing(OuterWorld):
         self.assertIs(hline_outer.branch_cfg({"integration_branch": INNER}, "outer")["integration_branch"] and cfg, cfg)
 
 
-class WeeklyPr(OuterWorld):
-    def test_a_second_outer_pr_is_not_made_in_the_same_week(self):
+class CyclePr(OuterWorld):
+    def write_cycle_report(self, n):
+        d = self.out / "cycles"
+        d.mkdir(exist_ok=True)
+        (d / f"{n:03d}.json").write_text(json.dumps({"cycle": n, "start": "2026-10-01T00:00:00+09:00", "end": "2026-10-20T00:00:00+09:00",
+                                                     "names": [], "metrics": {}, "notes": {}}), encoding="utf-8")
+
+    def test_a_second_outer_pr_is_not_made_in_the_same_cycle(self):
         self.put("010-a", milestone="outer")
         self.poll()
         self.assertEqual(len(self.prs(OUTER)), 1)
-        self.assertEqual(self.state()["outer"]["week"], "2026-W43")
-        self.states[self.prs(OUTER)[0]] = "MERGED"   # 閉じた後でも、同じ週には出さない
+        self.assertEqual(self.state()["outer"]["cycle"], -1)
+        self.states[self.prs(OUTER)[0]] = "MERGED"   # 閉じた後でも、同じ周期には出さない
         self.put("020-b", milestone="outer")
         self.poll()
         self.assertEqual(self.stacked[-1], ("020-b", OUTER))
         self.assertEqual(len(self.prs(OUTER)), 1)
 
-    def test_the_next_week_makes_the_next_outer_pr(self):
+    def test_the_next_cycle_report_makes_the_next_outer_pr(self):
+        self.put("010-a", milestone="outer")
+        self.poll()
+        self.states[self.prs(OUTER)[0]] = "MERGED"
+        self.put("020-b", milestone="outer")
+        self.poll()
+        self.assertEqual(len(self.prs(OUTER)), 1)
+        self.write_cycle_report(0)
+        self.poll()
+        self.assertEqual(len(self.prs(OUTER)), 2)
+        self.assertEqual(self.state()["outer"]["cycle"], 0)
+
+    def test_a_new_calendar_week_does_not_make_an_outer_pr_while_the_cycle_is_the_same(self):
         self.put("010-a", milestone="outer")
         self.poll()
         self.states[self.prs(OUTER)[0]] = "MERGED"
@@ -106,8 +124,7 @@ class WeeklyPr(OuterWorld):
         self.poll()
         self.week_name = "2026-W44"
         self.poll()
-        self.assertEqual(len(self.prs(OUTER)), 2)
-        self.assertEqual(self.state()["outer"]["week"], "2026-W44")
+        self.assertEqual(len(self.prs(OUTER)), 1)
 
     def test_no_outer_pr_is_made_when_the_outer_branch_is_not_ahead(self):
         self.put("010-a", milestone="outer")
