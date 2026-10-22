@@ -1651,7 +1651,7 @@ tasks:
     command: python -m harness.outer_cycles --min 1
     expected_exit_code: 0
 - id: W-25
-  title: 横木 R4：Outer Loop の週次の周期が 4 週続けて回り、構造の改善で計器が良くなり、ベンチの点が下がらない（C4）
+  title: 横木 R4：Outer Loop の外側の周期が 4 周続けて回り、構造の改善で計器が良くなり、ベンチの点が下がらない（C4）
   group: W-18
   target_repo: game-harness
   status: pending
@@ -1660,12 +1660,13 @@ tasks:
   rung: R4
   serves: R4
   purpose: 自己改善できる自律開発環境の確立の判定（横木 R4＝C4。最終目的）
-  deliverable: 4 週の周期の記録
+  deliverable: 4 周の周期の記録
   depends_on:
   - W-61
   - W-94
+  - W-119
   acceptance:
-  - outer_cycles が、4 週続けて周期が回り、改善が 1 件以上あることを示す（D-058）
+  - outer_cycles が、4 周続けて周期が回り、改善が 1 件以上あることを示す（D-058。周期の単位は 10-21 の裁定で走行の周期）
   oracle:
   - path: harness/outer_cycles.py
     from: W-59
@@ -2557,3 +2558,45 @@ tasks:
   verification:
     command: python -m unittest tests.test_report_settled
     expected_exit_code: 0
+- id: W-118
+  title: 外側の周期を暦の週から走行の周期に替える（周期の報告と、周期に 1 本の外側の統合 PR）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'outer: cycle-unit'
+  serves: R4
+  purpose: 外側の周期が 1 周に 7 日かかるのをやめ、利用枠と What の流れがそろえば続けて回せるようにする（10-21 の操縦士の裁定）
+  deliverable: 周期の報告（H ラインの out の下）、hline/outer の統合 PR を周期に 1 本、tests/test_hline_cycle_report.py
+  depends_on:
+  - W-56
+  - W-59
+  acceptance:
+  - 前の周期の報告の後に済みが下限の件数（config/hline.json、初期値 10）に届き、外側の統合 PR が開いていないとき、H ラインが次の周期の報告（週次の報告と同じ計器）を書く
+  - 外側の統合 PR は周期に 1 本だけ出る。開いている間は周期の報告を書かない
+  oracle:
+  - path: tests/test_hline_cycle_report.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_hline_cycle_report
+    expected_exit_code: 0
+  by: hline
+- id: W-119
+  title: 外側の周期の集計を、暦の週でなく周期の報告で数える（outer_cycles）
+  group: W-18
+  target_repo: game-harness
+  status: pending
+  slug: 'outer: cycles-by-cycle'
+  serves: R4
+  purpose: 横木 R4 の判定（outer_cycles --min 4 --improved 1）を周期で数える
+  deliverable: harness/outer_cycles.py、tests/test_outer_cycles_by_cycle.py
+  depends_on:
+  - W-118
+  acceptance:
+  - outer_cycles は、前の周期の報告があり・外側の What がその周期にマージされ・非劣性が合格した周期を数え、続いた周期が n 以上で、計器の行で名指しした計器がマージの次の周期の報告で前の 2 つの周期の報告の平均より良くなった件数が k 以上なら 0
+  oracle:
+  - path: tests/test_outer_cycles_by_cycle.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_outer_cycles_by_cycle
+    expected_exit_code: 0
+  by: hline
