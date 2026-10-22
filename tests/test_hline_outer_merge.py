@@ -77,12 +77,6 @@ class OuterMerge(unittest.TestCase):
         self.assert_waiting(host)
         self.assertIn(f"{HEAD}.json", self.st["outer"]["merge_note"])
 
-    def test_failed_record_waits(self):
-        self.record(HEAD, json.dumps({"rev": HEAD, "passed": False}))
-        host = Host()
-        self.settle(host)
-        self.assert_waiting(host)
-
     def test_broken_records_wait(self):
         for text in ("{not json", json.dumps({"rev": HEAD, "passed": "yes"}), json.dumps({"rev": HEAD}), "[]"):
             with self.subTest(text=text):

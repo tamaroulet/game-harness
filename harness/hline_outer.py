@@ -58,6 +58,32 @@ def merge_facts(host, ocfg, url):
     return {"merged_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"), "merged_head": head}
 
 
+def close_failed(host, cfg, st, url):
+    """head の非劣性の記録が不合格なら、PR をマージせず閉じ、載っていた What を未収束にし、統合ブランチを消す（W-120）。閉じたら True。
+    記録が無い・読めない・rev が違う・head を読めない・gh が失敗したときは何もせず False（今まで通り待つ）。"""
+    ocfg = branch_cfg(cfg, OUTER)
+    try:
+        head = host.pr_checks(ocfg, url).get("headRefOid")
+        failed, why, path = hline_merge.regress_failed(hline_merge.RECORDS, head)
+        if not failed:
+            return False
+        reason = f"非劣性の不合格（{why}、記録 {path}）"
+        host.close_pr(ocfg, url, f"H ラインが閉じました: {reason}")
+    except Exception:   # noqa: BLE001  閉じられなければ待ち（次の走行でもう一度確かめる）
+        return False
+    at = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+    for i in view(st, True)["items"].values():
+        if i["status"] == "done" and i.get("pr") == url and not i.get("merged"):
+            i.pop("pr", None)
+            i.update(status="unconverged", at=at, reason=reason)
+    st["outer"] = {**outer_state(st), "awaiting_pr": None, "merge_note": None, "closed_pr": {"url": url, "reason": reason}}
+    try:
+        host.drop_merged_branch(ocfg)
+    finally:
+        host.save_state(cfg, st)
+    return True
+
+
 def settle(host, cfg, st):
     """外側の統合 PR が閉じられていたら（マージを含む）待ちを解く。まだ開いていれば何もしない。内側の待ちとは関係しない。"""
     o = outer_state(st)
@@ -67,6 +93,8 @@ def settle(host, cfg, st):
     ocfg = branch_cfg(cfg, OUTER)
     state = host.pr_state(ocfg, url)
     if state == "OPEN":
+        if close_failed(host, cfg, st, url):
+            return
         # 外側は非劣性の記録（W-58）も要る。CI の失敗も待ちとして扱う（直す What は積み続けられる）
         if hline_merge.settle(host, ocfg, st, url, records=hline_merge.RECORDS) != "merged":
             if outer_state(st).get("merge_note") != o.get("merge_note"):
@@ -114,4 +142,5 @@ def section(cfg, st):
     c = cycle_report.state(cfg, st)
     return [f"- 外側の統合ブランチ: {cfg['outer_integration_branch']}", f"- 外側の統合 PR: {o.get('awaiting_pr') or 'なし'}",
             f"- 今の周期: {c['number']}（済み {c['done']} 件／下限 {c['min']} 件）、この周期に外側の統合 PR を{'出した' if c['sent'] else 'まだ出していない'}"] \
-        + ([f"- 外側の統合 PR の非劣性: {o['merge_note']}"] if o.get("awaiting_pr") and o.get("merge_note") else [])
+        + ([f"- 外側の統合 PR の非劣性: {o['merge_note']}"] if o.get("awaiting_pr") and o.get("merge_note") else []) \
+        + ([f"- 閉じた外側の統合 PR: {o['closed_pr']['url']}（{o['closed_pr']['reason']}）"] if o.get("closed_pr") else [])

@@ -61,6 +61,14 @@ def regress_check(root, head):
     return True, "非劣性の検査に合格", path
 
 
+def regress_failed(root, head):
+    """head の非劣性の記録が読めて、rev が head と一致し、passed が false のときだけ (True, 理由, パス)。それ以外（記録なし・壊れ・rev 違い・合格）は (False, 理由, パス)。"""
+    ok, why, path = regress_check(root, head)
+    if ok or why != "非劣性の検査が不合格":
+        return False, why, path
+    return True, why, path
+
+
 def _note(st, text):
     st["outer"] = {**(st.get("outer") or {}), "merge_note": text}
 
