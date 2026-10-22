@@ -16,7 +16,8 @@ import fastsuite  # noqa: E402
 import hline_abort  # noqa: E402
 import northstar  # noqa: E402
 
-CLASSES = ("abandon", "repeat", "protected", "timeout", "full_suite", "test", "cutoff", "other")
+CLASSES = ("abandon", "repeat", "protected", "timeout", "full_suite", "test", "turns", "cutoff", "other")
+TURNS_MARK = "ターン数の上限"   # hline_budget.turn_cutoff の理由の書き出し
 INFRA = "infra"
 UNKNOWN = "不明"
 COLUMNS = CLASSES + (INFRA, UNKNOWN)
@@ -34,7 +35,15 @@ def failed_modules(text):
 
 
 def classify(rec, text):
-    """試行の記録 rec と Gate 1（と全件）の出力 text から分類。上から先に当たったもの。"""
+    """試行の記録 rec と Gate 1（と全件）の出力 text から分類。上から先に当たったもの。
+    実装役がターン数の上限で打ち切られて test に落ちた試行は turns に分ける（abort・timeout・protected・full_suite は先のまま）。"""
+    cls = _classify(rec, text)
+    if cls == "test" and TURNS_MARK in str(rec.get("cutoff") or ""):
+        return "turns"
+    return cls
+
+
+def _classify(rec, text):
     abort = rec.get("abort")
     if abort:
         return "repeat" if str(abort).startswith(hline_abort.REPEAT) else "abandon"
