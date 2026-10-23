@@ -205,7 +205,9 @@ def pr_wait_line(times, at=None):
         return []
 
 
-def h_section(cfg, st):
+def h_section(cfg, st, stopped_at=None):
+    """「## H ライン」から後の節。stopped_at（H ラインが最後に走った時刻）があれば、止まっている間の形にする：
+    走っている間の状態の語を出さず、統合 PR の待ちの行を外し、キューと計器に最後に走った時刻を添える（W-144）。"""
     items = st["items"]
 
     def row(label, status, note=lambda i: "", shown=None):
@@ -234,11 +236,21 @@ def h_section(cfg, st):
     done = lambda i: (f"（警告 {warning_count(i)} 件）" if warning_count(i) else "") + after_note(i) + hline_usage.note(i) + hline_extend.note(i)   # noqa: E731
     waiting = lambda i: (f"（依存先: {', '.join(i['deps'])}）" if i["deps"] else "") + (f"（台帳を読めず待ち: {i['ledger_error']}）" if i.get("ledger_error") else "") + (f"（依存先なし: {', '.join(missing_deps(st, i))}）" if missing_deps(st, i) else "") + ("（台帳の項目の main への取り込み待ち）" if i.get("entry_wait") else "") + hline_extend.note(i)   # noqa: E731
     frozen = lambda i: f"（上流の未収束: {', '.join(i.get('frozen_by', []))}）"   # noqa: E731
-    lines = ["## H ライン", f"- 状態: {line_status(cfg, st)}", f"- 統合ブランチ: {cfg['integration_branch']}",
-             f"- 統合 PR: {st['awaiting_pr'] or 'なし'}"] + hline_outer.section(cfg, st) + hline_pending.line(st) + ([f"- コード: {st['code']}"] if st.get("code") else []) + pr_wait_line(st.get("pr_times")) + ([d] if (d := director_launch.latest_line(cfg)) else []) + ["", "## キュー",
+    if stopped_at is None:
+        state = [f"- 状態: {line_status(cfg, st)}", f"- 統合ブランチ: {cfg['integration_branch']}",
+                 f"- 統合 PR: {st['awaiting_pr'] or 'なし'}"]
+        waits, queue_note = pr_wait_line(st.get("pr_times")), []
+    else:
+        state = [f"- 状態: 止まっている（最後に走った時刻: {stopped_at}）", f"- 統合ブランチ: {cfg['integration_branch']}",
+                 f"- 最後の走行の時点で開いていた統合 PR: {st['awaiting_pr'] or 'なし'}"]
+        waits, queue_note = [], [f"- 最後に走った時刻（{stopped_at}）の状態"]
+    lines = ["## H ライン", *state] + hline_outer.section(cfg, st) + hline_pending.line(st) + ([f"- コード: {st['code']}"] if st.get("code") else []) + waits + ([d] if (d := director_launch.latest_line(cfg)) else []) + ["", "## キュー", *queue_note,
              row("済み", "done", done, lambda ns: recent_done(items, ns)), row("待ち", "waiting", waiting),
              row("処理中", "processing", stage_note), *unconverged_rows(), row("凍結", "frozen", frozen)]
-    lines += ["", northstar_section(items).rstrip("\n"), "", failure_section(items).rstrip("\n")]
+    meters = northstar_section(items).rstrip("\n")
+    if stopped_at is not None:
+        meters = meters.replace("## 計器", f"## 計器（最後に走った時刻 {stopped_at} の状態）", 1)
+    lines += ["", meters, "", failure_section(items).rstrip("\n")]
     flaky = [f"- {n}: {', '.join(flaky_tests(i))}" for n, i in sorted(items.items()) if flaky_tests(i)]
     if flaky:
         lines += ["", "## 揺れたテスト（並列で落ち、単独で通った）"] + flaky

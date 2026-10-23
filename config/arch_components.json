@@ -8,7 +8,7 @@
     "hline": {
       "title": "H ライン（内側の自律ループ：取り込み・実装の試行・積む・統合 PR・報告）",
       "modules": ["hline.py", "hline_abort.py", "hline_agy.py", "hline_base.py", "hline_budget.py", "hline_cron.py", "hline_extend.py",
-                  "hline_followup.py", "hline_gc.py", "hline_git.py", "hline_halt.py", "hline_hygiene.py", "hline_ledger_entry.py",
+                  "hline_followup.py", "hline_gc.py", "hline_git.py", "hline_halt.py", "hline_stopped.py", "hline_hygiene.py", "hline_ledger_entry.py",
                   "hline_merge.py", "hline_pending.py", "hline_prompt.py", "hline_queue.py", "hline_quota.py", "hline_report.py",
                   "hline_resume.py", "hline_review.py", "hline_task.py", "hline_usage.py", "implementer_context.py", "narrow_dir.py",
                   "symbolmap.py", "tool_policy.py", "agy_stream.py", "agy_pinned.py"]
