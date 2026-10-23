@@ -2,8 +2,7 @@
 
 ## 進捗（docs/progress.yaml）
 
-- 毎ターン、考え始める前に `python -m harness.progress anchor` を実行し、現在地・検証コマンド・制約を確かめる
-- チャット報告は、`python -m harness.progress report` の出力をそのまま貼り、その後ろに次の 2 つだけを足してよい：① 落ちた試験があれば、試験の名前ごとに、ファイル:行と、失敗の 1 行（AssertionError などの文）② 変えたファイルがあれば、ファイルごとに 1 行の要約。挨拶・反省・言い訳・手順の作文は書かない。それ以外の詳細と記録は GitHub の PR 本文に書く
+- チャット報告は、冒頭に `python -m harness.progress report` の出力をそのまま貼る。その後ろに、ふつうの言葉で、何が済んで何が変わったかと、次の一手（操縦士がすること・会話の席がすること）を書く。ID は説明の補いとして添える。落ちた試験があれば、試験の名前ごとに、ファイル:行と、失敗の 1 行（AssertionError などの文）を書き、変えたファイルがあれば、ファイルごとに 1 行の要約を書いてよい。挨拶・反省・言い訳・手順の作文は書かない。それ以外の詳細と記録は GitHub の PR 本文に書く
 - PR を出して人間のレビューを待つときは `python -m harness.progress review <task_id> <PR の URL>` で状態に記録する（report の「人間作業」が REVIEW_REQUIRED になる）
 - `docs/progress.yaml` を手で編集しない。状態を変えるのは `python -m harness.progress complete <id>` だけで、検証コマンドが期待した終了コードを返したときだけ完了になる
 - 検証コマンドを足したり変えたりするときは、main への PR で行う（complete は origin/main の版と照合する）
