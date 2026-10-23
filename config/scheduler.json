@@ -4,7 +4,7 @@
   "branch_prefix": "ms4/issue-",
 
   "_lock_note": "全プロジェクトで 1 つ。Unity の受入を同時に 2 本走らせない。リポジトリの外に置く",
-  "lock_path": "C:\\src\\.local\\out\\harness\\scheduler.lock",
+  "lock_path": "${local}/out/harness/scheduler.lock",
 
   "labels": {
     "ready":   { "name": "ready",       "color": "FEF2C0", "description": "dispatch から投入された未着手の要求" },
@@ -31,7 +31,7 @@
   "required_clis": ["git", "gh", "claude", "agy"],
 
   "_worktree_note": "作業はこの下の worktree で行う。Issue は固定の <project>-issue-runner を使い回し（物理削除しない。runner_worktree_name）、GDD の PR は使い捨ての <project>-gdd-v<版>-<sha8> を使う。本体の clone（repo_dir）には書き込まない（docs/design/spec_pipeline.md §13）",
-  "worktree_root": "C:\\src\\.local\\wt",
+  "worktree_root": "${local}/wt",
 
   "_commands_note": "{python} は実行中の Python、{harness} は harness/ の絶対パス、{project} はプロジェクト ID、{telemetry} はログの隣のテレメトリ JSON、{repo} は作業する worktree（cwd も同じ）。テストではここをスタブに差し替える",
   "commands": {

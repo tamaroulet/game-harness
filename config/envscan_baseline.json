@@ -9,7 +9,6 @@
  ],
  "counts": {
   "config/agy_digests.json": {
-   "abs_path": 1,
    "exe_suffix": 1
   },
   "config/bench_implementer_agy.json": {
@@ -18,26 +17,22 @@
   },
   "config/decompose.json": {
    "cli_name": 4,
-   "abs_path": 1,
    "os_specific": 1,
    "exe_suffix": 1,
    "model_id": 1
   },
   "config/hline.json": {
    "cli_name": 7,
-   "abs_path": 4,
    "os_specific": 1,
    "exe_suffix": 1,
    "model_id": 4
   },
   "config/research.json": {
    "cli_name": 5,
-   "abs_path": 3,
    "model_id": 4
   },
   "config/scheduler.json": {
    "cli_name": 6,
-   "abs_path": 2,
    "os_specific": 1
   },
   "config/spec.json": {
@@ -49,8 +44,7 @@
    "encoding": 1
   },
   "harness/ab/common.py": {
-   "cli_name": 1,
-   "abs_path": 2
+   "cli_name": 1
   },
   "harness/ab/driver.py": {
    "cli_name": 2,
@@ -84,7 +78,6 @@
    "exe_suffix": 1
   },
   "harness/ab/v2r_preflight.py": {
-   "abs_path": 1,
    "encoding": 1
   },
   "harness/ab/v2r_report.py": {
@@ -257,9 +250,6 @@
   "harness/hline_review.py": {
    "cli_name": 2
   },
-  "harness/hline_room.py": {
-   "abs_path": 1
-  },
   "harness/hline_spec.py": {
    "cli_name": 3
   },
@@ -290,12 +280,8 @@
   "harness/nlgen.py": {
    "encoding": 1
   },
-  "harness/oracle_deny.py": {
-   "abs_path": 1
-  },
   "harness/pipeline.py": {
    "cli_name": 72,
-   "abs_path": 1,
    "encoding": 4
   },
   "harness/plan_check.py": {
@@ -381,23 +367,19 @@
   },
   "projects/falling-blocks/pipeline.json": {
    "cli_name": 4,
-   "abs_path": 5,
    "exe_suffix": 1,
    "model_id": 3
   },
   "projects/falling-blocks/project.json": {
-   "cli_name": 2,
-   "abs_path": 2
+   "cli_name": 2
   },
   "projects/unity-2d/pipeline.json": {
    "cli_name": 4,
-   "abs_path": 6,
    "exe_suffix": 2,
    "model_id": 1
   },
   "projects/unity-2d/project.json": {
    "cli_name": 2,
-   "abs_path": 2,
    "exe_suffix": 1
   }
  }

@@ -8,7 +8,7 @@ READERS = ("Read", "Grep", "Glob")
 
 
 def rule_path(path):
-    """Windows の絶対パス → 権限の規則のパス（C:\\src\\x → //c/src/x/**）。"""
+    """Windows の絶対パス → 権限の規則のパス（D:\\a\\x → //d/a/x/**）。"""
     p = re.sub(r"[\\/]+", "/", str(path)).rstrip("/")
     if m := re.match(r"^([A-Za-z]):(/.*)?$", p):
         p = f"//{m.group(1).lower()}{m.group(2) or ''}"

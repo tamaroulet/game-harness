@@ -3,16 +3,16 @@
 
   "paths": {
     "_existing_note": "out_dir と sandbox は移設前のパスのまま。サンドボックスの Unity Library（初回 11.9 分）を捨てないため",
-    "out_dir": "C:\\src\\.local\\out\\ms3",
-    "oracles_dir": "C:\\src\\.local\\oracles",
+    "out_dir": "${local}/out/ms3",
+    "oracles_dir": "${local}/oracles",
     "_sandbox_note": "実装AIの唯一の作業場。worktree なので本体に触れない",
-    "sandbox": "C:\\src\\.local\\wt\\ms3-sandbox",
+    "sandbox": "${local}/wt/ms3-sandbox",
     "_playtest_note": "プレイ確認（H2）のビルド専用のワークツリーと出力先（harness/playtest.py）。dispatch の playtest_out_root と同じ場所を指すこと",
-    "playtest_worktree": "C:\\src\\.local\\wt\\unity-2d-playtest",
-    "playtest_out": "C:\\src\\.local\\out\\playtest"
+    "playtest_worktree": "${local}/wt/unity-2d-playtest",
+    "playtest_out": "${local}/out/playtest"
   },
 
-  "unity_exe": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.3.23f1\\Editor\\Unity.exe",
+  "unity_exe": "${unity_editors}/${unity_editor}/Editor/Unity.exe",
 
   "_playtest_build_note": "プレイ確認のビルド関数（-executeMethod）。ゲーム側の Editor スクリプトが持つ（Step 7 で unity-2d に配備し、契約の playtest.build_method へ移す）。-playtestOutput に exe のパスを受け取り、EditorApplication.Exit で成否を返すこと",
   "playtest_build_method": "Game.EditorScripts.PlaytestBuild.BuildWindows",

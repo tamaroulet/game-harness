@@ -24,6 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
+import machine  # noqa: E402
 import toolchain  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -128,7 +129,7 @@ def measure(clis=(), run=subprocess.run, lock=LOCK, tools=(), csproj=None):
         except metadata.PackageNotFoundError:
             pkgs[name] = None
     out = {"os": os_string(), "python": platform.python_version(), "python_packages": pkgs,
-           "cli": {c: cli_version(c, run) for c in clis}}
+           "cli": {c: cli_version(c, run) for c in clis}, "machine_json": machine.machine_file().exists()}
     if tools:
         out["tools"] = tool_versions(tools, run)
     if csproj is not None:
@@ -145,6 +146,8 @@ def problems(measured, pinned):
     if "test_packages" in pinned and pinned["test_packages"] is None:
         out.append("test_packages：固定値が未設定（U1。人間が python -m harness.envcheck --test-packages の出力を "
                    "config/toolchain.json に書く）")
+    if measured.get("machine_json") is False:
+        out.append(f"machine.json がありません（{machine.machine_file()}。config/machine.example.json を写して置く。W-126）")
     for group in ("python_packages", "cli", "tools", "test_packages"):
         for name, want in (pinned.get(group) or {}).items():
             got = (measured.get(group) or {}).get(name)

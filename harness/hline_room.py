@@ -3,6 +3,7 @@ import json
 import shutil
 from pathlib import Path
 
+import machine
 from hline_base import RESERVED, ROOT
 from hline_queue import load_state
 from hline_report import write_report
@@ -10,10 +11,11 @@ from hline_report import write_report
 TEMPLATE = ROOT / "harness" / "templates" / "director_room" / "CLAUDE.md"
 
 
-def director_settings(inbox, src_root=Path("C:/src"), home_dirs=(".claude", ".gemini")):
+def director_settings(inbox, src_root=None, home_dirs=(".claude", ".gemini")):
     """総監督の設定：シェルを無効にし、受信箱の外と自分の設定・H ラインの書くファイルへの書き込みを拒否する。deny は
     allow より強く「受信箱だけ許す」と書けないので、受信箱の外を作った時点の一覧で全部拒否する。"""
     inbox = Path(inbox)
+    src_root = machine.path("src") if src_root is None else src_root
     rule = lambda p: "//" + p.as_posix().replace(":", "", 1).lower() + "/**"  # noqa: E731
 
     outside = [p for p in sorted(Path(src_root).iterdir()) if p != inbox.parent]

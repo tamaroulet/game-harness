@@ -8,14 +8,15 @@ _HARNESS = Path(__file__).resolve().parent.parent
 if str(_HARNESS) not in sys.path:
     sys.path.insert(0, str(_HARNESS))
 
+import machine  # noqa: E402
 import project  # noqa: E402
 import unit_schema  # noqa: E402
 from proc import run  # noqa: E402
 
 ROOT = project.ROOT
 EXP_DIR = ROOT / "experiments" / "b4_ab"
-WT_ROOT = Path(r"C:\src\.local\wt\ab")
-OUT_ROOT = Path(r"C:\src\.local\out\ab")
+WT_ROOT = machine.path("local") / "wt" / "ab"
+OUT_ROOT = machine.path("local") / "out" / "ab"
 CONDITIONS = ("A", "B")
 # 再実験 v2r の 4 条件（docs/design/v2r_protocol.md §1。ab.v2r.ORDER と同じ。v2r は common を読むので、ここに置く）
 V2R_CONDITIONS = ("A0", "A1", "B-G", "B")

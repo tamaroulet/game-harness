@@ -23,6 +23,7 @@ import agy_pinned  # noqa: E402
 import agy_stream  # noqa: E402
 import exitcode  # noqa: E402
 import hline_quota  # noqa: E402
+import machine  # noqa: E402
 import model_pin  # noqa: E402
 import proc  # noqa: E402
 import research_verify  # noqa: E402
@@ -41,7 +42,7 @@ class Abort(Exception):
 
 
 def load_config(path=CONFIG):
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    return machine.read_json(path)
 
 
 def read_question(path):

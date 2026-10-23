@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402  python -m harness.bench_guard でも python harness/bench_guard.py でも読めるように
+import machine  # noqa: E402
 
 CONFIG = Path(__file__).resolve().parent.parent / "config" / "hline.json"
 PLACES = ("oracles", "inbox", "out")
@@ -93,7 +94,7 @@ def main(argv=None):
     sub.add_parser("check", parents=[common])
     sub.add_parser("scan", parents=[common]).add_argument("dirs", nargs="+")
     args = ap.parse_args(argv)
-    cfg = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    cfg = machine.read_json(args.config)
     try:
         if args.cmd == "check":
             bad = openable(cfg)

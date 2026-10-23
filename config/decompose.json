@@ -18,7 +18,7 @@
   "response_key": "result",
 
   "_prompt_file_note": "改行を含む長文を引数で渡すと cmd.exe が最初の改行で切る（実測）。ファイルで渡す。リポジトリの外に置き、作業ツリーを汚さない",
-  "prompt_file": "C:\\src\\.local\\out\\harness\\{project}\\decompose\\prompt.md",
+  "prompt_file": "${local}/out/harness/{project}/decompose/prompt.md",
   "prompt_arg_template": "{prompt_file} を読み、そこに書かれた指示に厳密に従って JSON だけを返してください。前後に説明を書かないでください。",
 
   "_ttl_note": "claude は config/scheduler.json の ttl_seconds.decompose（外側）の内側に収める。外側の kill が先に来ると、telemetry も分解役のログも書けずに消える（tests/test_ttl_budget.py が検査する）",

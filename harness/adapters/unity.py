@@ -4,7 +4,7 @@ Unity 固有の知識はここにだけ置く（pipeline.py から移した。�
 
 設定:
   project.json  "unity_project_subdir"   Unity プロジェクトの場所（例 "Game"）
-  pipeline.json "unity_exe"              Editor の実体（マシン設定へ移す予定。docs/design/contract.md）
+  pipeline.json "unity_exe"              Editor の実体（${unity_editors}/${unity_editor}/… で書き、machine.json と台帳から作る。W-126）
                 "unity_skip_baseline"    既知の skip 件数（[Explicit] など）
                 "golden_dir_env_vars"    ゴールデンの置き場を Unity テストへ渡す環境変数名
                 ttl_seconds.engine_tests

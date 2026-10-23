@@ -1,0 +1,9 @@
+{
+  "_comment": "この PC に固有の絶対パスの例（ADR-004 の束 F、W-126）。写して <リポジトリの親>/.local/machine.json（または環境変数 HARNESS_MACHINE の場所）に置き、この PC に合わせて直す。設定のファイルは ${名前} で参照し、harness/machine.py が替える。%VAR% は環境変数。machine.json が無いときはこの例で代用するが、envcheck は不合格にする",
+  "paths": {
+    "src": "C:\\src",
+    "local": "C:\\src\\.local",
+    "agy_bin": "%LOCALAPPDATA%\\agy\\bin",
+    "unity_editors": "%ProgramFiles%\\Unity\\Hub\\Editor"
+  }
+}

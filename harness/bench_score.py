@@ -17,6 +17,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import machine  # noqa: E402
 import proc  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -39,7 +40,7 @@ print("%s" + json.dumps({"passed": res.ok, "total": res.testsRun}))
 
 
 def oracles_root(cfg_path=CONFIG):
-    return Path(json.loads(Path(cfg_path).read_text(encoding="utf-8"))["oracles"])
+    return Path(machine.read_json(cfg_path)["oracles"])
 
 
 def hidden_dir(root, task):

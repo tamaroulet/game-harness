@@ -39,6 +39,7 @@ import narrow_dir
 import nlgen
 import fileops
 import invrun
+import machine
 import model_pin
 import oracle
 import os
@@ -68,7 +69,7 @@ class Ctx:
         except (KeyError, adapters.AdapterError) as e:
             sys.exit(f"ABORT: アダプタを選べません: {e}")
         self.out = Path(p["out_dir"]) / "pipeline"
-        self.sandbox = Path(p.get("sandbox", r"C:\src\.local\wt\ms3-sandbox"))
+        self.sandbox = Path(p.get("sandbox") or machine.path("local") / "wt" / "ms3-sandbox")
         self.stage = self.out / "golden"
 
         self.ttl = self.cfg["ttl_seconds"]
