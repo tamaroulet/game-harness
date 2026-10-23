@@ -41,14 +41,16 @@ import exitcode  # noqa: E402  python -m harness.progress でも python harness/
 
 ROOT = Path(__file__).resolve().parent.parent
 REL_PATH = "docs/progress.yaml"
-STATUSES = ("pending", "in_progress", "completed")
+STATUSES = ("pending", "in_progress", "completed", "stopped", "withdrawn")
+OPEN = ("pending", "in_progress")   # 次のタスクに選ばれうる値
+HELD = {"stopped": "止めた", "withdrawn": "取り下げた"}   # 理由（reason）を持ち、H ラインが取らず、次のタスクに選ばれず、目的までの距離の分母に入らない。止めたものは再開しうる。取り下げたものは戻さない
 TAIL_LINES = 20
 VERIFY_TTL = 1800
 GIT_TTL = 120
 ORDER_FREE_ENV = "HLINE_PROGRESS_ORDER_FREE"   # "1" のとき main の complete が、現在のタスクでなくても記録する（H ライン用）
 
 
-EXECUTORS = ("pilot", "hline", "executor")   # タスクの執行者 by。省略は hline。executor は実行役（Claude Code のセッション。main への PR で行い、H ラインは取らない）
+EXECUTORS = ("pilot", "hline", "executor", "director")   # タスクの執行者 by。省略は hline。executor は実行役（Claude Code のセッション。main への PR で行い、H ラインは取らない）。director は総監督（H ラインは取らない）
 PR_REF = re.compile(r"^[A-Za-z0-9_.-]+#\d+$")
 
 
@@ -64,9 +66,14 @@ def is_executor(t):
     return (t or {}).get("by") == "executor"
 
 
+def is_held(t):
+    return (t or {}).get("status") in HELD
+
+
 def _label(t):
-    """ツリーに出すタスクの題（操縦士・実行役のタスクは後ろに印を付ける）。"""
-    return t["title"] + ("（操縦士）" if is_pilot(t) else "（実行役）" if is_executor(t) else "")
+    """ツリーに出すタスクの題（操縦士・実行役・総監督のタスクと、止めた・取り下げたタスクは後ろに印を付ける）。"""
+    by = {"pilot": "（操縦士）", "executor": "（実行役）", "director": "（総監督）"}.get((t or {}).get("by"), "")
+    return t["title"] + by + (f"（{HELD[t['status']]}）" if is_held(t) else "")
 
 
 # ============================================================ 読み書き
@@ -124,6 +131,18 @@ def dependency_problems(tasks):
     return problems
 
 
+def _open_dependents(tasks, status):
+    """[(未完了のタスクの ID, status の依存先の ID)]。"""
+    by_id = {t.get("id"): t for t in tasks}
+    return [(t.get("id"), d) for t in tasks if t.get("status") in OPEN
+            for d in (_deps(t) if isinstance(_deps(t), list) else []) if (by_id.get(d) or {}).get("status") == status]
+
+
+def held_dependents(tasks):
+    """止めたタスクに依存して待つ未完了のタスクの一覧（check が出す。不合格にはしない）。"""
+    return [f"task {tid} は止めた {d} に依存して待っています" for tid, d in _open_dependents(tasks, "stopped")]
+
+
 def unmet_dependencies(state, t):
     """t の依存先のうち、完了でないものの ID。"""
     done = {x["id"] for x in state["tasks"] if x["status"] == "completed"}
@@ -162,6 +181,8 @@ def validate(state):
             problems.append(f"task {tid} の group {t.get('group')} が nodes にありません")
         if t.get("status") not in STATUSES:
             problems.append(f"task {tid} の status {t.get('status')} は {STATUSES} のどれでもありません")
+        elif is_held(t) and not (isinstance(t.get("reason"), str) and t["reason"].strip()):
+            problems.append(f"task {tid} は{HELD[t['status']]}タスクです。理由（reason）を書いてください")
         if t.get("review_pr") is not None and not str(t["review_pr"]).startswith("https://"):
             problems.append(f"task {tid} の review_pr は https の URL です")
         if "by" in t and t["by"] not in EXECUTORS:
@@ -173,6 +194,8 @@ def validate(state):
                               or not isinstance(v.get("expected_exit_code"), int)):
             problems.append(f"task {tid} の verification は command（文字列）と expected_exit_code（整数）を持ちます")
     problems += dependency_problems(state["tasks"])
+    problems += [f"task {tid} は取り下げた {d} に依存しています（依存を書き直してください）"
+                 for tid, d in _open_dependents(state["tasks"], "withdrawn")]
     active = [t["id"] for t in state["tasks"] if t.get("status") == "in_progress"]
     if len(active) > 1:
         problems.append(f"in_progress が {len(active)} 件あります（1 件まで）")
@@ -233,8 +256,14 @@ def _tasks_under(state, node_id):
 def _done(state, node):
     ts = _tasks_under(state, node["id"])
     if ts:
-        return all(t["status"] == "completed" for t in ts)
+        return all(t["status"] in ("completed", "withdrawn") for t in ts)
     return node.get("status") == "completed"
+
+
+def _count(ts):
+    """（完了／分母）。止めた・取り下げたタスクは分母に入れず、件数を添える。"""
+    held = "".join(f"、{word} {n}" for s, word in HELD.items() if (n := sum(t["status"] == s for t in ts)))
+    return f"（{sum(t['status'] == 'completed' for t in ts)}/{sum(not is_held(t) for t in ts)}{held}）"
 
 
 def _contains_active(state, node_id):
@@ -252,7 +281,7 @@ def tree(state, expand_all=False):
     def line(node, depth):
         ts = _tasks_under(state, node["id"])
         mark = "[x]" if _done(state, node) else "[ ]"
-        count = f"（{sum(t['status'] == 'completed' for t in ts)}/{len(ts)}）" if ts else ""
+        count = _count(ts) if ts else ""
         lines.append(f"{'  ' * depth}- {mark} {node['id']} {node['title']}{count}")
 
     def siblings(nodes, depth):
@@ -282,7 +311,7 @@ def tree(state, expand_all=False):
             if t["group"] != node["id"]:
                 continue
             here = " ← 現在地" if t["id"] == state.get("active_task_id") else ""
-            tmark = "[x]" if t["status"] == "completed" else "[ ]"
+            tmark = {"completed": "[x]", "withdrawn": "[-]"}.get(t["status"], "[ ]")
             lines.append(f"{'  ' * (depth + 1)}- {tmark} {t['id']} {_label(t)}{here}")
 
     for root in _children(state, None):
@@ -358,8 +387,8 @@ def main_version(repo_root, ref, fetch=True):
 
 
 def advance_active(state):
-    """依存先がすべて完了した未完了のタスクのうち、進捗の順で最初のものを現在のタスクにする（ほかの in_progress は pending に戻す）。新しい id（無ければ None）を返す。"""
-    nxt = next((x for x in state["tasks"] if x["status"] != "completed" and not unmet_dependencies(state, x)), None)
+    """依存先がすべて完了した未完了のタスク（止めた・取り下げたものは除く）のうち、進捗の順で最初のものを現在のタスクにする（ほかの in_progress は pending に戻す）。新しい id（無ければ None）を返す。"""
+    nxt = next((x for x in state["tasks"] if x["status"] in OPEN and not unmet_dependencies(state, x)), None)
     for x in state["tasks"]:
         if x["status"] == "in_progress" and x is not nxt:
             x["status"] = "pending"
@@ -380,6 +409,8 @@ def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, 
     if require_active and state.get("active_task_id") != task_id:
         raise ProgressError(f"{task_id} は現在のタスクではありません（現在：{state.get('active_task_id')}）")
     t = task(state, task_id)
+    if is_held(t):
+        raise ProgressError(f"{task_id} は{HELD[t['status']]}タスクです（{t.get('reason')}）。完了にできません")
     unmet = unmet_dependencies(state, t)
     if unmet:
         raise ProgressError(f"{task_id} の依存先 {', '.join(unmet)} が完了していません。完了にできません")
@@ -459,6 +490,8 @@ def main(argv=None):
         if args.cmd == "check" or problems:
             for p in problems:
                 print(f"NG: {p}")
+            for w in held_dependents(state.get("tasks") or []) if isinstance(state, dict) else []:
+                print(f"待ち: {w}")
             if args.cmd == "check" and dump(state) != path.read_text(encoding="utf-8"):
                 print("NG: 正規の書式ではありません（手で編集した可能性があります）")
                 return 1

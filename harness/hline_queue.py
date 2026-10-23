@@ -132,6 +132,10 @@ def intake(cfg, st):
             return f"タスク {task} は操縦士の作業（by: pilot）で、H ラインは取りません"
         if ledger[task].get("by") == "executor":
             return f"タスク {task} は実行役の作業（by: executor）で、H ラインは取りません"
+        if ledger[task].get("by") == "director":
+            return f"タスク {task} は総監督の作業（by: director）で、H ラインは取りません"
+        if why := held_reason(ledger, task):
+            return why
         if ledger[task]["done"]:
             return f"タスク {task} は base の台帳で完了しています"
         return None
@@ -201,10 +205,19 @@ def read_ledger(cfg):
     try:
         tasks = yaml.safe_load(out)["tasks"]
         return {t["id"]: {"deps": list(t.get("depends_on") or []), "done": t.get("status") == "completed",
-                          "by": t.get("by") or "hline", "oracle": list(t.get("oracle") or []), "row": t,
+                          "status": t.get("status"), "by": t.get("by") or "hline", "oracle": list(t.get("oracle") or []), "row": t,
                           "after": list(t.get("after") or []), "rung": t.get("rung")} for t in tasks}
     except Exception as e:   # noqa: BLE001
         raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を解釈できません: {type(e).__name__}") from e
+
+
+def held_reason(ledger, task):
+    """base の台帳で task を止めた・取り下げたなら、H ラインが取らない理由。そうでなければ None。"""
+    row = ledger.get(task) or {}
+    if row.get("status") not in progress.HELD:
+        return None
+    return (f"タスク {task} は台帳で{progress.HELD[row['status']]}タスク（status: {row['status']}）で、H ラインは取りません"
+            f"（理由: {(row.get('row') or {}).get('reason') or '書かれていません'}）")
 
 
 def apply_ledger(cfg, st):
@@ -228,6 +241,10 @@ def apply_ledger(cfg, st):
             i["entry_wait"] = True
             continue
         i.pop("entry_wait", None)
+        if why := held_reason(ledger, i["task"]):   # 取り込んだ後に台帳で止めた What は、待ちのまま処理しない
+            i["held"] = why
+        else:
+            i.pop("held", None)
         own = ledger.get(i["task"], {}).get("deps", [])
         head = i.get("header_deps", i["deps"])
         i["deps"] = list(dict.fromkeys([*head, *own]))
@@ -312,7 +329,8 @@ def next_runnable(st):
     """依存がすべて済んだ待ちの What のうち、名前の順で最初のもの。"""
     for name in sorted(st["items"]):
         i = st["items"][name]
-        if (i["status"] == "waiting" and not i.get("ledger_error") and not i.get("entry_wait") and all(dep_done(st, i, d) for d in i["deps"])
+        if (i["status"] == "waiting" and not i.get("ledger_error") and not i.get("entry_wait") and not i.get("held")
+                and all(dep_done(st, i, d) for d in i["deps"])
                 and not after_blockers(st, i)):
             return name
     return None
