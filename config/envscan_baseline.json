@@ -28,8 +28,8 @@
    "model_id": 4
   },
   "config/research.json": {
-   "cli_name": 5,
-   "model_id": 4
+   "cli_name": 8,
+   "model_id": 7
   },
   "config/scheduler.json": {
    "cli_name": 6,

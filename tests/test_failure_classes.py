@@ -125,5 +125,17 @@ class Report(unittest.TestCase):
         self.assertEqual(out, "### 失敗の分類\n- 失敗の分類を出せませんでした: RuntimeError: 壊れた\n")
 
 
+
+class RunAsModule(unittest.TestCase):
+    def test_python_dash_m_finds_the_sibling_modules(self):
+        """python -m harness.<名前> では __package__ が "harness" になり、兄弟のモジュールを引けずに落ちていた（2026-10-23）。"""
+        import subprocess
+        root = Path(__file__).resolve().parent.parent
+        for name in ("failure_classes", "northstar"):
+            r = subprocess.run([sys.executable, "-m", f"harness.{name}", "--help"], cwd=root, capture_output=True,
+                               timeout=120)
+            self.assertEqual(r.returncode, 0, (name, r.stderr[-400:]))
+
+
 if __name__ == "__main__":
     unittest.main()

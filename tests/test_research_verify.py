@@ -28,7 +28,7 @@ def pages(table):
 
 def claim(url="https://example.org/a", quote='ship "tiered" reviews', **kw):
     return {"claim": "c", "source_url": url, "source_title": "t", "published": "2026-10-01", "quote": quote,
-            "kind": "fact", "confidence": "high", **kw}
+            "kind": "fact", "confidence": "high", "source_tier": "primary", "sector": "frontier_labs", "approach": "a", **kw}
 
 
 class Normalize(unittest.TestCase):
@@ -76,7 +76,10 @@ class Verify(unittest.TestCase):
         self.assertEqual(calls, ["https://example.org/a", "https://example.org/b"])
 
 
-ANSWER = {"claims": [claim(), claim(quote="made up sentence")], "unknowns": ["一次の出典が見つからない"]}
+ANSWER = {"claims": [claim(), claim(quote="made up sentence")], "queries": ["agent review tiers"],
+          "unknowns": ["一次の出典が見つからない"]}
+QUESTION = ("# 承認の層\n\n## 段\ncompare\n\n## 決めたい判断\n承認の層を分けるか\n\n## 判断を変えうるもの\n失敗の事後検証\n\n"
+            "## 候補\n層を分ける\n\n## 問い\nいまの実践を調べる。\n")
 
 
 def agy_out(text, model="gemini-3.8-flash-medium"):
@@ -96,7 +99,7 @@ class Ask(quiet.Quiet, unittest.TestCase):
         self.cfg = research.load_config()
         self.cfg.update(records=str(self.tmp / "records"), queue=str(self.tmp / "queue"), work=str(self.tmp / "work"))
         self.q = self.tmp / "review-tiers.md"
-        self.q.write_text("# 承認の層\n\nいまの実践を調べる。\n", encoding="utf-8")
+        self.q.write_text(QUESTION, encoding="utf-8")
         self.calls = []
         mock.patch.object(research.agy_pinned, "require", return_value=None).start()
         self.addCleanup(mock.patch.stopall)
@@ -122,6 +125,9 @@ class Ask(quiet.Quiet, unittest.TestCase):
         md = (self.tmp / "records" / "R-20261023-review-tiers.md").read_text(encoding="utf-8")
         self.assertIn("| C2 |", md)
         self.assertIn("一次の出典が見つからない", md)
+        # docs/research/ に写すので LF で書く（Windows の write_text の既定の CRLF にしない）
+        for ext in ("md", "json"):
+            self.assertNotIn(b"\r\n", (self.tmp / "records" / f"R-20261023-review-tiers.{ext}").read_bytes())
 
     def test_agy_is_called_read_only_with_the_schema_and_the_pinned_model(self):
         self.ask("agy", self.runner(0, agy_out(json.dumps(ANSWER))))
@@ -170,13 +176,13 @@ class Ask(quiet.Quiet, unittest.TestCase):
         queue = self.tmp / "queue"
         queue.mkdir()
         for name in ("b.md", "a.md"):
-            (queue / name).write_text(f"# {name}\n", encoding="utf-8")
+            (queue / name).write_text(QUESTION, encoding="utf-8")
         ok = self.runner(0, agy_out(json.dumps(ANSWER)))
         kw = dict(fetcher=pages({}), run=ok, resolve=lambda name: [name], now=NOW)
         self.assertEqual(research.run_queue(self.cfg, "agy", None, **kw), research.RECORDED)
         self.assertEqual(sorted(p.name for p in (self.tmp / "records").glob("*.json")), ["R-20261023-a.json", "R-20261023-b.json"])
         self.assertEqual(list(queue.glob("*.md")), [])
-        (queue / "c.md").write_text("# c\n", encoding="utf-8")
+        (queue / "c.md").write_text(QUESTION, encoding="utf-8")
         kw["run"] = self.runner(1, "", "RESOURCE_EXHAUSTED")
         self.assertEqual(research.run_queue(self.cfg, "agy", None, **kw), research.QUEUED)
         self.assertTrue((queue / "c.md").is_file())

@@ -9,8 +9,9 @@ import re
 import sys
 from pathlib import Path
 
-if __package__ in (None, ""):   # 直接実行でも harness/ の兄弟モジュールを引けるように
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 直接実行でも python -m harness.<名前> でも、harness/ の兄弟モジュールを引けるように（-m では __package__ が "harness" になり、
+# 前の条件では足されず ModuleNotFoundError で落ちていた）
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
 import fastsuite  # noqa: E402
 import hline_abort  # noqa: E402

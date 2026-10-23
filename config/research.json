@@ -1,6 +1,11 @@
 {
   "_comment": "外部の調べもの（ADR-004 の K-15、W-123）。harness/research.py が読む。調べ役の CLI は backends から選ぶ（既定は default）。どの CLI でも、照合（harness/research_verify.py）と記録の形は同じ",
   "default": "agy",
+  "_stages_note": "段ごとの既定の調べ役（docs/design/research_protocol.md §2・§8）。--backend で替えられる。俯瞰と比較は深く読むモデル、反証と照合は小さいモデル",
+  "stages": {"map": "claude-deep", "compare": "claude-deep", "refute": "claude", "verify": "claude"},
+  "recheck_days": 30,
+  "index": "${local}/research/index.json",
+  "public_records": "docs/research",
   "instruction": "docs/prompts/researcher.md",
   "schema": "config/research_schema.json",
   "records": "${local}/research/records",
@@ -28,6 +33,16 @@
       "auxiliary_models": ["claude-haiku-4-"],
       "extra_flags": ["--allowedTools", "WebSearch,WebFetch", "--max-turns", "12"],
       "output_format_args": ["--output-format", "json"]
+    },
+    "claude-deep": {
+      "cli": "claude",
+      "headless_flag": "-p",
+      "model_flag": "--model",
+      "model": "claude-sonnet-5-5",
+      "auxiliary_models": ["claude-haiku-4-", "claude-haiku-5-"],
+      "extra_flags": ["--allowedTools", "WebSearch,WebFetch", "--max-turns", "40"],
+      "output_format_args": ["--output-format", "json"],
+      "ttl_seconds": 2400
     }
   },
   "_backends_note": "agy は --mode plan（読み取りだけ）と --sandbox で動かし、出力の形は --json-schema で CLI の側でも強制する。claude は Claude の利用枠を使うので、agy の枠が無く急ぐときだけ --backend claude で選ぶ。claude の auxiliary_models は、固定したモデルに当たらない接頭辞だけを書く（model_pin.auxiliary_prefixes）"

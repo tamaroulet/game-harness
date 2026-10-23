@@ -1,13 +1,14 @@
 {
   "type": "object",
-  "required": ["claims", "unknowns"],
+  "required": ["claims", "queries", "unknowns"],
   "additionalProperties": false,
   "properties": {
     "claims": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["claim", "source_url", "source_title", "published", "quote", "kind", "confidence"],
+        "required": ["claim", "source_url", "source_title", "published", "quote", "kind", "confidence", "source_tier", "sector",
+                     "approach"],
         "additionalProperties": false,
         "properties": {
           "claim": {"type": "string"},
@@ -16,10 +17,14 @@
           "published": {"type": "string"},
           "quote": {"type": "string", "maxLength": 300},
           "kind": {"enum": ["fact", "opinion", "vendor_claim"]},
-          "confidence": {"enum": ["high", "medium", "low"]}
+          "confidence": {"enum": ["high", "medium", "low"]},
+          "source_tier": {"enum": ["primary", "secondary", "marketing"]},
+          "sector": {"enum": ["frontier_labs", "practitioners_at_scale", "academia", "standards_tools", "practitioners"]},
+          "approach": {"type": "string"}
         }
       }
     },
+    "queries": {"type": "array", "items": {"type": "string"}},
     "unknowns": {"type": "array", "items": {"type": "string"}}
   }
 }
