@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "required": ["claims", "unknowns"],
+  "additionalProperties": false,
+  "properties": {
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["claim", "source_url", "source_title", "published", "quote", "kind", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "claim": {"type": "string"},
+          "source_url": {"type": "string"},
+          "source_title": {"type": "string"},
+          "published": {"type": "string"},
+          "quote": {"type": "string", "maxLength": 300},
+          "kind": {"enum": ["fact", "opinion", "vendor_claim"]},
+          "confidence": {"enum": ["high", "medium", "low"]}
+        }
+      }
+    },
+    "unknowns": {"type": "array", "items": {"type": "string"}}
+  }
+}

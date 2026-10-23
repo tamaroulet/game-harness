@@ -122,6 +122,10 @@ def agent_configs(root=ROOT):
         hline = json.loads(p.read_text(encoding="utf-8"))
         if "implementer" in hline:
             out.append(("config/hline.json の implementer", hline["implementer"], "model"))
+    p = Path(root) / "config" / "research.json"   # 調べ役（harness/research.py、W-123）
+    if p.exists():
+        for name, b in sorted(json.loads(p.read_text(encoding="utf-8")).get("backends", {}).items()):
+            out.append((f"config/research.json の backends.{name}", b, "model_name" if b.get("cli") == "agy" else "model"))
     for p in sorted((Path(root) / "projects").glob("*/pipeline.json")):
         cfg = json.loads(p.read_text(encoding="utf-8"))
         if isinstance(cfg.get("implementer"), dict):
