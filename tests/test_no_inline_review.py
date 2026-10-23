@@ -28,8 +28,8 @@ READ_PATTERNS = ('project.config("audit")', 'cfg["audit"]', 'cfg["audit_dir"]', 
                  "verdict_prompt", "system_prompt", "OPENAI_API_KEY", "Audit-Verdict", "audit.py", "audit.json")
 
 # 走査から外すもの。propaudit は性質（property）の静的監査で LLM を呼ばない決定的な検査。名前に audit が
-# 付くだけで、インラインの LLM レビューではない。
-ALLOWED_AUDIT_NAMES = ("harness/propaudit.py",)
+# 付くだけで、インラインの LLM レビューではない。envscan_baseline はファイルごとの直書きの数の記録で、propaudit.py の名前を含む（W-125）
+ALLOWED_AUDIT_NAMES = ("harness/propaudit.py", "config/envscan_baseline.json")
 
 
 def sources():

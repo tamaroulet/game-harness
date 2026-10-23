@@ -1,0 +1,415 @@
+{
+ "_comment": "環境の直書きの記録（harness/envscan.py、W-125）。境界（boundary）の外では、ここの数より増やせない（tests/test_envscan_ratchet.py）。減らしたら python -m harness.envscan --update で下げる。上げるのは手書きだけで、PR に見える。2026-10-23 の実測から始めた",
+ "boundary": [
+  "harness/envscan.py",
+  "harness/platform/",
+  "config/envscan_baseline.json",
+  "config/toolchain.json",
+  "config/machine.example.json"
+ ],
+ "counts": {
+  "config/agy_digests.json": {
+   "abs_path": 1,
+   "exe_suffix": 1
+  },
+  "config/bench_implementer_agy.json": {
+   "cli_name": 2,
+   "version_literal": 1,
+   "model_id": 2
+  },
+  "config/decompose.json": {
+   "cli_name": 4,
+   "abs_path": 1,
+   "os_specific": 1,
+   "exe_suffix": 1,
+   "model_id": 1
+  },
+  "config/environment.json": {
+   "cli_name": 4,
+   "version_literal": 10
+  },
+  "config/hline.json": {
+   "cli_name": 7,
+   "abs_path": 4,
+   "os_specific": 1,
+   "exe_suffix": 1,
+   "model_id": 4
+  },
+  "config/invgen.json": {
+   "version_literal": 4
+  },
+  "config/research.json": {
+   "cli_name": 5,
+   "abs_path": 3,
+   "version_literal": 1,
+   "model_id": 4
+  },
+  "config/scheduler.json": {
+   "cli_name": 6,
+   "abs_path": 2,
+   "os_specific": 1
+  },
+  "config/spec.json": {
+   "cli_name": 3,
+   "exe_suffix": 1,
+   "model_id": 3
+  },
+  "harness/ab/check.py": {
+   "encoding": 1
+  },
+  "harness/ab/common.py": {
+   "cli_name": 1,
+   "abs_path": 2
+  },
+  "harness/ab/driver.py": {
+   "cli_name": 2,
+   "encoding": 1,
+   "exe_suffix": 5
+  },
+  "harness/ab/guard.py": {
+   "cli_name": 3,
+   "os_specific": 2,
+   "encoding": 2,
+   "exe_suffix": 1
+  },
+  "harness/ab/measure.py": {
+   "cli_name": 2
+  },
+  "harness/ab/precost.py": {
+   "encoding": 1
+  },
+  "harness/ab/report.py": {
+   "encoding": 1
+  },
+  "harness/ab/v2prep.py": {
+   "encoding": 1
+  },
+  "harness/ab/v2r_ceiling.py": {
+   "encoding": 1
+  },
+  "harness/ab/v2r_mutation.py": {
+   "cli_name": 3,
+   "encoding": 1,
+   "exe_suffix": 1
+  },
+  "harness/ab/v2r_preflight.py": {
+   "abs_path": 1,
+   "encoding": 1
+  },
+  "harness/ab/v2r_report.py": {
+   "encoding": 1
+  },
+  "harness/ab/v2r_runcheck.py": {
+   "cli_name": 3,
+   "encoding": 1
+  },
+  "harness/adapters/__init__.py": {
+   "cli_name": 2
+  },
+  "harness/adapters/csharp_tests.py": {
+   "encoding": 1
+  },
+  "harness/adapters/dotnet.py": {
+   "cli_name": 1,
+   "os_specific": 1,
+   "encoding": 2
+  },
+  "harness/adapters/unity.py": {
+   "cli_name": 1,
+   "os_specific": 1,
+   "encoding": 1
+  },
+  "harness/agy_pinned.py": {
+   "encoding": 1
+  },
+  "harness/agy_stream.py": {
+   "os_specific": 1
+  },
+  "harness/bench_freeze.py": {
+   "cli_name": 2,
+   "exe_suffix": 2,
+   "version_literal": 1,
+   "model_id": 1
+  },
+  "harness/bench_guard.py": {
+   "cli_name": 1,
+   "exe_suffix": 1
+  },
+  "harness/bench_regress.py": {
+   "encoding": 1
+  },
+  "harness/bench_run.py": {
+   "cli_name": 10,
+   "os_specific": 3,
+   "encoding": 7,
+   "exe_suffix": 1
+  },
+  "harness/bench_score.py": {
+   "cli_name": 1,
+   "exe_suffix": 2
+  },
+  "harness/bench_start.py": {
+   "cli_name": 1,
+   "encoding": 1
+  },
+  "harness/bench_verify.py": {
+   "cli_name": 1,
+   "encoding": 1
+  },
+  "harness/canary.py": {
+   "cli_name": 7,
+   "encoding": 4,
+   "exe_suffix": 3
+  },
+  "harness/contract.py": {
+   "cli_name": 3
+  },
+  "harness/contractgen.py": {
+   "encoding": 1
+  },
+  "harness/declare.py": {
+   "os_specific": 2,
+   "encoding": 2,
+   "exe_suffix": 3
+  },
+  "harness/decompose.py": {
+   "cli_name": 5,
+   "os_specific": 2,
+   "encoding": 3,
+   "exe_suffix": 5
+  },
+  "harness/director_launch.py": {
+   "encoding": 1
+  },
+  "harness/envcheck.py": {
+   "cli_name": 7,
+   "os_specific": 3,
+   "encoding": 4
+  },
+  "harness/failure_classes.py": {
+   "encoding": 1
+  },
+  "harness/fastsuite.py": {
+   "os_specific": 8,
+   "encoding": 2
+  },
+  "harness/fileops.py": {
+   "os_specific": 1
+  },
+  "harness/gate_order.py": {
+   "encoding": 1
+  },
+  "harness/goal_distance.py": {
+   "cli_name": 2
+  },
+  "harness/hline.py": {
+   "cli_name": 1,
+   "encoding": 1,
+   "exe_suffix": 3
+  },
+  "harness/hline_abort.py": {
+   "cli_name": 2
+  },
+  "harness/hline_base.py": {
+   "os_specific": 2,
+   "encoding": 1
+  },
+  "harness/hline_boundary.py": {
+   "encoding": 1
+  },
+  "harness/hline_budget.py": {
+   "cli_name": 1
+  },
+  "harness/hline_checks.py": {
+   "cli_name": 7
+  },
+  "harness/hline_cron.py": {
+   "cli_name": 3,
+   "os_specific": 14,
+   "encoding": 1,
+   "exe_suffix": 10
+  },
+  "harness/hline_gate.py": {
+   "encoding": 1
+  },
+  "harness/hline_gc.py": {
+   "cli_name": 2
+  },
+  "harness/hline_git.py": {
+   "cli_name": 35
+  },
+  "harness/hline_halt.py": {
+   "cli_name": 2
+  },
+  "harness/hline_hygiene.py": {
+   "cli_name": 3
+  },
+  "harness/hline_ledger_entry.py": {
+   "cli_name": 9
+  },
+  "harness/hline_probe.py": {
+   "cli_name": 7
+  },
+  "harness/hline_prompt.py": {
+   "cli_name": 1
+  },
+  "harness/hline_queue.py": {
+   "cli_name": 4
+  },
+  "harness/hline_report.py": {
+   "cli_name": 2,
+   "encoding": 1
+  },
+  "harness/hline_resume.py": {
+   "cli_name": 3,
+   "encoding": 1
+  },
+  "harness/hline_review.py": {
+   "cli_name": 2
+  },
+  "harness/hline_room.py": {
+   "abs_path": 1
+  },
+  "harness/hline_spec.py": {
+   "cli_name": 3
+  },
+  "harness/hline_task.py": {
+   "cli_name": 1
+  },
+  "harness/impacted.py": {
+   "encoding": 2
+  },
+  "harness/implementer_context.py": {
+   "encoding": 3
+  },
+  "harness/invgen.py": {
+   "encoding": 1
+  },
+  "harness/invrun.py": {
+   "cli_name": 6
+  },
+  "harness/job_object.py": {
+   "cli_name": 1,
+   "os_specific": 9
+  },
+  "harness/model_pin.py": {
+   "cli_name": 3,
+   "encoding": 1,
+   "model_id": 2
+  },
+  "harness/nlgen.py": {
+   "encoding": 1
+  },
+  "harness/oracle_deny.py": {
+   "abs_path": 1
+  },
+  "harness/pipeline.py": {
+   "cli_name": 72,
+   "abs_path": 1,
+   "encoding": 4
+  },
+  "harness/plan_check.py": {
+   "cli_name": 1,
+   "encoding": 1
+  },
+  "harness/plan_loop.py": {
+   "encoding": 3
+  },
+  "harness/planner.py": {
+   "encoding": 2
+  },
+  "harness/playtest.py": {
+   "cli_name": 4,
+   "exe_suffix": 1
+  },
+  "harness/premises.py": {
+   "cli_name": 1,
+   "encoding": 1
+  },
+  "harness/probe.py": {
+   "cli_name": 9,
+   "os_specific": 1,
+   "encoding": 10
+  },
+  "harness/proc.py": {
+   "os_specific": 9,
+   "encoding": 2,
+   "exe_suffix": 4
+  },
+  "harness/progress.py": {
+   "cli_name": 4,
+   "os_specific": 9,
+   "encoding": 3,
+   "exe_suffix": 7
+  },
+  "harness/propaudit.py": {
+   "encoding": 1
+  },
+  "harness/propgen.py": {
+   "encoding": 1
+  },
+  "harness/provenance.py": {
+   "cli_name": 1,
+   "encoding": 1
+  },
+  "harness/reqcov.py": {
+   "encoding": 1
+  },
+  "harness/research.py": {
+   "cli_name": 2,
+   "encoding": 1,
+   "exe_suffix": 1
+  },
+  "harness/scheduler.py": {
+   "cli_name": 14,
+   "os_specific": 13,
+   "encoding": 8,
+   "exe_suffix": 2
+  },
+  "harness/size_limits.py": {
+   "cli_name": 2
+  },
+  "harness/spec.py": {
+   "cli_name": 2,
+   "model_id": 2
+  },
+  "harness/symbolmap.py": {
+   "encoding": 3
+  },
+  "harness/telemetry.py": {
+   "cli_name": 2
+  },
+  "harness/testgen.py": {
+   "encoding": 1
+  },
+  "harness/unit_schema.py": {
+   "cli_name": 3,
+   "encoding": 1
+  },
+  "harness/witness_selftest.py": {
+   "encoding": 1,
+   "version_literal": 3
+  },
+  "projects/falling-blocks/pipeline.json": {
+   "cli_name": 4,
+   "abs_path": 5,
+   "exe_suffix": 1,
+   "model_id": 3
+  },
+  "projects/falling-blocks/project.json": {
+   "cli_name": 2,
+   "abs_path": 2
+  },
+  "projects/unity-2d/pipeline.json": {
+   "cli_name": 4,
+   "abs_path": 6,
+   "exe_suffix": 2,
+   "model_id": 1
+  },
+  "projects/unity-2d/project.json": {
+   "cli_name": 2,
+   "abs_path": 2,
+   "exe_suffix": 1
+  }
+ }
+}
