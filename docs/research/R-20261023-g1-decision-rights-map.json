@@ -1,0 +1,420 @@
+{
+  "id": "R-20261023-g1-decision-rights-map",
+  "title": "AI のエージェントに開発を任せる環境での、決定の権限・人の監督・承認の形（俯瞰）",
+  "stage": "map",
+  "decision": "1 人の人間（操縦士）が、AI のエージェント（実行役・総監督・調べ役・実装役）に開発を任せる環境で、どの決定を誰が下し、誰が検め、根拠をどう見える形で残すか。今の形は次の点で破綻している：実行役が判断と実行と検証を一人で握る、人の承認が PR の番号を言うだけの儀式になっている、判断の根拠が人に見えない、権限が「AI か人か」の二択で切られている",
+  "sectors": [
+    "frontier_labs",
+    "practitioners_at_scale",
+    "academia",
+    "standards_tools",
+    "practitioners"
+  ],
+  "asked_at": "2026-10-23T16:47:07+09:00",
+  "backend": "claude-deep",
+  "models": [
+    "claude-haiku-5-5",
+    "claude-sonnet-5-5"
+  ],
+  "usage": {
+    "input_tokens": 14,
+    "cache_creation_input_tokens": 29501,
+    "cache_read_input_tokens": 228950,
+    "output_tokens": 9182,
+    "output_tokens_details": {
+      "thinking_tokens": 1110
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 29501,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 5191,
+        "cache_read_input_tokens": 43133,
+        "cache_creation_input_tokens": 776,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 776
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "Feng らは、エージェントの自律の段階を、使う人が担う役割（operator・collaborator・consultant・approver・observer）で区切る 5 段階として示した。自律の段階は設計上の決定として選べる、と論じている。",
+      "source_url": "https://arxiv.org/abs/2506.12469",
+      "source_title": "Levels of Autonomy for AI Agents (Feng, McDonald, Zhang)",
+      "published": "2025-06-14",
+      "quote": "We argue that an agent's level of autonomy can be treated as a deliberate design decision",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "人の役割で切る自律の段階",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "8e337060b9b73704781c5c342675ed35dd124c06084c4d4a7d7c232d3f7ba762",
+        "reason": null
+      }
+    },
+    {
+      "id": "C2",
+      "claim": "EU AI Act 14 条は、人の監督の手段を、リスク・自律の度合い・使われ方に見合わせるよう求めている。",
+      "source_url": "https://artificialintelligenceact.eu/article/14/",
+      "source_title": "EU AI Act Article 14: Human oversight",
+      "published": "不明",
+      "quote": "The oversight measures shall be commensurate with the risks, level of autonomy and context of use of the high-risk AI system",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "リスクと自律に比例する監督（規制）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "b09aba800c2d1dc85500de947faa51f5d3e8ae6a30969ee3bf166232d66735dc",
+        "reason": null
+      }
+    },
+    {
+      "id": "C3",
+      "claim": "EU AI Act 14(4)(b) は、監督する人が出力を自動的に信用しすぎる傾向（自動化バイアス）を自覚し続けられるようにすることを求めている。",
+      "source_url": "https://artificialintelligenceact.eu/article/14/",
+      "source_title": "EU AI Act Article 14: Human oversight",
+      "published": "不明",
+      "quote": "to remain aware of the possible tendency of automatically relying or over-relying on the output",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "自動化バイアスの自覚を義務づける規制",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "b09aba800c2d1dc85500de947faa51f5d3e8ae6a30969ee3bf166232d66735dc",
+        "reason": null
+      }
+    },
+    {
+      "id": "C4",
+      "claim": "EU AI Act 14(4)(e) は、監督する人が運転に介入するか、停止ボタンで止められることを求めている。",
+      "source_url": "https://artificialintelligenceact.eu/article/14/",
+      "source_title": "EU AI Act Article 14: Human oversight",
+      "published": "不明",
+      "quote": "to intervene in the operation of the high-risk AI system or interrupt the system through a 'stop' button",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "リスクと自律に比例する監督（規制）",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "b09aba800c2d1dc85500de947faa51f5d3e8ae6a30969ee3bf166232d66735dc",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C5",
+      "claim": "NIST AI RMF の GOVERN 3.2 は、人と AI の組み合わせ方ごとに役割と責任を定めて区別する方針と手順を置くことを求めている。",
+      "source_url": "https://airc.nist.gov/AI_RMF_Knowledge_Base/Playbook/Govern",
+      "source_title": "NIST AI RMF Playbook: Govern",
+      "published": "不明",
+      "quote": "Policies and procedures are in place to define and differentiate roles and responsibilities for human-AI configurations",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "役割と責任を定める管理の枠組み",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "b6dea53674257543b1dfd63755810b59a229ffd9b0657fefcbc188c695a51895",
+        "reason": null
+      }
+    },
+    {
+      "id": "C6",
+      "claim": "Anthropic は、Claude Code のユーザーが許可の確認の 97% を承認していると報告している。個々の許可の却下は 3%、計画の承認では 39% を却下する。",
+      "source_url": "https://claude.com/blog/auto-mode-default-in-claude-code",
+      "source_title": "Auto mode is now the default in Claude Code",
+      "published": "2026-08-07",
+      "quote": "users approve 97% of permission prompts in Claude Code.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "承認の形骸化の実測",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "ab2cf8f006097d8ee5fd6cedb0674fcec666abbe8ca58c243c50bb14f659dd5b",
+        "reason": null
+      }
+    },
+    {
+      "id": "C7",
+      "claim": "Anthropic の対照実験では、人の確認が危険なコマンドを検出できたのは 13.6%（1,053 人中 143 人）だった。分類器を使う auto mode は同じコマンドの 89% を止めた。",
+      "source_url": "https://claude.com/blog/auto-mode-default-in-claude-code",
+      "source_title": "Auto mode is now the default in Claude Code",
+      "published": "2026-08-07",
+      "quote": "the testers caught the dangerous command just 13.6% of the time",
+      "kind": "vendor_claim",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "承認の形骸化の実測",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "ab2cf8f006097d8ee5fd6cedb0674fcec666abbe8ca58c243c50bb14f659dd5b",
+        "reason": null
+      }
+    },
+    {
+      "id": "C8",
+      "claim": "Anthropic は、サンドボックスで許可の確認を 84% 減らせたと報告している。承認を押し続けると承認疲れになる、とも書いている。",
+      "source_url": "https://www.anthropic.com/engineering/claude-code-sandboxing",
+      "source_title": "Beyond permission prompts: making Claude Code more secure and autonomous",
+      "published": "2025-10-20",
+      "quote": "In our internal usage, we've found that sandboxing safely reduces permission prompts by 84%.",
+      "kind": "vendor_claim",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "承認の数を減らす（境界を先に決める）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "0bfbfa2f7d70c482bfe387202b9afadcccfe4487221d24ccae4039c19a768762",
+        "reason": null
+      }
+    },
+    {
+      "id": "C9",
+      "claim": "Anthropic は、有効な監督とは全ての行動を承認することではなく、肝心な時に介入できる位置にいることだ、と述べている。すべての行動の承認を定める要件は、安全に結びつかない摩擦を生むとも述べている。",
+      "source_url": "https://www.anthropic.com/research/measuring-agent-autonomy",
+      "source_title": "Measuring AI agent autonomy in practice",
+      "published": "2026-02-18",
+      "quote": "effective oversight doesn’t require approving every action but being in a position to intervene when it matters.",
+      "kind": "opinion",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "介入できる位置を保つ監督",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "c1682f81bf03a3dfab744235efa8efdc9ad7eb749bef6e1f4e407619cd03719e",
+        "reason": null
+      }
+    },
+    {
+      "id": "C10",
+      "claim": "Anthropic の利用実測では、経験を積んだユーザーほど完全自動承認を多く使う（新規は約 20%、750 セッションを超えると 40% 超）。",
+      "source_url": "https://www.anthropic.com/research/measuring-agent-autonomy",
+      "source_title": "Measuring AI agent autonomy in practice",
+      "published": "2026-02-18",
+      "quote": "Newer users (<50 sessions) employ full auto-approve roughly 20% of the time",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "承認の形骸化の実測",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "c1682f81bf03a3dfab744235efa8efdc9ad7eb749bef6e1f4e407619cd03719e",
+        "reason": null
+      }
+    },
+    {
+      "id": "C11",
+      "claim": "Anthropic の指針は、コードやシステムを変える行動の前に人の承認を求め、計画を人に見える形（作業リスト）で示す設計を述べている。",
+      "source_url": "https://www.anthropic.com/news/our-framework-for-developing-safe-and-trustworthy-agents",
+      "source_title": "Our framework for developing safe and trustworthy agents",
+      "published": "2025-08-04",
+      "quote": "Humans need visibility into agents' problem-solving processes.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "計画の可視化つきの承認",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "a85a3b414c553ff8dd19fc758ad1c003e4fd511fae93654036be176e85c0e664",
+        "reason": null
+      }
+    },
+    {
+      "id": "C12",
+      "claim": "GitHub の Copilot cloud agent は、エージェントに PR を作らせた本人がその PR を承認することを防ぐ。書き込み権限を持つ人が承認するまで、GitHub Actions のワークフローは走らない。",
+      "source_url": "https://docs.github.com/en/copilot/concepts/agents/coding-agent/risks-and-mitigations",
+      "source_title": "Risks and mitigations for GitHub Copilot cloud agent",
+      "published": "不明",
+      "quote": "Prevents the user who asked Copilot cloud agent to create a pull request from approving it.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "依頼者と承認者の分離",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "cd92bf2439c14c3a0f423f79e597642c08ecede47e06baabe0a95e8a7367ff86",
+        "reason": null
+      }
+    },
+    {
+      "id": "C13",
+      "claim": "GitHub は、エージェントのセッションログは作業と使った道具を示すが、人自身の確認とテストの代わりにはならない、としている。",
+      "source_url": "https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-coding-agent",
+      "source_title": "About GitHub Copilot cloud agent",
+      "published": "不明",
+      "quote": "Logs do not replace your own review and testing.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "根拠の記録（ログ）と人の確認の併用",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "d79623751f3ec294f569770035218339e0a07cd848e415024a592dfa3f530988",
+        "reason": null
+      }
+    },
+    {
+      "id": "C14",
+      "claim": "Bezos は、取り返しのつかない決定（one-way door）は慎重に時間をかけて決め、戻せる決定（Type 2）は速く決めるよう分けている。重い手順を全部に当てると遅くなる、という警告も述べている。",
+      "source_url": "https://fs.blog/reversible-irreversible-decisions/",
+      "source_title": "Reversible and irreversible decisions (Farnam Street, Amazon 2015 letter を引用)",
+      "published": "不明",
+      "quote": "Type 2 decisions can and should be made quickly by high judgment individuals or small groups.",
+      "kind": "opinion",
+      "confidence": "medium",
+      "source_tier": "secondary",
+      "sector": "practitioners_at_scale",
+      "approach": "戻せるかで決定を分ける（one-way/two-way door）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "e6ac549b9e00c2beba0e3a4ee017f8a6ab669ebf80dfe0e67487b0105fb7e8f4",
+        "reason": null
+      }
+    },
+    {
+      "id": "C15",
+      "claim": "Nygard の ADR は、重要な決定を、力関係と 1 つの決定を書いた短い記録にして残す。決定を覆すときは古い記録を残し、superseded（差し替え済み）の印を付ける。",
+      "source_url": "https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions",
+      "source_title": "Documenting Architecture Decisions (Michael Nygard)",
+      "published": "2011-11-15",
+      "quote": "If a decision is reversed, we will keep the old one around, but mark it as superseded.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "practitioners",
+      "approach": "決定の記録（ADR）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "01bdb22a561924b5eb072b501b530d14157d4a674561dac25cfff3197eb04faf",
+        "reason": null
+      }
+    },
+    {
+      "id": "C16",
+      "claim": "Turan のプレプリントは、レビューする人が量に応じて疲れるとモデル化すると、人の監督を増やすほうが安全でなくなりうる、と示している。負荷を見て人に回す量を決める方針と、疲れた人に悪い操作を通す洪水攻撃への備えを提案している。",
+      "source_url": "https://arxiv.org/abs/2606.08919",
+      "source_title": "Oversight Has a Capacity: Calibrating Agent Guards to a Subjective, Fatiguing Human",
+      "published": "2026-06-08",
+      "quote": "more human oversight can make a system less safe",
+      "kind": "fact",
+      "confidence": "low",
+      "source_tier": "secondary",
+      "sector": "academia",
+      "approach": "人の負荷を考えた承認の量の調整",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "eca7e70201fafaafa18b48095d10e64fe7208a5de6122df3f6f86239cf3e2b68",
+        "reason": null
+      }
+    },
+    {
+      "id": "C17",
+      "claim": "DeepMind の「Intelligent AI Delegation」は、AI への委任を、権限・責任・説明責任の移譲を含む決定の連なりとして枠づける。",
+      "source_url": "https://arxiv.org/abs/2602.11865",
+      "source_title": "Intelligent AI Delegation (Tomašev, Franklin, Osindero)",
+      "published": "2026-02-12",
+      "quote": "incorporates transfer of authority, responsibility, accountability",
+      "kind": "fact",
+      "confidence": "low",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "権限・責任・説明責任の移譲としての委任",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T16:47:07+09:00",
+        "sha256": "42c0348006c914071c4eb7a296152d3e118b48fd65a48164a4c4df0a19634dac",
+        "reason": null
+      }
+    }
+  ],
+  "queries": [
+    "Anthropic Claude Code auto mode approval fatigue users approve 93% of permission prompts",
+    "OpenAI Practices for Governing Agentic AI Systems approval human oversight rubber-stamp",
+    "Amazon 2015 shareholder letter Bezos \"one-way door\" Type 1 decisions irreversible \"Type 2\"",
+    "automation bias rubber-stamping human oversight AI agents approval fatigue study arXiv human-in-the-loop",
+    "Intelligent AI Delegation Google DeepMind arXiv authority responsibility accountability delegation framework"
+  ],
+  "unknowns": [
+    "practitioners_at_scale：エージェントを大規模に運用する企業の当事者の技術ブログや事後検証は、取れなかった。Amazon の one-way/two-way door の出典は、株主への手紙の原文ではなく引用記事（fs.blog）で、AI のエージェント運用に当てた例ではない。",
+    "OpenAI の Practices for Governing Agentic AI Systems（2023 年 12 月とされる）は、公式ページが 403、PDF は本文を取り出せず、本文の引用を取れなかった。人の承認の関門や行動の記録の記述は確認できていない。",
+    "Amazon の 2015・2016 年の株主への手紙の原文は、aboutamazon.com の URL が 404 または該当部分なしで、確認できなかった。",
+    "ISO/IEC 42001 の条文、RACI・DACI をエージェントの運用に当てた例、OpenSSF の文書は、探さなかった。",
+    "NIST の GOVERN 3.2 の引用は取得ツールの要約を経ており、文が途中で切れている可能性がある。",
+    "自動化バイアスの古典的な研究（Parasuraman と Manzey など）と、承認疲れを AI エージェントの承認で測った査読つきの研究は、取れなかった。Turan のプレプリントは査読の有無が不明で、モデル化の結果である。",
+    "Anthropic の 97% と 13.6% は自社の製品の宣伝を兼ねた記事で、auto mode を売る文脈にある。ほかの記事に出る 93% は、一次の出典では見つからなかった。",
+    "quote は WebFetch の要約を通して得たため、出典の本文との一字一句の一致は未確認である。照合が必要。",
+    "決定の記録の実践のうち、エージェントの判断の根拠を出典つきで残す方法の実例は、ADR（人向け）と GitHub のセッションログ以外は取れなかった。"
+  ],
+  "counts": {
+    "verified": 16,
+    "quote_not_found": 1,
+    "unreachable": 0,
+    "no_source": 0
+  },
+  "question": "# AI のエージェントに開発を任せる環境での、決定の権限・人の監督・承認の形（俯瞰）\n\n## 段\nmap\n\n## 決めたい判断\n1 人の人間（操縦士）が、AI のエージェント（実行役・総監督・調べ役・実装役）に開発を任せる環境で、どの決定を誰が下し、誰が検め、根拠をどう見える形で残すか。今の形は次の点で破綻している：実行役が判断と実行と検証を一人で握る、人の承認が PR の番号を言うだけの儀式になっている、判断の根拠が人に見えない、権限が「AI か人か」の二択で切られている\n\n## 判断を変えうるもの\n最前線の企業・規格・研究が、エージェントの決定の権限を、決定の重さ（戻せるか）・利害の相反・根拠の見えやすさで段階に分けている例や、人の承認が形骸化する（自動化バイアス・承認疲れ）証拠と対策があれば、それを暫定の形に採る\n\n## 分野\nfrontier_labs practitioners_at_scale academia standards_tools practitioners\n\n## 問い\n次を、分野ごとに一次の出典で集めてください。\n\n- エージェントの自律の段階（levels of autonomy）と、段階ごとの人の役割（提案を受ける・承認する・監督する・事後に監査する）を定めた枠組み（提供元の指針、NIST AI RMF、ISO/IEC 42001、EU AI Act の人の監督の条文など）\n- 決定を重さで分ける実践（戻せる決定と戻せない決定、Amazon の one-way/two-way door、RACI・DACI、ADR と決定の記録）を、AI のエージェントの運用に当てた例\n- 人の承認が形だけになる問題（自動化バイアス、承認疲れ、rubber-stamping）の研究と、承認を意味あるものにする対策（根拠の提示、承認の前に読む材料、抜き取り、承認の数を減らす）\n- エージェントの判断の根拠を人が後から辿れるようにする実践（決定の記録、出典つきの根拠、監査の記録）\n"
+}

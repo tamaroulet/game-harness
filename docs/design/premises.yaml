@@ -116,3 +116,39 @@ premises:
   checked_at: 2026-10-23
   recheck_by: 2026-11-22
   used_by: [ADR-005 D-7]
+- id: P-023
+  text: 人の承認は、数が多いほど形だけになる。監督は全部を承認することでなく、肝心な時に介入できる位置にいることである
+  kind: research
+  basis: [R-20261023-g1-decision-rights-map#C6, R-20261023-g1-decision-rights-map#C9, R-20261023-g1-decision-rights-map#C10, R-20261023-g1-decision-rights-map#C16, R-20261023-g3-governance-compare#C14]
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-006]
+- id: P-024
+  text: LLM は自分の出力を高く評価し、外からの帰還が無いと自分の誤りを直せない。生成と評価は分ける
+  kind: research
+  basis: [R-20261023-g2-role-separation-map#C1, R-20261023-g2-role-separation-map#C5, R-20261023-g2-role-separation-map#C11, R-20261023-g3-governance-compare#C10, R-20261023-g3-governance-compare#C12]
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-006]
+- id: P-025
+  text: 作る役と承認する役を分け、人と AI の役割と責任を定めて区別する（依頼した本人は承認者に数えない）
+  kind: research
+  basis: [R-20261023-g1-decision-rights-map#C5, R-20261023-g1-decision-rights-map#C12, R-20261023-g2-role-separation-map#C16]
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-006]
+- id: P-026
+  text: 別系統のモデルの検めも、誤りを共有する。検め役の助言だけを独立の検証とみなさない
+  kind: research
+  basis: [R-20261023-g4-governance-refute#C3, R-20261023-g4-governance-refute#C4]
+  note: 出典は 2 本とも arXiv で、ドメインが 1 つ。弱い前提として、検め役への依存を減らす向きの注意にだけ使う
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-006]
+- id: P-027
+  text: 書き込みは 1 か所に集め、ほかの役は行動でなく助言を出す形が、今は最もうまくいく。コーディングは役の並列に向かない
+  kind: research
+  basis: [R-20261023-g3-governance-compare#C4, R-20261023-g3-governance-compare#C7, R-20261023-g2-role-separation-map#C8]
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-006]
