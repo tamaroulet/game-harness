@@ -1,11 +1,11 @@
-active_task_id: W-145
+active_task_id: W-144
 constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (game-harness#44).
 last_verification:
-  task: W-142
+  task: W-145
   exit_code: 0
-  at: '2026-10-23T14:39:20'
+  at: '2026-10-23T20:19:51'
 next_id: 106
 nodes:
 - id: A
@@ -3080,7 +3080,7 @@ tasks:
   title: 台帳に「止めた」「取り下げた」を足し、立て直しの外の作業を止める
   group: rebuild-0
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'rebuild-0: ledger-hold'
   by: executor
   purpose: 止めたものは H ラインに取られず、次のタスクに選ばれず、目的までの距離の分母に入らないようにして、立て直しの木だけが動く状態にする。セクター 0 で最初にマージする
@@ -3101,7 +3101,7 @@ tasks:
   title: H ラインが止まっている間も、report.md に正しい状態を出す（W-110 を畳む）
   group: rebuild-0
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'rebuild-0: report-stopped'
   by: executor
   purpose: H ラインが止まっていても、書いた時刻・main の版・止まっていること・照合の最後の時刻が report.md に出て、総監督と操縦士が今の状態を読める
