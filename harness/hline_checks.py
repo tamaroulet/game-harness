@@ -306,6 +306,26 @@ def section(cfg, runner=None, clock=None):
     return "\n".join(lines) + "\n"
 
 
+def stopped_section(cfg):
+    """H ラインが止まっている間の「## 照合」：走らせず、宣言ごとに、走っていないことと最後に走った時刻・前回の結果を出す（W-144）。"""
+    try:
+        d = checks_dir(cfg)
+        files = sorted(d.glob("*.json")) if d.is_dir() else []
+        if not files:
+            return "## 照合\n宣言なし\n"
+        cache = load_cache(Path(cfg["out"]) / CACHE_NAME)
+        lines = ["## 照合", "- H ラインが止まっているので、照合は走らせていない"]
+        for f in files:
+            old = cache.get(f.stem)
+            if isinstance(old, dict) and "at" in old and isinstance(old.get("res"), dict):
+                lines.append(f"- {f.stem}: 走っていない（最後に走った時刻: {hline_probe.stamp(old['at'])}／その結果: {old['res'].get('status')}）")
+            else:
+                lines.append(f"- {f.stem}: 走っていない（最後に走った記録なし）")
+        return "\n".join(lines) + "\n"
+    except Exception as e:   # noqa: BLE001 - report.md の書き出しを止めない
+        return f"## 照合\n- {hline_probe.failure(f'{type(e).__name__}: {e}')}\n"
+
+
 def safe_section(cfg, **kw):
     try:
         return section(cfg, **kw)

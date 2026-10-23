@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import base_whitelist, exitcode, fastsuite, gate_order, hline_foundation, hline_gate, hline_merge, hline_prompt, hline_protect, hline_quota, hline_suite, hline_task  # noqa: E402,F401
 import infra_retry, model_pin, proc, progress, size_limits, symbolmap  # noqa: E402,F401  テストが hline.proc などを差し替える
 from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args, load_config, must, pinned_models, run_agent, slug, title_of  # noqa: E402,F401
-import cycle_report, hline_halt, hline_outer, hline_pending, weekly_report  # noqa: E402
+import cycle_report, hline_halt, hline_outer, hline_pending, hline_stopped, weekly_report  # noqa: E402
 from hline_gc import sweep  # noqa: E402
 from hline_git import cherry_pick, integration_exists, pending_commits, push_tip  # noqa: E402,F401
 from hline_git import ahead, apply_patch, changed_paths, close_pr, code_shas, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, merge_pr, open_pr, pr_checks, pr_state, record, record_refused  # noqa: E402,F401
@@ -185,6 +185,10 @@ def poll(cfg):
     inbox = Path(cfg["inbox"])
     if not inbox.is_dir():
         raise Infra(f"受信箱がありません: {inbox}（python -m harness.hline setup）")
+    if mark := hline_stopped.marker(cfg):   # 止めた印がある間は走らない（W-144）
+        print(f"H ラインは止めてあります（理由: {mark['reason']}／止めた時刻: {mark['at']}）。何もしません"
+              "（再開は python -m harness.hline_stopped resume）")
+        return 0
     stale = cfg["ttl_seconds"]["lock_stale"]
     lock = acquire_lock(inbox, stale)
     if lock is None:

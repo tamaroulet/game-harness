@@ -43,13 +43,27 @@ def run(cfg, args, label, runner):
     return out, None
 
 
+def git(cfg, args, runner):
+    """git の呼び出し（run と同じ戻り値。ラベルは「git <サブコマンド>」）。"""
+    return run(cfg, ["git", *args], f"git {args[0]}", runner)
+
+
 def head_of(cfg, ref, runner):
-    out, why = run(cfg, ["git", "log", "-1", "--format=%h %s", ref], "git log", runner)
+    out, why = git(cfg, ["log", "-1", "--format=%h %s", ref], runner)
     return failure(why) if why else out.strip() or failure("出力が空")
 
 
+def branch_head(cfg, ref, runner):
+    """リモートの枝の HEAD。追跡の ref が無い（リモートに無い）ときは取得失敗とせず「なし」。あるのに読めないときは取得失敗のまま。"""
+    head = head_of(cfg, ref, runner)
+    if not head.startswith("取得失敗"):
+        return head
+    out, why = git(cfg, ["for-each-ref", "--format=%(refname)", f"refs/remotes/{ref}"], runner)
+    return "なし（リモートに無い）" if why is None and not out.strip() else head
+
+
 def active_task(cfg, runner):
-    out, why = run(cfg, ["git", "show", f"{cfg['base']}:{PROGRESS_REL}"], "git show", runner)
+    out, why = git(cfg, ["show", f"{cfg['base']}:{PROGRESS_REL}"], runner)
     if why:
         return failure(why)
     try:
@@ -175,7 +189,7 @@ def section(cfg, runner=None, clock=None, cache=None, pr=None, waits=False):
     lines = [
         "## probe",
         f"- origin/main の HEAD: {head_of(cfg, cfg['base'], runner)}（出典: {git} {cfg['base']}／取得: {at}）",
-        f"- 統合ブランチの HEAD: {head_of(cfg, remote_ref(cfg), runner)}（出典: {git} {remote_ref(cfg)}／取得: {at}）",
+        f"- 統合ブランチの HEAD: {branch_head(cfg, remote_ref(cfg), runner)}（出典: {git} {remote_ref(cfg)}／取得: {at}）",
         f"- main の最新の CI: {ci}（出典: gh run list --branch main／取得: {stamp(ci_at)}）",
     ]
     lines += [
