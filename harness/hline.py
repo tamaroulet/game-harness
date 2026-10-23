@@ -13,10 +13,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import base_whitelist, exitcode, fastsuite, gate_order, hline_foundation, hline_gate, hline_merge, hline_prompt, hline_protect, hline_quota, hline_suite, hline_task  # noqa: E402,F401
 import infra_retry, model_pin, proc, progress, size_limits, symbolmap  # noqa: E402,F401  テストが hline.proc などを差し替える
 from hline_base import CONFIG, RESERVED, ROOT, Infra, acquire_lock, heartbeat, implementer_args, load_config, must, pinned_models, run_agent, slug, title_of  # noqa: E402,F401
-import hline_halt, hline_outer, hline_pending, weekly_report  # noqa: E402
+import cycle_report, hline_halt, hline_outer, hline_pending, weekly_report  # noqa: E402
 from hline_gc import sweep  # noqa: E402
 from hline_git import cherry_pick, integration_exists, pending_commits, push_tip  # noqa: E402,F401
-from hline_git import ahead, apply_patch, changed_paths, code_shas, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, merge_pr, open_pr, pr_checks, pr_state, record, record_refused  # noqa: E402,F401
+from hline_git import ahead, apply_patch, changed_paths, close_pr, code_shas, create_pr, drop_merged_branch, fetch, implementer_room, integrate, integrated, new_worktree, merge_pr, open_pr, pr_checks, pr_state, record, record_refused  # noqa: E402,F401
 from hline_hygiene import diff_files, problems  # noqa: E402
 from hline_queue import by_status, intake, load_state, next_runnable, only_orphans_wait, pick, recover, refresh, save_state, what_path  # noqa: E402,F401
 from hline_report import line_modules, mark as _mark, pr_body, pr_title, self_change, today, write_report  # noqa: E402,F401
@@ -107,6 +107,15 @@ def weekly(cfg):
         print(f"週次の報告を作れませんでした: {' '.join(f'{type(e).__name__}: {e}'.split())}")
 
 
+def cycle(cfg, st):
+    """前の周期の報告の後に済みが下限に届き、外側の統合 PR が開いていなければ、次の周期の報告を書く。書けなくても走行は止めない。"""
+    try:
+        if path := cycle_report.ensure_next(cfg, st):
+            print(f"周期の報告を書きました: {path}")
+    except Exception as e:   # noqa: BLE001
+        print(f"周期の報告を作れませんでした: {' '.join(f'{type(e).__name__}: {e}'.split())}")
+
+
 def run_line(cfg):
     weekly(cfg)
     st = load_state(cfg)
@@ -131,6 +140,7 @@ def run_line(cfg):
     host = sys.modules[__name__]
     recover(cfg, st, lambda n: hline_pending.landed(host, cfg, st, n))
     hline_outer.settle(host, cfg, st)   # 外側の統合 PR の待ちは内側と別。閉じていれば解くだけで、内側は止めない
+    cycle(cfg, st)
     st["pr_open"] = bool(st["awaiting_pr"]) and not settle_pr(cfg, st)
     if st["pr_open"]:   # 開いている PR の head は変えない。以降の内側の What は保留の積みに積む
         print(f"統合 PR は開いています。受信箱は取り、保留の積みに積みます: {st['awaiting_pr']}")

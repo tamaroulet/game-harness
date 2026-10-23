@@ -224,6 +224,11 @@ def merge_pr(cfg, url, head=None):
     gh(cfg, ["pr", "merge", url, "--merge"] + (["--match-head-commit", head] if head else []), "gh pr merge")
 
 
+def close_pr(cfg, url, comment):
+    """PR をマージせずに閉じる。理由はコメントに残す。"""
+    gh(cfg, ["pr", "close", url, "--comment", comment], "gh pr close")
+
+
 def drop_merged_branch(cfg):
     """マージされた統合ブランチを消す（残すと、スカッシュのマージの後に main に無いコミットとして見え、次の作業の土台になる）。"""
     fetch(cfg)

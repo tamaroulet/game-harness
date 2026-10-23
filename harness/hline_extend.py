@@ -13,7 +13,7 @@ RAN = re.compile(r"^Ran (\d+) tests? ", re.MULTILINE)
 SUMMARY = re.compile(r"^(?:OK|FAILED) \((.*)\)[ \t\r]*$", re.MULTILINE)
 COUNT = re.compile(r"(failures|errors|skipped)=(\d+)")
 BROKEN = ("Failed to import test module", "_FailedTest", "SyntaxError", "IndentationError", "TabError")   # 収集・import・構文の誤り
-EXTENDABLE = ("test", "full_suite")
+EXTENDABLE = ("test", "turns", "full_suite")   # turns は、ターン切れで分ける前なら test だった落ち
 
 
 def test_counts(rec, text):

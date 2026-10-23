@@ -1,13 +1,14 @@
-"""H ライン（harness/hline.py）の外側の統合ブランチ：マイルストーン outer の What を hline/outer に積み、統合 PR を週に 1 本だけ出す（W-56）。
+"""H ライン（harness/hline.py）の外側の統合ブランチ：マイルストーン outer の What を hline/outer に積み、統合 PR を周期（周期の報告 cycle_report の区切り）に 1 本だけ出す（W-56、W-118）。
 
 **なぜ要るか**: 基盤の改善（外側）を週次の束にし、課題や道具の What（内側）の積みと分ける。外側の統合 PR が開いていても内側は止めない。
-外側の状態は st["outer"]（awaiting_pr = 開いている外側の統合 PR、week = 外側の統合 PR を出した ISO 週）に置き、内側の st["awaiting_pr"] とは別に持つ。
+外側の状態は st["outer"]（awaiting_pr = 開いている外側の統合 PR、cycle = 外側の統合 PR を出したときの最新の周期の番号（報告が無ければ -1）、week = 出した ISO 週（記録だけ））に置き、内側の st["awaiting_pr"] とは別に持つ。
 harness.hline を import しない（循環を作らない）。依存は第 1 引数 host（harness.hline 自身）の属性として読むので、テストの差し替えが効く。
 hline_git の関数は cfg["integration_branch"] だけを読むので、外側ではその名前だけを替えた設定（branch_cfg）を渡す。
 """
 import datetime
 import time
 
+import cycle_report
 import hline_merge
 
 OUTER = "outer"
@@ -57,6 +58,32 @@ def merge_facts(host, ocfg, url):
     return {"merged_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"), "merged_head": head}
 
 
+def close_failed(host, cfg, st, url):
+    """head の非劣性の記録が不合格なら、PR をマージせず閉じ、載っていた What を未収束にし、統合ブランチを消す（W-120）。閉じたら True。
+    記録が無い・読めない・rev が違う・head を読めない・gh が失敗したときは何もせず False（今まで通り待つ）。"""
+    ocfg = branch_cfg(cfg, OUTER)
+    try:
+        head = host.pr_checks(ocfg, url).get("headRefOid")
+        failed, why, path = hline_merge.regress_failed(hline_merge.RECORDS, head)
+        if not failed:
+            return False
+        reason = f"非劣性の不合格（{why}、記録 {path}）"
+        host.close_pr(ocfg, url, f"H ラインが閉じました: {reason}")
+    except Exception:   # noqa: BLE001  閉じられなければ待ち（次の走行でもう一度確かめる）
+        return False
+    at = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+    for i in view(st, True)["items"].values():
+        if i["status"] == "done" and i.get("pr") == url and not i.get("merged"):
+            i.pop("pr", None)
+            i.update(status="unconverged", at=at, reason=reason)
+    st["outer"] = {**outer_state(st), "awaiting_pr": None, "merge_note": None, "closed_pr": {"url": url, "reason": reason}}
+    try:
+        host.drop_merged_branch(ocfg)
+    finally:
+        host.save_state(cfg, st)
+    return True
+
+
 def settle(host, cfg, st):
     """外側の統合 PR が閉じられていたら（マージを含む）待ちを解く。まだ開いていれば何もしない。内側の待ちとは関係しない。"""
     o = outer_state(st)
@@ -66,6 +93,8 @@ def settle(host, cfg, st):
     ocfg = branch_cfg(cfg, OUTER)
     state = host.pr_state(ocfg, url)
     if state == "OPEN":
+        if close_failed(host, cfg, st, url):
+            return
         # 外側は非劣性の記録（W-58）も要る。CI の失敗も待ちとして扱う（直す What は積み続けられる）
         if hline_merge.settle(host, ocfg, st, url, records=hline_merge.RECORDS) != "merged":
             if outer_state(st).get("merge_note") != o.get("merge_note"):
@@ -84,9 +113,10 @@ def settle(host, cfg, st):
 
 
 def open_pr(host, cfg, st):
-    """外側の What が尽きたとき、hline/outer に main に無いコミットがあり、外側の統合 PR が開いておらず、今の週にまだ出していなければ 1 本出す。"""
+    """外側の What が尽きたとき、hline/outer に main に無いコミットがあり、外側の統合 PR が開いておらず、今の周期（最新の周期の報告の後）にまだ出していなければ 1 本出す。"""
     o, ocfg, mine = outer_state(st), branch_cfg(cfg, OUTER), view(st, True)
-    if o.get("awaiting_pr") or o.get("week") == week():
+    cycle = cycle_report.latest_number(cfg)
+    if o.get("awaiting_pr") or o.get("cycle") == cycle:
         return
     if not [i for i in mine["items"].values() if i["status"] == "done" and not i.get("pr") and not i.get("merged")] or host.ahead(ocfg) == 0:
         return
@@ -99,18 +129,18 @@ def open_pr(host, cfg, st):
     for i in mine["items"].values():
         if i["status"] == "done" and not i.get("merged"):
             i["pr"] = url
-    st["outer"] = {**o, "awaiting_pr": url, "week": week(), "opened_at": time.time()}
+    st["outer"] = {**o, "awaiting_pr": url, "week": week(), "cycle": cycle, "opened_at": time.time()}
     host.save_state(cfg, st)
     print(f"外側の統合 PR: {url}")
 
 
 def section(cfg, st):
-    """report.md の「## H ライン」に足す行。内側と分けて、外側の統合ブランチ・統合 PR・その週に出したか。"""
+    """report.md の「## H ライン」に足す行。内側と分けて、外側の統合ブランチ・統合 PR・今の周期（番号・済みの件数と下限・外側の統合 PR を出したか）。"""
     o = outer_state(st)
     if not cfg.get("outer_integration_branch"):
         return []
-    sent = o.get("week")
+    c = cycle_report.state(cfg, st)
     return [f"- 外側の統合ブランチ: {cfg['outer_integration_branch']}", f"- 外側の統合 PR: {o.get('awaiting_pr') or 'なし'}",
-            f"- 外側の統合 PR を今週（{week()}）出したか: {'出した' if sent == week() else 'まだ'}"
-            + (f"（最後に出した週: {sent}）" if sent and sent != week() else "")] \
-        + ([f"- 外側の統合 PR の非劣性: {o['merge_note']}"] if o.get("awaiting_pr") and o.get("merge_note") else [])
+            f"- 今の周期: {c['number']}（済み {c['done']} 件／下限 {c['min']} 件）、この周期に外側の統合 PR を{'出した' if c['sent'] else 'まだ出していない'}"] \
+        + ([f"- 外側の統合 PR の非劣性: {o['merge_note']}"] if o.get("awaiting_pr") and o.get("merge_note") else []) \
+        + ([f"- 閉じた外側の統合 PR: {o['closed_pr']['url']}（{o['closed_pr']['reason']}）"] if o.get("closed_pr") else [])
