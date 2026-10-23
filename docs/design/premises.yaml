@@ -64,3 +64,55 @@ premises:
   checked_at: 2026-10-19
   recheck_by: 2026-11-30
   used_by: [W-96, W-138]
+- id: P-014
+  text: 最前線の長く走る自律開発は、新しい文脈のセッションを、進捗のファイル・git・試験を変えられない機能の一覧で引き継ぐ形（単一のエージェント）か、計画役・作業役・審判役の階層で周期ごとに新しい文脈から始める形で回している
+  kind: research
+  basis: [R-20261023-m1-autonomous-dev-architecture#C1, R-20261023-m1-autonomous-dev-architecture#C2, R-20261023-m1-autonomous-dev-architecture#C3, R-20261023-m1-autonomous-dev-architecture#C7, R-20261023-m1-autonomous-dev-architecture#C8]
+  note: W-124 の地図（2026-10-23）。台帳（docs/progress.yaml）と git で状態を引き継ぐ今の形は、この系統に当たる
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-005 D-2, ADR-005 D-3]
+- id: P-015
+  text: 提供元は、エージェントを CI の中で動かす公式の道具（Claude Code GitHub Actions・Copilot の coding agent など）を出しており、GitHub が運用する runner のジョブは 1 件 6 時間まで、Copilot の coding agent は 1 セッション 59 分までである
+  kind: research
+  basis: [R-20261023-m1-autonomous-dev-architecture#C13, R-20261023-m4-agent-execution-isolation#C10, R-20261023-c1-run-loop-on-ci-vs-local#C2, R-20261023-c1-run-loop-on-ci-vs-local#C7, R-20261023-c1-run-loop-on-ci-vs-local#C12]
+  note: CI の上で長く多くのタスクを回した当事者の事後検証は見つからない（c1 の unknowns）。定額の契約のトークンで動く記述は照合が quote_not_found で、Max の OAuth で認証に失敗する未解決の報告がある（c1#C6、未照合）。試しの走行で確かめるまで、置き換えを決め切らない
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-005 D-3]
+- id: P-016
+  text: エージェントが自分で書いた試験は合否の根拠として価値が小さく、ベンチの試験は弱く、reward hacking は実在する。合否は、採点者がすり抜けに耐えること（別の役が先に書いた試験・変異で導いた試験）に依るべきである
+  kind: research
+  basis: [R-20261023-m2-verification-of-agent-changes#C1, R-20261023-m2-verification-of-agent-changes#C2, R-20261023-m2-verification-of-agent-changes#C4, R-20261023-m2-verification-of-agent-changes#C5, R-20261023-m2-verification-of-agent-changes#C9, R-20261023-m2-verification-of-agent-changes#C11]
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-005 D-4, ADR-004 K-2]
+- id: P-017
+  text: 無人で走るエージェントは、VM・コンテナ・クラウドのセッション・CI の使い捨ての環境で動かすのが提供元の勧めで、ネイティブの Windows ではサンドボックスが効かない
+  kind: research
+  basis: [R-20261023-m4-agent-execution-isolation#C1, R-20261023-m4-agent-execution-isolation#C2, R-20261023-m4-agent-execution-isolation#C4, R-20261023-m4-agent-execution-isolation#C9, R-20261023-m4-agent-execution-isolation#C10, R-20261023-m4-agent-execution-isolation#C12]
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-005 D-3, ADR-005 D-6]
+- id: P-018
+  text: 10 本程度の課題を 1〜3 回走らせるベンチでは、ハーネスの改善を検出できない。1 回の走りで点は 2〜6 ポイント動き、満点に張り付いた課題は情報を持たず、ベンチの点は物差しへの過学習で膨らむ
+  kind: research
+  basis: [R-20261023-r1-small-bench-self-improvement#C1, R-20261023-r1-small-bench-self-improvement#C3, R-20261023-r1-small-bench-self-improvement#C7, R-20261023-r1-small-bench-self-improvement#C9, R-20261023-m3-self-improving-harness#C13, R-20261023-m3-self-improving-harness#C16]
+  note: 10 本の条件そのものの検出力を測った出典は無い（r1 の unknowns）。一般の測定からの推定
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-005 D-5, ADR-004 K-4, W-25]
+- id: P-019
+  text: ハーネスの改善は、点の探索よりも、実行の記録（トレース）を読む失敗の分析から始めるのが、最前線と実務の形である
+  kind: research
+  basis: [R-20261023-m3-self-improving-harness#C12, R-20261023-m3-self-improving-harness#C14, R-20261023-m2-verification-of-agent-changes#C6]
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-005 D-5]
+- id: P-020
+  text: 調べものの仕組みは、出典の質の指針・引用の後付けの照合・必要な時に読む索引が、最前線の形である
+  kind: research
+  basis: [R-20261023-m5-knowledge-accumulation#C4, R-20261023-m5-knowledge-accumulation#C5, R-20261023-m5-knowledge-accumulation#C6, R-20261023-m5-knowledge-accumulation#C15]
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-005 D-7]

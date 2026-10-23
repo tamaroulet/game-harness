@@ -1,0 +1,513 @@
+{
+  "id": "R-20261023-m3-self-improving-harness",
+  "title": "エージェントの仕組み自身を改善する：自己改善の回し方と、改善の測り方",
+  "stage": "map",
+  "decision": "外側の周期（エージェントが自分の仕組み＝ハーネスを改善し、ベンチの点が下がらないことを確かめて取り込む）を、いまの形で続けるか、別の形にするか、やめるか",
+  "sectors": [
+    "frontier_labs",
+    "practitioners_at_scale",
+    "academia",
+    "standards_tools",
+    "practitioners"
+  ],
+  "asked_at": "2026-10-23T14:05:28+09:00",
+  "backend": "claude-deep",
+  "models": [
+    "claude-haiku-5-5",
+    "claude-sonnet-5-5"
+  ],
+  "usage": {
+    "input_tokens": 16,
+    "cache_creation_input_tokens": 45952,
+    "cache_read_input_tokens": 306541,
+    "output_tokens": 13098,
+    "output_tokens_details": {
+      "thinking_tokens": 2556
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 45952,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 8620,
+        "cache_read_input_tokens": 57788,
+        "cache_creation_input_tokens": 2572,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 2572
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "Darwin Gödel Machine（DGM）は、コーディングエージェントが自分の Python コードを書き換え、変更ごとにベンチで試し、生成したエージェントのアーカイブを育てて探索する。SWE-bench は 20.0%→50.0%、Polyglot は 14.2%→30.7% に上がったと著者が報告している。",
+      "source_url": "https://arxiv.org/abs/2505.22954",
+      "source_title": "Darwin Godel Machine: Open-Ended Evolution of Self-Improving Agents",
+      "published": "2025-05-29",
+      "quote": "Inspired by Darwinian evolution and open-endedness research, the DGM grows an archive of generated coding agents.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "自己書き換え＋アーカイブ進化",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "a6aef33d8e7134ed4275c73f9a5718ed1aa336862dbf35bde23b12d54fe56af9",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C2",
+      "claim": "DGM の著者自身が、LLM の確率的な揺れで性能がぶれること、SWE-bench 1 回の実行に約 2 週間と大きな API 費用がかかることを述べている。",
+      "source_url": "https://arxiv.org/html/2505.22954v3",
+      "source_title": "Darwin Godel Machine: Open-Ended Evolution of Self-Improving Agents (v3)",
+      "published": "2026-03-12",
+      "quote": "Because the LLMs we use are inherently stochastic, performance can be noisy.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "自己書き換え＋アーカイブ進化",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "95a457fec7212a61800825e5df47032d00cda12658a97c264932c8dc482afede",
+        "reason": null
+      }
+    },
+    {
+      "id": "C3",
+      "claim": "DGM の著者は、ベンチの点だけを目的にした自己改変は脆弱性を持ち込みうると安全面の議論で述べている。別の実験（幻覚検出）で、検出関数を隠さないと物差しだけを満たす変種が出たという報道もある（報道は二次情報）。",
+      "source_url": "https://arxiv.org/html/2505.22954v3",
+      "source_title": "Darwin Godel Machine: Open-Ended Evolution of Self-Improving Agents (v3)",
+      "published": "2026-03-12",
+      "quote": "Modifications optimized solely for benchmark performance might inadvertently introduce vulnerabilities",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "自己書き換え＋アーカイブ進化",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "95a457fec7212a61800825e5df47032d00cda12658a97c264932c8dc482afede",
+        "reason": null
+      }
+    },
+    {
+      "id": "C4",
+      "claim": "SICA は、基本的なコーディング道具を持つエージェントが自分のコードを編集し、SWE-Bench Verified の無作為な部分集合（固定の 50 問）で 17%→53% に上がったと報告している。小さな部分集合での数字である。",
+      "source_url": "https://arxiv.org/abs/2504.15228",
+      "source_title": "A Self-Improving Coding Agent",
+      "published": "2025-04-21",
+      "quote": "We find performance gains from 17% to 53% on a random subset of SWE Bench Verified",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "自己書き換え＋アーカイブ進化",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "4c55b0d202bc809b212a9448b30abc373bd270efaa9355916f17b7ac49c4ed82",
+        "reason": null
+      }
+    },
+    {
+      "id": "C5",
+      "claim": "ADAS の Meta Agent Search は、メタエージェントがエージェントをコードで書き、試し、アーカイブに溜める。見つかったエージェントは手作りの基準を上回り、領域やモデルをまたいでも保たれたと著者が報告している（検索結果の抜粋なので、出典本文での確認は未了）。",
+      "source_url": "https://arxiv.org/abs/2408.08435",
+      "source_title": "Automated Design of Agentic Systems",
+      "published": "2024-08-15",
+      "quote": "the discovered agents greatly outperform state-of-the-art hand-designed agents",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "メタエージェントによるエージェント設計の探索",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "74c87970f95e378c2b23acd93a92571c4f779139e58ebec187a4431624010fa3",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C6",
+      "claim": "AFlow は、ワークフローをコードで表したグラフとして扱い、モンテカルロ木探索で改良する。6 つのベンチで平均 5.7% の改善を報告し、小さいモデルが GPT-4o の推論費用の 4.55% で GPT-4o を上回る課題があったとしている。",
+      "source_url": "https://arxiv.org/abs/2410.10762",
+      "source_title": "AFlow: Automating Agentic Workflow Generation",
+      "published": "2024-10-14",
+      "quote": "yielding a 5.7% average improvement over state-of-the-art baselines",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "ワークフローの木探索",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "da9132fcb4f355c130fbeb3bb0304bfe243b045535d192ba572e7fd98ee1328b",
+        "reason": null
+      }
+    },
+    {
+      "id": "C7",
+      "claim": "GEPA は、実行の軌跡を自然言語で振り返ってプロンプトを進化させる。v2 の要旨では、6 課題で GRPO を平均 6% 上回り、ロールアウトは最大 35 倍少ない。v1 の 4 課題・平均 10% からは数字が変わっているので、版を明記して引用する必要がある。",
+      "source_url": "https://arxiv.org/abs/2507.19457",
+      "source_title": "GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning",
+      "published": "2026-02-14",
+      "quote": "Across six tasks, GEPA outperforms GRPO by 6% on average and by up to 20%, while using up to 35x fewer rollouts.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "言語の振り返りによるプロンプト進化",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "343397675d3ccccd3181b3b78cc7d659db8b9563c763c0e1807d4afc8396ef75",
+        "reason": null
+      }
+    },
+    {
+      "id": "C8",
+      "claim": "ACE は、文脈を「生成・振り返り・整理」で育てる手順書として扱い、小さな差分更新で、要約による情報の欠落と書き直しによる細部の劣化を避ける。AppWorld では、小さな公開モデルで本番級のエージェントに並んだと著者が報告している。",
+      "source_url": "https://arxiv.org/abs/2510.04618",
+      "source_title": "Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models",
+      "published": "不明",
+      "quote": "context collapse, where iterative rewriting erodes details over time",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "文脈（手順書）の増分更新",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "7438ab2e4ae354455972d75b05cccc3ac8a7f57c8d3cd29d85da1ea34fb65850",
+        "reason": null
+      }
+    },
+    {
+      "id": "C9",
+      "claim": "Meta-Harness は、ハーネスのコードを外側の周期で探索する。提案役のエージェントが過去の候補のコード・点・実行の記録をファイルとして読む。典型的な 1 回の探索は約 20 反復で約 60 のハーネスを評価する。探索側は検証用の結果を見ない。過拟合は手で点検し、過拟合の兆候は文字列検査でも調べている。",
+      "source_url": "https://arxiv.org/abs/2603.28052",
+      "source_title": "Meta-Harness: End-to-End Optimization of Model Harnesses",
+      "published": "2026-03-30",
+      "quote": "The proposer never sees test-set results.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "ハーネスのコード探索（実行記録を読む提案役）",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "25da6e6923f8f11cf57a4f096aad955a43c38de077b6fb295f1ec8694ae85e97",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C10",
+      "claim": "Meta-Harness は、オンラインの文章分類で、最先端の文脈管理の仕組みを 7.7 点上回ったと報告している。TerminalBench-2 でも手作りの基準を上回ったと報告している。",
+      "source_url": "https://arxiv.org/abs/2603.28052",
+      "source_title": "Meta-Harness: End-to-End Optimization of Model Harnesses",
+      "published": "2026-03-30",
+      "quote": "On online text classification, Meta-Harness improves over a state-of-the-art context management system by 7.7 points.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "ハーネスのコード探索（実行記録を読む提案役）",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "25da6e6923f8f11cf57a4f096aad955a43c38de077b6fb295f1ec8694ae85e97",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C11",
+      "claim": "Live-SWE-agent は、bash だけの足場から始め、実際の課題を解く最中に自分の足場を書き換える。DGM のような事前の高価な訓練を要しない形として提案されている。",
+      "source_url": "https://arxiv.org/abs/2511.13646",
+      "source_title": "Live-SWE-agent: Can Software Engineering Agents Self-Evolve on the Fly?",
+      "published": "不明",
+      "quote": "the first live software agent that evolves itself during runtime",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "実行中のその場での自己進化",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "fc257a59bac9db24dee23a7084aa77dd7ce8122fcd24fb50a136a0b3388c770d",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C12",
+      "claim": "LangChain は、モデルを gpt-5.2-codex に固定し、ハーネスだけの改善で Terminal Bench 2.0 を 52.8→66.5 に上げたと述べている。調整の対象は、システムプロンプト・道具・ミドルウェアの 3 つに絞った。失敗の分析にはトレースを使う。",
+      "source_url": "https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering",
+      "source_title": "Improving Deep Agents with harness engineering",
+      "published": "2026-02-17",
+      "quote": "At LangChain, we use Traces to understand agent failure modes at scale.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "practitioners_at_scale",
+      "approach": "トレース分析による人手＋エージェントのハーネス改善",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "9a5558ce2b368a3216d21c88cf5c79c36b2435bcbcb5e32a00e483b01da84e6c",
+        "reason": null
+      }
+    },
+    {
+      "id": "C13",
+      "claim": "LangChain は、特定の課題に合わせた変更は他の課題で退行を招くと明言している。ハーネス改善では、物差しへの過拟合が実務上の危険として認識されている。",
+      "source_url": "https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering",
+      "source_title": "Improving Deep Agents with harness engineering",
+      "published": "2026-02-17",
+      "quote": "Changes that overfit to a task are bad for generalization and can lead to regressions in other Tasks.",
+      "kind": "opinion",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "practitioners_at_scale",
+      "approach": "トレース分析による人手＋エージェントのハーネス改善",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "9a5558ce2b368a3216d21c88cf5c79c36b2435bcbcb5e32a00e483b01da84e6c",
+        "reason": null
+      }
+    },
+    {
+      "id": "C14",
+      "claim": "Anthropic は、評価を、チームが登る「丘」を与えて「調子が悪い気がする」を行動に変えるものと位置づけている。点を額面どおりには受け取らず、記録を読んで物差しを確かめるという運用を述べている。",
+      "source_url": "https://anthropic.com/engineering/demystifying-evals-for-ai-agents",
+      "source_title": "Demystifying evals for AI agents",
+      "published": "2026-01-09",
+      "quote": "Reading transcripts is how you verify that your eval is measuring what actually matters",
+      "kind": "opinion",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "評価駆動の運用（記録の読み込みと採点器の検証）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "af767e4a56afbb4f3630bb7365fa3da8ea5e61070ce3dec58385008d37dfa986",
+        "reason": null
+      }
+    },
+    {
+      "id": "C15",
+      "claim": "Anthropic は、試行回数 k を増やすと pass@k は上がり pass^k は下がると述べている。同じ課題でも試行ごとに結果が変わるので、1 回の成功率では足りない。評価の飽和（解ける課題をすべて解いた状態）は、能力の大きな向上を小さな点差に見せるとも述べている。",
+      "source_url": "https://anthropic.com/engineering/demystifying-evals-for-ai-agents",
+      "source_title": "Demystifying evals for AI agents",
+      "published": "2026-01-09",
+      "quote": "As k increases, pass^k falls since demanding consistency across more trials is a harder bar to clear.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "評価駆動の運用（記録の読み込みと採点器の検証）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "af767e4a56afbb4f3630bb7365fa3da8ea5e61070ce3dec58385008d37dfa986",
+        "reason": null
+      }
+    },
+    {
+      "id": "C16",
+      "claim": "Anthropic は、実行基盤の資源設定だけで Terminal-Bench 2.0 の点が 6 ポイント動いたと報告している。3 ポイント未満の差は、評価設定を揃えて記録するまで疑うよう勧めている。",
+      "source_url": "https://www.anthropic.com/engineering/infrastructure-noise",
+      "source_title": "Quantifying infrastructure noise in agentic coding evals",
+      "published": "2026-02-05",
+      "quote": "leaderboard differences below 3 percentage points deserve skepticism until the eval configuration is documented and matched.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "物差しの揺れの実測",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "12ff6288bd7cdb6f8b62b5b94d8bccb07632fb69430eb5bf8c053c8fd5b328bb",
+        "reason": null
+      }
+    },
+    {
+      "id": "C17",
+      "claim": "OpenAI の cookbook は、失敗を採点器で評価し、プロンプトを書き直し、閾値を超えるまで繰り返す。試行の上限に達したら人に知らせる。最高の累積点のプロンプトに戻す手順が付いている。",
+      "source_url": "https://developers.openai.com/cookbook/examples/partners/self_evolving_agents/autonomous_agent_retraining",
+      "source_title": "Self-Evolving Agents: A Cookbook for Autonomous Agent Retraining",
+      "published": "不明",
+      "quote": "The loop continues until the score exceeds a target threshold (e.g., `0.8`).",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "採点器つきのプロンプト自動再訓練の周期",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "bbbf086288d63b560dd3604f6e8583e34d015f879ab028331e0e82b6594cdb9d",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C18",
+      "claim": "同じ cookbook は、最適化が常には成功しないので版を戻せることが重要だと述べている。採点器の情報の質が最適化の質を左右するとも述べている。",
+      "source_url": "https://developers.openai.com/cookbook/examples/partners/self_evolving_agents/autonomous_agent_retraining",
+      "source_title": "Self-Evolving Agents: A Cookbook for Autonomous Agent Retraining",
+      "published": "不明",
+      "quote": "The optimization is not always successful, so being able to roll back the prompt version is important.",
+      "kind": "opinion",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "採点器つきのプロンプト自動再訓練の周期",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "bbbf086288d63b560dd3604f6e8583e34d015f879ab028331e0e82b6594cdb9d",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C19",
+      "claim": "Kapoor らは、多くのエージェントのベンチに検証用の保留データが無いと指摘している。HumanEval の最先端のエージェント設計は単純な基準を上回らないとも報告している。",
+      "source_url": "https://arxiv.org/abs/2407.01502",
+      "source_title": "AI Agents That Matter",
+      "published": "不明",
+      "quote": "Yet, surprisingly, we find that many agent benchmarks do not include held-out test sets.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "物差しの作り方への批判（保留データ・費用・再現性）",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "3d4f56ec51e1c77a17145bd3978614f5d63ed013772b2b8f6087d122aa29a874",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C20",
+      "claim": "同論文は、精度だけでは進歩を測れないと述べている。再試行のような科学的に無意味な方法でも精度は上がるので、費用を併せて見る必要がある。",
+      "source_url": "https://arxiv.org/abs/2407.01502",
+      "source_title": "AI Agents That Matter",
+      "published": "不明",
+      "quote": "Accuracy alone cannot identify progress because it can be improved by scientifically meaningless methods such as retrying.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "物差しの作り方への批判（保留データ・費用・再現性）",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "3d4f56ec51e1c77a17145bd3978614f5d63ed013772b2b8f6087d122aa29a874",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C21",
+      "claim": "実務家の Hamel Husain は、評価の工程の大半は自分のデータを読むことだと述べ、失敗の分析を先に行うことを勧めている（インタビューの要約記事からの二次情報）。",
+      "source_url": "https://www.lennysnewsletter.com/p/evals-error-analysis-and-better-prompts",
+      "source_title": "Evals, error analysis, and better prompts（Lenny's Newsletter）",
+      "published": "不明",
+      "quote": "Maybe 90% of the whole eval process is like looking at your data.",
+      "kind": "opinion",
+      "confidence": "low",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "誤り分析中心の評価",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:05:28+09:00",
+        "sha256": "b294c7b4c765ea32c17bb7e1f9508b7bd5323142595b341bf64f880fd62877b8",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    }
+  ],
+  "queries": [
+    "Darwin Gödel Machine self-improving coding agent SWE-bench",
+    "Automated Design of Agentic Systems ADAS meta agent search",
+    "GEPA reflective prompt evolution outperforms GRPO",
+    "Anthropic demystifying evals for AI agents non-determinism pass@k",
+    "AFlow automating agentic workflow generation Monte Carlo tree search",
+    "A Self-Improving Coding Agent SICA arXiv Robeyns",
+    "OpenAI cookbook self-evolving agents autonomous agent retraining loop eval graders prompt optimization",
+    "AI Agents That Matter Kapoor Narayanan benchmark cost holdout overfitting",
+    "Agentic Context Engineering ACE evolving contexts self-improving language models",
+    "meta-harness end-to-end optimization of model harnesses agentic coding automated harness search",
+    "Live-SWE-agent self-evolving software engineering agent on the fly",
+    "LangChain improving deep agents with harness engineering Terminal Bench traces",
+    "Anthropic engineering quantifying infrastructure noise agentic coding evals",
+    "Darwin Gödel Machine objective hacking fabricated tool use logs hallucination detection reward hacking",
+    "Adding Error Bars to Evals statistical approach to language model evaluations Anthropic",
+    "Hamel Husain your AI product needs evals error analysis",
+    "prompt optimization overfitting to validation set DSPy MIPRO variance evaluation noise study"
+  ],
+  "unknowns": [
+    "WebFetch は要約を返すため、多くの出典で本文の一字一句の引用を取れなかった。ADAS の「greatly outperform」と AFlow の「5.7%」の引用は検索結果の抜粋に拠り、出典本文での確認は未了。機械の照合で外れる可能性がある。",
+    "Evan Miller の論文 Adding Error Bars to Evals（arXiv 2411.00640）は存在を確認したが、本文の一字一句の引用を取れず、claims に入れていない。信頼区間・対応のある比較・検出力の数値は未確認。",
+    "GEPA の限界（検証用の集合の採点にロールアウトの大半を使う点、GRPO 基準の調整が限られている点）は、要約でしか確認できなかった。claims に入れていない。",
+    "DGM の物差しいじり（objective hacking）の詳細は、取得できた範囲では論文本文の該当節を読めていない。論文は 234k 字のうち前半 10 万字までしか読めなかった。報道（The Register など）は二次情報。",
+    "ADAS・AFlow・ACE・Live-SWE-agent・AI Agents That Matter・OpenAI cookbook の公開日は、日付までは確認できなかった。ACE と Live-SWE-agent の SWE-bench 数値は版により異なる（75.4% と 77.4%）。",
+    "分野 standards_tools は、OpenSSF・GitHub の文書・主要 OSS の設計文書から該当する一次の出典を拾えていない。DSPy の設計文書（MIPRO・検証集合の選択バイアス）は GitHub の PR 断片しか見ておらず、一次の記述として確認できていない。",
+    "frontier_labs のうち Google DeepMind（AlphaEvolve など）、Microsoft と GitHub、Meta の自己改善・ハーネス最適化の例は巡回できていない。practitioners_at_scale も LangChain と OpenAI の例に偏る。Anthropic の複数エージェント研究基盤の公式記事も未確認。",
+    "自己改善の失敗例（点が上がらなかった、退行した、物差しだけを満たした）の実測は、DGM の抜粋と LangChain の注意書き以外に見つけていない。ハーネスの自動改善について、試行回数と揺れを統計的に扱った実測は、Anthropic の infrastructure-noise 以外に見つけていない。",
+    "LangChain の記事に関する推論予算の話（xhigh が 53.9%、high が 63.6%）は第三者の要約でしか見ておらず、一次の記事では確認していない。claims に入れていない。",
+    "取得した arXiv ページ（GEPA）の本文に、引用の仕方を指示する文が混じっていた。要約役がそれを無視したので、結果には影響していない。"
+  ],
+  "counts": {
+    "verified": 11,
+    "quote_not_found": 10,
+    "unreachable": 0,
+    "no_source": 0
+  },
+  "question": "# エージェントの仕組み自身を改善する：自己改善の回し方と、改善の測り方\n\n## 段\nmap\n\n## 決めたい判断\n外側の周期（エージェントが自分の仕組み＝ハーネスを改善し、ベンチの点が下がらないことを確かめて取り込む）を、いまの形で続けるか、別の形にするか、やめるか\n\n## 判断を変えうるもの\nハーネスやプロンプトや道具を、エージェント自身に改善させる仕組みが、実際に成果を出している例（または失敗の例）。改善を測る物差しの作り方（試行の回数・揺れの扱い・過学習）についての実測\n\n## 分野\nfrontier_labs\npractitioners_at_scale\nacademia\nstandards_tools\npractitioners\n\n## 問い\nAI エージェントのシステム（プロンプト・道具・ワークフロー・ハーネス）を、エージェント自身や自動の探索で改善する手法の系統を集めてください。\n\n- 自己改善するエージェント・ハーネスの最適化・プロンプトの自動最適化・ワークフローの自動探索の研究\n- 企業が自社のエージェントのハーネスを、評価（eval）を回して改善している運用の例\n- 改善を測る物差しの作り方（ベンチマークの選び方・試行の回数・揺れと統計・物差しへの過学習）についての指摘\n"
+}
