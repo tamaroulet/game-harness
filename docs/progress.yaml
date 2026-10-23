@@ -3209,6 +3209,17 @@ tasks:
   purpose: セクターごとに、何の目的で作ったかと、人の承認・使ったトークンと時間を、台帳の木のノードに溜められるようにする
   deliverable: ノードの説明の形と置き場（受入で決める）
   depends_on: []
+  acceptance:
+  - 台帳の完了でないノードのすべてに docs/tree/<ノードの id>.md が 1 つずつあり、台帳に無いノードのファイルは無い
+  - ファイルは決まった見出しを持つ：目的・中身・前提（前提の ID）・判断を求める点・承認・使った量・見送り。承認は 1 行 1 件で「日付・決めた者・何を決めたかの一文」。使った量はセクターが終わるたびに 1 行で「トークン・時間・出典」
+  - W-18 の note の中身を docs/tree/W-18.md に移し、台帳から note の欄を消す（説明は 1 か所に）
+  - 進捗ツリー（harness.progress tree と report.md）に、ノードごとの承認の有無と、説明がそのノードの最後の完了より古いかが出る
+  oracle:
+  - path: tests/test_tree_docs.py
+    from: director
+  verification:
+    command: python -m unittest tests.test_tree_docs
+    expected_exit_code: 0
 - id: W-150
   title: 総監督が常に main の版を読める（settings の変更は setup のコードで行う）
   group: rebuild-1
@@ -3219,6 +3230,16 @@ tasks:
   purpose: 総監督が、どの版を読んだかの分かる main の中身を読めるようにする
   deliverable: 読み取りの場所と setup のコード（受入で決める）
   depends_on: []
+  acceptance:
+  - 1 つの命令で、C:\src\.local\main が origin/main の HEAD に合い、写しの根に合わせた SHA と時刻の記録がある。写しの中の変更は捨てる（読むだけの写し）。人の作業コピー C:\src\game-harness には触れない
+  - report.md の冒頭に写しの SHA と時刻が出て、origin/main の HEAD と違えば「写しが古い」と出る。止まっている間の書き出し（hline_stopped report）は、写しを合わせてから書く
+  - python -m harness.hline setup が書く受信箱の settings で、総監督は写しを読めて書けない。受信箱の CLAUDE.md の「できること」に写しの場所が載る
+  oracle:
+  - path: tests/test_main_mirror.py
+    from: director
+  verification:
+    command: python -m unittest tests.test_main_mirror
+    expected_exit_code: 0
 - id: W-151
   title: 総監督の写しを機械が PR にする道
   group: rebuild-1
@@ -3231,6 +3252,17 @@ tasks:
   depends_on:
   - W-149
   - W-150
+  acceptance:
+  - 総監督が受信箱の outbox/<名前>/ に、リポジトリのパスの形でファイルを置き、宣言 outbox.yaml（題・タスクの ID・読んだ main の写しの SHA）を置くと、1 つの命令で、origin/main からの枝・コミット・PR ができる
+  - 写せるパスは許しの一覧（docs/tree/**・docs/director/**）に限る。一覧の外のパスがあるとき、宣言の SHA の後に main で同じファイルが変わっているときは、PR にせず理由を出す
+  - '宣言に by: director のタスクがあれば、同じ PR の中で完了の記録まで行う（検証の試験は実行役が書く）。PR の本文に宣言と SHA を載せる'
+  - 命令の結果（PR の URL か、断った理由）が、受信箱の outbox/<名前>/result.md と report.md に出る。PR にした outbox/<名前>/ は受信箱から片付ける
+  oracle:
+  - path: tests/test_director_outbox.py
+    from: director
+  verification:
+    command: python -m unittest tests.test_director_outbox
+    expected_exit_code: 0
 - id: W-152
   title: 知識の正本を Git に集める
   group: rebuild-1
@@ -3242,6 +3274,18 @@ tasks:
   deliverable: Git に移した文書の一覧（受入で決める）
   depends_on:
   - W-151
+  - W-169
+  acceptance:
+  - docs/director/ が総監督の文書の正本になる。W-169 の表で残した決まり・deferred.md・総監督の引継ぎ・会話の席の引継ぎが入り、docs/director/INDEX.md から辿れる。受信箱の drafts/director/ に、移したものの写しが残らない
+  - 照合の宣言（受信箱の checks/*.json）が Git の中に移り、H ラインはそこから読む
+  - docs/ の文書が、Git の外の場所（C:\src\.local の下）を根拠として引かない。引いてよい場所（生ログ・main の写し・受信箱など）は一覧にして、その一覧の外を指す行が無い
+  - 移さなかったもの（済んだ下書き・drafts/what/ の古い What・W-113 の隠しテストと参照実装など）の一覧と理由がある。非公開のオラクルにあたるものは Git に入れない
+  oracle:
+  - path: tests/test_director_docs.py
+    from: director
+  verification:
+    command: python -m unittest tests.test_director_docs
+    expected_exit_code: 0
 - id: W-153
   title: ロードマップを木に吸収し、索引の役と投入の境界を合わせる
   group: rebuild-1
@@ -3257,6 +3301,17 @@ tasks:
   - W-151
   - W-152
   - W-169
+  acceptance:
+  - roadmap.md の関門の節（関門 1〜4・段 5・計画役への移行・人の手番の見通し）のうち今も効く中身が、木のノードの説明（docs/tree/）に移り、roadmap.md は正本として残らない（W-152 の「移さなかったもの」に載る）
+  - 段 5 のノード（台帳と docs/tree/）があり、W-113・W-114 の材料の在りかと、題材の条件（3D の物理演算）を持つ。段 4（W-18）のノードの説明に、組み直しの前提（基準を取り直してから使う）がある
+  - 引継ぎの前提の仮定のうち崩れたもの（A16・A32・A37・A40・A45 ほか）が、照らした出典つきで書き直されるか消されている
+  - 総監督の索引（docs/director/INDEX.md）の役の表と投入の境界が、木と立て直しの役の分け方に合い、W-169 の表で消すとした行が無い
+  oracle:
+  - path: tests/test_tree_roadmap.py
+    from: executor
+  verification:
+    command: python -m unittest tests.test_tree_roadmap
+    expected_exit_code: 0
 - id: W-154
   title: 操縦士が毎回受け取るものと、CLAUDE.md の報告の規則を作り直す
   group: rebuild-1
@@ -3269,6 +3324,17 @@ tasks:
   depends_on:
   - W-149
   - W-169
+  acceptance:
+  - 1 つの命令が、操縦士が毎回受け取るものを書く：L5 の 1 文・セクターごとの進み（済み／全体、承認の有無）・前回からの decision_log.md の新しい行・判断を求める点（ノードの説明から）・使った量
+  - 中身は台帳・docs/tree/・decision_log.md から機械で作り、手で書いた数が無い
+  - game-harness の CLAUDE.md の報告の節は、この命令の出力を出すことだけを決める。W-169 の表で消すとした報告の形の決まり（protocol.md §5 の 8 節など）が、どこにも残らない
+  - 操縦士が出力の形を承認した行が decision_log.md にある
+  oracle:
+  - path: tests/test_pilot_brief.py
+    from: director
+  verification:
+    command: python -m unittest tests.test_pilot_brief
+    expected_exit_code: 0
 - id: W-155
   title: 作業を別の起動で試し、費用と出来を測る
   group: rebuild-2
