@@ -56,10 +56,13 @@ def sync(cfg, root=ROOT, runner=None, clock=None):
 
 
 def record(cfg):
+    """写しの記録。無い・壊れている（sha と at の文字列を持たない）なら None（report.md は「なし」として書ける）。"""
     try:
-        return json.loads((Path(cfg["mirror"]) / RECORD).read_text(encoding="utf-8"))
+        rec = json.loads((Path(cfg["mirror"]) / RECORD).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+    ok = isinstance(rec, dict) and all(isinstance(rec.get(k), str) and rec[k] for k in ("sha", "at"))
+    return rec if ok else None
 
 
 def base_head(cfg, runner=None):

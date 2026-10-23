@@ -23,8 +23,10 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 
+import hline_report  # noqa: E402
 import hline_room  # noqa: E402
 import main_mirror  # noqa: E402
+import proc  # noqa: E402
 from tests import test_report_stopped as stopped  # noqa: E402
 
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
@@ -114,6 +116,34 @@ class Mirror(unittest.TestCase):
     def test_no_record_is_stale(self):
         self.assertIn("写しが古い", main_mirror.line(self.cfg, "f" * 40))
 
+    def test_a_broken_record_is_treated_as_none(self):
+        mirror = Path(self.cfg["mirror"])
+        mirror.mkdir()
+        for text in ("{}", "null", "[1]", '{"sha": 1, "at": "x"}', "{"):
+            with self.subTest(text=text):
+                (mirror / main_mirror.RECORD).write_text(text, encoding="utf-8")
+                self.assertIn("- main の写し: なし（写しが古い", main_mirror.line(self.cfg, "f" * 40))
+
+    def test_the_running_report_md_starts_with_the_stale_mirror(self):
+        self.sync()
+        newer = self.commit("b.txt", "2")
+        tmp = self.tmp / "inbox"
+        tmp.mkdir()
+        self.cfg.update(inbox=str(tmp), out=str(self.tmp / "out"))
+        st = {"items": {}, "awaiting_pr": None, "skipped": []}
+        stubs = {"progress_report": "## 進捗ツリー\n- 人間作業: NONE\n", "goal_section": "## 目的までの距離\n", "flow_section": "## 関門\n",
+                 "h_section": "## H ライン\n", "human_line": None}
+        with contextlib.ExitStack() as stack:
+            for name, value in stubs.items():
+                stack.enter_context(mock.patch.object(hline_report, name, return_value=value))
+            stack.enter_context(mock.patch.object(hline_report.hline_probe, "safe_section", return_value="## probe\n"))
+            stack.enter_context(mock.patch.object(hline_report.hline_checks, "safe_section", return_value="## 照合\n"))
+            stack.enter_context(mock.patch.object(main_mirror, "base_head", return_value=newer))
+            hline_report.write_report(self.cfg, st)
+        top = (tmp / "report.md").read_text(encoding="utf-8").splitlines()
+        self.assertEqual(top[0], "## main の写し")
+        self.assertIn(f"（写しが古い：origin/main は {newer}）", top[1])
+
 
 class StoppedReportTop(stopped.Base):
     """止まっている間の report.md の冒頭（## 書き出し）に、写しの行が出る。"""
@@ -133,6 +163,36 @@ class StoppedReportTop(stopped.Base):
         head = text.split("\n## ", 1)[0]
         self.assertIn(f"- main の写し: {'a' * 40}（合わせた時刻: 2026-10-23 20:00", head)
         self.assertIn(f"（写しが古い：origin/main は {stopped.SHA}）", head)
+
+    def test_the_stopped_report_syncs_the_mirror_before_writing(self):
+        origin, feeder, mirror = self.tmp / "origin.git", self.tmp / "feeder", self.tmp / "mirror"
+        git("init", "-q", "--bare", "-b", "main", str(origin), cwd=self.tmp)
+        git("clone", "-q", str(origin), str(feeder), cwd=self.tmp)
+        (feeder / "a.txt").write_text("1", encoding="utf-8")
+        git("add", "-A", cwd=feeder)
+        git("commit", "-q", "-m", "1", cwd=feeder)
+        git("push", "-q", "origin", "HEAD:main", cwd=feeder)
+        git("clone", "-q", str(origin), str(mirror), cwd=self.tmp)   # 写しはある。origin は偽（ネットに出ない）
+        (feeder / "a.txt").write_text("2", encoding="utf-8")
+        git("commit", "-q", "-am", "2", cwd=feeder)
+        git("push", "-q", "origin", "HEAD:main", cwd=feeder)
+        head = git("rev-parse", "HEAD", cwd=feeder)
+        self.cfg["mirror"] = str(mirror)
+
+        def runner(args, cwd, ttl, label, env=None, input=None):   # 写しの中の git だけ本物で走らせる
+            if args[:3] == ["git", "-C", str(mirror)]:
+                return proc.run(args, cwd, ttl, label)
+            if args[:2] == ["git", "rev-parse"]:
+                return 0, head + "\n", ""
+            return stopped.fake_run(args, cwd, ttl, label, env, input)
+        self.put_state()
+        stopped.hline_stopped.stop(self.cfg, "立て直しの間は止める")
+        text = stopped.hline_stopped.write(self.cfg, runner=runner, clock=stopped.CLOCK, sync=True)
+        top = text.split("\n## ", 1)[0]
+        self.assertIn(f"- main の写し: {head}（合わせた時刻: 2026-10-23 21:05", top)
+        self.assertNotIn("写しが古い", top)
+        self.assertNotIn("失敗", top)
+        self.assertEqual((mirror / "a.txt").read_text(encoding="utf-8"), "2")
 
     def test_sync_failure_is_written_not_raised(self):
         self.cfg["mirror"] = str(self.tmp / "mirror")
