@@ -1,12 +1,12 @@
-active_task_id: W-126
+active_task_id: W-143
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (falling-blocks#17, game-harness#44).
 last_verification:
-  task: W-125
+  task: W-142
   exit_code: 0
-  at: '2026-10-23T11:34:34'
+  at: '2026-10-23T14:39:20'
 next_id: 106
 nodes:
 - id: A
@@ -1698,7 +1698,7 @@ tasks:
   title: 環境の唯一の台帳（toolchain と machine）と、起動時の実物との照合
   group: rebuild
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'rebuild: toolchain'
   by: executor
   serves: R4
@@ -1720,7 +1720,7 @@ tasks:
   title: 段 A1：調べ方の規則と知識の台帳（俯瞰・比較・反証・照合の段、出典の格、根拠の強さ、索引）
   group: rebuild
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'stage-a: research-protocol'
   by: executor
   serves: R4
@@ -1742,7 +1742,7 @@ tasks:
   title: 段 A2：自律開発環境の地図（俯瞰・比較・反証）を規則どおりに作り、上位の設計の前提を照合する
   group: rebuild
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'stage-a: map'
   by: executor
   serves: R4
@@ -1764,7 +1764,7 @@ tasks:
   title: 段 A3：今の構成の部品ごとの費用と成果の実測（総監督・H ライン・工廠・外側の周期・門・ゲームのライン）
   group: rebuild
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'stage-a: inventory'
   by: executor
   serves: R4
@@ -1785,7 +1785,7 @@ tasks:
   title: 段 A4：上位の設計の決定（ADR-005：部品ごとに、残す・既製のものに置き換える・捨てる）
   group: rebuild
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'stage-a: adr-005'
   by: executor
   serves: R4
