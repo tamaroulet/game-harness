@@ -6,38 +6,39 @@ premises:
   text: インラインの LLM レビューは廃止し、合否は決定論の Gate 1 だけで決め、意味のレビューは非同期の GC に回すのがよい
   kind: assumption
   basis: []
-  note: S2-3 の根拠は docs/design/foundation_v3_review.md §1 の「外部知見」で、出典が無い。代わりの非同期の GC は作られていない
+  note: S2-3 の根拠は docs/design/foundation_v3_review.md §1 の「外部知見」で、出典が無い。代わりの非同期の GC は作られていない。W-124 の q3 では、レビューを合否に入れる運用と助言だけの運用を比べた実測は見つからなかった（R-20261023-q3-llm-review-precision の unknowns）
   checked_at: 2026-10-23
   recheck_by: 2026-11-06
   used_by: [S2-3, ADR-004 K-3]
 - id: P-002
-  text: AI のエージェントが書いた変更は、影響の大きさ（パス）で承認の層を分けるのが、いま公開されている実践である
-  kind: assumption
-  basis: []
-  note: 貼られた資料に依る。照合していない
+  text: 影響の大きさで承認を分け、低い層を AI が承認する運用は、少なくとも 2 社が自社の報告として公開している（独立の検証と失敗の事後検証は見つからない）。GitHub の rulesets は、パスごとに承認の数を設定できる
+  kind: research
+  basis: [R-20261023-q2-risk-tiered-approval#C5, R-20261023-q2-risk-tiered-approval#C8, R-20261023-q2-risk-tiered-approval#C9, R-20261023-q2-risk-tiered-approval#C11, R-20261023-q2-risk-tiered-approval#C12]
+  note: W-124 で照合した（2026-10-23）。どれも vendor_claim。Ona も AI が承認したあとのマージは人が行う。K-1（層を分ける）は支持され、K-11（R4 の前に低い層の自動マージを入れない）は慎重な側で矛盾しない
   checked_at: 2026-10-23
-  recheck_by: 2026-11-06
+  recheck_by: 2026-11-22
   used_by: [ADR-004 K-1, ADR-004 K-11, W-130]
 - id: P-003
-  text: LLM のレビューは、合否に入れず、新しい文脈と別系統のモデルと論破の段で厳選すると、誤検知を減らせる
-  kind: assumption
-  basis: []
-  note: 貼られた資料に依る。照合していない
+  text: LLM のレビューを同じ文脈で重ねると誤検知が増え、新しい文脈が要る。別系統のモデルは、見つける誤りを補う（重なりは一部）が、F1 は同じモデルの新しい文脈と有意な差が無い
+  kind: research
+  basis: [R-20261023-q3-llm-review-precision#C1, R-20261023-q3-llm-review-precision#C2, R-20261023-q3-llm-review-precision#C3, R-20261023-q3-llm-review-precision#C4]
+  note: W-124 で照合した（2026-10-23）。前の文「別系統のモデルと論破の段で厳選すると誤検知を減らせる」のうち、別系統で誤検知が減ることは支持されなかった（C2）。出典は単著のプレプリント 1 本
   checked_at: 2026-10-23
-  recheck_by: 2026-11-06
+  recheck_by: 2026-11-22
   used_by: [ADR-004 K-3, W-135]
 - id: P-004
-  text: 複数のエージェントの合意は正しさを意味せず、論破の段を挟むと誤報が減る（Refute-or-Promote）
-  kind: assumption
-  basis: []
-  note: 貼られた資料に依る（arXiv:2604.19049 とされる）。照合していない
+  text: 複数のエージェントの合意は正しさを意味しない。誤報を落とすのは、レビュアーを増やすことではなく、実行で確かめる段（実証のゲート）である
+  kind: research
+  basis: [R-20261023-q1-pasted-sources#C6, R-20261023-q1-pasted-sources#C7]
+  note: W-124 で照合した（2026-10-23）。arXiv:2604.19049 の要旨。10 人のレビュアーが全員一致で支持した誤報が、1 回の実証の試験で落ちた。本文は読んでいない
   checked_at: 2026-10-23
-  recheck_by: 2026-11-06
-  used_by: [ADR-004 K-3, ADR-004 K-15]
+  recheck_by: 2026-11-22
+  used_by: [ADR-004 K-3, ADR-004 K-15, W-135]
 - id: P-005
   text: Windows で、エージェントの CLI を別の OS アカウントと ACL で閉じ込める方法は、いまの実践として妥当である
   kind: assumption
   basis: []
+  note: 崩れた（W-124、2026-10-23）。一次の出典の支持が見つからない（R-20261023-q4-windows-agent-isolation の unknowns）。提供元は VM・コンテナを勧める。後継は P-011。いまの OS アカウントの隔離は、W-129 で置き換えを決めるまでのつなぎとして扱う
   checked_at: 2026-10-23
   recheck_by: 2026-11-06
   used_by: [W-71, W-129]
@@ -79,3 +80,26 @@ premises:
   checked_at: 2026-10-23
   recheck_by: 2026-12-23
   used_by: [ADR-004 K-14, W-128]
+- id: P-011
+  text: Claude Code のサンドボックスはネイティブの Windows では動かず（WSL2 では動く）、無人で任せるならコンテナか VM の中で動かすのが、提供元の勧めである。Windows Sandbox は既定でネットワークが有効で、書き込みを許した共有フォルダの変更は残る
+  kind: research
+  basis: [R-20261023-q4-windows-agent-isolation#C1, R-20261023-q4-windows-agent-isolation#C2, R-20261023-q4-windows-agent-isolation#C3, R-20261023-q4-windows-agent-isolation#C4, R-20261023-q4-windows-agent-isolation#C5]
+  note: W-124 で照合した（2026-10-23）。H ラインと工廠の実装役は agy なので、agy の閉じ込め方は別に確かめる（W-129）
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [W-129, ADR-004 K-10]
+- id: P-012
+  text: 貼られた資料の数字には、出典と食い違うものがあった（1 日 30,000 件はレビューの件数でなくマージされた変更の件数。Faros の 31.3%・57.9% は見つからない。91% は確かめられた）
+  kind: research
+  basis: [R-20261023-q1-pasted-sources#C1, R-20261023-q1-pasted-sources#C4]
+  note: 貼られた外部の主張を仮定として扱い、照合してから使う（K-15）ことの根拠
+  checked_at: 2026-10-23
+  recheck_by: 2026-12-23
+  used_by: [ADR-004 K-15]
+- id: P-013
+  text: AI・機械によるレビューは、変更を第二の人が理解した保証にならないので、人のコードレビューに数えない（OpenSSF Scorecard の基準）
+  kind: research
+  basis: [R-20261023-q2-risk-tiered-approval#C6, R-20261023-q2-risk-tiered-approval#C7]
+  checked_at: 2026-10-23
+  recheck_by: 2026-12-23
+  used_by: [ADR-004 K-9, ADR-004 K-7]

@@ -1789,14 +1789,15 @@ tasks:
   slug: 'rebuild: runner'
   by: executor
   serves: R4
-  purpose: H ラインを回す常駐のループを試験とレビューの中に戻し、人の作業コピーと本番を分け、秘密をスクリプトから外し、OS のアカウントの隔離を機械で確かめる
+  purpose: H ラインを回す常駐のループを試験とレビューの中に戻し、人の作業コピーと本番を分け、秘密をスクリプトから外す。実装役の閉じ込め方は、OS のアカウントと ACL（P-005 が崩れた）でなく、提供元の勧める VM・コンテナ（WSL2 を含む）と比べて選び直し、選んだ方法を機械で確かめる（ADR-004 §5、P-011）
   deliverable: harness/runner.py、harness/templates/resident/ の起動の型、harness/envcheck.py の acl、tests/test_runner.py
   depends_on:
   - W-128
   acceptance:
   - 走らせ役の処理の失敗（外側の周期の処理を含む）が report.md の停止の節と停止の通知に出て、握りつぶされない
   - H ラインは本番の clone から動き、作業コピーが汚れていれば何もしない
-  - 走らせ役とその置き場に秘密の文字列が無く、envcheck acl が隔離の拒否の行を確かめる
+  - 走らせ役とその置き場に秘密の文字列が無い
+  - 実装役の閉じ込め方を ADR に決め（候補：WSL2・VM・コンテナ・いまの OS アカウント）、envcheck がその閉じ込めが効いていることを確かめる
   oracle:
   - path: tests/test_runner.py
     from: self
@@ -1912,21 +1913,22 @@ tasks:
     command: python -m unittest tests.test_test_first_wiring
     expected_exit_code: 0
 - id: W-135
-  title: 差分の助言のレビュー（新しい文脈・別系統のモデル・論破の段。合否に入れない）
+  title: 差分の助言のレビュー（新しい文脈・実証の段。合否に入れない）
   group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild: advisory-review'
   by: executor
   serves: R4
-  purpose: 差分の意味を見る層を、合否に入れない形で戻し、指摘の精度を後で測れるように記録する（ADR-004 の K-3）
+  purpose: 差分の意味を見る層を、合否に入れない形で戻す。新しい文脈で読み、指摘は再現する試験を書いて走らせる実証の段を通ったものだけを出す。別系統のモデルは網羅を補うために任意。指摘の精度を後で測れるように記録する（ADR-004 の K-3 の改訂、P-003・P-004）
   deliverable: harness の助言のレビューの段、tests/test_advisory_review.py
   depends_on:
   - W-134
   acceptance:
-  - 統合 PR の本文に、論破の段を通った指摘だけが出る
+  - レビューは実装役と別の新しい文脈（別の呼び出し）で行う
+  - 統合 PR の本文に、実証の段（指摘を再現する試験が落ちる）を通った指摘だけが出る
   - レビューの結果は Gate 1 の合否を変えず、tests/test_no_inline_review.py が通ったまま
-  - 呼び出しのモデル・指摘・論破の結果が記録に残る
+  - 呼び出しのモデル・指摘・実証の結果が記録に残る
   oracle:
   - path: tests/test_advisory_review.py
     from: self
