@@ -21,6 +21,8 @@ ROOT = Path(__file__).resolve().parent.parent
 ENV = "HARNESS_MACHINE"
 EXAMPLE = ROOT / "config" / "machine.example.json"
 VAR_RE = re.compile(r"\$\{([A-Za-z_]+)\}")
+# %VAR% は自前で替える。os.path.expandvars は Windows の外では %VAR% を替えない（Linux の CI で値が変わる）
+ENV_VAR_RE = re.compile(r"%([A-Za-z_][A-Za-z0-9_]*)%")
 
 
 class MachineError(Exception):
@@ -37,6 +39,11 @@ def source():
     return path if path.exists() else EXAMPLE
 
 
+def env_vars(text):
+    """text の %VAR% を環境変数で替える。無い変数はそのまま残す。"""
+    return ENV_VAR_RE.sub(lambda m: os.environ.get(m.group(1), m.group(0)), text)
+
+
 def names(path=None):
     """{論理の名前: 実のパス}。"""
     path = Path(path) if path else source()
@@ -44,7 +51,7 @@ def names(path=None):
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
         raise MachineError(f"machine.json を読めません（{path}）：{e}") from e
-    out = {k: os.path.normpath(os.path.expandvars(str(v))) for k, v in (doc.get("paths") or {}).items()}
+    out = {k: os.path.normpath(env_vars(str(v))) for k, v in (doc.get("paths") or {}).items()}
     out["unity_editor"] = toolchain.load().get("unity_editor") or ""
     return out
 

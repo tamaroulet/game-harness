@@ -94,6 +94,11 @@ class Machine(unittest.TestCase):
                 self.assertEqual(machine.source(), f)
                 self.assertEqual(machine.path("local"), Path(d) / "lcl")
                 self.assertEqual(machine.names()["unity_editor"], toolchain.load()["unity_editor"])
+            # %VAR% は OS に依らず替える（os.path.expandvars は Windows の外で %VAR% を替えない）
+            with mock.patch.object(machine.os.path, "expandvars", side_effect=AssertionError), \
+                    mock.patch.dict("os.environ", {"HARNESS_TEST_HOME": d}):
+                self.assertEqual(machine.env_vars("%HARNESS_TEST_HOME%/a;%HARNESS_NO_SUCH_VAR%"),
+                                 f"{d}/a;%HARNESS_NO_SUCH_VAR%")
             with mock.patch.dict("os.environ", {machine.ENV: str(Path(d) / "absent.json")}):
                 self.assertEqual(machine.source(), machine.EXAMPLE, "無ければ例で代用する")
 
