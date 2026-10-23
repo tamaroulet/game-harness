@@ -1,11 +1,11 @@
-active_task_id: W-147
+active_task_id: W-148
 constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (game-harness#44).
 last_verification:
-  task: W-146
+  task: W-147
   exit_code: 0
-  at: '2026-10-23T20:54:55'
+  at: '2026-10-23T20:55:08'
 next_id: 106
 nodes:
 - id: A
@@ -3142,7 +3142,7 @@ tasks:
   title: bench のパスワード・ACL・定期起動の暫定の手当て
   group: rebuild-0
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'rebuild-0: bench-safety'
   by: pilot
   purpose: bench のアカウントと定期起動の安全の残りを、立て直しの間の暫定の形で手当てする。手順は実行役が用意する
@@ -3163,7 +3163,7 @@ tasks:
   title: 台帳の project_goal と L5 をそろえる（文は操縦士が決める）
   group: rebuild-0
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'rebuild-0: project-goal'
   by: executor
   purpose: 台帳の目的の文を、操縦士が決めた L5 にそろえ、古い段の列挙を外して木を指すようにする
