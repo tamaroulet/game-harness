@@ -133,7 +133,8 @@ class GoalWithoutRunningChecks(Base):
 
     def test_the_goal_section_gets_the_cached_checks(self):
         self.write()
-        hline_report.goal_section.assert_called_once_with(self.cfg, checks=hline_checks.cached_section)
+        hline_report.goal_section.assert_called_once_with(self.cfg, checks=hline_checks.cached_section, ref="origin/main")
+        hline_report.flow_section.assert_called_once_with(self.cfg, ref="origin/main")   # 古い統合ブランチの台帳を読まない
 
     def test_cached_section_does_not_run_and_reads_like_section(self):
         import goal_distance
@@ -150,6 +151,18 @@ class GoalWithoutRunningChecks(Base):
             json.dumps({"kind": "unittest", "modules": ["tests.test_x"]}), encoding="utf-8")
         with mock.patch.object(hline_checks, "execute", side_effect=AssertionError("照合を走らせた")):
             self.assertEqual(goal_distance.passing_modules(self.cfg, hline_checks.cached_section), {"tests.test_x"})
+
+
+class SkippedIsTheLastRun(Base):
+    def test_the_inbox_section_says_it_is_the_last_run_record(self):
+        hline_stopped.stop(self.cfg, "止める")
+        self.put_state()
+        state = self.out / "queue.json"
+        state.write_text(json.dumps({"items": {}, "awaiting_pr": None, "skipped": [{"file": "W-110.md", "reason": "古い理由"}]}),
+                         encoding="utf-8")
+        os.utime(state, (LAST_RUN, LAST_RUN))
+        text = hline_stopped.write(self.cfg, runner=fake_run, clock=CLOCK)
+        self.assertIn("## 受信箱に残した What（最後に走った時刻 2026-10-23 10:11 の記録。今の受信箱とは違いうる）", text)
 
 
 class Marker(Base):

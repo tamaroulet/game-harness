@@ -11,7 +11,8 @@ import progress  # noqa: E402
 
 
 def _ancestors(by_id):
-    """タスク ID → 推移的に待つ前段の ID の集合（自分を含まず、台帳に無い ID は数えない）。"""
+    """タスク ID → 推移的に待つ前段の ID の集合（自分を含まず、台帳に無い ID は数えない）。
+    止めた・取り下げたタスクは含めるが、その先はたどらない（その依存は、もう関門の前段ではない）。"""
     found = {}
     for tid, t in by_id.items():
         seen, stack = set(), list(progress._deps(t))
@@ -20,7 +21,8 @@ def _ancestors(by_id):
             if d in seen or d not in by_id:
                 continue
             seen.add(d)
-            stack += progress._deps(by_id[d])
+            if not progress.is_held(by_id[d]):
+                stack += progress._deps(by_id[d])
         seen.discard(tid)
         found[tid] = seen
     return found
@@ -55,7 +57,7 @@ def place(ledger):
             (mids[m] if m else gates[g])["tasks"].append(i)
 
     def open_(i):
-        return by_id[i].get("status") != "completed"
+        return by_id[i].get("status") in progress.OPEN
 
     current = next((g for g in gate_ids if open_(g) or any(open_(i) for i in gates[g]["tasks"])
                     or any(open_(m["id"]) or any(open_(i) for i in m["tasks"]) for m in gates[g]["mids"])), None)
@@ -75,13 +77,16 @@ def _state(by_id, i):
     t = by_id[i]
     if t.get("status") == "completed":
         return "done"
+    if progress.is_held(t):
+        return "held"
     ok = all(d in by_id and by_id[d].get("status") == "completed" for d in progress._deps(t))
     return "ready" if ok else "wait"
 
 
 def _counts(by_id, ids):
     states = [_state(by_id, i) for i in ids]
-    return f"済み {states.count('done')}・着手可 {states.count('ready')}・待ち {states.count('wait')}"
+    held = f"・止めた／取り下げた {states.count('held')}" if "held" in states else ""
+    return f"済み {states.count('done')}・着手可 {states.count('ready')}・待ち {states.count('wait')}{held}"
 
 
 def _group(by_id, heading, ids, short):
@@ -112,7 +117,7 @@ def render(ledger):
         return [g["id"]] + g["tasks"] + [m for mid in g["mids"] for m in [mid["id"]] + mid["tasks"]]
 
     def build(short, collapse_others):
-        lines = [TITLE]
+        lines = [TITLE] + ([] if current else ["- 現在の関門: なし（どの関門にも、止めた・取り下げたもののほかに未完了のタスクが無い。立て直しは進捗ツリーを見る）"])
         others = []
         for g in gates:
             if g["id"] != current:
@@ -135,11 +140,11 @@ def render(ledger):
     return lines
 
 
-def section(cfg):
-    """report.md 用。台帳を読めないなど、節ごと失敗しても、1 行の理由に替えて書き出しを止めない。"""
+def section(cfg, ref=None):
+    """report.md 用。台帳を読めないなど、節ごと失敗しても、1 行の理由に替えて書き出しを止めない。ref は goal_distance.load_ledger に渡す。"""
     import goal_distance
     try:
-        _, ledger = goal_distance.load_ledger(cfg)
+        _, ledger = goal_distance.load_ledger(cfg, ref)
         return "\n".join(render(ledger)) + "\n"
     except Exception as e:   # noqa: BLE001
         return f"{TITLE}\n- 取得失敗：{type(e).__name__}: {e}\n"

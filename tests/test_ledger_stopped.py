@@ -125,7 +125,19 @@ class NotPicked(unittest.TestCase):
         tasks = [task("R", "pending", rung="R4", depends_on=["P1", "P2", "P3"]), task("P1", "completed"),
                  task("P2", "stopped", reason="r", depends_on=["P4"]), task("P3", "withdrawn", reason="r"),
                  task("P4", "pending")]
-        self.assertEqual(goal_distance.prerequisite_note(tasks, "R4"), "（前提タスク 1／2）")
+        self.assertEqual(goal_distance.prerequisite_note(tasks, "R4"), "（前提タスク 1／1）")   # 止めた P2 の先の P4 はたどらない
+
+    def test_a_held_rung_says_so(self):
+        tasks = [task("R", "stopped", reason="r", rung="R4", depends_on=["P1"]), task("P1", "completed")]
+        self.assertEqual(goal_distance.prerequisite_note(tasks, "R4"), "（横木のタスク R は止めた）")
+
+    def test_the_gate_flow_does_not_offer_held_tasks(self):
+        import gate_flow
+        ledger = sample(task("R", "stopped", reason="r", rung="R4", depends_on=["P1", "P2"]), task("P1", "completed"),
+                        task("P2", "stopped", reason="r", depends_on=["P1"]))
+        text = "\n".join(gate_flow.render(ledger))
+        self.assertIn("現在の関門: なし", text)
+        self.assertIn("済み 1・着手可 0・待ち 0・止めた／取り下げた 2", text)
 
     def test_the_tree_marks_held_tasks_and_leaves_them_out_of_the_count(self):
         state = sample(task("T1", "completed"), task("T2", "stopped", reason="r"), task("T3", "withdrawn", reason="r"),

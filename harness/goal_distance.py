@@ -52,10 +52,10 @@ def record_paths(cfg, ref):
     return [x.strip() for x in out.splitlines() if x.strip()]
 
 
-def load_ledger(cfg):
-    """(ref, 台帳)。統合ブランチに無ければ base。"""
+def load_ledger(cfg, ref=None):
+    """(ref, 台帳)。統合ブランチに無ければ base。ref を渡せば、その ref だけを読む（H ラインが止まっている間は base）。"""
     why = []
-    for ref in (remote_ref(cfg), cfg["base"]):
+    for ref in ((ref,) if ref else (remote_ref(cfg), cfg["base"])):
         try:
             return ref, yaml.safe_load(show(cfg, ref, progress.REL_PATH))
         except Unreadable as e:
@@ -102,7 +102,8 @@ def rung_tasks(tasks, rung):
 
 
 def prerequisites(tasks, rung):
-    """横木のタスクの depends_on を推移的にたどったタスクの ID（横木のタスク自身は含めない）。"""
+    """横木のタスクの depends_on を推移的にたどったタスクの ID（横木のタスク自身は含めない）。
+    止めた・取り下げたタスクは含めるが、その先はたどらない（その依存は、もう横木の前提ではない）。"""
     by_id = {t.get("id"): t for t in tasks}
     own = {t.get("id") for t in rung_tasks(tasks, rung)}
     seen, stack = set(), [d for t in rung_tasks(tasks, rung) for d in progress._deps(t)]
@@ -111,13 +112,17 @@ def prerequisites(tasks, rung):
         if tid in seen:
             continue
         seen.add(tid)
-        stack += progress._deps(by_id.get(tid) or {})
+        if not progress.is_held(by_id.get(tid)):
+            stack += progress._deps(by_id.get(tid) or {})
     return sorted(seen - own, key=str)
 
 
 def prerequisite_note(tasks, rung):
-    """（前提タスク 完了／分母）。止めた・取り下げたタスクは分母に入れない（依存はその先までたどる）。"""
+    """（前提タスク 完了／分母）。止めた・取り下げたタスクは分母に入れない。横木のタスクがすべて止めた・取り下げたものなら、そう出す。"""
     by_id = {t.get("id"): t for t in tasks}
+    rungs = rung_tasks(tasks, rung)
+    if rungs and all(progress.is_held(t) for t in rungs):
+        return "（横木のタスク " + "・".join(f"{t['id']} は{progress.HELD[t['status']]}" for t in rungs) + "）"
     ids = [i for i in prerequisites(tasks, rung) if not progress.is_held(by_id.get(i))]
     done = sum(1 for i in ids if (by_id.get(i) or {}).get("status") == "completed")
     return f"（前提タスク {done}／{len(ids)}）"
@@ -183,9 +188,9 @@ def quantity(cfg, ref, tasks, rung, checks=None):
     return {"R3-c": lambda: r3c(cfg, ref), "R4": lambda: r4(cfg, ref, tasks)}[rung]()
 
 
-def measure(cfg, checks=None):
-    """(台帳のタスク, {横木: 量の文}、前提タスクの注記は含まない)。checks は passing_modules に渡す。"""
-    ref, state = load_ledger(cfg)
+def measure(cfg, checks=None, ref=None):
+    """(台帳のタスク, {横木: 量の文}、前提タスクの注記は含まない)。checks は passing_modules に、ref は load_ledger に渡す。"""
+    ref, state = load_ledger(cfg, ref)
     tasks = (state or {}).get("tasks") or []
     bodies = {}
     for rung in RUNGS:
@@ -306,10 +311,10 @@ def history_lines(cfg, tasks, now):
     return out
 
 
-def section(cfg, checks=None):
+def section(cfg, checks=None, ref=None):
     """report.md 用。台帳を読めないなど、節ごと失敗しても、1 行の理由に替えて書き出しを止めない。checks は passing_modules に渡す。"""
     try:
-        tasks, bodies = measure(cfg, checks)
+        tasks, bodies = measure(cfg, checks, ref)
         lines = lines_of(tasks, bodies)
     except Exception as e:   # noqa: BLE001
         return f"{TITLE}\n- {hline_probe.failure(f'{type(e).__name__}: {e}')}\n"
