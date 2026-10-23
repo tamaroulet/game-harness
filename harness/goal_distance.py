@@ -115,8 +115,9 @@ def prerequisites(tasks, rung):
 
 
 def prerequisite_note(tasks, rung):
-    ids = prerequisites(tasks, rung)
+    """（前提タスク 完了／分母）。止めた・取り下げたタスクは分母に入れない（依存はその先までたどる）。"""
     by_id = {t.get("id"): t for t in tasks}
+    ids = [i for i in prerequisites(tasks, rung) if not progress.is_held(by_id.get(i))]
     done = sum(1 for i in ids if (by_id.get(i) or {}).get("status") == "completed")
     return f"（前提タスク {done}／{len(ids)}）"
 
