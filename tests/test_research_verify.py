@@ -82,7 +82,8 @@ QUESTION = ("# 承認の層\n\n## 段\ncompare\n\n## 決めたい判断\n承認�
             "## 候補\n層を分ける\n\n## 問い\nいまの実践を調べる。\n")
 
 
-def agy_out(text, model="gemini-3.8-flash-medium"):
+def agy_out(text, model=None):
+    model = model or research.load_config()["backends"]["agy"]["model_name"]   # 設定の固定と同じモデルを報告する
     return "\n".join(json.dumps(e) for e in ({"event": "init", "init": {"model": model, "conversation_id": "c1"}},
                                              {"event": "result", "result": {"status": "SUCCESS", "response": text,
                                                                             "usage": {"input_tokens": 10, "output_tokens": 5}}}))
@@ -120,7 +121,7 @@ class Ask(quiet.Quiet, unittest.TestCase):
         rec = json.loads((self.tmp / "records" / "R-20261023-review-tiers.json").read_text(encoding="utf-8"))
         self.assertEqual([c["id"] for c in rec["claims"]], ["C1", "C2"])
         self.assertEqual([c["verify"]["status"] for c in rec["claims"]], ["verified", "quote_not_found"])
-        self.assertEqual(rec["models"], ["gemini-3.8-flash-medium"])
+        self.assertEqual(rec["models"], [research.load_config()["backends"]["agy"]["model_name"]])
         self.assertEqual(rec["counts"]["verified"], 1)
         md = (self.tmp / "records" / "R-20261023-review-tiers.md").read_text(encoding="utf-8")
         self.assertIn("| C2 |", md)
@@ -132,7 +133,7 @@ class Ask(quiet.Quiet, unittest.TestCase):
     def test_agy_is_called_read_only_with_the_schema_and_the_pinned_model(self):
         self.ask("agy", self.runner(0, agy_out(json.dumps(ANSWER))))
         args = self.calls[0]["args"]
-        for flag in ("--mode", "plan", "--sandbox", "--json-schema", "--model", "gemini-3.8-flash-medium"):
+        for flag in ("--mode", "plan", "--sandbox", "--json-schema", "--model", research.load_config()["backends"]["agy"]["model_name"]):
             self.assertIn(flag, args)
         self.assertTrue(args[args.index("--json-schema") + 1].endswith("research_schema.json"))
         self.assertIn("調べ役への指示", json.loads(self.calls[0]["input"])["message"]["content"])

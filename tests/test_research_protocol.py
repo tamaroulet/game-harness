@@ -52,6 +52,12 @@ class Rules(unittest.TestCase):
         for stage, name in cfg["stages"].items():
             self.assertIn(name, cfg["backends"], stage)
 
+    def test_refute_is_another_vendors_model(self):
+        """反証は、案を出す Claude と別の会社のモデル（Gemini 4 Argon、medium）で行う（操縦士 2026-10-24）。"""
+        cfg = research.load_config()
+        b = cfg["backends"][cfg["stages"]["refute"]]
+        self.assertEqual((b["cli"], b["model"], b["model_name"]), ("agy", "gemini-4-argon-medium", "gemini-4-argon-medium"))
+
 
 class QuestionShape(unittest.TestCase):
     def problems(self, text):

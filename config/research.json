@@ -1,8 +1,8 @@
 {
   "_comment": "外部の調べもの（ADR-004 の K-15、W-123）。harness/research.py が読む。調べ役の CLI は backends から選ぶ（既定は default）。どの CLI でも、照合（harness/research_verify.py）と記録の形は同じ",
   "default": "agy",
-  "_stages_note": "段ごとの既定の調べ役（docs/design/research_protocol.md §2・§8）。--backend で替えられる。俯瞰と比較は深く読むモデル、反証と照合は小さいモデル",
-  "stages": {"map": "claude-deep", "compare": "claude-deep", "refute": "claude", "verify": "claude"},
+  "_stages_note": "段ごとの既定の調べ役（docs/design/research_protocol.md §2・§8）。--backend で替えられる。俯瞰と比較は深く読むモデル、照合は小さいモデル。反証は別の会社のモデル（agy の Gemini 4 Argon）にして、身内のモデル同士の甘さを避ける（操縦士 2026-10-24）",
+  "stages": {"map": "claude-deep", "compare": "claude-deep", "refute": "agy", "verify": "claude"},
   "recheck_days": 30,
   "index": "${local}/research/index.json",
   "public_records": "docs/research",
@@ -20,8 +20,8 @@
       "headless_flag": "-p",
       "auto_approve_flag": "--dangerously-skip-permissions",
       "model_flag": "--model",
-      "model": "gemini-3.8-flash-medium",
-      "model_name": "gemini-3.8-flash-medium",
+      "model": "gemini-4-argon-medium",
+      "model_name": "gemini-4-argon-medium",
       "output_format_args": ["--output-format", "stream-json"],
       "extra_flags": ["--mode", "plan", "--sandbox"]
     },
