@@ -1,11 +1,11 @@
-active_task_id: W-148
+active_task_id: W-169
 constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (game-harness#44).
 last_verification:
-  task: W-147
+  task: W-148
   exit_code: 0
-  at: '2026-10-23T20:55:08'
+  at: '2026-10-23T21:12:48'
 next_id: 106
 nodes:
 - id: A
@@ -3163,7 +3163,7 @@ tasks:
   title: 台帳の project_goal と L5 をそろえる（文は操縦士が決める）
   group: rebuild-0
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'rebuild-0: project-goal'
   by: executor
   purpose: 台帳の目的の文を、操縦士が決めた L5 にそろえ、古い段の列挙を外して木を指すようにする
@@ -3183,7 +3183,7 @@ tasks:
   title: 決まりの棚卸しと整理（文の決まりを足さない）
   group: rebuild-0
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'rebuild-0: rules-inventory'
   by: executor
   purpose: 受信箱の CLAUDE.md・総監督の文書・調べ方の規則・CLAUDE.md・会話の席の記憶の決まりを棚卸しし、機械で守られていない文の決まりを減らす
