@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 import gate_order  # noqa: E402
 
 GATE = ["python", "-m", "harness.fastsuite", "discover", "-s", "tests"]
-ALWAYS = ["tests.test_isolation", "tests.test_ledger_double_check"]
+ALWAYS = ["tests.test_isolation", "tests.test_ledger_double_check", "tests.test_envscan_ratchet"]
 FAILED = ("=" * 70 + "\nFAIL: test_scan (tests.test_isolation.Scan)\n" + "-" * 70
           + "\nTraceback (most recent call last):\n  File \"x.py\", line 3, in test_scan\n"
           + "AssertionError: 1 != 2\n\n" + "-" * 70 + "\nRan 1 tests in 0.001s\n\nFAILED (failures=1)\n")
@@ -25,7 +25,7 @@ def cfg(**extra):
     return {"gate_command": GATE, "gate_tail_chars": 4000, "ttl_seconds": {"gate": 10}, **extra}
 
 
-def worktree(d, tests=("test_a", "test_isolation", "test_ledger_double_check")):
+def worktree(d, tests=("test_a", "test_isolation", "test_ledger_double_check", "test_envscan_ratchet")):
     (Path(d) / "tests").mkdir()
     for name in tests:
         (Path(d) / "tests" / f"{name}.py").write_text("", encoding="utf-8")
@@ -41,7 +41,7 @@ class Run:
         return self.result
 
 
-def focused(config, paths=(), tests=("test_a", "test_isolation", "test_ledger_double_check"), result=(0, "", "")):
+def focused(config, paths=(), tests=("test_a", "test_isolation", "test_ledger_double_check", "test_envscan_ratchet"), result=(0, "", "")):
     run = Run(result)
     with tempfile.TemporaryDirectory() as d, mock.patch.object(gate_order.proc, "run", side_effect=run):
         out = gate_order.focused(config, worktree(d, tests), list(paths), None)
@@ -66,7 +66,7 @@ class TestAlwaysModules(unittest.TestCase):
 
     def test_module_already_impacted_is_not_repeated(self):
         _, commands = focused(cfg(gate_always_modules=ALWAYS), ["tests/test_isolation.py"])
-        self.assertEqual(commands, [GATE[:3] + ["tests.test_isolation", "tests.test_ledger_double_check"]])
+        self.assertEqual(commands, [GATE[:3] + ["tests.test_isolation", "tests.test_ledger_double_check", "tests.test_envscan_ratchet"]])
 
     def test_failure_fails_gate_and_returns_failed_test_output(self):
         out, _ = focused(cfg(gate_always_modules=ALWAYS), result=(1, "", FAILED))
