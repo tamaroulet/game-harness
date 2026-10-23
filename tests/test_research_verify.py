@@ -122,6 +122,9 @@ class Ask(quiet.Quiet, unittest.TestCase):
         md = (self.tmp / "records" / "R-20261023-review-tiers.md").read_text(encoding="utf-8")
         self.assertIn("| C2 |", md)
         self.assertIn("一次の出典が見つからない", md)
+        # docs/research/ に写すので LF で書く（Windows の write_text の既定の CRLF にしない）
+        for ext in ("md", "json"):
+            self.assertNotIn(b"\r\n", (self.tmp / "records" / f"R-20261023-review-tiers.{ext}").read_bytes())
 
     def test_agy_is_called_read_only_with_the_schema_and_the_pinned_model(self):
         self.ask("agy", self.runner(0, agy_out(json.dumps(ANSWER))))
