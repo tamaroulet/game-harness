@@ -1656,13 +1656,14 @@ tasks:
   slug: 'rebuild: research'
   by: executor
   serves: R4
-  purpose: 外部の情報を会話に貼らず、出典の抜粋を機械で照合した記録として残し、方向を決める判断を前提の台帳の ID で根拠づける（ADR-004 の K-15）
+  purpose: 外部の情報を会話に貼らず、出典の抜粋を機械で照合した記録として残し、方向を決める判断を前提の台帳の ID で根拠づける（ADR-004 の K-15）。調べ役の CLI は設定で替えられ（既定は agy、代わりに Claude の小さいモデル）、利用枠が切れていれば問いを積んで待つ
   deliverable: harness/research.py、harness/research_verify.py、docs/prompts/researcher.md、config/research.json、docs/design/premises.yaml
   depends_on:
   - W-122
   acceptance:
   - 調べ役の出力の主張ごとに、出典の URL を取りに行き、抜粋が本文にあるかで verified・quote_not_found・unreachable・no_source の印を付ける（LLM を使わない）
-  - 調べ役のモデルは設定に model_flag と正確な ID で書かれ、実行ごとに報告と照合される
+  - 調べ役の CLI とモデルは設定に model_flag と正確な ID で書かれ、実行ごとに報告と照合される。CLI を替えても照合と記録は同じ形になる
+  - 調べ役の利用枠が切れたときは、問いを積んだまま記録を書かずに終わり、回復の時刻を出す
   - 前提の台帳の各前提が、根拠の種類（research・measured・decision・assumption）と確かめた日と期限を持ち、期限切れが検査で分かる
   oracle:
   - path: tests/test_research_verify.py
@@ -1671,27 +1672,6 @@ tasks:
     from: self
   verification:
     command: python -m unittest tests.test_research_verify tests.test_premises
-    expected_exit_code: 0
-- id: W-124
-  title: ADR-004 の前提を照合し、前提の台帳に印を付ける
-  group: rebuild
-  target_repo: game-harness
-  status: pending
-  slug: 'rebuild: verify-premises'
-  by: executor
-  serves: R4
-  purpose: 照合していない外部の資料に依った ADR-004 の前提を、調べものの仕組みで照合し、崩れた前提に依る裁定を書き直す
-  deliverable: docs/research/ の記録、docs/design/premises.yaml の印、必要なら ADR-004 の改訂
-  depends_on:
-  - W-123
-  acceptance:
-  - ADR-004 §5 の前提がすべて前提の台帳にあり、照合の印か「未照合」の理由を持つ
-  - 崩れた前提に依る裁定の行は、ADR-004 で書き直されている
-  oracle:
-  - path: tests/test_premises.py
-    from: W-123
-  verification:
-    command: python -m unittest tests.test_premises
     expected_exit_code: 0
 - id: W-125
   title: 環境の直書きの目録と歯止め（境界の外の直書きを増やせない）
@@ -1704,7 +1684,7 @@ tasks:
   purpose: 外部の命令の名前・絶対パス・OS に固有の処理・文字コードの手当て・版とモデル ID の直書きを機械で数え、境界の外で増えたら CI が落ちるようにする（人が知りえない直書きを、人が探さない）
   deliverable: harness/envscan.py、config/envscan_baseline.json、tests/test_envscan_ratchet.py
   depends_on:
-  - W-124
+  - W-123
   acceptance:
   - envscan が種類ごと・ファイルごとの数を出す
   - 境界のモジュールの外での数が、記録した数より増えると試験が落ち、減ったときは記録を下げられる
@@ -1779,6 +1759,27 @@ tasks:
   verification:
     command: python -m unittest tests.test_ci_portability
     expected_exit_code: 0
+- id: W-124
+  title: ADR-004 の前提を照合し、前提の台帳に印を付ける
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: verify-premises'
+  by: executor
+  serves: R4
+  purpose: 照合していない外部の資料に依った ADR-004 の前提を、調べものの仕組みで照合し、崩れた前提に依る裁定を書き直す。調べ役の利用枠を待つので、枠の要らない W-125〜W-128 と並べて進め、前提に依る W-129 の前に終える
+  deliverable: docs/research/ の記録、docs/design/premises.yaml の印、必要なら ADR-004 の改訂
+  depends_on:
+  - W-123
+  acceptance:
+  - ADR-004 §5 の前提がすべて前提の台帳にあり、照合の印か「未照合」の理由を持つ
+  - 崩れた前提に依る裁定の行は、ADR-004 で書き直されている
+  oracle:
+  - path: tests/test_premises.py
+    from: W-123
+  verification:
+    command: python -m unittest tests.test_premises
+    expected_exit_code: 0
 - id: W-129
   title: 走らせ役を Git に入れ、本番の clone・秘密・隔離の確かめを境界の上で作り直す
   group: rebuild
@@ -1791,6 +1792,7 @@ tasks:
   deliverable: harness/runner.py、harness/templates/resident/ の起動の型、harness/envcheck.py の acl、tests/test_runner.py
   depends_on:
   - W-128
+  - W-124
   acceptance:
   - 走らせ役の処理の失敗（外側の周期の処理を含む）が report.md の停止の節と停止の通知に出て、握りつぶされない
   - H ラインは本番の clone から動き、作業コピーが汚れていれば何もしない
