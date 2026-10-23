@@ -43,7 +43,7 @@ class Validate(unittest.TestCase):
         self.assertEqual(progress.validate(sample()), [])
 
     def test_correct_values_are_valid(self):
-        for by in ("pilot", "hline"):
+        for by in ("pilot", "hline", "executor"):
             self.assertEqual(progress.validate(with_fields("T2", by=by)), [])
         self.assertEqual(progress.validate(with_fields("T2", pr="game-harness#165")), [])
         self.assertEqual(progress.validate(with_fields("T2", by="pilot", pr="falling-blocks#15")), [])
@@ -72,6 +72,17 @@ class Views(unittest.TestCase):
             self.assertIn("- [ ] T2 second（操縦士）\n", text)
             self.assertNotIn("first（操縦士）", text)
         self.assertIn("T2 second（操縦士）", progress.report(state))
+
+    def test_the_tree_marks_executor_tasks(self):
+        state = with_fields("T2", by="executor")
+        for text in (progress.tree(state), progress.tree(state, True)):
+            self.assertIn("- [ ] T2 second（実行役）\n", text)
+            self.assertNotIn("操縦士", text)
+
+    def test_an_executor_task_at_the_current_position_is_not_a_human_task(self):
+        text = progress.report(with_fields("T1", by="executor"))
+        self.assertIn("- 人間作業: NONE", text)
+        self.assertIn("T1 first（実行役） ← 現在地", text)
 
     def test_hline_tasks_are_not_marked(self):
         self.assertNotIn("操縦士", progress.tree(with_fields("T2", by="hline"), True))
@@ -133,6 +144,16 @@ class Intake(unittest.TestCase):
         self.assertEqual([s["file"] for s in st["skipped"]], ["a.md"])
         self.assertIn("T1", st["skipped"][0]["reason"])
         self.assertIn("pilot", st["skipped"][0]["reason"])
+
+    def test_a_what_for_an_executor_task_is_left_in_the_inbox_with_a_reason(self):
+        tasks = sample()["tasks"]
+        tasks[1]["by"] = "executor"
+        self.git = (0, yaml.safe_dump({"tasks": tasks}, allow_unicode=True), "")
+        self.put("c", "T2")
+        st = self.take()
+        self.assertNotIn("c", st["items"])
+        self.assertTrue((self.inbox / "c.md").exists())
+        self.assertIn("executor", st["skipped"][0]["reason"])
 
     def test_a_what_for_an_hline_task_is_taken(self):
         self.put("b", "T2")

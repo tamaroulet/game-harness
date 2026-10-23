@@ -130,6 +130,8 @@ def intake(cfg, st):
             return None
         if ledger[task].get("by") == "pilot":
             return f"タスク {task} は操縦士の作業（by: pilot）で、H ラインは取りません"
+        if ledger[task].get("by") == "executor":
+            return f"タスク {task} は実行役の作業（by: executor）で、H ラインは取りません"
         if ledger[task]["done"]:
             return f"タスク {task} は base の台帳で完了しています"
         return None

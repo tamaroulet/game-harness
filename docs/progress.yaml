@@ -1,4 +1,4 @@
-active_task_id: W-61
+active_task_id: W-122
 constraints:
 - Do not touch Core/ or falling-blocks tests directly (deny rule).
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
@@ -93,6 +93,9 @@ nodes:
 - id: outer
   parent: W-18
   title: 外側ループ（週次非劣性検証）
+- id: rebuild
+  parent: W-18
+  title: 検証網と境界の再建（外側の周期の前提。docs/design/adr-004.md）
 project_goal: 自己改善できる自律開発環境（C4）を作る。段 1 軽い 3D 通し → 段 2 改善 → 段 3 物差しの凍結 → 段 4 Outer Loop の確立（C4）。段は nodes の W-15〜W-18。チャット型との比べ（C5）は、R5 の製品の付け足しで行い、そのときに改めて事前登録する（D-109）
 tasks:
 - group: B3.1
@@ -1625,11 +1628,422 @@ tasks:
   verification:
     command: python -m harness.weekly_report --latest-within-days 8
     expected_exit_code: 0
+- id: W-122
+  title: 再建の段の開始（台帳・ADR-004・執行者 executor）
+  group: rebuild
+  target_repo: game-harness
+  status: in_progress
+  slug: 'rebuild: start'
+  by: executor
+  serves: R4
+  purpose: 外側の周期の前に、検証網と境界の再建の段を置き、裁定（ADR-004）と、実行役が main への PR で行うタスクの執行者を台帳に入れる
+  deliverable: docs/design/adr-004.md、docs/progress.yaml の rebuild、harness/progress.py と harness/hline_queue.py の executor
+  depends_on: []
+  acceptance:
+  - 台帳の執行者に executor があり、ツリーと report.md で（実行役）と印が付き、H ラインは executor のタスクの What を取り込まない
+  - W-61 が再建の段の最後のタスク（W-140）に依存し、python -m harness.progress check が通る
+  oracle:
+  - path: tests/test_progress_executor.py
+    from: existing
+  verification:
+    command: python -m unittest tests.test_progress_executor tests.test_ledger_double_check
+    expected_exit_code: 0
+- id: W-123
+  title: 外部の調べものの仕組み（調べ役・出典の機械の照合・記録・前提の台帳）
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: research'
+  by: executor
+  serves: R4
+  purpose: 外部の情報を会話に貼らず、出典の抜粋を機械で照合した記録として残し、方向を決める判断を前提の台帳の ID で根拠づける（ADR-004 の K-15）
+  deliverable: harness/research.py、harness/research_verify.py、docs/prompts/researcher.md、config/research.json、docs/design/premises.yaml
+  depends_on:
+  - W-122
+  acceptance:
+  - 調べ役の出力の主張ごとに、出典の URL を取りに行き、抜粋が本文にあるかで verified・quote_not_found・unreachable・no_source の印を付ける（LLM を使わない）
+  - 調べ役のモデルは設定に model_flag と正確な ID で書かれ、実行ごとに報告と照合される
+  - 前提の台帳の各前提が、根拠の種類（research・measured・decision・assumption）と確かめた日と期限を持ち、期限切れが検査で分かる
+  oracle:
+  - path: tests/test_research_verify.py
+    from: self
+  - path: tests/test_premises.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_research_verify tests.test_premises
+    expected_exit_code: 0
+- id: W-124
+  title: ADR-004 の前提を照合し、前提の台帳に印を付ける
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: verify-premises'
+  by: executor
+  serves: R4
+  purpose: 照合していない外部の資料に依った ADR-004 の前提を、調べものの仕組みで照合し、崩れた前提に依る裁定を書き直す
+  deliverable: docs/research/ の記録、docs/design/premises.yaml の印、必要なら ADR-004 の改訂
+  depends_on:
+  - W-123
+  acceptance:
+  - ADR-004 §5 の前提がすべて前提の台帳にあり、照合の印か「未照合」の理由を持つ
+  - 崩れた前提に依る裁定の行は、ADR-004 で書き直されている
+  oracle:
+  - path: tests/test_premises.py
+    from: W-123
+  verification:
+    command: python -m unittest tests.test_premises
+    expected_exit_code: 0
+- id: W-125
+  title: 環境の直書きの目録と歯止め（境界の外の直書きを増やせない）
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: envscan-ratchet'
+  by: executor
+  serves: R4
+  purpose: 外部の命令の名前・絶対パス・OS に固有の処理・文字コードの手当て・版とモデル ID の直書きを機械で数え、境界の外で増えたら CI が落ちるようにする（人が知りえない直書きを、人が探さない）
+  deliverable: harness/envscan.py、config/envscan_baseline.json、tests/test_envscan_ratchet.py
+  depends_on:
+  - W-124
+  acceptance:
+  - envscan が種類ごと・ファイルごとの数を出す
+  - 境界のモジュールの外での数が、記録した数より増えると試験が落ち、減ったときは記録を下げられる
+  oracle:
+  - path: tests/test_envscan_ratchet.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_envscan_ratchet
+    expected_exit_code: 0
+- id: W-126
+  title: 環境の唯一の台帳（toolchain と machine）と、起動時の実物との照合
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: toolchain'
+  by: executor
+  serves: R4
+  purpose: 版の正本を 1 つにし（CI の導入と requirements.lock はそこから作る）、この PC に固有の絶対パスとアカウントを Git の外の 1 ファイルに閉じ込め、実物の版が食い違えば起動の前に止まる
+  deliverable: config/toolchain.json、config/machine.example.json、harness/envcheck.py の照合、tests/test_toolchain.py
+  depends_on:
+  - W-125
+  acceptance:
+  - 版の文字列と絶対パスが、環境の台帳と境界の外の動いているモジュール・設定に無い（envscan で 0）
+  - 実物の CLI の版が台帳と違えば envcheck が 0 以外で終わり、理由を 1 行で出す
+  - envcheck が main のブランチ保護の有無を確かめられる（--github）
+  oracle:
+  - path: tests/test_toolchain.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_toolchain
+    expected_exit_code: 0
+- id: W-127
+  title: 境界（ポート）の抽出と、依存の向きの検査
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: ports'
+  by: executor
+  serves: R4
+  purpose: 外部のプロセス・ファイル・git・gh・エージェントの CLI・OS のスケジューラと権限・エンジンを、harness/platform のポートと Windows のアダプタと偽のアダプタに閉じ込め、動いているラインがそれだけを通るようにする（ADR-004 の K-13）
+  deliverable: harness/platform/、動いているモジュールの置き換え、tests/test_layering.py
+  depends_on:
+  - W-126
+  acceptance:
+  - 動いているラインの範囲で、命令の名前・OS に固有の処理・文字コードの手当てが境界の外で 0（envscan）
+  - 境界の外の動いているモジュールは subprocess・ctypes・winreg・msvcrt を import しない
+  - 置き換えの前後で、既存の試験がすべて通る
+  oracle:
+  - path: tests/test_layering.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_layering
+    expected_exit_code: 0
+- id: W-128
+  title: 携帯性の CI（Linux と、意地の悪い Windows）
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: portability-ci'
+  by: executor
+  serves: R4
+  purpose: 抜き差しできることを言葉でなく CI の緑で示し、知りえない直書きを、環境を実際に変えて見つける（ADR-004 の K-14）
+  deliverable: .github/workflows/harness-tests.yml のジョブ、tests/test_ci_portability.py
+  depends_on:
+  - W-127
+  acceptance:
+  - 動いているラインの試験が、ubuntu-latest で偽のアダプタを使って走るジョブがある
+  - Windows で、コードページ 932・空白と日本語を含む作業のパス・CRLF の checkout で走るジョブがある
+  oracle:
+  - path: tests/test_ci_portability.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_ci_portability
+    expected_exit_code: 0
+- id: W-129
+  title: 走らせ役を Git に入れ、本番の clone・秘密・隔離の確かめを境界の上で作り直す
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: runner'
+  by: executor
+  serves: R4
+  purpose: H ラインを回す常駐のループを試験とレビューの中に戻し、人の作業コピーと本番を分け、秘密をスクリプトから外し、OS のアカウントの隔離を機械で確かめる
+  deliverable: harness/runner.py、harness/templates/resident/ の起動の型、harness/envcheck.py の acl、tests/test_runner.py
+  depends_on:
+  - W-128
+  acceptance:
+  - 走らせ役の処理の失敗（外側の周期の処理を含む）が report.md の停止の節と停止の通知に出て、握りつぶされない
+  - H ラインは本番の clone から動き、作業コピーが汚れていれば何もしない
+  - 走らせ役とその置き場に秘密の文字列が無く、envcheck acl が隔離の拒否の行を確かめる
+  oracle:
+  - path: tests/test_runner.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_runner
+    expected_exit_code: 0
+- id: W-130
+  title: リスクの層と保護パス（H ラインは高い層を積まない）
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: risk-tiers'
+  by: executor
+  serves: R4
+  purpose: 差分のパスから高・中・低の層と工廠の経路への接触を決め、H ラインが自分の門・走らせ役・境界・物差しを変えられないようにする（ADR-004 の K-1）
+  deliverable: config/risk_tiers.json、harness/risk_tier.py、config/protected_paths.json、tests/test_risk_tier.py
+  depends_on:
+  - W-129
+  acceptance:
+  - 高い層のパスを変える What は Gate 1 で不合格になる
+  - 統合 PR の本文に、積んだ What ごとの層が出る
+  - .github/・門のモジュール・境界・走らせ役・環境の台帳・層の定義が保護パスにある
+  oracle:
+  - path: tests/test_risk_tier.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_risk_tier
+    expected_exit_code: 0
+- id: W-131
+  title: main のブランチ保護と、H ライン専用の GitHub アカウント
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: branch-protection'
+  by: pilot
+  serves: R4
+  purpose: 必須チェックと「エージェントは承認しない」を、GitHub の側で機械に拒絶させる（ADR-004 の K-9）
+  deliverable: main のブランチ保護、machine user とそのトークン
+  depends_on:
+  - W-130
+  acceptance:
+  - main に、必須チェック harness-tests・approval と PR の必須が掛かっている
+  - H ラインと走らせ役は machine user のトークンで動き、そのアカウントは承認者の一覧に無い
+  oracle:
+  - path: harness/envcheck.py
+    from: W-126
+  verification:
+    command: python -m harness.envcheck --github
+    expected_exit_code: 0
+- id: W-132
+  title: 検査の強化（テストの弱化の不合格・門と境界の変異・ターン切れでもモデルを照合）
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: gate-hardening'
+  by: executor
+  serves: R4
+  purpose: 自分で採点する弱さのうち、テストを弱める道と、門が黙って弱る道と、どのモデルが書いたか分からない変更を塞ぐ（ADR-004 の K-2 段階 a）
+  deliverable: harness/hline_gate.py、tests/mutate.py の門と境界の変異、CI の変異のジョブ、tests/test_gate_shrink.py
+  depends_on:
+  - W-131
+  acceptance:
+  - テストの件数の減少・skip の増加・assert の削除を含む差分は Gate 1 で不合格になる
+  - 門と境界の変異がすべて試験で赤になり、CI が触ったファイルの変異を回す
+  - ターン上限で打ち切られた試行もモデルを照合し、python -m harness.model_pin が通る
+  oracle:
+  - path: tests/test_gate_shrink.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_gate_shrink
+    expected_exit_code: 0
+- id: W-133
+  title: 決定論の規則（lint・浮動小数の厳密な比較・文字コードの省略）と統合 PR の本文
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: deterministic-rules'
+  by: executor
+  serves: R4
+  purpose: 1 度起きた不具合の型を決定論の検査に移し、人が承認のときに見る材料（警告・行数・ターン切れ・モデル・層）を統合 PR の本文に出す
+  deliverable: config/toolchain.json の ruff、Gate 1 の AST の規則、harness/hline_report.py、tests/test_gate_rules.py
+  depends_on:
+  - W-132
+  acceptance:
+  - 浮動小数のリテラルとの厳密な比較と、文字コードを省いた open は Gate 1 で不合格になる
+  - 統合 PR の本文に、What ごとの Gate 1 の警告・差分の行数・ターン切れ・モデル・層が出る
+  oracle:
+  - path: tests/test_gate_rules.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_gate_rules
+    expected_exit_code: 0
+- id: W-134
+  title: テスト先行の段（別の役が受入テストを先に書き、実装役は変えられない）と配線の試験
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: test-first'
+  by: executor
+  serves: R4
+  purpose: H ラインの受入テストを、実装役でない役が探索せずに先に書き、Red から Green への変化だけを受ける。部品だけ作って繋がない失敗（B7.3）を、流れの入口からの試験で防ぐ（ADR-004 の K-2 段階 b）
+  deliverable: harness の テスト先行の段、tests/test_test_first_wiring.py
+  depends_on:
+  - W-133
+  acceptance:
+  - 取り込んだ What ごとに、テストを書く役が呼ばれ、そのテストが実装の前に Red である
+  - 実装役がそのテストのファイルを変えた試行は不合格になる
+  - 上の 2 つを、hline の poll の入口から偽の CLI で確かめる試験がある
+  oracle:
+  - path: tests/test_test_first_wiring.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_test_first_wiring
+    expected_exit_code: 0
+- id: W-135
+  title: 差分の助言のレビュー（新しい文脈・別系統のモデル・論破の段。合否に入れない）
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: advisory-review'
+  by: executor
+  serves: R4
+  purpose: 差分の意味を見る層を、合否に入れない形で戻し、指摘の精度を後で測れるように記録する（ADR-004 の K-3）
+  deliverable: harness の助言のレビューの段、tests/test_advisory_review.py
+  depends_on:
+  - W-134
+  acceptance:
+  - 統合 PR の本文に、論破の段を通った指摘だけが出る
+  - レビューの結果は Gate 1 の合否を変えず、tests/test_no_inline_review.py が通ったまま
+  - 呼び出しのモデル・指摘・論破の結果が記録に残る
+  oracle:
+  - path: tests/test_advisory_review.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_advisory_review
+    expected_exit_code: 0
+- id: W-136
+  title: 使っていないコード（ゲームのライン）の分離と、再開の条件
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: dormant-split'
+  by: executor
+  serves: R4
+  purpose: 動いていないゲームのラインの試験・カナリア・目次・変異を主の経路から外し、再開を「境界の内側に移したこと」で縛る（ADR-004 の K-8）
+  deliverable: CI のワークフローの分割、config/hline.json のカナリア、目次の範囲、tests/test_dormant_split.py
+  depends_on:
+  - W-135
+  acceptance:
+  - 主の CI と Gate 1 のカナリアが、凍結したモジュールの試験を走らせない
+  - 凍結したモジュールの試験は、そのパスが変わったときだけ別のワークフローで走る
+  oracle:
+  - path: tests/test_dormant_split.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_dormant_split
+    expected_exit_code: 0
+- id: W-137
+  title: 非劣性の判定に走り直しの揺れを含め、工廠の経路に触れたときだけ起こす
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: regress-variance'
+  by: executor
+  serves: R4
+  purpose: N=1 と課題の復元抽出では表れない揺れを判定に入れ、点に効かない束に重い検査を使わない（ADR-004 の K-4・K-5）
+  deliverable: harness/bench_regress.py、tests/test_bench_regress_variance.py
+  depends_on:
+  - W-136
+  acceptance:
+  - 基準の複数の走行の揺れを含めた区間で判定し、手計算と一致する
+  - 工廠の経路に触れない外側の束では、非劣性の走行を起こさない
+  oracle:
+  - path: tests/test_bench_regress_variance.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_bench_regress_variance
+    expected_exit_code: 0
+- id: W-138
+  title: 物差しの取り直し（凍結の base と、N=3 の基準の走行）
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: rebaseline'
+  by: pilot
+  serves: R4
+  purpose: 再建で変わった Gate 1・実装役への指示・工廠の道具の上で、非劣性の基準を取り直す。R4 の 4 周はこの後から数える（ADR-004 の K-6）
+  deliverable: bench/records/freeze.json、bench/records/B01〜B10 の基準 3 走行
+  depends_on:
+  - W-137
+  acceptance:
+  - 凍結の base が再建の後の main で、10 本の基準がそれぞれ 3 走行ある
+  oracle:
+  - path: harness/bench_verify.py
+    from: existing
+  verification:
+    command: python -m harness.bench_verify --all --min-runs 3 --frozen
+    expected_exit_code: 0
+- id: W-139
+  title: 基準の検めと、文書を実物に合わせる
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: review-and-docs'
+  by: executor
+  serves: R4
+  purpose: 取り直した基準の揺れから判定の幅を決め直し、README と設計の文書を、境界・環境の台帳・走らせ役・層・テスト先行・調べものの実物に合わせる
+  deliverable: docs/design/review_after_rebuild.md、README.md、docs/design/premises.yaml の更新
+  depends_on:
+  - W-138
+  - W-109
+  acceptance:
+  - README に書いたパスがすべて実在する
+  - 判定の幅が、基準の 3 走行の揺れの実測から決まっていることが前提の台帳にある
+  oracle:
+  - path: tests/test_readme_paths.py
+    from: W-109
+  - path: tests/test_premises.py
+    from: W-123
+  verification:
+    command: python -m unittest tests.test_readme_paths tests.test_premises
+    expected_exit_code: 0
+- id: W-140
+  title: 試運転（新しい門で What を流し、わざと悪い What 3 件が落ちることを確かめる）
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: trial'
+  by: executor
+  serves: R4
+  purpose: 再建の後の H ラインを本番の clone から再開し、新しい門・歯止め・層が、人の手当て無しに働くことを確かめてから外側の周期に入る
+  deliverable: docs/design/rebuild_trial.md、tests/test_rebuild_trial.py
+  depends_on:
+  - W-139
+  acceptance:
+  - 受信箱の What 1 件が、テスト先行の段と助言のレビューを通って統合 PR に積まれる
+  - テストを弱める What・高い層を変える What・境界の外に直書きを足す What が、それぞれ Gate 1 で落ちる
+  - 試運転の記録が、上の結果と統合 PR の番号を持つ
+  oracle:
+  - path: tests/test_rebuild_trial.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_rebuild_trial
+    expected_exit_code: 0
 - id: W-61
   title: 外側の周期を 1 回通す（第 1 週）
   group: W-18
   target_repo: game-harness
-  status: in_progress
+  status: pending
   slug: 'outer: first-cycle'
   by: pilot
   serves: R4
@@ -1642,6 +2056,7 @@ tasks:
   - W-91
   - W-96
   - W-107
+  - W-140
   acceptance:
   - 週次の報告 → 総監督の改善の What（`計器:` で対象を名指し）→ 監修 → hline/outer → 非劣性の合格 → マージ、が 1 週の中で通る
   oracle:
