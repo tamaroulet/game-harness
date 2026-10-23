@@ -67,9 +67,10 @@ def module_of(path):
     return Path(path).with_suffix("").as_posix().replace("/", ".")
 
 
-def passing_modules(cfg):
-    """ref が origin/main で overlay が無く expect が pass の unittest の照合で、最新の結果が合格のものの modules（report.md の「## 照合」と同じ結果）。"""
-    text = hline_checks.safe_section(cfg)
+def passing_modules(cfg, checks=None):
+    """ref が origin/main で overlay が無く expect が pass の unittest の照合で、最新の結果が合格のものの modules（report.md の「## 照合」と同じ結果）。
+    checks は「## 照合」の本文を返す関数（既定は照合を走らせる safe_section。H ラインが止まっている間は走らせない cached_section）。"""
+    text = (checks or hline_checks.safe_section)(cfg)
     status = dict(STATUS_RE.findall(text))
     d = hline_checks.checks_dir(cfg)
     if not status and re.search(r"^- 取得失敗", text, re.M):
@@ -128,10 +129,10 @@ def valid(rec):
     return isinstance(rec, dict) and not rec.get("invalid")
 
 
-def pairs(cfg, tasks, rung):
+def pairs(cfg, tasks, rung, checks=None):
     items = [o for t in rung_tasks(tasks, rung) for o in t.get("oracle") or []]
     paths = [o.get("path") for o in items if isinstance(o, dict) and isinstance(o.get("path"), str)]
-    passed = passing_modules(cfg)
+    passed = passing_modules(cfg) if checks is None else passing_modules(cfg, checks)
     return f"判定役の照合が通る課題 {sum(1 for p in paths if module_of(p) in passed)}／{len(paths)}"
 
 
@@ -176,20 +177,20 @@ def r4(cfg, ref, tasks):
     return f"{head} 0／{CYCLES}"
 
 
-def quantity(cfg, ref, tasks, rung):
+def quantity(cfg, ref, tasks, rung, checks=None):
     if rung in PAIR_RUNGS:
-        return pairs(cfg, tasks, rung)
+        return pairs(cfg, tasks, rung, checks)
     return {"R3-c": lambda: r3c(cfg, ref), "R4": lambda: r4(cfg, ref, tasks)}[rung]()
 
 
-def measure(cfg):
-    """(台帳のタスク, {横木: 量の文}、前提タスクの注記は含まない)。"""
+def measure(cfg, checks=None):
+    """(台帳のタスク, {横木: 量の文}、前提タスクの注記は含まない)。checks は passing_modules に渡す。"""
     ref, state = load_ledger(cfg)
     tasks = (state or {}).get("tasks") or []
     bodies = {}
     for rung in RUNGS:
         try:
-            bodies[rung] = quantity(cfg, ref, tasks, rung)
+            bodies[rung] = quantity(cfg, ref, tasks, rung, checks)
         except Exception as e:   # noqa: BLE001 - 1 つの量の失敗でほかの行を止めない
             bodies[rung] = hline_probe.failure(f"{type(e).__name__}: {e}" if not isinstance(e, Unreadable) else e)
     return tasks, bodies
@@ -305,10 +306,10 @@ def history_lines(cfg, tasks, now):
     return out
 
 
-def section(cfg):
-    """report.md 用。台帳を読めないなど、節ごと失敗しても、1 行の理由に替えて書き出しを止めない。"""
+def section(cfg, checks=None):
+    """report.md 用。台帳を読めないなど、節ごと失敗しても、1 行の理由に替えて書き出しを止めない。checks は passing_modules に渡す。"""
     try:
-        tasks, bodies = measure(cfg)
+        tasks, bodies = measure(cfg, checks)
         lines = lines_of(tasks, bodies)
     except Exception as e:   # noqa: BLE001
         return f"{TITLE}\n- {hline_probe.failure(f'{type(e).__name__}: {e}')}\n"

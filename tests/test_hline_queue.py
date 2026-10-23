@@ -906,7 +906,7 @@ class Lock(unittest.TestCase):
     def test_poll_runs_the_line_over_the_lock_of_a_dead_owner(self):
         with tempfile.TemporaryDirectory() as d:
             cfg = json.loads(json.dumps(CFG))
-            cfg["inbox"] = d
+            cfg["inbox"] = cfg["out"] = d   # 本物の out の止めた印（W-144）を読まない
             self.write_lock(d, {"pid": os.getpid(), "token": "x", "created": time.time()})
             with mock.patch.object(hline_base, "process_token", return_value=None), \
                     mock.patch.object(hline, "run_line", return_value=0) as run:
@@ -983,7 +983,7 @@ class Lock(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             inbox = Path(d)
             cfg = json.loads(json.dumps(CFG))
-            cfg["inbox"] = str(inbox)
+            cfg["inbox"] = cfg["out"] = str(inbox)   # 本物の out の止めた印（W-144）を読まない
             cfg["ttl_seconds"]["lock_stale"] = 1
             started, release, runs = threading.Event(), threading.Event(), []
 

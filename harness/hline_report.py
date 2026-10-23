@@ -156,11 +156,12 @@ def failure_lines(cfg, name):
     return [f"    - {p}" for p in points[:POINTS_MAX]]
 
 
-def goal_section(cfg):
-    """「## 目的までの距離」の節（report.md の先頭）。読み込みが例外で止まっても、節を 1 行の理由に替えて、書き出しを止めない。"""
+def goal_section(cfg, checks=None):
+    """「## 目的までの距離」の節（report.md の先頭）。読み込みが例外で止まっても、節を 1 行の理由に替えて、書き出しを止めない。
+    checks は照合の本文を返す関数（H ラインが止まっている間は、照合を走らせない hline_checks.cached_section）。"""
     try:
         import goal_distance
-        return goal_distance.section(cfg)
+        return goal_distance.section(cfg, checks)
     except Exception as e:   # noqa: BLE001
         return f"## 目的までの距離\n- {hline_probe.failure(f'{type(e).__name__}: {e}')}\n"
 
