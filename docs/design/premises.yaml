@@ -64,3 +64,18 @@ premises:
   checked_at: 2026-10-19
   recheck_by: 2026-11-30
   used_by: [W-96, W-138]
+- id: P-009
+  text: 環境の結合（文字コード・Windows のプロセスの扱い・版のずれ）は、不具合の主な源の 1 つだが、ほぼすべての共通の根ではない
+  kind: measured
+  basis: [docs/design/adr-004-scope-check.md]
+  note: 2026-09-01〜10-23 の fix 49 件のうち 15 件（31%）と、走らせ役の D16。ポートで防げたのは process の 4 件だけ
+  checked_at: 2026-10-23
+  recheck_by: 2026-12-23
+  used_by: [ADR-004 K-13, W-127]
+- id: P-010
+  text: Linux の CI は、外側の周期を 4 周回すという目的に要らない（この期間の環境の不具合で、Linux の CI が見つけたはずのものは 0 件）
+  kind: measured
+  basis: [docs/design/adr-004-scope-check.md]
+  checked_at: 2026-10-23
+  recheck_by: 2026-12-23
+  used_by: [ADR-004 K-14, W-128]

@@ -1716,49 +1716,6 @@ tasks:
   verification:
     command: python -m unittest tests.test_toolchain
     expected_exit_code: 0
-- id: W-127
-  title: 境界（ポート）の抽出と、依存の向きの検査
-  group: rebuild
-  target_repo: game-harness
-  status: pending
-  slug: 'rebuild: ports'
-  by: executor
-  serves: R4
-  purpose: 外部のプロセス・ファイル・git・gh・エージェントの CLI・OS のスケジューラと権限・エンジンを、harness/platform のポートと Windows のアダプタと偽のアダプタに閉じ込め、動いているラインがそれだけを通るようにする（ADR-004 の K-13）
-  deliverable: harness/platform/、動いているモジュールの置き換え、tests/test_layering.py
-  depends_on:
-  - W-126
-  acceptance:
-  - 動いているラインの範囲で、命令の名前・OS に固有の処理・文字コードの手当てが境界の外で 0（envscan）
-  - 境界の外の動いているモジュールは subprocess・ctypes・winreg・msvcrt を import しない
-  - 置き換えの前後で、既存の試験がすべて通る
-  oracle:
-  - path: tests/test_layering.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_layering
-    expected_exit_code: 0
-- id: W-128
-  title: 携帯性の CI（Linux と、意地の悪い Windows）
-  group: rebuild
-  target_repo: game-harness
-  status: pending
-  slug: 'rebuild: portability-ci'
-  by: executor
-  serves: R4
-  purpose: 抜き差しできることを言葉でなく CI の緑で示し、知りえない直書きを、環境を実際に変えて見つける（ADR-004 の K-14）
-  deliverable: .github/workflows/harness-tests.yml のジョブ、tests/test_ci_portability.py
-  depends_on:
-  - W-127
-  acceptance:
-  - 動いているラインの試験が、ubuntu-latest で偽のアダプタを使って走るジョブがある
-  - Windows で、コードページ 932・空白と日本語を含む作業のパス・CRLF の checkout で走るジョブがある
-  oracle:
-  - path: tests/test_ci_portability.py
-    from: self
-  verification:
-    command: python -m unittest tests.test_ci_portability
-    expected_exit_code: 0
 - id: W-124
   title: ADR-004 の前提を照合し、前提の台帳に印を付ける
   group: rebuild
@@ -1767,7 +1724,7 @@ tasks:
   slug: 'rebuild: verify-premises'
   by: executor
   serves: R4
-  purpose: 照合していない外部の資料に依った ADR-004 の前提を、調べものの仕組みで照合し、崩れた前提に依る裁定を書き直す。調べ役の利用枠を待つので、枠の要らない W-125〜W-128 と並べて進め、前提に依る W-129 の前に終える
+  purpose: 照合していない外部の資料に依った ADR-004 の前提を、調べものの仕組みで照合し、崩れた前提に依る裁定を書き直す。境界と CI の作り込み（W-127・W-128）の前に終え、方向が外れたまま費用をかけないようにする（2026-10-23 に W-127 の前へ移した。agy の利用枠が無いので、調べ役は claude の小さいモデル）
   deliverable: docs/research/ の記録、docs/design/premises.yaml の印、必要なら ADR-004 の改訂
   depends_on:
   - W-123
@@ -1779,6 +1736,50 @@ tasks:
     from: W-123
   verification:
     command: python -m unittest tests.test_premises
+    expected_exit_code: 0
+- id: W-127
+  title: プロセスの境界（process のポート）の抽出と、依存の向きの検査
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: ports'
+  by: executor
+  serves: R4
+  purpose: 外部のプロセスの起動（出力の文字コード・窓・長い引数・子の木の終了）を 1 つのポートと Windows のアダプタと偽のアダプタに閉じ込め、動いているラインがそれだけを通るようにする。ほかの 6 つのポートは、境界に当たる不具合の実測が 0 件なので外した（ADR-004 の K-13 の改訂、docs/design/adr-004-scope-check.md）
+  deliverable: process のポートとアダプタ、動いているモジュールの subprocess の呼び出しの置き換え、tests/test_layering.py
+  depends_on:
+  - W-126
+  - W-124
+  acceptance:
+  - 動いているライン（H ライン・工廠・外側の周期・進捗）のモジュールは、境界の外で subprocess を import しない
+  - 境界の外の動いているモジュールで、envscan の os_specific と encoding が、置き換えの前より減っている
+  - 置き換えの前後で、既存の試験がすべて通る
+  oracle:
+  - path: tests/test_layering.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_layering
+    expected_exit_code: 0
+- id: W-128
+  title: 意地の悪い Windows の CI と、リポジトリの文字の衛生の検査
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild: portability-ci'
+  by: executor
+  serves: R4
+  purpose: 知りえない直書きを、環境を実際に変えて見つける。Windows で、コードページ 932・空白と日本語を含む作業のパス・CRLF の checkout で回す。BOM と改行の崩れ（fix の 5 件）は、リポジトリの全テキストを検査して止める。Linux のジョブは、この期間の不具合で見つけたはずのものが 0 件なので外した（ADR-004 の K-14 の改訂）
+  deliverable: .github/workflows/harness-tests.yml のジョブ、tests/test_ci_portability.py、tests/test_text_hygiene.py
+  depends_on:
+  - W-127
+  acceptance:
+  - Windows で、コードページ 932・空白と日本語を含む作業のパス・CRLF の checkout で、動いているラインの試験が走るジョブがある
+  - リポジトリの追跡しているテキストに、BOM と CRLF が無いことを試験が確かめる
+  oracle:
+  - path: tests/test_ci_portability.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_ci_portability tests.test_text_hygiene
     expected_exit_code: 0
 - id: W-129
   title: 走らせ役を Git に入れ、本番の clone・秘密・隔離の確かめを境界の上で作り直す
@@ -1792,7 +1793,6 @@ tasks:
   deliverable: harness/runner.py、harness/templates/resident/ の起動の型、harness/envcheck.py の acl、tests/test_runner.py
   depends_on:
   - W-128
-  - W-124
   acceptance:
   - 走らせ役の処理の失敗（外側の周期の処理を含む）が report.md の停止の節と停止の通知に出て、握りつぶされない
   - H ラインは本番の clone から動き、作業コピーが汚れていれば何もしない
