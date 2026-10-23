@@ -1,11 +1,11 @@
-active_task_id: W-144
+active_task_id: W-146
 constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (game-harness#44).
 last_verification:
-  task: W-145
+  task: W-144
   exit_code: 0
-  at: '2026-10-23T20:19:51'
+  at: '2026-10-23T20:52:27'
 next_id: 106
 nodes:
 - id: A
@@ -3101,7 +3101,7 @@ tasks:
   title: H ラインが止まっている間も、report.md に正しい状態を出す（W-110 を畳む）
   group: rebuild-0
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'rebuild-0: report-stopped'
   by: executor
   purpose: H ラインが止まっていても、書いた時刻・main の版・止まっていること・照合の最後の時刻が report.md に出て、総監督と操縦士が今の状態を読める
@@ -3122,7 +3122,7 @@ tasks:
   title: game-harness#276・game-harness#279 を閉じて材料として残し、反論の問い 2 件を取り下げる
   group: rebuild-0
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'rebuild-0: close-adr'
   by: executor
   purpose: 会話の席が単独で書いた ADR-005・ADR-006 を決定にせず材料として残し、立て直しの間の役の分け方を 1 か所に書く
