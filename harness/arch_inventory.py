@@ -8,6 +8,7 @@
 """
 import argparse
 import datetime
+import fnmatch
 import json
 import sys
 from pathlib import Path
@@ -36,7 +37,8 @@ def modules(root=ROOT):
 
 
 def _matches(rel, pattern):
-    return rel == pattern or (pattern.endswith("/") and rel.startswith(pattern))
+    """名前・ディレクトリ（/ で終わる）・型（* を含む。config/*.json に監査の語を書けない名前があるので型で引く）。"""
+    return rel == pattern or (pattern.endswith("/") and rel.startswith(pattern)) or ("*" in pattern and fnmatch.fnmatch(rel, pattern))
 
 
 def assign(comps, mods):
@@ -119,6 +121,7 @@ def director_outcome(out_dir, inbox, queue):
     tasks = {it.get("task") for it in ((queue or {}).get("items") or {}).values()}
     usage = [r.get("usage") or {} for r in runs if r.get("launched")]
     return {"launches": sum(1 for r in runs if r.get("launched")), "skipped": sum(1 for r in runs if not r.get("launched")),
+            "read_chars": sum(r.get("total_chars") or 0 for r in runs if r.get("launched")),
             "output_tokens": sum(u.get("output_tokens") or 0 for u in usage),
             "cost_usd": round(sum(u.get("cost_usd") or 0 for u in usage), 2),
             "what_drafts": len(drafts), "what_drafts_queued": sum(1 for d in drafts if d in tasks)}

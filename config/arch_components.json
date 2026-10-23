@@ -1,5 +1,5 @@
 {
-  "_comment": "今の構成の部品（段 A3、W-142）。harness/arch_inventory.py が部品ごとに費用と成果を数える。harness/ の .py はどれか 1 つの部品にだけ入る（tests/test_arch_inventory.py が確かめる）。名前は harness/ からの相対で、/ で終わるものはその下すべて",
+  "_comment": "今の構成の部品（段 A3、W-142）。harness/arch_inventory.py が部品ごとに費用と成果を数える。harness/ の .py はどれか 1 つの部品にだけ入る（tests/test_arch_inventory.py が確かめる）。名前は harness/ からの相対で、/ で終わるものはその下すべて、* は fnmatch の型",
   "components": {
     "director": {
       "title": "総監督（週次の起動・受信箱・照合・probe・目的までの距離）",
@@ -30,8 +30,8 @@
     },
     "game_line": {
       "title": "ゲームのライン（MS3・MS4：スケジューラ・パイプライン・分解・契約と性質の道具・アダプタ）",
-      "modules": ["scheduler.py", "pipeline.py", "decompose.py", "declare.py", "contract.py", "contractgen.py", "propgen.py",
-                  "propaudit.py", "nlgen.py", "testgen.py", "invgen.py", "invrun.py", "oracle.py", "unit_schema.py", "witness.py",
+      "modules": ["scheduler.py", "pipeline.py", "decompose.py", "declare.py", "contract.py", "contractgen.py",
+                  "prop*.py", "nlgen.py", "testgen.py", "invgen.py", "invrun.py", "oracle.py", "unit_schema.py", "witness.py",
                   "witness_selftest.py", "gdd_check.py", "spec.py", "playtest.py", "canary.py", "diagproj.py", "telemetry.py",
                   "project.py", "adapters/"]
     },
