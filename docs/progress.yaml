@@ -1,11 +1,11 @@
-active_task_id: W-146
+active_task_id: W-169
 constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (game-harness#44).
 last_verification:
-  task: W-144
+  task: W-148
   exit_code: 0
-  at: '2026-10-23T20:52:27'
+  at: '2026-10-23T21:12:48'
 next_id: 106
 nodes:
 - id: A
@@ -117,7 +117,7 @@ nodes:
 - id: rebuild-6
   parent: rebuild
   title: セクター 6：通しと締め
-project_goal: 自己改善できる自律開発環境（C4）を作る。段 1 軽い 3D 通し → 段 2 改善 → 段 3 物差しの凍結 → 段 4 Outer Loop の確立（C4）。段は nodes の W-15〜W-18。チャット型との比べ（C5）は、R5 の製品の付け足しで行い、そのときに改めて事前登録する（D-109）
+project_goal: 人の手を借りずに、測りながら自分を良くし続けられる開発の工廠（C4）を作り、3D の物理演算を含むゲームを題材にした長期開発で、単一コンテキスト型と対決させる（C5。勝ちを完了の条件にしない）。木は nodes の rebuild（立て直し）→ W-18（段 4）→ 段 5（置き場は W-153 で作る）
 tasks:
 - group: B3.1
   id: B3.1-PREP
@@ -3122,7 +3122,7 @@ tasks:
   title: game-harness#276・game-harness#279 を閉じて材料として残し、反論の問い 2 件を取り下げる
   group: rebuild-0
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'rebuild-0: close-adr'
   by: executor
   purpose: 会話の席が単独で書いた ADR-005・ADR-006 を決定にせず材料として残し、立て直しの間の役の分け方を 1 か所に書く
@@ -3142,7 +3142,7 @@ tasks:
   title: bench のパスワード・ACL・定期起動の暫定の手当て
   group: rebuild-0
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'rebuild-0: bench-safety'
   by: pilot
   purpose: bench のアカウントと定期起動の安全の残りを、立て直しの間の暫定の形で手当てする。手順は実行役が用意する
@@ -3163,7 +3163,7 @@ tasks:
   title: 台帳の project_goal と L5 をそろえる（文は操縦士が決める）
   group: rebuild-0
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'rebuild-0: project-goal'
   by: executor
   purpose: 台帳の目的の文を、操縦士が決めた L5 にそろえ、古い段の列挙を外して木を指すようにする
@@ -3183,7 +3183,7 @@ tasks:
   title: 決まりの棚卸しと整理（文の決まりを足さない）
   group: rebuild-0
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'rebuild-0: rules-inventory'
   by: executor
   purpose: 受信箱の CLAUDE.md・総監督の文書・調べ方の規則・CLAUDE.md・会話の席の記憶の決まりを棚卸しし、機械で守られていない文の決まりを減らす

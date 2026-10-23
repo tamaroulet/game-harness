@@ -15,7 +15,7 @@ sys.path.insert(0, str(TESTS))
 import agy_stub  # noqa: E402
 import pipeline  # noqa: E402
 
-SKIPPERS = {"test_fileops", "test_hline_queue", "test_job_object", "test_mutate_table", "test_v2r_preflight"}
+SKIPPERS = {"test_decision_log", "test_fileops", "test_hline_queue", "test_job_object", "test_mutate_table", "test_v2r_preflight"}   # test_decision_log：調べものの待ちの置き場（Git の外）が無い CI では ④ を飛ばす（W-146）
 IMPLEMENTER_LOG_TESTS = {
     "test_response_is_kept_even_when_rc_is_zero", "test_stderr_is_kept_when_the_cli_fails",
     "test_the_prompt_and_the_feedback_are_kept", "test_each_attempt_gets_its_own_file",
