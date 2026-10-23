@@ -1,0 +1,426 @@
+{
+  "id": "R-20261023-m5-knowledge-accumulation",
+  "title": "開発の中で外部の知識を集め、溜め、使う仕組み",
+  "stage": "map",
+  "decision": "調べもの（外部の最先端の情報）を、どう集めて、どう溜め、開発と判断の中でどう引くか（いまは調べ役の CLI・出典の機械の照合・記録の索引）",
+  "sectors": [
+    "frontier_labs",
+    "practitioners_at_scale",
+    "academia",
+    "standards_tools",
+    "practitioners"
+  ],
+  "asked_at": "2026-10-23T14:10:03+09:00",
+  "backend": "claude-deep",
+  "models": [
+    "claude-haiku-5-5",
+    "claude-sonnet-5-5"
+  ],
+  "usage": {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 20945,
+    "cache_read_input_tokens": 137589,
+    "output_tokens": 6669,
+    "output_tokens_details": {
+      "thinking_tokens": 294
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 20945,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 4391,
+        "cache_read_input_tokens": 33764,
+        "cache_creation_input_tokens": 1589,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 1589
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "Anthropic の調査システムは、主エージェントが副エージェントを並列に動かす orchestrator-worker 型で作られている。",
+      "source_url": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "source_title": "How we built our multi-agent research system",
+      "published": "2025-06-13",
+      "quote": "uses a multi-agent architecture with an orchestrator-worker pattern",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "多エージェント型の調査",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "b1291a954aa8aa63e99bc48ec25dcbe2b6ef6783f3094bfd1c7e1e5fd6c5d0f2",
+        "reason": null
+      }
+    },
+    {
+      "id": "C2",
+      "claim": "多エージェント構成は社内の調査評価で、単一エージェントの Claude Opus 4 を 90.2% 上回った。ただしトークン消費は会話の約 15 倍である。",
+      "source_url": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "source_title": "How we built our multi-agent research system",
+      "published": "2025-06-13",
+      "quote": "outperformed single-agent Claude Opus 4 by 90.2% on our internal research eval",
+      "kind": "vendor_claim",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "多エージェント型の調査",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "b1291a954aa8aa63e99bc48ec25dcbe2b6ef6783f3094bfd1c7e1e5fd6c5d0f2",
+        "reason": null
+      }
+    },
+    {
+      "id": "C3",
+      "claim": "評価は LLM 判定者が基準表で行う。見る項目は、主張が出典と合うか（事実の正確さ）、引用が主張と合うか（引用の正確さ）、一次の出典を選んだか（出典の質）である。",
+      "source_url": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "source_title": "How we built our multi-agent research system",
+      "published": "2025-06-13",
+      "quote": "citation accuracy (do the cited sources match the claims?)",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "LLM 判定者による評価",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "b1291a954aa8aa63e99bc48ec25dcbe2b6ef6783f3094bfd1c7e1e5fd6c5d0f2",
+        "reason": null
+      }
+    },
+    {
+      "id": "C4",
+      "claim": "調査エージェントは初期に、権威ある出典より SEO 目的のコンテンツ農場を選びがちだった。出典の質を見る指針を指示に加えて直した。",
+      "source_url": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "source_title": "How we built our multi-agent research system",
+      "published": "2025-06-13",
+      "quote": "consistently chose SEO-optimized content farms over authoritative",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "出典の質の指針",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "b1291a954aa8aa63e99bc48ec25dcbe2b6ef6783f3094bfd1c7e1e5fd6c5d0f2",
+        "reason": null
+      }
+    },
+    {
+      "id": "C5",
+      "claim": "報告書ができた後に、引用の位置を探す専用の引用エージェントを別に通す作りがある。",
+      "source_url": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "source_title": "How we built our multi-agent research system",
+      "published": "2025-06-13",
+      "quote": "processes the documents and research report",
+      "kind": "fact",
+      "confidence": "low",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "引用の後付け照合",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "b1291a954aa8aa63e99bc48ec25dcbe2b6ef6783f3094bfd1c7e1e5fd6c5d0f2",
+        "reason": null
+      }
+    },
+    {
+      "id": "C6",
+      "claim": "ALCE は、引用つきの文章生成を測る最初のベンチマークで、流暢さ・正しさ・引用の質を測る。最良のモデルでも ELI5 で半分は引用の裏付けが欠ける。",
+      "source_url": "https://arxiv.org/abs/2305.14627",
+      "source_title": "Enabling Large Language Models to Generate Text with Citations",
+      "published": "2023-05-24",
+      "quote": "even the best models lack complete citation support 50% of the time",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "引用の自動評価ベンチマーク",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "6926482bca9abbf647e5c3104e25ed4f9f7421289c49383d923c61e2cb57e9fb",
+        "reason": null
+      }
+    },
+    {
+      "id": "C7",
+      "claim": "既存の生成検索エンジンでは、生成文のうち引用で完全に裏付けられるのは平均 51.5% にとどまる。",
+      "source_url": "https://arxiv.org/abs/2304.09848",
+      "source_title": "Evaluating Verifiability in Generative Search Engines",
+      "published": "2023-04-19",
+      "quote": "on average, a mere 51.5% of generated sentences are fully supported by citations",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "引用の自動評価ベンチマーク",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "3635bd25fadfd1b9090ee7ff48079f3e1ca1b0c3ce204044d61ea8303b53703d",
+        "reason": null
+      }
+    },
+    {
+      "id": "C8",
+      "claim": "Self-RAG は、モデル自身が検索の要否と出力の批評を反省トークンで行う。事実性と引用の正確さが上がると報告している。",
+      "source_url": "https://arxiv.org/abs/2310.11511",
+      "source_title": "Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection",
+      "published": "2023-10-17",
+      "quote": "shows significant gains in improving factuality and citation accuracy for long-form generations",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "生成中の自己批評",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "6d3054cb5738cb8373d8b757eca3a5fba3f142304c8727e68476a5487272ca1c",
+        "reason": null
+      }
+    },
+    {
+      "id": "C9",
+      "claim": "FreshQA は、変化の速い知識と誤った前提を含む質問の動的ベンチマークである。モデルは大きさによらずこれに弱い。検索結果を指示に入れる FreshPrompt で改善する。",
+      "source_url": "https://arxiv.org/abs/2310.03214",
+      "source_title": "FreshLLMs: Refreshing Large Language Models with Search Engine Augmentation",
+      "published": "2023-10-05",
+      "quote": "all models (regardless of model size) struggle on questions that involve fast-changing knowledge and false premises",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "情報の鮮度の評価",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "0c54f3776dbad4388d828b29ee597e20a1794233863a52ec5cd4d21eaf6b1e91",
+        "reason": null
+      }
+    },
+    {
+      "id": "C10",
+      "claim": "Contextual Retrieval（文書片ごとに文脈を足した埋め込みと BM25、さらに再順位付け）は、上位 20 件の取り出し失敗率を 67% 減らした。",
+      "source_url": "https://www.anthropic.com/engineering/contextual-retrieval",
+      "source_title": "Introducing Contextual Retrieval",
+      "published": "2024-09-19",
+      "quote": "Reranked Contextual Embedding and Contextual BM25 reduced the top-20-chunk retrieval failure rate by 67%",
+      "kind": "vendor_claim",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "検索の索引（埋め込み＋語彙＋再順位）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "b4ceaa39c9d32ab7890e5699415fd4a76275392d5a4a2fc9212494222e36f88e",
+        "reason": null
+      }
+    },
+    {
+      "id": "C11",
+      "claim": "GraphRAG は、文書集合からグラフと共同体の要約を作り、全体を問う質問（主な主題は何か）に答える。通常の RAG が苦手な型に当たる。",
+      "source_url": "https://arxiv.org/abs/2404.16130",
+      "source_title": "From Local to Global: A Graph RAG Approach to Query-Focused Summarization",
+      "published": "2024-04-24",
+      "quote": "a graph-based approach to question answering over private text corpora",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "グラフ型の知識ベース",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "ca7c30847d41afdfcb885b1dd877717bfc30b7413f2450941ba58d2cc882b32c",
+        "reason": null
+      }
+    },
+    {
+      "id": "C12",
+      "claim": "MemGPT は、OS の階層記憶に倣い、速い記憶と遅い記憶の間でデータを動かして長い文脈に見せかける。",
+      "source_url": "https://arxiv.org/abs/2310.08560",
+      "source_title": "MemGPT: Towards LLMs as Operating Systems",
+      "published": "2023-10-12",
+      "quote": "virtual context management, a technique drawing inspiration from hierarchical memory systems",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "階層型のエージェント記憶",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "b8060101479ea4ca8dfdf631be55ae52f1400564e9528eb248226446a33359a4",
+        "reason": null
+      }
+    },
+    {
+      "id": "C13",
+      "claim": "Mem0 は、長期記憶を抽出して保存し、全文脈方式に比べ p95 遅延 91% 減、トークン費 90% 超減を報告している。著者自身の測定である。",
+      "source_url": "https://arxiv.org/abs/2504.19413",
+      "source_title": "Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory",
+      "published": "2025-04-28",
+      "quote": "Mem0 attains a 91% lower p95 latency",
+      "kind": "vendor_claim",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "階層型のエージェント記憶",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "0a7de4bea73f17b0dfce757b2d565f896fa3bf64290d83a4b24d7386f54a4fb5",
+        "reason": null
+      }
+    },
+    {
+      "id": "C14",
+      "claim": "Anthropic は、エージェントが文脈の外に書き残す覚え書きを後で引き戻す方式（構造化されたメモ取り）を、文脈が溢れたときの手段の 1 つに挙げている。",
+      "source_url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "source_title": "Effective context engineering for AI agents",
+      "published": "2025-09-29",
+      "quote": "regularly writes notes persisted to memory outside of the context window",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "ファイル・覚え書きによる記憶",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "f87af37cbc7d9b0d5a5c913d93d1a2812413133a16afc8f660d07db64bf37231",
+        "reason": null
+      }
+    },
+    {
+      "id": "C15",
+      "claim": "同じ記事は、全部を先に読み込まず、ファイルパスや保存した問い合わせ・リンクなどの軽い識別子を持たせ、実行時に道具で読み込む「必要な時に取る」方式を述べている。",
+      "source_url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "source_title": "Effective context engineering for AI agents",
+      "published": "2025-09-29",
+      "quote": "lightweight identifiers (file paths, stored queries, web links, etc.)",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "必要な時に取る検索",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "f87af37cbc7d9b0d5a5c913d93d1a2812413133a16afc8f660d07db64bf37231",
+        "reason": null
+      }
+    },
+    {
+      "id": "C16",
+      "claim": "調査エージェント（Deep Research）のサーベイは、静的な流れと動的な流れを分ける分類を提案している。",
+      "source_url": "https://arxiv.org/abs/2506.18096",
+      "source_title": "Deep Research Agents: A Systematic Examination And Roadmap",
+      "published": "2025-06-22",
+      "quote": "propose a taxonomy that differentiates between static and dynamic workflows",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "調査エージェントの分類",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "e6269a40e6fbf85a87d917e1ca84a72bf9691830e09ebe5b596b4e3a36c6d32f",
+        "reason": null
+      }
+    },
+    {
+      "id": "C17",
+      "claim": "ADR は 1 つの設計決定とその理由を記録するもので、プロジェクトの ADR の集まりが決定の記録簿になる。根拠となる出典を結ぶ決まりは、このページには明記されていない。",
+      "source_url": "https://adr.github.io/",
+      "source_title": "Architectural Decision Records",
+      "published": "不明",
+      "quote": "The collection of ADRs created and maintained in a project constitute its decision log.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "決定記録（ADR）",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:10:03+09:00",
+        "sha256": "54ba40c899ba328f3deffb6efdf743929b29b96da329ba9a18055a9e3bc48216",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    }
+  ],
+  "queries": [
+    "Anthropic multi-agent research system",
+    "Anthropic contextual retrieval",
+    "ALCE citation benchmark",
+    "Self-RAG",
+    "Evaluating Verifiability in Generative Search Engines",
+    "MemGPT",
+    "GraphRAG",
+    "Mem0",
+    "FreshLLMs FreshQA",
+    "Deep Research Agents survey",
+    "Anthropic effective context engineering",
+    "adr.github.io",
+    "OpenAI introducing deep research",
+    "Simon Willison deep research"
+  ],
+  "unknowns": [
+    "OpenAI の deep research 紹介ページは 403 で読めず、OpenAI・Google DeepMind・Microsoft/GitHub・Meta の公式の調査エージェントの評価値は集められなかった",
+    "practitioners_at_scale（大規模運用企業の事後検証）と practitioners（名の通った実務家）の出典は、まだ取れていない。Simon Willison の記事は URL が 404 で、確かめられなかった",
+    "standards_tools では ADR の公式ページしか取れず、ADR に調べた根拠を結び付ける実践の文書（MADR の参照欄、OpenSSF など）は未確認",
+    "古くなった情報の扱い（有効期限・再検証・版管理）の実測は FreshQA だけで、知識ベースの陳腐化を測った研究は未確認",
+    "出典の機械照合（引用文が本文に実在するかの自動検証）の専用手法は、ALCE と Verifiability の評価指標以外は未確認",
+    "本文の引用は WebFetch の要約モデルを経由して得たため、一字一句の一致は機械照合で確かめる必要がある。Mem0 と Anthropic の数字は著者自身の測定である"
+  ],
+  "counts": {
+    "verified": 16,
+    "quote_not_found": 1,
+    "unreachable": 0,
+    "no_source": 0
+  },
+  "question": "# 開発の中で外部の知識を集め、溜め、使う仕組み\n\n## 段\nmap\n\n## 決めたい判断\n調べもの（外部の最先端の情報）を、どう集めて、どう溜め、開発と判断の中でどう引くか（いまは調べ役の CLI・出典の機械の照合・記録の索引）\n\n## 判断を変えうるもの\nエージェントが外部の知識を集める仕組み（調査のエージェント・出典の検証・知識の索引・記憶）で、確立した形や評価の結果があれば、それに寄せる。情報の鮮度と誤りの扱いについての実測\n\n## 分野\nfrontier_labs\npractitioners_at_scale\nacademia\nstandards_tools\npractitioners\n\n## 問い\nAI エージェントに外部の情報を調べさせ、その結果を溜めて後から使う仕組みの手法の系統を集めてください。\n\n- 調査のエージェント（deep research の類）の作り方と、その評価（正確さ・出典の正しさ・幻覚）\n- 出典の検証・引用の照合の手法\n- 調べた知識を溜めて引く仕組み（索引・検索・記憶・知識ベース）と、古くなった情報の扱い\n- 開発の判断（設計の決定記録など）に、調べた根拠を結び付ける実践\n"
+}

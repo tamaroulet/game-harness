@@ -1,0 +1,355 @@
+{
+  "id": "R-20261023-c1-run-loop-on-ci-vs-local",
+  "title": "自律開発の内側のループを、どこで回すか：CI の上の公式のエージェントか、手元の PC の独自のループか",
+  "stage": "compare",
+  "decision": "エージェントにタスクを実装させて PR を出す内側のループを、手元の Windows の PC の独自の常駐ループ（いまの形）で回し続けるか、GitHub Actions などの CI の使い捨て環境の上で、提供元の公式のエージェント（Claude Code GitHub Actions・Codex・Gemini CLI の Actions・Copilot の coding agent）に置き換えるか",
+  "sectors": [],
+  "asked_at": "2026-10-23T14:12:08+09:00",
+  "backend": "claude-deep",
+  "models": [
+    "claude-haiku-5-5",
+    "claude-sonnet-5-5"
+  ],
+  "usage": {
+    "input_tokens": 14,
+    "cache_creation_input_tokens": 51215,
+    "cache_read_input_tokens": 246737,
+    "output_tokens": 7172,
+    "output_tokens_details": {
+      "thinking_tokens": 409
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 51215,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 4582,
+        "cache_read_input_tokens": 54819,
+        "cache_creation_input_tokens": 10804,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 10804
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "claude-code-action は、API キー（ANTHROPIC_API_KEY）と、Claude の定額契約（Pro/Max/Team/Enterprise）の OAuth トークン（CLAUDE_CODE_OAUTH_TOKEN）の両方で認証できる。トークンは手元で claude setup-token を実行して作る。",
+      "source_url": "https://code.claude.com/docs/en/github-actions",
+      "source_title": "Claude Code GitHub Actions",
+      "published": "不明",
+      "quote": "`CLAUDE_CODE_OAUTH_TOKEN`: an OAuth token that authenticates with your Claude subscription, available on Pro, Max, Team, and Enterprise plans. Generate one by running `claude setup-token` locally.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "B: Claude Code Action (CI上)",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "ae88f7a97b5d4642a6ae6b69b347e08419c19f253061ed54f416588727ebb4d6",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C2",
+      "claim": "claude-code-action の 1 回の実行は、Actions の分と API トークンの 2 種類の資源を使う。定額の OAuth トークンなら API 課金ではなく定額の契約の枠を使う。上限は --max-turns、ワークフローのタイムアウト、GitHub の concurrency 制御で自分で掛ける。",
+      "source_url": "https://code.claude.com/docs/en/github-actions",
+      "source_title": "Claude Code GitHub Actions",
+      "published": "不明",
+      "quote": "If you authenticate with an OAuth token, runs use your Claude subscription instead of API billing.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "B: Claude Code Action (CI上)",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "ae88f7a97b5d4642a6ae6b69b347e08419c19f253061ed54f416588727ebb4d6",
+        "reason": null
+      }
+    },
+    {
+      "id": "C3",
+      "claim": "公式文書は、複数のリポジトリで共有する秘密には、OAuth トークンではなく Console の API キーを勧めている。OAuth トークンは setup-token を実行した個人の契約に結び付くため。",
+      "source_url": "https://code.claude.com/docs/en/github-actions",
+      "source_title": "Claude Code GitHub Actions",
+      "published": "不明",
+      "quote": "an OAuth token is tied to the subscription of the person who ran `claude setup-token`.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "B: Claude Code Action (CI上)",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "ae88f7a97b5d4642a6ae6b69b347e08419c19f253061ed54f416588727ebb4d6",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C4",
+      "claim": "claude setup-token が作るトークンは 1 年有効で、モデルへの要求だけができる。Remote Control の接続や claude.ai コネクタの取得はできない。--bare を付けるとこのトークンは読まれない。",
+      "source_url": "https://code.claude.com/docs/en/authentication",
+      "source_title": "Authentication - Claude Code Docs",
+      "published": "不明",
+      "quote": "This token authenticates with your Claude subscription and requires a Pro, Max, Team, or Enterprise plan. It can only make model requests, so it can't establish [Remote Control](/docs/en/remote-control.md) sessions or fetch [claude.ai connectors](/docs/en/mcp.md#use-mcp-servers-from-claude-ai).",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "B: Claude Code Action (CI上)",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "df1b25701b147df29bba3cb6f6c9c53a372d61f202810e73348739b95687d686",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C5",
+      "claim": "認証の優先順位では ANTHROPIC_API_KEY が CLAUDE_CODE_OAUTH_TOKEN より上位にある。非対話（-p）では、キーがあれば必ずそれが使われる。定額の枠で回したいのに API キーの環境変数が残っていると、API 課金になる、または認証に失敗する。",
+      "source_url": "https://code.claude.com/docs/en/authentication",
+      "source_title": "Authentication - Claude Code Docs",
+      "published": "不明",
+      "quote": "In non-interactive mode (`-p`), the key is always used when present.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "B: Claude Code Action (CI上)",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "df1b25701b147df29bba3cb6f6c9c53a372d61f202810e73348739b95687d686",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C6",
+      "claim": "claude-code-action の issue #1281（未解決）で、Max 契約の OAuth トークンを使うと認証に失敗するという報告がある。Pro から Max への切り替えの後に起きたとされ、別の利用者は最初から Max でも再現し、ログに何も出ないと書いている。API キーだけが回避策で、その場合は従量課金に移る。",
+      "source_url": "https://github.com/anthropics/claude-code-action/issues/1281",
+      "source_title": "claude-code-action issue #1281",
+      "published": "2026-08-19",
+      "quote": "Only `ANTHROPIC_API_KEY` works as a workaround, but that defeats the purpose of OAuth for subscription users.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "B: Claude Code Action (CI上)",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "7a2d492bc130683d78481d2bea70a91fdef28713f7d2e6b19ca5c2ac1c7d1940",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C7",
+      "claim": "GitHub が用意する実行時間の上限は、GitHub が運用する runner ではジョブ 1 件あたり最大 6 時間。自前の runner では最大 5 日。並行ジョブの数は契約により、標準 runner で Free 20、Pro 40、Team 60、Enterprise 500。",
+      "source_url": "https://docs.github.com/en/actions/reference/limits",
+      "source_title": "Actions limits - GitHub Docs",
+      "published": "不明",
+      "quote": "Each job in a workflow can run for up to 6 hours of execution time.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "B/C: GitHub Actions の上限",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "ac9c9f21d3853727d28c894f068b045b68e6e1950a76971b0d28f0c886b28b7f",
+        "reason": null
+      }
+    },
+    {
+      "id": "C8",
+      "claim": "claude-code-action の既定では、Claude の GitHub App 権限で push するので他の CI が動く。ワークフローに既定の GITHUB_TOKEN を渡すと、Claude の commit では CI が起動しない。必須チェックで合否を決める構成では、この点が合否の経路に関わる。",
+      "source_url": "https://code.claude.com/docs/en/github-actions",
+      "source_title": "Claude Code GitHub Actions",
+      "published": "不明",
+      "quote": "GitHub doesn't trigger workflows on commits made with the default `GITHUB_TOKEN`.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "B: Claude Code Action (CI上)",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "ae88f7a97b5d4642a6ae6b69b347e08419c19f253061ed54f416588727ebb4d6",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C9",
+      "claim": "OpenAI Codex は、プログラム的な利用（CI/CD）には API キー認証を勧めている。API キーでは標準の API 料金で課金され、ChatGPT 契約に含まれる枠は使われない。Codex cloud は ChatGPT でのサインインが必要。",
+      "source_url": "https://learn.chatgpt.com/docs/auth",
+      "source_title": "Codex Authentication（旧 developers.openai.com/codex/auth）",
+      "published": "不明",
+      "quote": "Use API key authentication for programmatic Codex CLI workflows, such as CI/CD jobs.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "C: Codex / Gemini の Actions",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "26225f96341d08e50d5b2d50f3008155719a73ec3dac795ae99245735c996745",
+        "reason": null
+      }
+    },
+    {
+      "id": "C10",
+      "claim": "openai/codex-action は提供元ごとの API キーを必須とする。GitHub が運用する Windows runner には対応した sandbox が無い。API キーは proxy を通るため、read-only でも Codex が読める可能性がある。",
+      "source_url": "https://github.com/openai/codex-action",
+      "source_title": "openai/codex-action README",
+      "published": "不明",
+      "quote": "GitHub-hosted Windows runners lack a supported sandbox.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "C: Codex / Gemini の Actions",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "56e98fd72da10d7d81af9d1a97cad40d8d2986b85672c0ecb2864d9645e07a56",
+        "reason": null
+      }
+    },
+    {
+      "id": "C11",
+      "claim": "Gemini CLI の Actions（run-gemini-cli）は Gemini API キー、Workload Identity Federation などで認証する。README に具体的な枠や料金は書かれておらず、「無料の枠」とだけある。DEBUG 環境変数を設定すると CLI が止まる。",
+      "source_url": "https://github.com/google-github-actions/run-gemini-cli",
+      "source_title": "google-github-actions/run-gemini-cli",
+      "published": "不明",
+      "quote": "Do not use the `DEBUG` environment variable as it causes the Gemini CLI to hang waiting for node debugger to attach.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "C: Codex / Gemini の Actions",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "870f807304697ec30c52ada6428b4a3ec8eb11f1554c3189e9a7e54319ac4ade",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C12",
+      "claim": "Copilot の coding agent は 1 セッションの実行が最大 59 分で、延長できない。1 度に 1 つのブランチで作業し、1 つのタスクにつき PR は 1 つ。",
+      "source_url": "https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-coding-agent",
+      "source_title": "About GitHub Copilot cloud agent",
+      "published": "不明",
+      "quote": "Each Copilot cloud agent session has a maximum execution time of 59 minutes. This limit cannot be extended or bypassed.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "D: Copilot coding agent",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "d79623751f3ec294f569770035218339e0a07cd848e415024a592dfa3f530988",
+        "reason": null
+      }
+    },
+    {
+      "id": "C13",
+      "claim": "Copilot の coding agent は 1 セッションにつきプレミアム要求を 1 回消費する。作業の大きさにかかわらず同じ。加えて GitHub Actions の分を使い、その量は作業の長さで変わる。",
+      "source_url": "https://github.blog/changelog/2025-07-10-github-copilot-coding-agent-now-uses-one-premium-request-per-session/",
+      "source_title": "GitHub Copilot coding agent now uses one premium request per session",
+      "published": "2025-07-10",
+      "quote": "The entire session—regardless of how many files are modified or how complex the task is—uses one premium request.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "D: Copilot coding agent",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "a0d15ce15db3a463b6302129beee075621367c91ef92075d35148be7f8312243",
+        "reason": null
+      }
+    },
+    {
+      "id": "C14",
+      "claim": "自律エージェントに本物の PR を出させた個人の事例に、変更範囲の逸脱と force-push 寸前の失敗があった。対策はブランチ名の規則・commit の規則・レビューの関門・触れる範囲の上限。単一の個人の記事で、規模の大きい運用ではない。",
+      "source_url": "https://dev.to/yureki_lab/5-lessons-from-letting-my-ai-coding-agent-open-its-own-pull-requests-7g",
+      "source_title": "5 lessons from letting my AI coding agent open its own pull requests",
+      "published": "不明",
+      "quote": "不明（検索結果の要約のみで、本文を直接確かめていない。このため quote は空）",
+      "kind": "opinion",
+      "confidence": "low",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "A/B: 自律PRの運用",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:12:08+09:00",
+        "sha256": "59e2da40a29157d5b79e7616204d0eafff6eaa1e0676e059a23332cde90d515f",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    }
+  ],
+  "queries": [
+    "claude-code-action CLAUDE_CODE_OAUTH_TOKEN Max subscription GitHub Actions setup-token",
+    "openai codex-action GitHub Actions authentication API key ChatGPT plan",
+    "Copilot coding agent premium requests Actions minutes billing per session",
+    "autonomous coding agent GitHub Actions lessons learned failures cost postmortem long-running",
+    "claude-code-action GitHub Actions timeout max turns session resume across runs state limitations FAQ",
+    "Copilot coding agent limitations concurrent sessions session logs continue pull request review comments iterate"
+  ],
+  "unknowns": [
+    "最後の claim（dev.to の個人の記事）は本文を直接開いて確かめておらず、quote が本文の抜粋になっていない。機械の照合では必ず落ちるので、claims から外して扱うこと。",
+    "claude-code-action の実行時間の上限、状態（どのタスクが済んだか）の引き継ぎ、失敗からの再開、別の実行をまたぐ session の再開について、公式の文書に記述を見つけられなかった。文書にあるのは --max-turns・ワークフローのタイムアウト・concurrency 制御で自分で上限を掛けるという助言まで。",
+    "Copilot の coding agent の並行セッション数の上限は、公式の文書で見つけられなかった。",
+    "Gemini CLI の Actions と Codex の Actions の、実行時間・並行数・状態の引き継ぎの記述は確かめていない。Gemini の枠の数字も README に無かった。",
+    "エージェントを大規模に、または長く CI の上で運用している当事者の事後検証（失敗の件数、費用の実測など）は、見つけられなかった。見つかったのは個人のブログと、仕様の文書だけ。",
+    "手元で独自のループを回す側の欠点（PC の電源や接続、認証の期限切れなど）を、一次の出典で集めていない。Claude Code の認証の文書に、無人で動かすセッションがログインの期限切れで進まなくなるという記述はある（Renew an expiring login の節）が、claim にしていない。",
+    "定額の契約の枠を CI で使うことが、規約の上で許されるかどうか（利用枠の制限や規約）は確かめていない。文書上は OAuth トークンの使用が案内されている、という点までしか言えない。",
+    "公開日は多くの出典で取れなかった（「不明」）。issue #1281 の日付は、本文に書かれた投稿の日付（2026-08-19）。",
+    "WebFetch は小さなモデルを通した要約で返るため、quote のうち github.com/openai/codex-action と Gemini の README 由来のものは、本文と一字一句同じか確証が無い（confidence を medium にした）。"
+  ],
+  "counts": {
+    "verified": 6,
+    "quote_not_found": 8,
+    "unreachable": 0,
+    "no_source": 0
+  },
+  "question": "# 自律開発の内側のループを、どこで回すか：CI の上の公式のエージェントか、手元の PC の独自のループか\n\n## 段\ncompare\n\n## 決めたい判断\nエージェントにタスクを実装させて PR を出す内側のループを、手元の Windows の PC の独自の常駐ループ（いまの形）で回し続けるか、GitHub Actions などの CI の使い捨て環境の上で、提供元の公式のエージェント（Claude Code GitHub Actions・Codex・Gemini CLI の Actions・Copilot の coding agent）に置き換えるか\n\n## 判断を変えうるもの\nCI の上の公式のエージェントで、長く多くのタスクを回している運用の例と、その失敗例・費用（API の課金か定額の契約か、Actions の時間）・制約（実行時間の上限・状態の引き継ぎ・並行数）。手元の独自のループを保つべき理由（定額の契約の利用枠を使える、など）があるか\n\n## 候補\nA. 手元の PC の独自の常駐ループ（計画役・実装役・Gate 1・統合 PR を自前で回す）\nB. GitHub Actions の上で、Claude Code GitHub Actions（anthropics/claude-code-action）を、台帳のタスク（issue）ごとに動かし、合否は必須チェックで決める\nC. Gemini CLI の GitHub Actions（google-github-actions/run-gemini-cli）や OpenAI Codex の Actions を同じ形で使う\nD. Copilot の coding agent など、提供元が運用するクラウドのエージェントに issue を割り当てる\n\n## 問い\n上の候補ごとに、次のことを集めてください。\n\n- 公式の文書にある使い方・認証の方式（API キーか、定額の契約のトークンか）・費用の仕組み・実行時間や並行数の上限\n- 大規模に、または長く運用している例と、その失敗例・事後検証\n- 状態（どのタスクが済んだか）の引き継ぎ方と、失敗からの再開\n- 反対意見（CI の上で回すことの欠点、手元で回すことの欠点）\n"
+}

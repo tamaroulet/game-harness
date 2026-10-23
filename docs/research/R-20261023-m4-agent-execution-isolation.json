@@ -1,0 +1,409 @@
+{
+  "id": "R-20261023-m4-agent-execution-isolation",
+  "title": "エージェントを無人で走らせる実行環境：隔離・権限・資格情報",
+  "stage": "map",
+  "decision": "無人で走る実装役と、それを回す常駐のループを、どの実行環境で動かすか（いまの PC の OS アカウントの分離・WSL2・VM・コンテナ・クラウドで走るエージェント・CI のランナー）",
+  "sectors": [
+    "frontier_labs",
+    "practitioners_at_scale",
+    "academia",
+    "standards_tools",
+    "practitioners"
+  ],
+  "asked_at": "2026-10-23T14:07:57+09:00",
+  "backend": "claude-deep",
+  "models": [
+    "claude-haiku-5-5",
+    "claude-sonnet-5-5"
+  ],
+  "usage": {
+    "input_tokens": 16,
+    "cache_creation_input_tokens": 57803,
+    "cache_read_input_tokens": 293603,
+    "output_tokens": 9366,
+    "output_tokens_details": {
+      "thinking_tokens": 494
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 57803,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 5992,
+        "cache_read_input_tokens": 56222,
+        "cache_creation_input_tokens": 15989,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 15989
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "Anthropic の組み込みサンドボックス（Bash ツール）は、OS の仕組みでファイルとネットワークを制限する。ホスト上で動き、コンテナは使わない。ネイティブ Windows では対応せず、Windows では WSL2 を使う。",
+      "source_url": "https://code.claude.com/docs/en/sandbox-environments",
+      "source_title": "Choose a sandbox environment (Claude Code docs)",
+      "published": "不明",
+      "quote": "This option does not support native Windows. On Windows hosts, use WSL2 or one of the container or VM approaches below.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "OS 組み込みのサンドボックス（コマンド単位）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "f72469cbba8292f55566f63d09cc952240cf44e14f68940a5be61d5d5de96c5d",
+        "reason": null
+      }
+    },
+    {
+      "id": "C2",
+      "claim": "Claude Code のサンドボックスは macOS・Linux・WSL2 で動く。ネイティブ Windows ではコマンドが隔離されずに実行される。",
+      "source_url": "https://code.claude.com/docs/en/sandboxing",
+      "source_title": "Configure the sandboxed Bash tool (Claude Code docs)",
+      "published": "不明",
+      "quote": "The sandbox runs on macOS, Linux, and WSL2. On native Windows, Claude Code runs commands unsandboxed.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "OS 組み込みのサンドボックス（コマンド単位）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "b9f56ef448a82b474440de0cd5a0716ba9511ff0af525846923f66294778f1b2",
+        "reason": null
+      }
+    },
+    {
+      "id": "C3",
+      "claim": "Anthropic は、完全に無人で動かすなら Bash サンドボックス単体では足りないと明記している。コンテナ・VM・サンドボックス ランタイムの内側で動かし、`--dangerously-skip-permissions` もそこで使うよう勧めている。",
+      "source_url": "https://code.claude.com/docs/en/sandbox-environments",
+      "source_title": "Choose a sandbox environment (Claude Code docs)",
+      "published": "不明",
+      "quote": "The [sandboxed Bash tool](#sandboxed-bash-tool) on its own constrains only shell commands, so it is not sufficient for fully unattended runs in either mode.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "OS 組み込みのサンドボックス（コマンド単位）",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "f72469cbba8292f55566f63d09cc952240cf44e14f68940a5be61d5d5de96c5d",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C4",
+      "claim": "Anthropic の比較表では、隔離の強さは Bash サンドボックス、サンドボックス ランタイム、dev container、カスタム コンテナ、VM、クラウド セッションの順に広がる。VM は独自のカーネルを持ち、最も強い分離とされている。",
+      "source_url": "https://code.claude.com/docs/en/sandbox-environments",
+      "source_title": "Choose a sandbox environment (Claude Code docs)",
+      "published": "不明",
+      "quote": "A dedicated virtual machine provides the strongest separation, with its own kernel and, in cloud or microVM deployments, its own virtualized hardware.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "VM・microVM",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "f72469cbba8292f55566f63d09cc952240cf44e14f68940a5be61d5d5de96c5d",
+        "reason": null
+      }
+    },
+    {
+      "id": "C5",
+      "claim": "dev container（Docker）は、既定拒否のファイアウォールと組み合わせると、`--dangerously-skip-permissions` を使った無人運用を支える。ただし公式文書は、悪意あるプロジェクトによる持ち出しを防げないと警告している。コンテナ内の Claude 資格情報（~/.claude）も持ち出せる。ホストの秘密情報はマウントせず、リポジトリ単位か短命のトークンを使うよう勧めている。",
+      "source_url": "https://code.claude.com/docs/en/devcontainer",
+      "source_title": "Development containers (Claude Code docs)",
+      "published": "不明",
+      "quote": "When executed with `--dangerously-skip-permissions`, dev containers do not prevent a malicious project from exfiltrating anything accessible inside the container, including the Claude Code credentials stored in [`~/.claude`](/docs/en/claude-directory).",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "コンテナ（dev container・ファイアウォール付き）",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "0dd55bb6fff5fabda755b7f3437456cbd321c644fc1c48b393a65eada752b38e",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C6",
+      "claim": "サンドボックスは、ファイルの隔離とネットワークの隔離の両方がそろって初めて有効だとされる。Anthropic の内部利用では、許可の確認が 84% 減った。",
+      "source_url": "https://www.anthropic.com/engineering/claude-code-sandboxing",
+      "source_title": "Beyond permission prompts: making Claude Code more secure and autonomous",
+      "published": "不明",
+      "quote": "In our internal usage, we've found that sandboxing safely reduces permission prompts by 84%.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "OS 組み込みのサンドボックス（コマンド単位）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "0bfbfa2f7d70c482bfe387202b9afadcccfe4487221d24ccae4039c19a768762",
+        "reason": null
+      }
+    },
+    {
+      "id": "C7",
+      "claim": "Anthropic のクラウド セッションは、Anthropic 管理の隔離された VM で動く。git の資格情報と署名鍵は VM の外に置き、プロキシが範囲を絞った資格情報で代理認証する。ネットワークは既定で制限される。ネットワークを無効にしても Anthropic API とは通信できるため、データが VM の外へ出うる。",
+      "source_url": "https://code.claude.com/docs/en/claude-code-on-the-web",
+      "source_title": "Use Claude Code in the cloud (Claude Code docs)",
+      "published": "不明",
+      "quote": "in Anthropic-hosted environments, git credentials and signing keys stay outside the sandbox, and a proxy authenticates on the session's behalf with scoped credentials.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "提供元が運用するクラウド VM と資格情報プロキシ",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "30aee33e92337e47b31953f07de6df733af99972d155100596a53b22dbdaabe7",
+        "reason": null
+      }
+    },
+    {
+      "id": "C8",
+      "claim": "OpenAI の Codex クラウド環境は、エージェント段階のインターネットを既定で遮断する。有効にすると、プロンプト インジェクションと、コードや秘密情報の持ち出しの危険が増すと公式文書が認めている。許可リストは『なし』と『依存関係の一般的な通信先』などから選べる。",
+      "source_url": "https://learn.chatgpt.com/docs/cloud/internet-access",
+      "source_title": "Agent internet access (Codex cloud docs)",
+      "published": "不明",
+      "quote": "By default, Codex blocks internet access during the agent phase.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "提供元が運用するクラウド VM と資格情報プロキシ",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "82d965f6409e5437148f08f316d48d8a1993d49be02a8a1817cc2fce933b96da",
+        "reason": null
+      }
+    },
+    {
+      "id": "C9",
+      "claim": "Codex クラウドでは、秘密情報はセットアップ スクリプトの間だけ使え、エージェント段階が始まる前に取り除かれる。",
+      "source_url": "https://learn.chatgpt.com/docs/environments/cloud-environment",
+      "source_title": "Cloud environments (Codex docs)",
+      "published": "不明",
+      "quote": "For security reasons, secrets are removed before the agent phase starts.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "段階分離（準備段階だけ秘密情報とネットワーク）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "71787fe4abae6cb1c73373bea08dae73db13081777f6694976cb8befc8b6c436",
+        "reason": null
+      }
+    },
+    {
+      "id": "C10",
+      "claim": "GitHub Copilot のクラウド エージェントは、使い捨てのクラウド環境で動く。リポジトリ内の文脈だけを見られる。push は 1 つのブランチに限られる。ワークフローは、人がレビューして承認するまで既定では起動しない。",
+      "source_url": "https://docs.github.com/en/copilot/concepts/agents/coding-agent/risks-and-mitigations",
+      "source_title": "Risks and mitigations for GitHub Copilot cloud agent",
+      "published": "不明",
+      "quote": "Copilot cloud agent only has the ability to push to a single branch.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "CI ランナー型（Actions 上の使い捨て環境と書き込み範囲の制限）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "cd92bf2439c14c3a0f423f79e597642c08ecede47e06baabe0a95e8a7367ff86",
+        "reason": null
+      }
+    },
+    {
+      "id": "C11",
+      "claim": "Ramp は、エージェントの各セッションを Modal 上の隔離された VM で動かしている。GitHub App のトークンを clone ごとに新しく発行し、PR は起票者本人のトークンで作る。そのため、起票者が自分の変更を承認できない。",
+      "source_url": "https://builders.ramp.com/post/why-we-built-our-background-agent",
+      "source_title": "Why we built our own background agent (Ramp Builders)",
+      "published": "不明",
+      "quote": "Each session runs in a sandboxed VM on Modal with everything an engineer would have locally",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "practitioners_at_scale",
+      "approach": "セッションごとの使い捨てクラウド サンドボックス（VM）",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "58bc43edbc6200b3ffe629cad6eea7961557c8e2e6423717f0c1826bf6448934",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C12",
+      "claim": "GitHub Actions の公式の強化ガイドは、GITHUB_TOKEN に必要最小限の権限だけを与えるよう求めている。公開リポジトリでの自前ランナーは、誰でも PR で環境を侵害できるので危険だとする。just-in-time の使い捨てランナーは 1 ジョブで消える。ハードウェアを再利用すると情報が漏れうるため、毎回クリーンな環境を作るよう求めている。",
+      "source_url": "https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions",
+      "source_title": "Security hardening for GitHub Actions",
+      "published": "不明",
+      "quote": "Re-using hardware to host JIT runners can risk exposing information from the environment.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "CI ランナー型（Actions 上の使い捨て環境と書き込み範囲の制限）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "3d79de4d6b8fb6cee598f2dcdbe99387f7a0195cf2beb6f7ba7ffefb135c5b52",
+        "reason": null
+      }
+    },
+    {
+      "id": "C13",
+      "claim": "Anthropic の sandbox-runtime は、プロセス全体を Seatbelt か bubblewrap で包む。既定ではネットワークを拒否する。.git/hooks や .mcp.json などの書き込みも自動で拒否する。ただし Linux と WSL2 では、拒否リストを起動時に 1 回だけ作る。そのため、セッション中に作った `git clone` などは対象外になる。まだベータの研究プレビューである。",
+      "source_url": "https://code.claude.com/docs/en/sandbox-environments",
+      "source_title": "Choose a sandbox environment (Claude Code docs)",
+      "published": "不明",
+      "quote": "On Linux and WSL2, the runtime builds the deny list once at launch.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "プロセス全体のサンドボックス ランタイム（bubblewrap・Seatbelt）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "f72469cbba8292f55566f63d09cc952240cf44e14f68940a5be61d5d5de96c5d",
+        "reason": null
+      }
+    },
+    {
+      "id": "C14",
+      "claim": "Docker Sandboxes は microVM を使う。専用の Docker デーモンとワークスペース同期を持ち、Docker Desktop が無くても動く。Anthropic の文書は、VM や microVM（Firecracker など）を、信頼できないコードの評価に向く選択肢として挙げている。",
+      "source_url": "https://code.claude.com/docs/en/sandbox-environments",
+      "source_title": "Choose a sandbox environment (Claude Code docs)",
+      "published": "不明",
+      "quote": "[Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) provides a microVM with its own Docker daemon and workspace sync, which can run Claude Code on any host with Docker Sandboxes installed.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "VM・microVM",
+      "verify": {
+        "status": "quote_not_found",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "f72469cbba8292f55566f63d09cc952240cf44e14f68940a5be61d5d5de96c5d",
+        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+      }
+    },
+    {
+      "id": "C15",
+      "claim": "AIShellJack は、GitHub Copilot と Cursor に対するプロンプト インジェクションを大規模に測った。悪意あるコマンドの実行に成功した割合は、最大で 84% に達した。",
+      "source_url": "https://arxiv.org/abs/2509.22040",
+      "source_title": "\"Your AI, My Shell\": Demystifying Prompt Injection Attacks on Agentic AI Coding Editors",
+      "published": "2025-09-26",
+      "quote": "attack success rates can reach as high as 84% for executing malicious commands",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "脅威の実測（隔離が必要な根拠）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "54b36790e9a95e9d257177198afe3fb3ce8a16d44653afc638c77107c497d967",
+        "reason": null
+      }
+    },
+    {
+      "id": "C16",
+      "claim": "Simon Willison は、「致命的な三つ組」を挙げた。私的データへのアクセス、信頼できない内容への接触、データを盗める外部通信の 3 つがそろうと、エージェントは危険になる。実務家の枠組みとして、隔離の設計でどの足を切るかの根拠になる。",
+      "source_url": "https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/",
+      "source_title": "The lethal trifecta for AI agents",
+      "published": "2025-06-16",
+      "quote": "The ability to externally communicate in a way that could be used to steal your data",
+      "kind": "opinion",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "設計原則（三つ組のうち一つを断つ）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:07:57+09:00",
+        "sha256": "ee0474b4f73bd248d4e854120e56ceaddaf78444838dd29d1adc374bc7f3246a",
+        "reason": null
+      }
+    }
+  ],
+  "queries": [
+    "OpenAI Codex cloud agent internet access disabled by default sandbox setup script secrets removed",
+    "Claude Code sandbox escape bypass vulnerability CVE postmortem coding agent",
+    "arXiv sandboxing LLM coding agents isolation container microVM gVisor survey agent security",
+    "arXiv AI coding agent security prompt injection attack success rate coding assistants Cursor Copilot Claude Code",
+    "engineering blog running background coding agents at scale sandboxed VMs Ramp OR Stripe OR Cloudflare OR Shopify unattended agents",
+    "Replit agent deleted production database postmortem July 2025 Jason Lemkin",
+    "Anthropic claude-code-sandboxing 記事の取得",
+    "Claude Code devcontainer 文書の取得",
+    "GitHub Copilot cloud agent about / risks-and-mitigations の取得",
+    "Codex cloud environments / internet access の取得",
+    "GitHub Actions security hardening の取得",
+    "Claude Code sandboxing / sandbox-environments / claude-code-on-the-web の取得",
+    "arxiv.org/abs/2509.22040 の取得",
+    "builders.ramp.com の取得",
+    "simonwillison.net lethal-trifecta の取得"
+  ],
+  "unknowns": [
+    "迂回された例（Claude Code のサンドボックス脱出）は、検索結果の要約でしか確認できていない。対象は CVE-2026-39861（symlink）、CVE-2025-66479（allowedDomains が空だと全許可になる）、SOCKS5 の null バイト迂回（v2.1.90 で修正）、CVE-2026-25725（存在しない settings.json に hook を注入できた）。GitHub の公式アドバイザリ本文から一字一句の引用を取れていないため、claims には入れなかった。出典の多くは二次のブログである。Anthropic 自身の事後検証は見つからなかった。",
+    "Replit のエージェントが本番 DB を削除した件（2025-07）は、報道と二次のブログしか見つからなかった。Replit の事後検証の文書は見つからなかった。Lemkin の投稿を主な根拠とする報道が中心である。",
+    "Stripe・Cloudflare・Shopify・Cognition など、Ramp 以外の大規模運用企業の一次の技術ブログは見つからなかった。Cognition（Devin）は ZenML による要約しか得られなかった。Ramp の記事は fetch の要約結果から引用したため、quote の一字一句は再確認を要する。",
+    "academia：サーベイ論文の本文は確認できていない。arXiv 2601.17548（SoK）と 2605.25871 は、検索の要約でしか見ていない。『18 の防御のどれも、適応型攻撃の半分以上を防げない』という記述は二次のブログのもので、未検証である。コンテナ、gVisor、microVM を比べた査読済みの測定は見つからなかった。見つかったのは売り手や実務家のブログだけだった。",
+    "GitHub Copilot cloud agent の『インターネット制限（ファイアウォール）』と『資格情報の制限』の一次文書は、fetch の要約でしか見ていない。文書の旧称は coding agent で、現在は cloud agent と書かれている。引用文は要約から写したため、再確認を要する。",
+    "1 台の Windows 11 Home での実行環境について、一次の文書は見つからなかった。得られたのは、native Windows ではサンドボックスが効かず WSL2 か VM かコンテナを使うという Anthropic の記述だけである。Windows 11 Home での Hyper-V、WSL2、別の OS アカウントによる分離の強さを測った出典はない。",
+    "公開日は多くの文書ページで確認できず、『不明』とした。新旧の判定は URL と内容（2026 年の CVE への言及など）に頼っている。",
+    "Anthropic の github.com/anthropics/claude-code の devcontainer や init-firewall.sh、sandbox-runtime の README の本文は、直接は読んでいない。"
+  ],
+  "counts": {
+    "verified": 12,
+    "quote_not_found": 4,
+    "unreachable": 0,
+    "no_source": 0
+  },
+  "question": "# エージェントを無人で走らせる実行環境：隔離・権限・資格情報\n\n## 段\nmap\n\n## 決めたい判断\n無人で走る実装役と、それを回す常駐のループを、どの実行環境で動かすか（いまの PC の OS アカウントの分離・WSL2・VM・コンテナ・クラウドで走るエージェント・CI のランナー）\n\n## 判断を変えうるもの\n提供元や大規模に運用している企業が、無人のエージェントをどこで走らせているか。それぞれの方法で、ファイル・ネットワーク・資格情報をどこまで閉じ込められるか。1 台の Windows の PC で回すことの制約\n\n## 分野\nfrontier_labs\npractitioners_at_scale\nacademia\nstandards_tools\npractitioners\n\n## 問い\nAI のコーディング エージェントを、人が見ていないところで長く走らせるときの実行環境と隔離の手法の系統を集めてください。\n\n- 提供元が勧める実行環境（サンドボックス・コンテナ・VM・クラウドのエージェント・CI の中での実行）\n- 権限と資格情報の扱い（トークンの範囲・専用のアカウント・ネットワークの制限・書き込みの範囲）\n- 迂回された例や事故の事後検証\n"
+}

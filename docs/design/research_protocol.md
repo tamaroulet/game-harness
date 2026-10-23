@@ -25,6 +25,8 @@ game-harness#272（W-124 の 1 回目）の照合は、出典が本物かどう�
 
 ## 3. 分野（俯瞰の段は、問いに挙げた分野をすべて巡回する）
 
+巡回しても一次か二次の出典が取れなかった分野は、記録の unknowns に、その分野の名前（下の表の英字の名前）を書いて理由を残す。`tests/test_research_coverage.py` が、`docs/research/` の俯瞰の記録について、挙げた分野ごとに主張か unknowns の名指しがあることを確かめる。
+
 | 分野 | 中身 |
 |:--|:--|
 | frontier_labs | 最前線の AI 企業の、公式の技術ブログ・文書・研究（Anthropic・OpenAI・Google DeepMind・Microsoft と GitHub・Meta） |
