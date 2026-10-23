@@ -3146,8 +3146,19 @@ tasks:
   slug: 'rebuild-0: bench-safety'
   by: pilot
   purpose: bench のアカウントと定期起動の安全の残りを、立て直しの間の暫定の形で手当てする。手順は実行役が用意する
-  deliverable: 手当ての記録（受入で決める）
+  deliverable: docs/ops/rebuild_hold.yaml（手当ての記録）、tests/test_rebuild_hold.py
   depends_on: []
+  acceptance:
+  - 手当ての記録 docs/ops/rebuild_hold.yaml に、対象の 1〜8 の行がある。各行に、扱い（済み・見送りと理由）、確かめた命令、確かめた時刻、確かめた者、立て直しの後に外す条件がある
+  - 定期起動の 4・5・6（game-harness-hline・game-harness-runner・HLine_AutoResume_1900）が無効（Disabled）である
+  - bench のパスワードを、2026-10-23 以降に操縦士が変えた。記録には日時だけがあり、パスワードの値は Git にもどのセッションにも無い
+  - 記録の中の「確かめた命令」は、どれも読み取りだけの命令である
+  oracle:
+  - path: tests/test_rebuild_hold.py
+    from: director
+  verification:
+    command: python -m unittest tests.test_rebuild_hold
+    expected_exit_code: 0
 - id: W-148
   title: 台帳の project_goal と L5 をそろえる（文は操縦士が決める）
   group: rebuild-0
