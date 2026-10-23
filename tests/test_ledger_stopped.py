@@ -8,6 +8,9 @@
 3. 本物の docs/progress.yaml で、止めた 6 件・取り下げた W-143 の status と、validate が空を返すこと
 4. 本物の台帳で、通しのタスクが ADR-004 の取り下げたタスク（W-127〜W-131・W-133・W-137〜W-139）に依存していないこと。
    通しは W-140 から W-170 に移した（台帳の案。W-140 は取り下げ）ので、W-170 と W-140 の両方を見る
+総監督の検め（reply-architect-20261023-3 の 1）で足した点:
+5. 偽の台帳で、検証の無い立て直しのタスクが前の行にあっても、次に選ばれるのは検証のあるタスク。どちらも無ければ active_task_id が空
+6. 本物の台帳で、立て直しのノードの下で in_progress のタスクは、受入・検証・オラクルの 3 つを持つ
 """
 import contextlib
 import io
@@ -133,6 +136,37 @@ class NotPicked(unittest.TestCase):
         self.assertIn("- [-] T3 title T3（取り下げた）", text)
 
 
+VERIFY = {"command": "python -m unittest tests.x", "expected_exit_code": 0}
+
+
+def rebuild_ledger(*tasks):
+    state = sample(*tasks)
+    state["nodes"] += [{"id": "rebuild", "title": "rebuild", "parent": "A"},
+                       {"id": "rebuild-0", "title": "sector", "parent": "rebuild"}]
+    return state
+
+
+class WaitForAcceptance(unittest.TestCase):
+    """5：立て直しのタスクは、検証が書かれるまで次のタスクに選ばない（操縦士のタスクも同じ）。"""
+
+    def test_a_rebuild_task_with_a_verification_is_chosen_over_an_earlier_one_without(self):
+        for by in ("executor", "pilot", "director"):
+            state = rebuild_ledger({**task("T1", "pending", by=by), "group": "rebuild-0"},
+                                   {**task("T2", "pending"), "group": "rebuild-0", "verification": VERIFY})
+            self.assertEqual(progress.advance_active(state), "T2", by)
+            self.assertEqual([t["status"] for t in state["tasks"]], ["pending", "in_progress"])
+
+    def test_no_active_task_when_no_rebuild_task_has_a_verification(self):
+        state = rebuild_ledger({**task("T1", "in_progress"), "group": "rebuild-0"}, {**task("T2", "pending"), "group": "rebuild"})
+        self.assertIsNone(progress.advance_active(state))
+        self.assertIsNone(state["active_task_id"])
+        self.assertEqual([t["status"] for t in state["tasks"]], ["pending", "pending"])
+
+    def test_tasks_outside_the_rebuild_node_are_chosen_as_before(self):
+        state = rebuild_ledger(task("T1", "pending"))
+        self.assertEqual(progress.advance_active(state), "T1")
+
+
 class Intake(unittest.TestCase):
     """2 の後半：H ラインの取り込みが、止めた・取り下げたタスクの What を理由つきで受信箱に残す。"""
 
@@ -233,6 +267,14 @@ class RealLedger(unittest.TestCase):
         tid = self.state["active_task_id"]
         if tid is not None:
             self.assertIn(self.tasks[tid]["group"], self.rebuild_nodes())
+
+    def test_an_in_progress_rebuild_task_has_its_acceptance_verification_and_oracle(self):
+        for t in self.state["tasks"]:
+            if t["status"] == "in_progress" and progress.in_rebuild(self.state, t):
+                with self.subTest(task=t["id"]):
+                    self.assertTrue(t.get("acceptance"))
+                    self.assertTrue(t.get("verification"))
+                    self.assertTrue(t.get("oracle"))
 
     def rebuild_nodes(self):
         found = {"rebuild"} | {n for n, x in self.nodes.items() if x.get("parent") == "rebuild"}

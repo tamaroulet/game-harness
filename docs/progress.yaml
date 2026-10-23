@@ -3215,7 +3215,7 @@ tasks:
   status: pending
   slug: 'rebuild-1: director-pr-path'
   by: executor
-  purpose: 総監督が受信箱に置いた木や文書の写しを、機械が main への PR にする
+  purpose: '総監督が受信箱に置いた木や文書の写しを、機械が main への PR にする。この道ができるまでは、by: director のタスクは、総監督の成果物を実行役が写す PR の中で実行役が complete を走らせ、検証の試験は実行役が書く（from: executor）。道ができた後の完了の流れもここで決める'
   deliverable: 写しの置き場と PR にする道（受入で決める）
   depends_on:
   - W-149

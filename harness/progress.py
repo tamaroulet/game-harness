@@ -44,6 +44,7 @@ REL_PATH = "docs/progress.yaml"
 STATUSES = ("pending", "in_progress", "completed", "stopped", "withdrawn")
 OPEN = ("pending", "in_progress")   # 次のタスクに選ばれうる値
 HELD = {"stopped": "止めた", "withdrawn": "取り下げた"}   # 理由（reason）を持ち、H ラインが取らず、次のタスクに選ばれず、目的までの距離の分母に入らない。止めたものは再開しうる。取り下げたものは戻さない
+REBUILD = "rebuild"   # 立て直しのノード。下のタスクは、検証が書かれるまで次のタスクに選ばない
 TAIL_LINES = 20
 VERIFY_TTL = 1800
 GIT_TTL = 120
@@ -386,9 +387,27 @@ def main_version(repo_root, ref, fetch=True):
     return yaml.safe_load(r.stdout)
 
 
+def in_rebuild(state, t):
+    """t が立て直しのノード（REBUILD）の下にあるか。"""
+    parents = {n.get("id"): n.get("parent") for n in state.get("nodes") or []}
+    node, seen = t.get("group"), set()
+    while node is not None and node not in seen:
+        if node == REBUILD:
+            return True
+        seen.add(node)
+        node = parents.get(node)
+    return False
+
+
+def selectable(state, t):
+    """次のタスクに選べるか。立て直しのタスクは、受入を書く者が検証を書くまで選ばない（操縦士のタスクも同じ）。"""
+    return (t["status"] in OPEN and not unmet_dependencies(state, t)
+            and not (in_rebuild(state, t) and not t.get("verification")))
+
+
 def advance_active(state):
-    """依存先がすべて完了した未完了のタスク（止めた・取り下げたものは除く）のうち、進捗の順で最初のものを現在のタスクにする（ほかの in_progress は pending に戻す）。新しい id（無ければ None）を返す。"""
-    nxt = next((x for x in state["tasks"] if x["status"] in OPEN and not unmet_dependencies(state, x)), None)
+    """選べる未完了のタスク（selectable）のうち、進捗の順で最初のものを現在のタスクにする（ほかの in_progress は pending に戻す）。新しい id（無ければ None）を返す。"""
+    nxt = next((x for x in state["tasks"] if selectable(state, x)), None)
     for x in state["tasks"]:
         if x["status"] == "in_progress" and x is not nxt:
             x["status"] = "pending"
