@@ -1,0 +1,66 @@
+# 前提の台帳（ADR-004 の K-15）。いまの方向が依っている前提を 1 件ずつ持つ。harness/premises.py が検査する。
+# kind: research（調べものの記録の主張の ID）・measured（実測の記録のパス）・decision（決めた者と日付）・assumption（根拠なし）
+# 期限（recheck_by）を過ぎたら確かめ直す。外部の事情の前提は 30 日、根拠の無い前提は 14 日を目安にする
+premises:
+- id: P-001
+  text: インラインの LLM レビューは廃止し、合否は決定論の Gate 1 だけで決め、意味のレビューは非同期の GC に回すのがよい
+  kind: assumption
+  basis: []
+  note: S2-3 の根拠は docs/design/foundation_v3_review.md §1 の「外部知見」で、出典が無い。代わりの非同期の GC は作られていない
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-06
+  used_by: [S2-3, ADR-004 K-3]
+- id: P-002
+  text: AI のエージェントが書いた変更は、影響の大きさ（パス）で承認の層を分けるのが、いま公開されている実践である
+  kind: assumption
+  basis: []
+  note: 貼られた資料に依る。照合していない
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-06
+  used_by: [ADR-004 K-1, ADR-004 K-11, W-130]
+- id: P-003
+  text: LLM のレビューは、合否に入れず、新しい文脈と別系統のモデルと論破の段で厳選すると、誤検知を減らせる
+  kind: assumption
+  basis: []
+  note: 貼られた資料に依る。照合していない
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-06
+  used_by: [ADR-004 K-3, W-135]
+- id: P-004
+  text: 複数のエージェントの合意は正しさを意味せず、論破の段を挟むと誤報が減る（Refute-or-Promote）
+  kind: assumption
+  basis: []
+  note: 貼られた資料に依る（arXiv:2604.19049 とされる）。照合していない
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-06
+  used_by: [ADR-004 K-3, ADR-004 K-15]
+- id: P-005
+  text: Windows で、エージェントの CLI を別の OS アカウントと ACL で閉じ込める方法は、いまの実践として妥当である
+  kind: assumption
+  basis: []
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-06
+  used_by: [W-71, W-129]
+- id: P-006
+  text: 非劣性の基準が N=1 でも、10 本の合計の率で判じれば、走り直しの揺れに耐える
+  kind: assumption
+  basis: []
+  note: W-96 の X-10 の裁定。試験 1 件の重みの計算で、揺れの実測ではない。B06 は条件の変わる前に 0.73 と 0.18 の揺れがあった
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-06
+  used_by: [W-57, ADR-004 K-4, W-137]
+- id: P-007
+  text: agy の挙動は、リポジトリの外のグローバルの ~/.gemini/GEMINI.md に左右される
+  kind: measured
+  basis: [総監督の記録（2026-09-18 の実測）]
+  checked_at: 2026-09-18
+  recheck_by: 2026-11-18
+  used_by: [ADR-004 K-15, W-123]
+- id: P-008
+  text: B09 の基準の走行の落ち（自分で書いた試験の浮動小数の厳密な比較）は、工廠の故障ではなく AI 側の解けなさである
+  kind: decision
+  basis: [操縦士の裁定（W-96 の X-21、2026-10-19）]
+  note: 試験の書き方の欠陥とも読める。W-133 で浮動小数の厳密な比較を不合格にしたあとの基準（W-138）で確かめ直す
+  checked_at: 2026-10-19
+  recheck_by: 2026-11-30
+  used_by: [W-96, W-138]
