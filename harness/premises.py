@@ -6,10 +6,14 @@
 「外部知見」で、代わりの非同期の GC は作られず、誰もそれを確かめ直さなかった。ここで前提を 1 件ずつ持ち、期限で確かめ直させる。
 
 根拠の種類：research（調べものの記録の主張の ID、R-YYYYMMDD-<名前>#C<n>）・measured（実測の記録のパス）・decision（決めた者と日付）・
-assumption（根拠なし）。終了コード：0 = 形が正しい（期限切れは表示だけ）、1 = 形の誤り、または --strict で期限切れがある。
+assumption（根拠なし）。終了コード：0 = 形が正しい（期限切れと弱い前提は表示だけ）、1 = 形の誤り、または --strict で期限切れか弱い前提がある。
+
+根拠の強さ（docs/design/research_protocol.md §6）：research の前提は、引いた主張が docs/research/ の記録に実在し、照合が verified で、
+格が primary か secondary で、vendor_claim でない主張が、2 つ以上の別のドメインから出ているときだけ強い。満たさなければ「弱い」。
 """
 import argparse
 import datetime
+import json
 import re
 import sys
 from pathlib import Path
@@ -21,6 +25,9 @@ import exitcode  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 PATH = ROOT / "docs" / "design" / "premises.yaml"
+RECORDS = ROOT / "docs" / "research"
+STRONG_TIERS = ("primary", "secondary")
+MIN_DOMAINS = 2
 KINDS = ("research", "measured", "decision", "assumption")
 PREMISE_ID = re.compile(r"^P-\d{3}$")
 CLAIM_REF = re.compile(r"^R-\d{8}-[a-z0-9-]+#C\d+$")
@@ -74,6 +81,40 @@ def problems(state):
     return out
 
 
+def load_claims(records=RECORDS):
+    """{主張の ID（R-…#Cn）: 主張}。docs/research/ の記録の JSON から。"""
+    out = {}
+    for p in sorted(Path(records).glob("R-*.json")) if Path(records).is_dir() else []:
+        rec = json.loads(p.read_text(encoding="utf-8"))
+        out.update({f"{rec['id']}#{c['id']}": c for c in rec.get("claims") or []})
+    return out
+
+
+def _domain(url):
+    m = re.match(r"^[a-z]+://(?:www\.)?([^/:?#]+)", str(url or "").lower())
+    return m.group(1) if m else ""
+
+
+def weak(state, claims):
+    """research の前提のうち弱いもの [(id, 理由)]。"""
+    out = []
+    for p in state.get("premises") or []:
+        if not isinstance(p, dict) or p.get("kind") != "research":
+            continue
+        refs = p.get("basis") or []
+        missing = [r for r in refs if r not in claims]
+        if missing:
+            out.append((p["id"], f"記録に無い主張 {missing}"))
+            continue
+        good = {_domain(claims[r].get("source_url")) for r in refs
+                if (claims[r].get("verify") or {}).get("status") == "verified"
+                and claims[r].get("source_tier") in STRONG_TIERS and claims[r].get("kind") != "vendor_claim"}
+        if len(good - {""}) < MIN_DOMAINS:
+            out.append((p["id"], f"照合済みで格が {'・'.join(STRONG_TIERS)} の、売り手でない出典のドメインが {len(good - {''})} つ"
+                                 f"（{MIN_DOMAINS} つ以上要る）"))
+    return out
+
+
 def expired(state, today):
     """期限（recheck_by）を過ぎた前提の id の列。"""
     return [p["id"] for p in state.get("premises") or []
@@ -86,16 +127,19 @@ def main(argv=None):
     ap.add_argument("--strict", action="store_true", help="期限切れがあれば終了コード 1")
     ap.add_argument("--today", help="今日の日付（試験用）")
     ap.add_argument("--path", default=str(PATH))
+    ap.add_argument("--records", default=str(RECORDS))
     args = ap.parse_args(argv)
     state = load(args.path)
     today = _date(args.today) if args.today else datetime.date.today()
-    bad, old = problems(state), expired(state, today)
+    bad, old, thin = problems(state), expired(state, today), weak(state, load_claims(args.records))
     for b in bad:
         print(f"NG: {b}")
     for pid in old:
         print(f"期限切れ: {pid}（確かめ直す）")
+    for pid, why in thin:
+        print(f"弱い: {pid}（{why}。方向を決める根拠にしない）")
     print("合格" if not bad else f"不合格（{len(bad)} 件）")
-    return 1 if bad or (args.strict and old) else 0
+    return 1 if bad or (args.strict and (old or thin)) else 0
 
 
 if __name__ == "__main__":

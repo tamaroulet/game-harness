@@ -6,6 +6,7 @@ import contextlib
 import copy
 import datetime
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -16,12 +17,30 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 import premises  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import quiet  # noqa: E402
+
 GOOD = {"premises": [
-    {"id": "P-001", "text": "t", "kind": "research", "basis": ["R-20261023-review-tiers#C1"],
+    {"id": "P-001", "text": "t", "kind": "research", "basis": ["R-20261023-review-tiers#C1", "R-20261023-review-tiers#C2"],
      "checked_at": "2026-10-23", "recheck_by": "2026-11-22", "used_by": ["ADR-004 K-1"]},
     {"id": "P-002", "text": "t", "kind": "assumption", "basis": [],
      "checked_at": "2026-10-23", "recheck_by": "2026-11-06", "used_by": ["W-130"]},
 ]}
+
+
+def strong_claim(cid, url, **kw):
+    return {"id": cid, "source_url": url, "source_tier": "primary", "kind": "fact", "verify": {"status": "verified"}, **kw}
+
+
+def write_records(d, claims):
+    """GOOD の P-001 が引く記録を d に書き、d を返す。"""
+    Path(d).mkdir(parents=True, exist_ok=True)
+    rec = {"id": "R-20261023-review-tiers", "claims": claims}
+    (Path(d) / "R-20261023-review-tiers.json").write_text(json.dumps(rec), encoding="utf-8")
+    return str(d)
+
+
+STRONG = [strong_claim("C1", "https://www.anthropic.com/a"), strong_claim("C2", "https://arxiv.org/abs/1")]
 
 
 def broken(**fields):
@@ -67,11 +86,45 @@ class Expiry(unittest.TestCase):
             path.write_text(yaml.safe_dump(GOOD, allow_unicode=True), encoding="utf-8")
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
-                plain = premises.main(["check", "--path", str(path), "--today", "2026-12-01"])
-                strict = premises.main(["check", "--path", str(path), "--today", "2026-12-01", "--strict"])
-                fresh = premises.main(["check", "--path", str(path), "--today", "2026-10-24", "--strict"])
+                rec = ["--records", write_records(Path(d) / "research", STRONG)]
+                plain = premises.main(["check", "--path", str(path), "--today", "2026-12-01", *rec])
+                strict = premises.main(["check", "--path", str(path), "--today", "2026-12-01", "--strict", *rec])
+                fresh = premises.main(["check", "--path", str(path), "--today", "2026-10-24", "--strict", *rec])
             self.assertEqual((plain, strict, fresh), (0, 1, 0))
             self.assertIn("期限切れ: P-001", out.getvalue())
+
+
+class Strength(quiet.Quiet, unittest.TestCase):
+    """根拠の強さ（docs/design/research_protocol.md §6）。"""
+
+    def weak(self, claims):
+        with tempfile.TemporaryDirectory() as d:
+            return premises.weak(GOOD, premises.load_claims(write_records(d, claims)))
+
+    def test_two_verified_primary_domains_are_strong(self):
+        self.assertEqual(self.weak(STRONG), [])
+
+    def test_one_domain_is_weak(self):
+        same = [strong_claim("C1", "https://www.anthropic.com/a"), strong_claim("C2", "https://anthropic.com/b")]
+        self.assertEqual([p for p, _ in self.weak(same)], ["P-001"])
+
+    def test_vendor_claims_marketing_and_unverified_do_not_count(self):
+        for bad in ({"kind": "vendor_claim"}, {"source_tier": "marketing"}, {"verify": {"status": "quote_not_found"}},
+                    {"source_tier": None}):
+            claims = [STRONG[0], {**STRONG[1], **bad}]
+            self.assertEqual([p for p, _ in self.weak(claims)], ["P-001"], bad)
+
+    def test_a_claim_missing_from_the_records_is_weak(self):
+        self.assertIn("記録に無い", self.weak(STRONG[:1])[0][1])
+
+    def test_strict_fails_on_a_weak_premise(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "premises.yaml"
+            path.write_text(yaml.safe_dump(GOOD, allow_unicode=True), encoding="utf-8")
+            rec = ["--records", write_records(Path(d) / "research", STRONG[:1])]
+            self.assertEqual(premises.main(["check", "--path", str(path), "--today", "2026-10-24", *rec]), 0)
+            self.assertEqual(premises.main(["check", "--path", str(path), "--today", "2026-10-24", "--strict", *rec]), 1)
+            self.assertIn("弱い: P-001", self.written())
 
 
 if __name__ == "__main__":

@@ -1716,6 +1716,93 @@ tasks:
   verification:
     command: python -m unittest tests.test_toolchain
     expected_exit_code: 0
+- id: W-141
+  title: 段 A1：調べ方の規則と知識の台帳（俯瞰・比較・反証・照合の段、出典の格、根拠の強さ、索引）
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'stage-a: research-protocol'
+  by: executor
+  serves: R4
+  purpose: 外部の調べものが、語の一致と自分の前提に合う結果に偏らないように、問いの形・段・分野・出典の格を規則にし、根拠の弱い前提で方向を決めないようにする。調べた結果を索引にして、最先端の情報が溜まり続ける土台にする（docs/design/research_protocol.md）
+  deliverable: docs/design/research_protocol.md、harness/research.py の問いの検査・段ごとの調べ役・index・search、harness/premises.py の根拠の強さ、tests/test_research_protocol.py
+  depends_on:
+  - W-126
+  acceptance:
+  - 決めたい判断・段・分野（map）・候補（compare・refute）の無い問いは、調べ役を呼ぶ前に拒まれる
+  - 記録に出典の格・分野・系統・検索語が残り、索引で引ける。見直しの期限を過ぎた記録を挙げられる
+  - research の前提は、照合済みで一次か二次の、売り手でない出典が 2 つ以上のドメインに無ければ「弱い」と表示され、--strict で落ちる
+  oracle:
+  - path: tests/test_research_protocol.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_research_protocol tests.test_premises
+    expected_exit_code: 0
+- id: W-124
+  title: 段 A2：自律開発環境の地図（俯瞰・比較・反証）を規則どおりに作り、上位の設計の前提を照合する
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'stage-a: map'
+  by: executor
+  serves: R4
+  purpose: エージェントが計画・実装・検証・自己改善まで回す開発環境を、最前線の企業と研究がいまどう作っているかを、分野ごとに俯瞰し、系統ごとに比べ、採る案を反証する。ADR-004 の前提と、ADR-005 の候補の前提を、強い根拠で照合する（1 回目の game-harness#272 は規則の無い照合だったので置き換える）
+  deliverable: docs/research/ の map・compare・refute の記録、docs/design/premises.yaml の印、tests/test_research_coverage.py
+  depends_on:
+  - W-141
+  acceptance:
+  - map の記録が、5 つの分野をすべて巡回している
+  - ADR-005 が依る research の前提が、すべて強い（premises check で弱いと出ない）
+  - 採る案ごとに refute の記録がある
+  oracle:
+  - path: tests/test_research_coverage.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_research_coverage
+    expected_exit_code: 0
+- id: W-142
+  title: 段 A3：今の構成の部品ごとの費用と成果の実測（総監督・H ライン・工廠・外側の周期・門・ゲームのライン）
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'stage-a: inventory'
+  by: executor
+  serves: R4
+  purpose: 残すか捨てるかを、思い込みでなく数字で決める。部品ごとに、コードの量・直した回数・使ったトークン・人の手間と、出した成果（済みのタスク・通した What・計器の値）を、リポジトリと走行の記録から数える。総監督が実際に役に立っているかも数える
+  deliverable: harness/arch_inventory.py、docs/design/architecture_inventory.md、tests/test_arch_inventory.py
+  depends_on:
+  - W-124
+  acceptance:
+  - 部品ごとの費用と成果の表が、リポジトリと走行の記録から機械で作られる（手で書いた数字が無い）
+  - 総監督の起動の回数・字数・トークンと、その出力が採られた件数が出る
+  oracle:
+  - path: tests/test_arch_inventory.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_arch_inventory
+    expected_exit_code: 0
+- id: W-143
+  title: 段 A4：上位の設計の決定（ADR-005：部品ごとに、残す・既製のものに置き換える・捨てる）
+  group: rebuild
+  target_repo: game-harness
+  status: pending
+  slug: 'stage-a: adr-005'
+  by: executor
+  serves: R4
+  purpose: 地図（W-124）と実測（W-142）から、上位の設計を決め直す。独自のハーネスを畳んで標準の道具の上に作り直すことも候補に入れ、損切りを含めて決める。結論には、新しい文脈の別系統のモデルに反論させ、その指摘と扱いを載せる。再建のタスク（W-127〜W-140）は、この ADR から作り直す
+  deliverable: docs/design/adr-005.md、tests/test_adr005.py
+  depends_on:
+  - W-142
+  acceptance:
+  - 部品ごとに、残す・置き換える・捨てるのどれかと、根拠の前提の ID（強いもの）と実測の数字がある
+  - 「独自のハーネスを畳む」案が候補として比べられている
+  - 別系統のモデルの反論と、その扱いが載っている
+  oracle:
+  - path: tests/test_adr005.py
+    from: self
+  verification:
+    command: python -m unittest tests.test_adr005
+    expected_exit_code: 0
 - id: W-127
   title: 境界（ポート）の抽出と、依存の向きの検査
   group: rebuild
@@ -1727,7 +1814,7 @@ tasks:
   purpose: 外部のプロセス・ファイル・git・gh・エージェントの CLI・OS のスケジューラと権限・エンジンを、harness/platform のポートと Windows のアダプタと偽のアダプタに閉じ込め、動いているラインがそれだけを通るようにする（ADR-004 の K-13）
   deliverable: harness/platform/、動いているモジュールの置き換え、tests/test_layering.py
   depends_on:
-  - W-126
+  - W-143
   acceptance:
   - 動いているラインの範囲で、命令の名前・OS に固有の処理・文字コードの手当てが境界の外で 0（envscan）
   - 境界の外の動いているモジュールは subprocess・ctypes・winreg・msvcrt を import しない
@@ -1758,27 +1845,6 @@ tasks:
     from: self
   verification:
     command: python -m unittest tests.test_ci_portability
-    expected_exit_code: 0
-- id: W-124
-  title: ADR-004 の前提を照合し、前提の台帳に印を付ける
-  group: rebuild
-  target_repo: game-harness
-  status: pending
-  slug: 'rebuild: verify-premises'
-  by: executor
-  serves: R4
-  purpose: 照合していない外部の資料に依った ADR-004 の前提を、調べものの仕組みで照合し、崩れた前提に依る裁定を書き直す。調べ役の利用枠を待つので、枠の要らない W-125〜W-128 と並べて進め、前提に依る W-129 の前に終える
-  deliverable: docs/research/ の記録、docs/design/premises.yaml の印、必要なら ADR-004 の改訂
-  depends_on:
-  - W-123
-  acceptance:
-  - ADR-004 §5 の前提がすべて前提の台帳にあり、照合の印か「未照合」の理由を持つ
-  - 崩れた前提に依る裁定の行は、ADR-004 で書き直されている
-  oracle:
-  - path: tests/test_premises.py
-    from: W-123
-  verification:
-    command: python -m unittest tests.test_premises
     expected_exit_code: 0
 - id: W-129
   title: 走らせ役を Git に入れ、本番の clone・秘密・隔離の確かめを境界の上で作り直す
