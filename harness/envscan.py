@@ -103,7 +103,8 @@ def main(argv=None):
         if up:
             return 1
         if args.update:
-            Path(args.baseline).write_text(json.dumps({**base, "counts": current}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+            Path(args.baseline).write_text(json.dumps({**base, "counts": current}, ensure_ascii=False, indent=1) + "\n",
+                                           encoding="utf-8", newline="\n")
             print(f"記録を今の数にしました（{sum(totals(current).values())} か所）")
         else:
             print("増えたところはありません")

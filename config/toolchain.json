@@ -1,0 +1,40 @@
+{
+  "_comment": "版の正本（ADR-004 の束 F、W-126）。harness/envcheck.py が起動時に実物と照合し、1 つでも違えば起動しない。requirements.lock・CI の pip と NuGet の warm-up・ハーネスが作る csproj は、ここから作る（python -m harness.toolchain）。変えるときは main への PR で行う。旧 config/environment.json（v2r、docs/design/v2r_protocol.md §5.1、2026-09-26 に実測）を引き継いだ",
+  "os": "Microsoft Windows NT 10.0.26200.0",
+  "python": "3.12.10",
+  "_python_packages_note": "requirements.lock はここから作る（python -m harness.toolchain lock）。mujoco は工廠のベンチが使う（CI が直に入れていたものを台帳に入れた）",
+  "python_packages": {
+    "mujoco": "3.15.0",
+    "pyyaml": "6.0.3"
+  },
+  "_cli_note": "agy は 1.2.14 を固定する（docs/design/v2r_protocol.md §5.1、操縦士の決定 2026-09-30）。自動更新は AGY_CLI_DISABLE_AUTO_UPDATE=true で停止し、呼び出しごとに照合する。claude は 2026-10-23 の実物（2.1.309）に合わせた（旧の固定 2.1.258 は自動更新で外れたまま照合されていなかった。物差しは W-138 で取り直す）。gh・git は W-126 で足した（2026-10-23 の実物）",
+  "cli": {
+    "agy": "1.2.14",
+    "claude": "2.1.309",
+    "dotnet": "8.0.413",
+    "gh": "2.100.0",
+    "git": "2.55.0"
+  },
+  "_tools_note": "§8 の変異の死滅率（U2）。5.0.0 は NuGet のパッケージの不備（DotnetToolSettings.xml が無い）で導入できなかったので、1 つ前の安定版 4.16.0 を人間が導入した（2026-09-26、dotnet tool list -g で確認）。照合は dotnet tool list -g の表で行う",
+  "tools": {
+    "dotnet-stryker": "4.16.0"
+  },
+  "_test_packages_note": "ゲームのテストのプロジェクトの NuGet パッケージ（NUnit など。U1）。総監督は防壁①の deny ルールでテストの プロジェクトに触れられないので、人間が python -m harness.envcheck --test-packages で取った値（2026-09-26、game-harness#112 のレビュー）",
+  "test_packages": {
+    "Microsoft.NET.Test.Sdk": "17.8.0",
+    "NUnit": "3.14.0",
+    "NUnit.Analyzers": "3.9.0",
+    "NUnit3TestAdapter": "4.5.0"
+  },
+  "_csproj_note": "ハーネスが作る csproj（不変条件テスト・witness の自己試験・CI の NuGet の warm-up）の枠組みとパッケージ。照合はしない（ビルドの時に NuGet が解決する）",
+  "csproj": {
+    "target_framework": "net8.0",
+    "packages": {
+      "Microsoft.NET.Test.Sdk": "17.8.0",
+      "NUnit": "3.14.0",
+      "NUnit3TestAdapter": "4.5.0"
+    }
+  },
+  "_unity_editor_note": "Unity のエディタの版。実行ファイルの場所は、この PC の machine.json の unity_editors の下の <版>/Editor にある（ゲームのラインは凍結中で、照合はしない）",
+  "unity_editor": "6000.3.23f1"
+}

@@ -205,12 +205,14 @@ class Environment(unittest.TestCase):
 
     def test_the_repository_pins_match_the_protocol_and_the_lock(self):
         pinned = envcheck.load_pinned()
-        self.assertEqual({k: v for k, v in pinned.items() if not k.startswith("_")},
-                         {**self.PINNED, "tools": {"dotnet-stryker": "4.16.0"},
+        self.assertEqual({k: pinned[k] for k in ("os", "python", "tools", "test_packages")},
+                         {"os": self.PINNED["os"], "python": self.PINNED["python"], "tools": {"dotnet-stryker": "4.16.0"},
                           # U1：人間が envcheck --test-packages で取った値（2026-09-26、game-harness#112 のレビュー）
                           "test_packages": {"Microsoft.NET.Test.Sdk": "17.8.0", "NUnit": "3.14.0",
                                             "NUnit.Analyzers": "3.9.0", "NUnit3TestAdapter": "4.5.0"}})
-        self.assertEqual(envcheck.lock_packages(), {"pyyaml": "6.0.3"})
+        # agy の固定は v2r の決定（2026-09-30）のまま。台帳（config/toolchain.json、W-126）に移った
+        self.assertEqual(pinned["cli"]["agy"], self.PINNED["cli"]["agy"])
+        self.assertEqual(envcheck.lock_packages(), {k.lower(): v for k, v in pinned["python_packages"].items()})
 
     def test_cli_output_is_read_as_utf8(self):
         """日本語の Windows で dotnet の出力を CP932 で読めず、UnicodeDecodeError で落ちていた（2026-09-26）。

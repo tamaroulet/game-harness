@@ -78,7 +78,7 @@ AGY_ENV = {"AGY_CLI_DISABLE_AUTO_UPDATE": "true"}
 
 
 def cli_version_guard(imp, measure=envcheck.cli_version, pinned=None):
-    """呼び出しの直前に実装役の CLI の版を測り、固定値（config/environment.json）と照合する。版を返す。違えば ABError。"""
+    """呼び出しの直前に実装役の CLI の版を測り、固定値（config/toolchain.json）と照合する。版を返す。違えば ABError。"""
     want = ((pinned if pinned is not None else envcheck.load_pinned()).get("cli") or {}).get(imp["cli"])
     got = measure(imp["cli"])
     if want is None or got != want:
@@ -786,7 +786,7 @@ def main(argv=None):
     rs.add_argument("--run-id", required=True)
     args = ap.parse_args(argv)
     if args.cmd in ("run", "run-all"):
-        # 実行環境を実測し、固定値（config/environment.json）と違えば起動しない。実測値は env.json に残す（v2r §5）
+        # 実行環境を実測し、固定値（config/toolchain.json）と違えば起動しない。実測値は env.json に残す（v2r §5）
         name = args.run_id if args.cmd == "run" else args.prefix
         try:
             envcheck.require(common.OUT_ROOT / f"{name}.env.json")

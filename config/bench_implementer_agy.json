@@ -13,7 +13,6 @@
     "--sandbox"
   ],
   "usage_format": "agy",
-  "version": "1.2.14",
   "budget": {
     "max_turns": 15,
     "resume_max_turns": 8

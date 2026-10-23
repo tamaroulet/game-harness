@@ -29,32 +29,20 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: .github/workflows/harness-tests.yml
+          cache-dependency-path: requirements.lock
 
-      # harness/progress.py が docs/progress.yaml を読む（ADR-003 §4）。手元と同じ版に固定する
+      # 版は config/toolchain.json にだけ書く。requirements.lock はそこから作ったもの（W-126。test_toolchain が一致を縛る）
       - name: dependencies
-        run: python -m pip install pyyaml==6.0.3 mujoco==3.15.0
+        run: python -m pip install -r requirements.lock
 
       # dotnet build を呼ぶテスト（invgen・invrun・query・struct_literal・testgen）が、初めての NuGet パッケージを
       # 並列に同時に展開すると、グローバルのパッケージのフォルダで書き込みが競合する（NU5037。PR #165 の実測）。
-      # 並列の前に 1 回だけ restore し、テストからは読むだけにする。パッケージと版は config/invgen.json と同じ
+      # 並列の前に 1 回だけ restore し、テストからは読むだけにする。csproj は config/toolchain.json の csproj から作る（W-126）
       - name: nuget warm-up
         shell: pwsh
         run: |
           $d = Join-Path $env:RUNNER_TEMP 'nuget-warmup'
-          New-Item -ItemType Directory -Force $d | Out-Null
-          @'
-          <Project Sdk="Microsoft.NET.Sdk">
-            <PropertyGroup>
-              <TargetFramework>net8.0</TargetFramework>
-            </PropertyGroup>
-            <ItemGroup>
-              <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
-              <PackageReference Include="NUnit" Version="3.14.0" />
-              <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
-            </ItemGroup>
-          </Project>
-          '@ | Set-Content -Encoding utf8 (Join-Path $d 'Warmup.csproj')
+          python -m harness.toolchain warmup $d
           dotnet restore (Join-Path $d 'Warmup.csproj')
 
       # runner コンテキストはジョブ単位の env では使えない（ワークフローごと起動しなかった。実測）
