@@ -306,6 +306,23 @@ def section(cfg, runner=None, clock=None):
     return "\n".join(lines) + "\n"
 
 
+def cached_section(cfg):
+    """「## 照合」を、走らせずに前回の結果だけで書く（section と同じ行の形。記録の無い宣言は「記録なし」）。H ラインが止まっている間に使う。"""
+    d = checks_dir(cfg)
+    files = sorted(d.glob("*.json")) if d.is_dir() else []
+    if not files:
+        return "## 照合\n宣言なし\n"
+    cache = load_cache(Path(cfg["out"]) / CACHE_NAME)
+    lines = ["## 照合"]
+    for f in files:
+        old = cache.get(f.stem)
+        if isinstance(old, dict) and "at" in old and isinstance(old.get("res"), dict):
+            lines += line_of(f.stem, "-", "-", old["res"], old["at"])
+        else:
+            lines.append(f"- {f.stem}: 記録なし（-／-／-／-）")
+    return "\n".join(lines) + "\n"
+
+
 def stopped_section(cfg):
     """H ラインが止まっている間の「## 照合」：走らせず、宣言ごとに、走っていないことと最後に走った時刻・前回の結果を出す（W-144）。"""
     try:

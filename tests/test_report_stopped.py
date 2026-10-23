@@ -128,6 +128,30 @@ class StoppedReport(Base):
         self.assertIn("- c2: 走っていない（最後に走った記録なし）", text)
 
 
+class GoalWithoutRunningChecks(Base):
+    """止まっている間は「目的までの距離」も照合を走らせず、前回の結果で数える（W-144 の直し）。"""
+
+    def test_the_goal_section_gets_the_cached_checks(self):
+        self.write()
+        hline_report.goal_section.assert_called_once_with(self.cfg, checks=hline_checks.cached_section)
+
+    def test_cached_section_does_not_run_and_reads_like_section(self):
+        import goal_distance
+        self.put_state()
+        with mock.patch.object(hline_checks, "execute", side_effect=AssertionError("照合を走らせた")):
+            text = hline_checks.cached_section(self.cfg)
+        self.assertEqual(dict(goal_distance.STATUS_RE.findall(text)).get("c1"), "合格")
+        self.assertIn("- c2: 記録なし", text)
+
+    def test_passing_modules_uses_the_given_checks(self):
+        import goal_distance
+        self.put_state()
+        (hline_checks.checks_dir(self.cfg) / "c1.json").write_text(
+            json.dumps({"kind": "unittest", "modules": ["tests.test_x"]}), encoding="utf-8")
+        with mock.patch.object(hline_checks, "execute", side_effect=AssertionError("照合を走らせた")):
+            self.assertEqual(goal_distance.passing_modules(self.cfg, hline_checks.cached_section), {"tests.test_x"})
+
+
 class Marker(Base):
     def test_report_without_the_marker_is_refused(self):
         with self.assertRaises(ValueError):
