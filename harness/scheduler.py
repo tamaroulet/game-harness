@@ -107,6 +107,7 @@ import exitcode
 import fileops
 import job_object
 import gdd_check
+import machine
 import project
 import telemetry
 
@@ -2305,7 +2306,7 @@ def main(argv=None, gh_run=run_cmd, sleep=time.sleep):
     if a.project:
         cfg = build_config(a.project)
     else:
-        cfg = json.loads(Path(a.config).read_text(encoding="utf-8"))
+        cfg = machine.read_json(a.config)
     s = Scheduler(cfg, gh_run=gh_run, sleep=sleep)
     if a.stop:
         return s.request_stop()

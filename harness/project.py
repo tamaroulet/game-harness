@@ -16,6 +16,8 @@
 import json
 from pathlib import Path
 
+import machine
+
 HARNESS_DIR = Path(__file__).resolve().parent
 ROOT = HARNESS_DIR.parent
 
@@ -32,11 +34,14 @@ class ProjectError(Exception):
 
 def _read(path):
     try:
-        return json.loads(Path(path).read_text(encoding="utf-8"))
+        # パスは ${名前} で書き、この PC の実のパスは machine.json から取る（W-126）
+        return machine.read_json(path)
     except FileNotFoundError:
         raise ProjectError(f"設定がありません: {path}")
     except ValueError as e:
         raise ProjectError(f"JSON として読めません: {path}: {e}")
+    except machine.MachineError as e:
+        raise ProjectError(str(e))
 
 
 def config(name):

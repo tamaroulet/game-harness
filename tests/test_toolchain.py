@@ -1,4 +1,5 @@
 """環境の唯一の台帳（W-126、ADR-004 の束 F）：版は config/toolchain.json にだけ書き、ほかのものはそこから作るか読む。
+この PC に固有の絶対パスは Git の外の machine.json にだけ置き、設定は ${名前} で書く。
 実物の版が台帳と違えば envcheck が止まり、理由を 1 行で出す。envcheck --github は main の規則を確かめる。
 
     python -m unittest tests.test_toolchain -v
@@ -20,6 +21,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import envcheck  # noqa: E402
 import envscan  # noqa: E402
+import machine  # noqa: E402
 import quiet  # noqa: E402
 import toolchain  # noqa: E402
 
@@ -61,6 +63,63 @@ class Ledger(unittest.TestCase):
         self.assertNotIn("Version=", text, "CI に NuGet の版を直に書かない")
         major_minor = ".".join(toolchain.load()["python"].split(".")[:2])
         self.assertEqual(re.findall(r"python-version:\s*'([^']+)'", text), [major_minor])
+
+
+class Machine(unittest.TestCase):
+    def test_absolute_paths_are_only_in_the_boundary(self):
+        base = envscan.load_baseline()
+        found = {f: k["abs_path"] for f, k in envscan.scan(envscan.ROOT, base["boundary"]).items() if k.get("abs_path")}
+        self.assertEqual(found, {}, "絶対パスは machine.json に置き、設定は ${名前} で書く")
+
+    def test_every_name_in_the_configs_is_defined(self):
+        known = set(machine.names(machine.EXAMPLE))
+        for p in envscan.files():
+            for name in machine.VAR_RE.findall(p.read_text(encoding="utf-8")):
+                self.assertIn(name, known, f"{envscan.rel(p)} の ${{{name}}} が config/machine.example.json に無い")
+
+    def test_expand(self):
+        table = {"local": str(Path("/m/.local"))}
+        self.assertEqual(machine.expand("${local}/out/{project}/x", table),
+                         str(Path("/m/.local/out/{project}/x")), "替えた後も {project} は残す")
+        self.assertEqual(machine.expand({"a": ["${local}", 3, "plain/path"]}, table),
+                         {"a": [str(Path("/m/.local")), 3, "plain/path"]}, "${ の無い文字列はそのまま")
+        with self.assertRaises(machine.MachineError):
+            machine.expand("${nowhere}/x", table)
+
+    def test_machine_json_is_found_by_env_and_expands_variables(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "m.json"
+            f.write_text(json.dumps({"paths": {"local": "%HARNESS_TEST_HOME%/lcl"}}), encoding="utf-8")
+            with mock.patch.dict("os.environ", {machine.ENV: str(f), "HARNESS_TEST_HOME": d}):
+                self.assertEqual(machine.source(), f)
+                self.assertEqual(machine.path("local"), Path(d) / "lcl")
+                self.assertEqual(machine.names()["unity_editor"], toolchain.load()["unity_editor"])
+            # %VAR% は OS に依らず替える（os.path.expandvars は Windows の外で %VAR% を替えない）
+            with mock.patch.object(machine.os.path, "expandvars", side_effect=AssertionError), \
+                    mock.patch.dict("os.environ", {"HARNESS_TEST_HOME": d}):
+                self.assertEqual(machine.env_vars("%HARNESS_TEST_HOME%/a;%HARNESS_NO_SUCH_VAR%"),
+                                 f"{d}/a;%HARNESS_NO_SUCH_VAR%")
+            with mock.patch.dict("os.environ", {machine.ENV: str(Path(d) / "absent.json")}):
+                self.assertEqual(machine.source(), machine.EXAMPLE, "無ければ例で代用する")
+
+    def test_a_missing_machine_json_fails_envcheck(self):
+        pinned = {"cli": {}}
+        self.assertTrue(any("machine.json がありません" in p for p in envcheck.problems({"machine_json": False}, pinned)))
+        self.assertEqual(envcheck.problems({"machine_json": True}, pinned), [])
+
+    def test_the_loaders_return_no_logical_names(self):
+        import agy_pinned
+        import bench_score
+        import hline_base
+        import project
+        import research
+        loaded = [hline_base.load_config(), research.load_config(), agy_pinned.load_record(),
+                  project.config("scheduler"), project.config("decompose"), str(bench_score.oracles_root())]
+        for pid in ("falling-blocks", "unity-2d"):
+            proj = project.load(pid)
+            loaded += [proj, project.pipeline_config(proj)]
+        for doc in loaded:
+            self.assertNotIn("${", json.dumps(doc, ensure_ascii=False))
 
 
 class Csproj(quiet.Quiet, unittest.TestCase):

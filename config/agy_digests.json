@@ -1,6 +1,6 @@
 {
   "_comment": "agy の導入先のファイルの SHA-256 の期待値（S1-4）。harness/agy_pinned.py が照合する。",
-  "install_dir": "C:\\Users\\tamar\\AppData\\Local\\agy\\bin",
+  "install_dir": "${agy_bin}",
   "files": {
     "agy.exe": "07f7ed55654b7066886c7390d3f5e245dbe4ede425c005909342cfc90333f2f8"
   }

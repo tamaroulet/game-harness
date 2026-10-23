@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
 import hline_merge  # noqa: E402
+import machine  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "config" / "hline.json"
@@ -180,7 +181,7 @@ def count_cycles(out, records):
 
 def default_out():
     cfg = read_json(CONFIG)
-    return cfg.get("out") if isinstance(cfg, dict) else None
+    return machine.expand(cfg.get("out")) if isinstance(cfg, dict) else None
 
 
 def main(argv=None):

@@ -2,7 +2,7 @@
   "_comment": "falling-blocks（レトロ落ちものパズル。GDD 駆動）。リポジトリの位置はここにだけ書く。",
   "id": "falling-blocks",
   "repo_slug": "tamaroulet/falling-blocks",
-  "repo_dir": "C:\\src\\falling-blocks",
+  "repo_dir": "${src}/falling-blocks",
   "base_branch": "main",
   "_adapters_note": "unity-2d と同じ組み合わせ（Unity + dotnet）",
   "adapters": {
@@ -19,5 +19,5 @@
     "test",
     "approval"
   ],
-  "out_dir": "C:\\src\\.local\\out\\harness\\falling-blocks"
+  "out_dir": "${local}/out/harness/falling-blocks"
 }

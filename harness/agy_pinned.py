@@ -14,6 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
+import machine  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 PINNED = ROOT / "config" / "agy_digests.json"
@@ -35,8 +36,8 @@ def sha256_file(path):
 def load_record(path=PINNED):
     """期待値の記録。読めない・JSON でない・表でないときは AgyDigestError。"""
     try:
-        rec = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as e:
+        rec = machine.read_json(path)
+    except (OSError, ValueError, machine.MachineError) as e:
         raise AgyDigestError(f"期待値の記録を読めません（{path}）：{e}") from e
     if not isinstance(rec, dict):
         raise AgyDigestError(f"期待値の記録が表ではありません：{path}")

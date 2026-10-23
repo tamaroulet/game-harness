@@ -44,6 +44,7 @@ import hline_queue  # noqa: E402
 import hline_quota  # noqa: E402
 import hline_review  # noqa: E402
 import hline_usage  # noqa: E402
+import machine  # noqa: E402
 import plan_check  # noqa: E402
 import plan_loop  # noqa: E402
 import proc  # noqa: E402
@@ -356,7 +357,7 @@ def plan_one(a):
         base = git(repo, ["rev-parse", "--verify", "-q", f"{a.base}^{{commit}}"]).decode().strip()
         if git(repo, ["rev-parse", "HEAD"]).decode().strip() != base:
             raise BenchError(f"{repo} の HEAD が {a.base} ではありません")
-        cfg = json.loads((repo / "config" / "hline.json").read_text(encoding="utf-8"))
+        cfg = machine.read_json(repo / "config" / "hline.json")
         work = work_dir(out, a.task, "plan")
         shutil.rmtree(work, ignore_errors=True)
         code, text, err, inbox, _ = run_plan_loop(repo, base, a.task, cfg, work, f"bench/{a.task}/plan", LIMIT_SECONDS)
@@ -827,7 +828,7 @@ def finish(a):
         print(f"factory/run.json がありません: {rundir}", file=sys.stderr)
         return 1
     try:
-        cfg = json.loads((repo / "config" / "hline.json").read_text(encoding="utf-8"))
+        cfg = machine.read_json(repo / "config" / "hline.json")
         invalid, reason = run.get("invalid"), run.get("reason")
         if not invalid:
             code, text, err = proc.run([PY, "-m", "harness.bench_guard", "scan", str(rundir), "--config",

@@ -1,6 +1,6 @@
 """走行の前の検定（原則 P3。docs/design/v2r_instrument_redesign.md §4・§6 の 3）。実装役を呼ぶ前に、お金をかけずに測定器を検定する。
 
-    python -m harness.ab.v2r_preflight [--manifest experiments/v2r/tasks.json] [--out-root C:/src/.local/out/ab]
+    python -m harness.ab.v2r_preflight [--manifest experiments/v2r/tasks.json] [--out-root <machine.json の local>/out/ab]
 
 **なぜ要るか**: v2r-dry-01・02 は、前提が作れない性質（測定器の欠陥）を、有料の走行で初めて見つけた。前提が作れるか、
 生成物が凍結した版と同じか、実装役に渡す文面が閉じているかは、実装役を呼ばずに決まる。

@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import machine  # noqa: E402
 import model_pin  # noqa: E402
 import proc  # noqa: E402
 
@@ -43,7 +44,7 @@ class Quota(Infra):
 
 
 def load_config(path=CONFIG):
-    cfg = json.loads(Path(path).read_text(encoding="utf-8"))
+    cfg = machine.read_json(path)
     model_pin.require(cfg["implementer"], "config/hline.json の implementer")
     model_pin.require(cfg["reviewer"], "config/hline.json の reviewer")
     model_pin.auxiliary_prefixes(cfg["reviewer"], "config/hline.json の reviewer")
