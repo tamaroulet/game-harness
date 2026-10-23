@@ -51,7 +51,7 @@ class Decisions(unittest.TestCase):
 
     def test_cited_claims_exist(self):
         claims = premises.load_claims(RECORDS)
-        for short, cid in re.findall(r"\b(r\d|c\d|m\d)#(C\d+)", text()):
+        for short, cid in re.findall(r"\b(r\d|c\d|m\d|v\d)#(C\d+)", text()):
             refs = [k for k in claims if re.match(rf"R-\d{{8}}-{short}-.*#{cid}$", k)]
             self.assertTrue(refs, f"{short}#{cid} が docs/research/ に無い")
 

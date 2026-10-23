@@ -1,0 +1,312 @@
+{
+  "id": "R-20261023-v2-subscription-token-on-ci",
+  "title": "定額の契約（Claude Pro / Max）のトークンを、自分のリポジトリの GitHub Actions で公式の Claude Code の Action に使ってよいか（照合の 2 回目）",
+  "stage": "verify",
+  "decision": "ADR-005 の D-3 の試しの走行で、1 人の操縦士の公開リポジトリの GitHub Actions に、操縦士本人の Claude Max の契約から作ったトークンを置き、公式の Claude Code GitHub Actions（anthropics/claude-code-action）を動かしてよいか。だめなら API キー（従量の課金）で試す",
+  "sectors": [],
+  "asked_at": "2026-10-23T15:06:45+09:00",
+  "backend": "claude",
+  "models": [
+    "claude-haiku-5-5"
+  ],
+  "usage": {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 46734,
+    "cache_read_input_tokens": 192628,
+    "output_tokens": 12062,
+    "output_tokens_details": {
+      "thinking_tokens": 7046
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 46734,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 9033,
+        "cache_read_input_tokens": 60121,
+        "cache_creation_input_tokens": 1021,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 1021
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "利用規約の第 3 条 7 項は、API キーでアクセスする場合と Anthropic が明示的に許可した場合を除き、ボット・スクリプトなどの自動の手段でサービスにアクセスすることを禁じている",
+      "source_url": "https://www.anthropic.com/legal/consumer-terms",
+      "source_title": "Consumer Terms of Service",
+      "published": "不明",
+      "quote": "to access the Services through automated or non-human means, whether through a bot, script, or otherwise.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "定額の OAuth トークン",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T15:06:45+09:00",
+        "sha256": "98e3e6d0968c6c1b924af24a06fba5e78eea1520022e61f115a84dfb1a4dacdf",
+        "reason": null
+      }
+    },
+    {
+      "id": "C2",
+      "claim": "Claude Code の法務の文書は、Consumer Terms が Free・Pro・Max の利用者に適用されると案内している",
+      "source_url": "https://code.claude.com/docs/en/legal-and-compliance",
+      "source_title": "Legal and compliance - Claude Code",
+      "published": "不明",
+      "quote": "for Free, Pro, and Max users",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "定額の OAuth トークン",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T15:06:45+09:00",
+        "sha256": "28bad2994b0de8bf2216a9603bc098f55e9bff0e90cbe1f314452c19c21c543f",
+        "reason": null
+      }
+    },
+    {
+      "id": "C3",
+      "claim": "Claude Code の法務の文書は、OAuth 認証は Free・Pro・Max・Team・Enterprise の定額プランの購入者専用であり、Claude Code などのネイティブのアプリの通常の利用のために設計されていると述べている",
+      "source_url": "https://code.claude.com/docs/en/legal-and-compliance",
+      "source_title": "Legal and compliance - Claude Code",
+      "published": "不明",
+      "quote": "is intended exclusively for purchasers of Claude Free, Pro, Max, Team, and Enterprise subscription plans and is designed to support ordinary use of Claude Code and other native Anthropic applications",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "定額の OAuth トークン",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T15:06:45+09:00",
+        "sha256": "28bad2994b0de8bf2216a9603bc098f55e9bff0e90cbe1f314452c19c21c543f",
+        "reason": null
+      }
+    },
+    {
+      "id": "C4",
+      "claim": "Claude Code の法務の文書は、Anthropic が第三者の開発者に対し、自分のユーザーの代わりに Free・Pro・Max のプランの認証情報でリクエストを送ることを許していないと述べている。開発者は API キーを使うべきとしている",
+      "source_url": "https://code.claude.com/docs/en/legal-and-compliance",
+      "source_title": "Legal and compliance - Claude Code",
+      "published": "不明",
+      "quote": "Anthropic does not permit third-party developers to offer Claude.ai login into their own applications, or to route requests through Free, Pro, or Max plan credentials on behalf of their users",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "定額の OAuth トークン",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T15:06:45+09:00",
+        "sha256": "28bad2994b0de8bf2216a9603bc098f55e9bff0e90cbe1f314452c19c21c543f",
+        "reason": null
+      }
+    },
+    {
+      "id": "C5",
+      "claim": "Claude Code の法務の文書は、エンドユーザーが改変されていない Claude Code のバイナリに、自分の Claude の定額プランで署名することは妨げないと述べている",
+      "source_url": "https://code.claude.com/docs/en/legal-and-compliance",
+      "source_title": "Legal and compliance - Claude Code",
+      "published": "不明",
+      "quote": "Nor does it prevent an end user from signing in to the unmodified Claude Code binary with their own Claude subscription",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "定額の OAuth トークン",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T15:06:45+09:00",
+        "sha256": "28bad2994b0de8bf2216a9603bc098f55e9bff0e90cbe1f314452c19c21c543f",
+        "reason": null
+      }
+    },
+    {
+      "id": "C6",
+      "claim": "Claude Code の法務の文書は、Pro・Max の公表された利用の上限は、Claude Code と Agent SDK の通常の個人の利用を前提にしていると述べている",
+      "source_url": "https://code.claude.com/docs/en/legal-and-compliance",
+      "source_title": "Legal and compliance - Claude Code",
+      "published": "不明",
+      "quote": "Advertised usage limits for Pro and Max plans assume ordinary, individual usage of Claude Code and the Agent SDK.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "定額の OAuth トークン",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T15:06:45+09:00",
+        "sha256": "28bad2994b0de8bf2216a9603bc098f55e9bff0e90cbe1f314452c19c21c543f",
+        "reason": null
+      }
+    },
+    {
+      "id": "C7",
+      "claim": "Claude Code の認証の文書は、CI パイプラインやスクリプトなど、ブラウザでのログインができない環境のために、claude setup-token で 1 年有効の OAuth トークンを作るよう案内している",
+      "source_url": "https://code.claude.com/docs/en/authentication",
+      "source_title": "Authentication - Claude Code",
+      "published": "不明",
+      "quote": "For CI pipelines, scripts, or other environments where interactive browser login isn't available, generate a one-year OAuth token with",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "定額の OAuth トークン",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T15:06:45+09:00",
+        "sha256": "df1b25701b147df29bba3cb6f6c9c53a372d61f202810e73348739b95687d686",
+        "reason": null
+      }
+    },
+    {
+      "id": "C8",
+      "claim": "Claude Code の認証の文書は、このトークンは Pro・Max・Team・Enterprise の契約が必要で、モデルへのリクエストのみに使えると述べている",
+      "source_url": "https://code.claude.com/docs/en/authentication",
+      "source_title": "Authentication - Claude Code",
+      "published": "不明",
+      "quote": "This token authenticates with your Claude subscription and requires a Pro, Max, Team, or Enterprise plan",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "定額の OAuth トークン",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T15:06:45+09:00",
+        "sha256": "df1b25701b147df29bba3cb6f6c9c53a372d61f202810e73348739b95687d686",
+        "reason": null
+      }
+    },
+    {
+      "id": "C9",
+      "claim": "Claude Code GitHub Actions の文書は、CLAUDE_CODE_OAUTH_TOKEN を、Claude の定額の契約で認証する OAuth トークンとして GitHub の秘密に置き、claude setup-token をローカルで実行して作るよう案内している。Pro・Max の契約者が対象",
+      "source_url": "https://code.claude.com/docs/en/github-actions",
+      "source_title": "Claude Code GitHub Actions - Claude Code",
+      "published": "不明",
+      "quote": "an OAuth token that authenticates with your Claude subscription, available on Pro, Max, Team, and Enterprise plans",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "定額の OAuth トークン",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T15:06:45+09:00",
+        "sha256": "ae88f7a97b5d4642a6ae6b69b347e08419c19f253061ed54f416588727ebb4d6",
+        "reason": null
+      }
+    },
+    {
+      "id": "C10",
+      "claim": "Claude Code GitHub Actions の文書は、OAuth トークンを GitHub Actions で使うと、実行は API の課金ではなく Claude の定額の契約を使うと述べている",
+      "source_url": "https://code.claude.com/docs/en/github-actions",
+      "source_title": "Claude Code GitHub Actions - Claude Code",
+      "published": "不明",
+      "quote": "If you authenticate with an OAuth token, runs use your Claude subscription instead of API billing.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "定額の OAuth トークン",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T15:06:45+09:00",
+        "sha256": "ae88f7a97b5d4642a6ae6b69b347e08419c19f253061ed54f416588727ebb4d6",
+        "reason": null
+      }
+    },
+    {
+      "id": "C11",
+      "claim": "Claude Code GitHub Actions の文書は、複数のリポジトリで共有する秘密には、OAuth トークンではなく API キーを使うよう勧めている。理由は、OAuth トークンが claude setup-token を実行した人の契約に結びつくため",
+      "source_url": "https://code.claude.com/docs/en/github-actions",
+      "source_title": "Claude Code GitHub Actions - Claude Code",
+      "published": "不明",
+      "quote": "since an OAuth token is tied to the subscription of the person who ran",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "API キー（従量課金）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T15:06:45+09:00",
+        "sha256": "ae88f7a97b5d4642a6ae6b69b347e08419c19f253061ed54f416588727ebb4d6",
+        "reason": null
+      }
+    },
+    {
+      "id": "C12",
+      "claim": "Anthropic のサポート記事は、Pro と Max の利用の上限が、claude.ai と Claude Code の活動で共有され、両方の活動が同じ上限に数えられると述べている",
+      "source_url": "https://support.claude.com/en/articles/11145838",
+      "source_title": "Claude support article on usage limits (articles/11145838)",
+      "published": "不明",
+      "quote": "These limits are shared across Claude and Claude Code, meaning all activity in both tools counts against the same limits.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "定額の OAuth トークン",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T15:06:45+09:00",
+        "sha256": "500d31d8b5c8496d37360b68acefa02c9d9761e38063db337f9f0fba2ca29e06",
+        "reason": null
+      }
+    }
+  ],
+  "queries": [
+    "Claude Pro Max usage limits Claude Code shared claude.ai support article",
+    "fetch: https://code.claude.com/docs/en/authentication",
+    "fetch: https://code.claude.com/docs/en/legal-and-compliance",
+    "fetch: https://code.claude.com/docs/en/github-actions",
+    "fetch: https://www.anthropic.com/legal/consumer-terms",
+    "fetch: https://support.claude.com/en/articles/11145838"
+  ],
+  "unknowns": [
+    "本文は WebFetch が要約モデルを通して返したテキストから写した。生の HTML との一字一句の照合は行っていない。機械照合で不一致が出る可能性がある。特に利用規約（consumer-terms）と支援記事（11145838）の抜粋は信頼度を medium とした",
+    "主張 1（利用規約の自動アクセス禁止）: 利用規約の本文に Claude Code・Agent SDK・setup-token への言及は見つからなかった。個人が自分のリポジトリの CI で本人のトークンを使うことが、この条項に当たるかは本文だけでは決まらない",
+    "主張 3（第三者への OAuth 認可の禁止）: 本文が禁じるのは、第三者の開発者が製品・サービスで Free・Pro・Max の認証情報をユーザーの代わりに使うことである。本人が自分のリポジトリの CI で自分のトークンを使うことを直接禁じる文は見つからなかった。「認めていない」と言い切れるのは、この範囲に限られる",
+    "主張 4（CI で使った分も同じ上限に数えられる）: 支援記事 11145838 は claude.ai と Claude Code の活動が上限を共有すると述べるが、CI・GitHub Actions・自動化・スクリプトへの言及は本文に無い（要約で確認）。GitHub Actions の文書は、OAuth トークンの実行は定額の契約を使うと述べる。よって「CI の分も同じ上限」は、この 2 つからの推定で、出典が直接述べてはいない",
+    "支援記事 11145838 の本文は、要約結果から確認した。上限の数字は記事の古い見積もりで、現在の値は確認できなかった",
+    "全ページで公開日を確認できなかった（不明）",
+    "標準の検索は 1 回だけ行った。CI でのトークン利用について、Anthropic の利用規約の改訂や別の公式の FAQ がある可能性は確かめていない"
+  ],
+  "counts": {
+    "verified": 12,
+    "quote_not_found": 0,
+    "unreachable": 0,
+    "no_source": 0
+  },
+  "question": "# 定額の契約（Claude Pro / Max）のトークンを、自分のリポジトリの GitHub Actions で公式の Claude Code の Action に使ってよいか（照合の 2 回目）\n\n## 段\nverify\n\n## 決めたい判断\nADR-005 の D-3 の試しの走行で、1 人の操縦士の公開リポジトリの GitHub Actions に、操縦士本人の Claude Max の契約から作ったトークンを置き、公式の Claude Code GitHub Actions（anthropics/claude-code-action）を動かしてよいか。だめなら API キー（従量の課金）で試す\n\n## 判断を変えうるもの\n次の主張のどれかが、Anthropic の一次の出典（利用規約・公式の文書）の本文に無いか、本文と食い違う。特に、定額の契約のトークンを CI で使うことを禁じる・制限する記述が見つかれば、API キーに替える\n\n## 候補\n1. 定額の契約の OAuth トークンを、公式の Claude Code GitHub Actions に使う\n2. API キー（従量の課金）を使う\n\n## 問い\n次の主張が、Anthropic の一次の出典（anthropic.com/legal の Consumer Terms・Commercial Terms・Usage Policy、code.claude.com または docs.anthropic.com の Claude Code の文書、support.claude.com）の本文にあるかを、本文の抜粋つきで確かめてください。無い・食い違うときは、その旨と、食い違う本文を挙げてください。\n\n1. Consumer Terms は、API キーを使う場合と Anthropic が明示的に許した場合を除き、ボット・スクリプトなどの自動の手段でサービスにアクセスすることを禁じている\n2. Claude Code の GitHub Actions の公式の文書は、`claude setup-token` で作るトークン（`CLAUDE_CODE_OAUTH_TOKEN`）を、Pro / Max の契約者が GitHub の秘密に置いて Action を動かす構成を案内している\n3. Anthropic は、定額の契約の OAuth トークンを、第三者の製品・サービス・Agent SDK から使うことを認めていない（開発者は API キーを使うべきとしている）\n4. Pro / Max の利用の上限は、Claude Code の利用と claude.ai の利用で共有され、CI で使った分も同じ上限に数えられる\n5. Claude Code の認証の公式の文書（https://code.claude.com/docs/en/authentication）は、`claude setup-token` で作る 1 年の OAuth トークンを、ブラウザでのログインができない CI のパイプラインとスクリプトに使うよう案内している\n6. Claude Code の法務の文書（https://code.claude.com/docs/en/legal-and-compliance）は、Pro / Max の利用の上限が、Claude Code と Agent SDK の通常の個人の利用を前提にしていると述べている\n\n抜粋は、ページの表示された本文の文字のとおりに写してください。Markdown の記号（バッククォート・アスタリスクなど）は付けないでください。\n"
+}
