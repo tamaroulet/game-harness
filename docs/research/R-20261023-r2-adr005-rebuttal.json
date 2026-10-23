@@ -1,0 +1,318 @@
+{
+  "id": "R-20261023-r2-adr005-rebuttal",
+  "title": "自律開発のハーネスの上位の設計の見直しに反する証拠（反証）",
+  "stage": "refute",
+  "decision": "次の 3 つの決定を採るか。1 人の操縦士と 1 台の Windows の PC で、AI のエージェントに自分の開発の仕組みを改善させながら開発を回す、小さな自律開発環境についての決定である",
+  "sectors": [],
+  "asked_at": "2026-10-23T14:20:12+09:00",
+  "backend": "claude",
+  "models": [
+    "claude-haiku-5-5"
+  ],
+  "usage": {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 41844,
+    "cache_read_input_tokens": 164577,
+    "output_tokens": 9940,
+    "output_tokens_details": {
+      "thinking_tokens": 4275
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 41844,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 7097,
+        "cache_read_input_tokens": 52727,
+        "cache_creation_input_tokens": 3525,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 3525
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "Anthropic の規約は、サブスクのOAuthトークンを第三者の開発者が Free/Pro/Max の認証情報経由で中継することを認めていない。開発者は API キーを使うべきとしている",
+      "source_url": "https://code.claude.com/docs/en/legal-and-compliance",
+      "source_title": "Legal and compliance - Claude Code Docs",
+      "published": "不明",
+      "quote": "Anthropic does not permit third-party developers to offer Claude.ai login into their own applications, or to route requests through Free, Pro, or Max plan credentials on behalf of their users.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "CI上のエージェント実行",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:20:12+09:00",
+        "sha256": "28bad2994b0de8bf2216a9603bc098f55e9bff0e90cbe1f314452c19c21c543f",
+        "reason": null
+      }
+    },
+    {
+      "id": "C2",
+      "claim": "公式ドキュメントは、複数リポジトリで共有する秘密には、サブスクのOAuthトークンではなく API キーを勧めている。OAuthトークンは setup-token を実行した人のサブスクに紐づくため",
+      "source_url": "https://code.claude.com/docs/en/github-actions",
+      "source_title": "Claude Code GitHub Actions - Claude Code Docs",
+      "published": "不明",
+      "quote": "since an OAuth token is tied to the subscription of the person who ran",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "CI上のエージェント実行",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:20:12+09:00",
+        "sha256": "ae88f7a97b5d4642a6ae6b69b347e08419c19f253061ed54f416588727ebb4d6",
+        "reason": null
+      }
+    },
+    {
+      "id": "C3",
+      "claim": "公開リポジトリでは、フォークからの pull request の実行に GitHub が秘密を渡さない。そのため公式の例のレビューは同一リポジトリのブランチだけで動く",
+      "source_url": "https://code.claude.com/docs/en/github-actions",
+      "source_title": "Claude Code GitHub Actions - Claude Code Docs",
+      "published": "不明",
+      "quote": "On public repositories, GitHub withholds secrets from runs triggered by fork pull requests, so the review runs only on pull requests from branches in the same repository.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "CI上のエージェント実行",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:20:12+09:00",
+        "sha256": "ae88f7a97b5d4642a6ae6b69b347e08419c19f253061ed54f416588727ebb4d6",
+        "reason": null
+      }
+    },
+    {
+      "id": "C4",
+      "claim": "GitHub の公式文書では、フォークから起動したワークフローには秘密が渡されない（GITHUB_TOKEN を除く）。pull_request_target は秘密を扱えるため、危険な構成になりうる",
+      "source_url": "https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows",
+      "source_title": "Events that trigger workflows - GitHub Docs",
+      "published": "不明",
+      "quote": "secrets are not passed to the runner when a workflow is triggered from a forked repository",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "CI上のエージェント実行",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:20:12+09:00",
+        "sha256": "434ce4e74fcb44fc4f1d7b47ae1c4e67ca861f02abedeee4d7af240efc7f3745",
+        "reason": null
+      }
+    },
+    {
+      "id": "C5",
+      "claim": "GitHub の公式文書は、pull_request_target が同じリポジトリの秘密を扱う点を説明し、その危険として、フォークのコードの実行による秘密の盗用を挙げている",
+      "source_url": "https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows",
+      "source_title": "Events that trigger workflows - GitHub Docs",
+      "published": "不明",
+      "quote": "prevents execution of unsafe code from the head of the pull request that could alter your repository or steal any secrets you use in your workflow",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "CI上のエージェント実行",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:20:12+09:00",
+        "sha256": "434ce4e74fcb44fc4f1d7b47ae1c4e67ca861f02abedeee4d7af240efc7f3745",
+        "reason": null
+      }
+    },
+    {
+      "id": "C6",
+      "claim": "GitHub Actions の定期実行（schedule）は既定のブランチからしか動かず、公開リポジトリでは 60 日間の活動が無いと停止する",
+      "source_url": "https://code.claude.com/docs/en/github-actions",
+      "source_title": "Claude Code GitHub Actions - Claude Code Docs",
+      "published": "不明",
+      "quote": "GitHub runs scheduled workflows only from the default branch and, in public repositories, disables the schedule after 60 days without repository activity.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "CI上のエージェント実行",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:20:12+09:00",
+        "sha256": "ae88f7a97b5d4642a6ae6b69b347e08419c19f253061ed54f416588727ebb4d6",
+        "reason": null
+      }
+    },
+    {
+      "id": "C7",
+      "claim": "Claude GitHub App は、Actions・Workflows・Contents など多くの権限を一括で持つ。インストール時に権限の一部だけを選べない",
+      "source_url": "https://code.claude.com/docs/en/github-actions",
+      "source_title": "Claude Code GitHub Actions - Claude Code Docs",
+      "published": "不明",
+      "quote": "GitHub doesn't let you accept a subset.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "CI上のエージェント実行",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:20:12+09:00",
+        "sha256": "ae88f7a97b5d4642a6ae6b69b347e08419c19f253061ed54f416588727ebb4d6",
+        "reason": null
+      }
+    },
+    {
+      "id": "C8",
+      "claim": "公式ドキュメントは、サブスクの OAuth トークンで実行すると API 課金ではなくサブスクの枠を使うと述べ、実行の費用はサブスクの利用上限に依存する",
+      "source_url": "https://code.claude.com/docs/en/github-actions",
+      "source_title": "Claude Code GitHub Actions - Claude Code Docs",
+      "published": "不明",
+      "quote": "If you authenticate with an OAuth token, runs use your Claude subscription instead of API billing.",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "CI上のエージェント実行",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:20:12+09:00",
+        "sha256": "ae88f7a97b5d4642a6ae6b69b347e08419c19f253061ed54f416588727ebb4d6",
+        "reason": null
+      }
+    },
+    {
+      "id": "C9",
+      "claim": "Anthropic の評価の解説は、同じ課題でも実行ごとに結果が変わることを示し、1 回の合否で判断しないよう述べている",
+      "source_url": "https://anthropic.com/engineering/demystifying-evals-for-ai-agents",
+      "source_title": "Demystifying evals for AI agents - Anthropic Engineering",
+      "published": "2026-01-09",
+      "quote": "a task that passed on one eval run might fail on the next",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "トレース分析による改善",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:20:12+09:00",
+        "sha256": "af767e4a56afbb4f3630bb7365fa3da8ea5e61070ce3dec58385008d37dfa986",
+        "reason": null
+      }
+    },
+    {
+      "id": "C10",
+      "claim": "Anthropic の評価の解説は、トレースではなく最終的な成果を採点するよう述べており、経路の読み取りを採点の根拠にすることに警告している",
+      "source_url": "https://anthropic.com/engineering/demystifying-evals-for-ai-agents",
+      "source_title": "Demystifying evals for AI agents - Anthropic Engineering",
+      "published": "2026-01-09",
+      "quote": "grade what the agent produced, not the path it took",
+      "kind": "opinion",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "トレース分析による改善",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:20:12+09:00",
+        "sha256": "af767e4a56afbb4f3630bb7365fa3da8ea5e61070ce3dec58385008d37dfa986",
+        "reason": null
+      }
+    },
+    {
+      "id": "C11",
+      "claim": "Anthropic の評価の解説は、評価の点数を、誰かが詳細を調べるまで額面どおりに受け取らないよう述べている。点数だけの評価には限界があることを認めている",
+      "source_url": "https://anthropic.com/engineering/demystifying-evals-for-ai-agents",
+      "source_title": "Demystifying evals for AI agents - Anthropic Engineering",
+      "published": "2026-01-09",
+      "quote": "we do not take eval scores at face value until someone digs into the details of the eval",
+      "kind": "opinion",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "ベンチ点による計測",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:20:12+09:00",
+        "sha256": "af767e4a56afbb4f3630bb7365fa3da8ea5e61070ce3dec58385008d37dfa986",
+        "reason": null
+      }
+    },
+    {
+      "id": "C12",
+      "claim": "Harness-Bench の論文は、5,194 の実行記録に基づき、エージェントの能力はモデルだけでなくモデルとハーネスの組み合わせごとに報告すべきだと結論づけている。ハーネスの改善は点の比較で測る必要があるという論拠になる",
+      "source_url": "https://arxiv.org/abs/2605.27922",
+      "source_title": "Harness-Bench: Measuring Harness Effects across Models in Realistic Agent Workflows",
+      "published": "不明",
+      "quote": "These results suggest that agent capability should be reported at the model-harness configuration level",
+      "kind": "fact",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "ベンチ点による計測",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-10-23T14:20:12+09:00",
+        "sha256": "f2d409ae8f015867806a8dc569f153ea4564349a8861326a97d12e13ac73f374",
+        "reason": null
+      }
+    }
+  ],
+  "queries": [
+    "Claude Code GitHub Actions documentation limits authentication secrets fork pull requests",
+    "Claude Code GitHub Actions OAuth token subscription usage policy automated",
+    "Anthropic engineering demystifying evals for AI agents transcripts grading",
+    "removing dead code regret reintroduced postmortem deleted code had to restore",
+    "agent harness failure analysis from traces versus benchmark score noisy evaluation",
+    "GitHub Actions job timeout 6 hours limit self-hosted runner pull_request_target fork secrets not available documentation",
+    "Anthropic consumer terms OAuth token Claude Code third-party tools prohibited 2026"
+  ],
+  "unknowns": [
+    "候補1（使っていないコードの凍結・削除）に反する一次の出典は見つからなかった。削除後に戻した事後検証は検索で見つからず、見つかったのは一般的な解説（embeddedartistry、linearb など）と個別のコミットだけで、本文を確認していないため quote を取れなかった",
+    "候補1の『休止中のコードが誤って再有効化される』という指摘は検索結果の要約にあったが、本文の一字一句を確認できなかったので claims に入れていない",
+    "ホステッドランナーの 1 ジョブ最大 6 時間は検索結果の要旨にあったが、GitHub の limits ページを取得して本文を確認していない。セルフホステッドの上限は情報源ごとに食い違い、確定できなかった",
+    "quote は WebFetch が要約モデルを通して返した本文から写した。一字一句の一致は未確認で、機械照合で落ちる可能性がある。特に code.claude.com の文は表記（記号・改行）が元と違うおそれがある",
+    "Claude Code GitHub Actions のセキュリティ文書（anthropics/claude-code-action の docs/security.md）と、プロンプト注入の危険（公開リポジトリの issue 本文などからの注入）は取得できなかった。候補2の『公開リポジトリでの危険』について一次の根拠が無い",
+    "サブスクの OAuth トークンを定期実行（cron）の CI で使うことが許されるかは、公式の文書では明記が見つからなかった。claudeissues の質問は本文を確認できなかった",
+    "2026-02-19 の文書更新と 2026-01-09 のサーバー側の強制の日付は二次の記事（gigazine、winbuzzer など）の情報で、Anthropic の一次の変更履歴は確認していない。4 月 4 日の制限（OpenClaw 関連）は日付が不確かで、一次の出典が無い",
+    "Anthropic の評価の解説の公開日は取得結果では 2026-01-09 だが、別のディレクトリでは 2026-03-18 とされていた。日付は確定していない",
+    "Harness-Bench の論文の公開日は arXiv の番号（2605）から 2026 年 5 月と推定されるが、本文で確認できなかったため 不明 とした。論文の限界（単発実行の分散、ベンチの点のノイズ）の節は要旨に無く、全文を確認していない",
+    "候補3に反する『ベンチの点はトレースより劣る・偏る』と直接述べた一次の出典は、今回の検索では見つからなかった。反証として使えたのは、単発の結果の不安定さ（非決定性）と、ハーネス構成ごとに点が変わるという論文の指摘だけ",
+    "候補1（コードの凍結）と候補3（トレース分析）について、『支える証拠』（賛成側）は集めていない。反証の役割に限った",
+    "map 段の分野カバーは対象外（refute 段のため）"
+  ],
+  "counts": {
+    "verified": 12,
+    "quote_not_found": 0,
+    "unreachable": 0,
+    "no_source": 0
+  },
+  "question": "# 自律開発のハーネスの上位の設計の見直しに反する証拠（反証）\n\n## 段\nrefute\n\n## 決めたい判断\n次の 3 つの決定を採るか。1 人の操縦士と 1 台の Windows の PC で、AI のエージェントに自分の開発の仕組みを改善させながら開発を回す、小さな自律開発環境についての決定である\n\n## 判断を変えうるもの\n下の候補に反する一次の出典（失敗の事後検証・実測・提供元の文書の制約）があれば、その決定を書き直す\n\n## 候補\n1. 使っていない部品（約 4 週動いていない、コードの 43% を占める別のライン）を、凍結のタグに残して本線と CI から外す\n2. 手元の PC で回している独自の常駐ループ（タスクの待ち行列・実装役の呼び出し・統合 PR）を、GitHub Actions の上の公式のコーディング エージェント（Claude Code GitHub Actions を定額の契約のトークンで動かす）に置き換える。合否は CI の必須チェックで決める\n3. ハーネスの改善を、凍結した 10 本の課題のベンチの点で検出するのをやめ、実行の記録（トレース）を読む失敗の分析から改善を起こし、退行は決定論の試験で止める\n\n## 問い\n上の候補のそれぞれに**反する**証拠だけを集めてください。\n\n- 1：使っていないコードを消す・凍結することの失敗例（後で戻すときの費用など）\n- 2：GitHub Actions の上でコーディング エージェントを長く・多く回したときの失敗例と制約（実行時間・費用・認証・秘密の扱い・公開リポジトリでの危険・利用規約）\n- 3：トレースの分析による改善が、点の測定より劣る・偏るという指摘。ベンチの点で改善を測るべきだという主張\n"
+}
