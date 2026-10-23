@@ -176,8 +176,10 @@ def ask(cfg, question_path, backend=None, out_dir=None, fetcher=None, run=proc.r
     rec = record(slug, title, question, name, result, doc, verdicts, now)
     dest = Path(out_dir or cfg["records"])
     dest.mkdir(parents=True, exist_ok=True)
-    (dest / f"{rec['id']}.json").write_text(json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    (dest / f"{rec['id']}.md").write_text(render(rec), encoding="utf-8")
+    # 記録は docs/research/ に写すので、.gitattributes と同じ LF で書く（write_text は Windows で CRLF にする）
+    (dest / f"{rec['id']}.json").write_text(json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
+                                            newline="\n")
+    (dest / f"{rec['id']}.md").write_text(render(rec), encoding="utf-8", newline="\n")
     print(f"記録しました: {dest / (rec['id'] + '.md')}（{'・'.join(f'{s} {n}' for s, n in rec['counts'].items())}）")
     return RECORDED
 
