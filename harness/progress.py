@@ -48,7 +48,7 @@ GIT_TTL = 120
 ORDER_FREE_ENV = "HLINE_PROGRESS_ORDER_FREE"   # "1" のとき main の complete が、現在のタスクでなくても記録する（H ライン用）
 
 
-EXECUTORS = ("pilot", "hline")   # タスクの執行者 by。省略は hline
+EXECUTORS = ("pilot", "hline", "executor")   # タスクの執行者 by。省略は hline。executor は実行役（Claude Code のセッション。main への PR で行い、H ラインは取らない）
 PR_REF = re.compile(r"^[A-Za-z0-9_.-]+#\d+$")
 
 
@@ -60,9 +60,13 @@ def is_pilot(t):
     return (t or {}).get("by") == "pilot"
 
 
+def is_executor(t):
+    return (t or {}).get("by") == "executor"
+
+
 def _label(t):
-    """ツリーに出すタスクの題（操縦士のタスクは後ろに印を付ける）。"""
-    return t["title"] + ("（操縦士）" if is_pilot(t) else "")
+    """ツリーに出すタスクの題（操縦士・実行役のタスクは後ろに印を付ける）。"""
+    return t["title"] + ("（操縦士）" if is_pilot(t) else "（実行役）" if is_executor(t) else "")
 
 
 # ============================================================ 読み書き
