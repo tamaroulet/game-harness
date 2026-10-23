@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT / "harness"))
 sys.path.insert(0, str(ROOT / "tests"))
 
 import exitcode  # noqa: E402
+import toolchain  # noqa: E402
 
 STUB = """using System.Collections.Generic;
 namespace Game.Core
@@ -108,16 +109,15 @@ namespace Game.Core
 }
 """
 
+# 枠組みとパッケージの版は台帳（config/toolchain.json の csproj）から取る（W-126）
 CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>{tf}</TargetFramework>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
-    <PackageReference Include="NUnit" Version="3.14.0" />
-    <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
+{packages}
   </ItemGroup>
 </Project>
 """
@@ -134,7 +134,7 @@ def files():
     out = {f"gen/{k.split('/', 1)[1]}": v
            for k, v in propgen.generate(decl, tp.SPEC, tp.GDD, tp.INTERFACE, "x", report_hits=True).items()}
     out["Stub.cs"] = STUB
-    out["W.csproj"] = CSPROJ
+    out["W.csproj"] = CSPROJ.format(tf=toolchain.target_framework(), packages=toolchain.package_references())
     return out
 
 

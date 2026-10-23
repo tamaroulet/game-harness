@@ -14,7 +14,6 @@
   },
   "config/bench_implementer_agy.json": {
    "cli_name": 2,
-   "version_literal": 1,
    "model_id": 2
   },
   "config/decompose.json": {
@@ -24,10 +23,6 @@
    "exe_suffix": 1,
    "model_id": 1
   },
-  "config/environment.json": {
-   "cli_name": 4,
-   "version_literal": 10
-  },
   "config/hline.json": {
    "cli_name": 7,
    "abs_path": 4,
@@ -35,13 +30,9 @@
    "exe_suffix": 1,
    "model_id": 4
   },
-  "config/invgen.json": {
-   "version_literal": 4
-  },
   "config/research.json": {
    "cli_name": 5,
    "abs_path": 3,
-   "version_literal": 1,
    "model_id": 4
   },
   "config/scheduler.json": {
@@ -128,7 +119,6 @@
   "harness/bench_freeze.py": {
    "cli_name": 2,
    "exe_suffix": 2,
-   "version_literal": 1,
    "model_id": 1
   },
   "harness/bench_guard.py": {
@@ -182,9 +172,9 @@
    "encoding": 1
   },
   "harness/envcheck.py": {
-   "cli_name": 7,
-   "os_specific": 3,
-   "encoding": 4
+   "cli_name": 5,
+   "os_specific": 1,
+   "encoding": 2
   },
   "harness/failure_classes.py": {
    "encoding": 1
@@ -387,8 +377,7 @@
    "encoding": 1
   },
   "harness/witness_selftest.py": {
-   "encoding": 1,
-   "version_literal": 3
+   "encoding": 1
   },
   "projects/falling-blocks/pipeline.json": {
    "cli_name": 4,

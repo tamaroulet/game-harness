@@ -48,6 +48,7 @@ import plan_check  # noqa: E402
 import plan_loop  # noqa: E402
 import proc  # noqa: E402
 import reqcov  # noqa: E402
+import toolchain  # noqa: E402
 from bench_start import BenchError, git  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -464,12 +465,20 @@ class Factory:
             if want not in (have, have.split()[0] if have else ""):
                 self.invalid("REQ-03", f"CLI の版が凍結の記録と違います: 記録 {want} ／ 実物 {have}")
                 return False
-        if impl_cli != planner_cli and cfg["implementer"].get("version") is not None:
-            want, have = str(cfg["implementer"]["version"]), self.version_of(impl_cli)
+        if impl_cli != planner_cli and (want := self.implementer_version(cfg, impl_cli)) is not None:
+            have = self.version_of(impl_cli)
             if want not in (have, have.split()[0] if have else ""):
                 self.invalid("REQ-03", f"実装役の CLI の版が設定と違います: 設定 {want} ／ 実物 {have}")
                 return False
         return True
+
+    def implementer_version(self, cfg, cli):
+        """実装役の CLI の固定の版。設定の version、無ければ clone の台帳（config/toolchain.json の cli。
+        台帳の無い古い base では、この版の台帳）。台帳にその CLI が無ければ None。"""
+        if cfg["implementer"].get("version") is not None:
+            return str(cfg["implementer"]["version"])
+        path = self.repo / "config" / "toolchain.json"
+        return (toolchain.load(path if path.exists() else toolchain.TOOLCHAIN).get("cli") or {}).get(cli)
 
     def freeze_version(self):
         try:

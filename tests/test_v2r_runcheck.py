@@ -36,7 +36,7 @@ class RunCheck(unittest.TestCase):
         (self.root / "p.env.json").write_text(json.dumps({"problems": [], "pinned": {"cli": {"agy": "1.2.14"}}}),
                                               encoding="utf-8")
         self.prov({"harness": {"commit": "abc", "dirty": []}, "agy_global": {"GEMINI.md": "f" * 64}})
-        # 今の固定値（config/environment.json）は、テストでは固定する
+        # 今の固定値（config/toolchain.json）は、テストでは固定する
         patcher = mock.patch.object(v2r_runcheck.envcheck, "load_pinned", return_value={"cli": {"agy": "1.2.14"}})
         patcher.start()
         self.addCleanup(patcher.stop)

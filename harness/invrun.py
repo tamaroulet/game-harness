@@ -23,6 +23,7 @@ from pathlib import Path
 import fileops
 import invgen
 import project
+import toolchain
 import unit_schema
 from proc import resolve_cli, run
 
@@ -80,9 +81,12 @@ def materialize(workdir, sandbox, impl_dir, files, cfg=None):
             continue
         fileops.rmtree(p) if p.is_dir() else fileops.unlink(p)
     impl = str(sandbox / impl_dir).replace("/", "\\") + "\\**\\*." + "cs"
-    packages = "\n".join(f'    <PackageReference Include="{k}" Version="{v}" />' for k, v in cfg["packages"].items())
+    # 枠組みとパッケージの版は台帳（config/toolchain.json の csproj）から取る（W-126）
+    tc = toolchain.load()
+    packages = toolchain.package_references(cfg.get("packages") or toolchain.csproj_packages(tc))
     (workdir / "Invariants.csproj").write_text(
-        CSPROJ.format(tf=cfg["target_framework"], lang=cfg["lang_version"], impl=impl, packages=packages),
+        CSPROJ.format(tf=cfg.get("target_framework") or toolchain.target_framework(tc), lang=cfg["lang_version"],
+                      impl=impl, packages=packages),
         encoding="utf-8")
     for name, text in files.items():
         (workdir / name).write_bytes(text.encode("utf-8"))

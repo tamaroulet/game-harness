@@ -85,7 +85,7 @@ def check(out_root, prefix, tasks):
     problems, table = [], []
     env = out_root / f"{prefix}.env.json"
     env_rec = json.loads(env.read_text(encoding="utf-8")) if env.exists() else {}
-    # 呼び出しごとの版は、走行の起動時の固定値と照合する（無ければ今の config/environment.json）
+    # 呼び出しごとの版は、走行の起動時の固定値と照合する（無ければ今の config/toolchain.json）
     agy_version = ((env_rec.get("pinned") or envcheck.load_pinned()).get("cli") or {}).get("agy")
     for cond in v2r.ORDER:
         p, t = check_condition(out_root / run_id / cond, tasks, agy_version)

@@ -21,7 +21,7 @@ CLAUDE_AUX = ["claude-haiku-"]
 AGY_EXPECTED = {
     "cli": "agy", "headless_flag": "-p", "auto_approve_flag": "--dangerously-skip-permissions", "model_flag": "--model",
     "model": AGY, "model_name": AGY, "output_format_args": ["--output-format", "stream-json"], "extra_flags": ["--sandbox"],
-    "usage_format": "agy", "version": "1.2.14", "budget": {"max_turns": 15, "resume_max_turns": 8},
+    "usage_format": "agy", "budget": {"max_turns": 15, "resume_max_turns": 8},
 }
 
 
@@ -33,6 +33,9 @@ class ConfigFileTests(unittest.TestCase):
     def test_agy_config_values(self):
         doc = json.loads((ROOT / "config" / "bench_implementer_agy.json").read_text(encoding="utf-8"))
         self.assertEqual(doc, AGY_EXPECTED)
+        # 版は設定でなく台帳（config/toolchain.json）に置く（W-126）
+        tc = json.loads((ROOT / "config" / "toolchain.json").read_text(encoding="utf-8"))
+        self.assertEqual(tc["cli"]["agy"], "1.2.14")
         line = json.loads((ROOT / "config" / "hline.json").read_text(encoding="utf-8"))
         self.assertEqual(doc["budget"], line["implementer"]["budget"])
 

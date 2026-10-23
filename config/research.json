@@ -18,8 +18,7 @@
       "model": "gemini-3.8-flash-medium",
       "model_name": "gemini-3.8-flash-medium",
       "output_format_args": ["--output-format", "stream-json"],
-      "extra_flags": ["--mode", "plan", "--sandbox"],
-      "version": "1.2.14"
+      "extra_flags": ["--mode", "plan", "--sandbox"]
     },
     "claude": {
       "cli": "claude",

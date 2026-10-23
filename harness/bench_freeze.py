@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_score  # noqa: E402
 import proc  # noqa: E402
+import toolchain  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 EXPECTED = 10
@@ -92,14 +93,18 @@ def model_id():
 
 def implementer_cli_version(repo=ROOT):
     cfg_path = Path(repo) / "config" / "bench_implementer_agy.json"
+    cfg_path = cfg_path if cfg_path.exists() else ROOT / "config" / "bench_implementer_agy.json"
+    cfg = {}
     if cfg_path.exists():
         try:
             cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
-            if "version" in cfg:
-                return str(cfg["version"])
         except (OSError, ValueError):
             pass
-    return "1.2.14"
+    if "version" in cfg:
+        return str(cfg["version"])
+    # 設定に版が無ければ、その版の台帳（config/toolchain.json の cli）にある、実装役の CLI の固定値（W-126）
+    tc_path = Path(repo) / "config" / "toolchain.json"
+    return toolchain.load(tc_path if tc_path.exists() else toolchain.TOOLCHAIN)["cli"].get(cfg.get("cli"))
 
 
 def implementer_model_id(repo=ROOT):

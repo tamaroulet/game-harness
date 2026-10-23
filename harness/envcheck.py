@@ -1,8 +1,9 @@
 """実行環境の記録と照合（v2r、docs/design/v2r_protocol.md §5）。
 
-    python -m harness.envcheck [--out env.json]      実測して固定値（config/environment.json）と照合する
+    python -m harness.envcheck [--out env.json]      実測して固定値（config/toolchain.json）と照合する
+    python -m harness.envcheck --github              main に PR の必須と必須チェック（test・approval）が掛かっているか
 
-実測するもの：OS、Python、Python の依存（requirements.lock の各パッケージ）、CLI（agy・claude・dotnet）の版、
+実測するもの：OS、Python、Python の依存（requirements.lock の各パッケージ）、CLI（台帳の cli にあるもの）の版、
 .NET の道具（dotnet-stryker。§8 の変異の死滅率、U2）、ゲームのテストのプロジェクトの NuGet パッケージ（NUnit など。U1）。
 テストのパッケージは `dotnet list <テストの csproj> package` の出力から機械的に取る（総監督はテストのコードを見ない）。
 固定値の test_packages が null（未固定）なら、起動しない（U1 が閉じていない）。
@@ -23,10 +24,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
+import toolchain  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-PINNED = ROOT / "config" / "environment.json"
-LOCK = ROOT / "requirements.lock"
+PINNED = toolchain.TOOLCHAIN
+LOCK = toolchain.LOCK
+FORGE_CLI = "gh"
+# main に掛かっていなければならない必須チェック（.github/workflows の harness-tests の test と、approval）
+REQUIRED_CHECKS = ("test", "approval")
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
 SAMPLING_NOTE = "temperature・top_p・seed：CLI で指定できない（提供側の既定。docs/design/v2r_protocol.md §6.2）"
 
@@ -43,11 +48,17 @@ def os_string():
     return f"{platform.system()} {platform.release()}"
 
 
+def call(args, timeout, run=subprocess.run, **kw):
+    """CLI を呼ぶ。出力は UTF-8 で読み、読めない字は置き換える（日本語の Windows では dotnet の出力の日本語を
+    既定（CP932）で読めずに UnicodeDecodeError で落ちていた。2026-09-26、人間の環境での実測）。"""
+    return run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
+               shell=(sys.platform == "win32"), **kw)
+
+
 def cli_version(name, run=subprocess.run):
     """`<name> --version` の最初の x.y.z。取れなければ None。"""
     try:
-        r = run([name, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
-                shell=(sys.platform == "win32"))
+        r = call([name, "--version"], 60, run)
     except (OSError, subprocess.TimeoutExpired):
         return None
     m = VERSION_RE.search((r.stdout or "") + (r.stderr or ""))
@@ -62,9 +73,7 @@ def tool_versions(tools, run=subprocess.run):
     罫線（---）の行より後の行を「パッケージ ID・版・コマンド」の順に読む。ID は大文字と小文字を区別しない。
     """
     try:
-        r = run(["dotnet", "tool", "list", "-g"], capture_output=True, text=True, encoding="utf-8",
-                errors="replace", timeout=120,
-                shell=(sys.platform == "win32"))
+        r = call(["dotnet", "tool", "list", "-g"], 120, run)
     except (OSError, subprocess.TimeoutExpired):
         return {pkg: None for pkg in tools}
     listed = {}
@@ -86,11 +95,7 @@ PACKAGE_LINE_RE = re.compile(r"^\s*>\s*(\S+)\s+(\S+)\s+(\S+)")
 def test_packages(csproj, run=subprocess.run):
     """テストのプロジェクトの NuGet パッケージ {名前: 解決した版}（`dotnet list package` の出力の `>` の行）。取れなければ None。"""
     try:
-        # 日本語の Windows では、dotnet の出力の日本語を既定（CP932）で読めずに UnicodeDecodeError で落ちていた
-        # （2026-09-26、人間の環境での実測）。UTF-8 で読み、読めない字は置き換える（CLI の版と道具の版の読み取りも同じ）
-        r = run(["dotnet", "list", str(csproj), "package"], capture_output=True, text=True, encoding="utf-8",
-                errors="replace", timeout=300,
-                shell=(sys.platform == "win32"))
+        r = call(["dotnet", "list", str(csproj), "package"], 300, run)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if r.returncode != 0:
@@ -114,8 +119,8 @@ def lock_packages(lock=LOCK):
     return out
 
 
-def measure(clis=("agy", "claude", "dotnet"), run=subprocess.run, lock=LOCK, tools=(), csproj=None):
-    """実測値の表。tools（.NET の道具）と csproj（ゲームのテストのプロジェクト）は、渡したときだけ測る。"""
+def measure(clis=(), run=subprocess.run, lock=LOCK, tools=(), csproj=None):
+    """実測値の表。clis（CLI の名前）・tools（.NET の道具）・csproj（ゲームのテストのプロジェクト）は、渡したものだけ測る。"""
     pkgs = {}
     for name in lock_packages(lock):
         try:
@@ -139,7 +144,7 @@ def problems(measured, pinned):
             out.append(f"{key}：実測 {measured.get(key)!r}、固定 {pinned.get(key)!r}")
     if "test_packages" in pinned and pinned["test_packages"] is None:
         out.append("test_packages：固定値が未設定（U1。人間が python -m harness.envcheck --test-packages の出力を "
-                   "config/environment.json に書く）")
+                   "config/toolchain.json に書く）")
     for group in ("python_packages", "cli", "tools", "test_packages"):
         for name, want in (pinned.get(group) or {}).items():
             got = (measured.get(group) or {}).get(name)
@@ -152,7 +157,8 @@ def load_pinned(path=PINNED):
     pinned = json.loads(Path(path).read_text(encoding="utf-8"))
     lock = lock_packages()
     if {k.lower(): v for k, v in pinned.get("python_packages", {}).items()} != lock:
-        raise EnvError(f"config/environment.json の python_packages と requirements.lock が違います：{lock}")
+        raise EnvError(f"config/toolchain.json の python_packages と requirements.lock が違います：{lock}"
+                       "（python -m harness.toolchain lock で書き直す）")
     return pinned
 
 
@@ -178,24 +184,59 @@ def require(out_path=None, measured=None, pinned=None, project_id="falling-block
     """実測して照合し、env.json を書く（out_path があれば）。違えば EnvError（起動しない）。記録を返す。"""
     pinned = pinned if pinned is not None else load_pinned()
     if measured is None:
-        measured = measure(tools=tuple(pinned.get("tools") or ()),
+        measured = measure(clis=tuple(pinned.get("cli") or ()), tools=tuple(pinned.get("tools") or ()),
                            csproj=game_csproj(project_id) if "test_packages" in pinned else None)
     rec = record(measured, pinned)
     if out_path:
         write(out_path, rec)
     if rec["problems"]:
-        raise EnvError("実行環境が固定値（config/environment.json）と違います：" + "；".join(rec["problems"]))
+        raise EnvError("実行環境が固定値（config/toolchain.json）と違います：" + "；".join(rec["problems"]))
     return rec
+
+
+def github_problems(rules):
+    """main に掛かっている規則（GET repos/{owner}/{repo}/rules/branches/main の配列）の足りないもの。空なら合格。"""
+    types = {r.get("type") for r in rules}
+    out = [] if "pull_request" in types else ["PR の必須が掛かっていない"]
+    checks = {c.get("context") for r in rules if r.get("type") == "required_status_checks"
+              for c in (r.get("parameters") or {}).get("required_status_checks") or ()}
+    missing = [c for c in REQUIRED_CHECKS if c not in checks]
+    if missing:
+        out.append("必須チェックに " + "・".join(missing) + " が無い")
+    return out
+
+
+def github(run=subprocess.run):
+    """main のブランチの規則を GitHub に問い、足りないものの一覧を返す（空なら合格）。問えなければ EnvError。"""
+    try:
+        r = call([FORGE_CLI, "api", "repos/{owner}/{repo}/rules/branches/main"], 60, run, cwd=str(ROOT))
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise EnvError(f"GitHub に main の規則を問えません：{e}") from e
+    if r.returncode != 0:
+        raise EnvError("GitHub に main の規則を問えません：" + ((r.stderr or r.stdout or "").strip().splitlines() or ["?"])[-1])
+    return github_problems(json.loads(r.stdout or "[]"))
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="実行環境の記録と照合")
     ap.add_argument("--out", help="env.json の書き出し先")
+    ap.add_argument("--github", action="store_true", help="main のブランチの規則（PR の必須と必須チェック）を確かめる")
     ap.add_argument("--test-packages", action="store_true",
                     help="ゲームのテストのプロジェクトの NuGet パッケージだけを測って JSON で出す（U1 の固定値を作る。人間が実行する）")
     args = ap.parse_args(argv)
     if args.test_packages:
         print(json.dumps(test_packages(game_csproj()), ensure_ascii=False, indent=2))
+        return 0
+    if args.github:
+        try:
+            found = github()
+        except EnvError as e:
+            print(f"NG: {e}")
+            return 1
+        if found:
+            print("NG: main のブランチの規則が足りません：" + "；".join(found))
+            return 1
+        print("合格：main に PR の必須と必須チェック（" + "・".join(REQUIRED_CHECKS) + "）が掛かっている")
         return 0
     try:
         rec = require(args.out)
