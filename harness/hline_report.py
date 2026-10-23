@@ -156,21 +156,21 @@ def failure_lines(cfg, name):
     return [f"    - {p}" for p in points[:POINTS_MAX]]
 
 
-def goal_section(cfg, checks=None):
+def goal_section(cfg, checks=None, ref=None):
     """「## 目的までの距離」の節（report.md の先頭）。読み込みが例外で止まっても、節を 1 行の理由に替えて、書き出しを止めない。
     checks は照合の本文を返す関数（H ラインが止まっている間は、照合を走らせない hline_checks.cached_section）。"""
     try:
         import goal_distance
-        return goal_distance.section(cfg, checks)
+        return goal_distance.section(cfg, checks, ref)
     except Exception as e:   # noqa: BLE001
         return f"## 目的までの距離\n- {hline_probe.failure(f'{type(e).__name__}: {e}')}\n"
 
 
-def flow_section(cfg):
-    """「## 関門ごとの流れ」の節。読み込みが例外で止まっても、節を 1 行の理由に替えて、書き出しを止めない。"""
+def flow_section(cfg, ref=None):
+    """「## 関門ごとの流れ」の節。読み込みが例外で止まっても、節を 1 行の理由に替えて、書き出しを止めない。ref は台帳を読む ref。"""
     try:
         import gate_flow
-        return gate_flow.section(cfg)
+        return gate_flow.section(cfg, ref)
     except Exception as e:   # noqa: BLE001
         return f"## 関門ごとの流れ\n- {hline_probe.failure(f'{type(e).__name__}: {e}')}\n"
 
@@ -258,7 +258,8 @@ def h_section(cfg, st, stopped_at=None):
     if st.get("self_change"):
         lines += ["", f"- ライン自身の変更を積んだので走行を区切った（積んだ What: {st['self_change']['name']}）"]
     if st["skipped"]:
-        lines += ["", "## 受信箱に残した What"] + [f"- {s['file']}: {s['reason']}" for s in st["skipped"]]
+        heading = "## 受信箱に残した What" + (f"（最後に走った時刻 {stopped_at} の記録。今の受信箱とは違いうる）" if stopped_at is not None else "")
+        lines += ["", heading] + [f"- {s['file']}: {s['reason']}" for s in st["skipped"]]
     return "\n".join(lines) + "\n"
 
 
