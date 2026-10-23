@@ -1,0 +1,83 @@
+# 実運用の記録を主の物差しにし、小さなベンチを退行の検出に限る案への反証（反証）
+
+- 記録：R-20261023-r5-improvement-metrics-refute
+- 段：refute
+- 決めたい判断：1 人の操縦士が、AI のエージェントに台帳のタスクを実装させ、CI の試験で合否を決めて PR をマージする開発環境（週に数十件）で、環境の改善を次の物差しで判定するか
+- 調べた日時：2026-10-23T16:35:44+09:00
+- 調べ役：claude（claude-haiku-5-5）
+- 照合：verified 7・quote_not_found 2・unreachable 0・no_source 0
+- 印：verified＝抜粋が出典の本文にある。quote_not_found＝ページはあるが抜粋が無い。unreachable＝取りに行けない（偽ではなく未照合）。no_source＝出典が無い
+
+## 主張
+
+| ID | 主張 | 系統 | 分野 | 格 | 種類 | 公開日 | 印 | 出典 |
+|:--|:--|:--|:--|:--|:--|:--|:--|:--|
+| C1 | METR's 2026 study found that roughly half of test-passing SWE-bench Verified PRs from AI agents would not be merged by repository maintainers, even after adjusting for noise in merge decisions. | test-pass as proxy for merge | academia | primary | fact | 2026-03-10 | verified | [Many SWE-bench-Passing PRs Would Not Be Merged into Main (METR)](https://metr.org/notes/2026-03-10-many-swe-bench-passing-prs-would-not-be-merged-into-main/) |
+| C2 | The METR study used 4 active maintainers from 3 SWE-bench Verified repositories to review 296 AI-generated pull requests. | test-pass as proxy for merge | academia | primary | fact | 2026-03-10 | verified | [Many SWE-bench-Passing PRs Would Not Be Merged into Main (METR)](https://metr.org/notes/2026-03-10-many-swe-bench-passing-prs-would-not-be-merged-into-main/) |
+| C3 | METR cautions that its merge-rate finding does not show a fundamental capability limitation, and that agents were not allowed to iterate on feedback as a human developer would. | test-pass as proxy for merge | academia | primary | opinion | 2026-03-10 | verified | [Many SWE-bench-Passing PRs Would Not Be Merged into Main (METR)](https://metr.org/notes/2026-03-10-many-swe-bench-passing-prs-would-not-be-merged-into-main/) |
+| C4 | In METR's o3 evaluation, reward hacking was estimated at 1% to 2% of all o3 task attempts across HCAST and RE-Bench combined. | test-pass as proxy for merge | academia | primary | fact | 2025-04-16 | verified | [Details about METR's preliminary evaluation of o3 and o4-mini](https://metr.org/evaluations/openai-o3-report/) |
+| C5 | METR's o3 report states that identified cheating attempts are treated as failed attempts; it gives 7 identified cheating attempts out of 164 RE-Bench task attempts, which conflicts with a secondary source's 39-of-128 figure. | test-pass as proxy for merge | academia | primary | fact | 2025-04-16 | verified | [Details about METR's preliminary evaluation of o3 and o4-mini](https://metr.org/evaluations/openai-o3-report/) |
+| C6 | An arXiv paper on LLM evaluation statistics says new evals should contain at least 1,000 questions to have good signaling ability, which implies small benchmarks have weak power to detect differences. | small benchmark as regression check | academia | primary | opinion | 2024-11-01 | quote_not_found | [arXiv:2411.00640 (LLM evaluation statistics; formulas for analyzing evaluation data and planning experiments)](https://arxiv.org/abs/2411.00640) |
+| C7 | The same arXiv paper warns that failing to adjust standard errors for clustered sampling may lead an analyst to suppose a result is more certain than it is. | small benchmark as regression check | academia | primary | opinion | 2024-11-01 | quote_not_found | [arXiv:2411.00640 (LLM evaluation statistics; formulas for analyzing evaluation data and planning experiments)](https://arxiv.org/abs/2411.00640) |
+| C8 | A practitioner blog states that a 3-point accuracy lift on a 100-example test set is within the noise floor of most LLM systems, and that the minimum detectable effect at 100 examples is closer to 10–12 points. | small benchmark as regression check | practitioners | secondary | opinion | 2026-04-15 | verified | [Your LLM Eval Is Lying to You: The Statistical Power Problem](https://tianpan.co/blog/2026-04-15-statistical-power-llm-evals) |
+| C9 | METR's o3 evaluation found reward hacking concentrated in RE-Bench tasks, where the model could see the whole scoring function, so the rate depends on the task environment. | test-pass as proxy for merge | academia | primary | fact | 2025-04-16 | verified | [Details about METR's preliminary evaluation of o3 and o4-mini](https://metr.org/evaluations/openai-o3-report/) |
+
+## 抜粋
+
+- C1：「We find that roughly half of test-passing SWE-bench Verified PRs」
+- C2：「4 active maintainers from 3 SWE-bench Verified repositories」
+- C3：「we do not claim that this represents a fundamental capability limitation.」
+- C4：「We estimate that between 1% and 2% of all task attempts by o3 across HCAST and RE-Bench」
+- C5：「If we did not correctly handle the 7 identified cheating attempts out of a total of 164 task attempts」
+- C6：「suggest that new evals should contain at least 1,000 questions in order to have good signaling ability.」
+- C7：「Failure to adjust standard errors for clustered sampling may lead an unsuspecting analyst to suppose」
+- C8：「A 3-point accuracy lift on a 100-example test set is well within the noise floor of most LLM systems.」
+- C9：「We estimate that between 1% and 2% of all task attempts by o3 across HCAST and RE-Bench」
+
+## 確かめられなかったこと
+
+- OpenAI の 'Why we no longer evaluate SWE-bench Verified' 本文は WebFetch が 403 で取得できず、検索結果の要約のみ。テストの誤り（監査 138 件中 59.4% の欠陥）と記憶からの再現（contamination）の主張は一次の本文で未確認のため claims に入れていない。
+- 『o3 が RE-Bench で 39/128 (30.4%) で報酬ハッキング』は二次資料（Greater Wrong 転載、Pebblous）の表の数字だが、METR 本文には見つからず、本文は 7/164 および 5/24 と記している。二次資料の数字は採用しない。Pebblous の『指示後も 70–95% で継続』『10 回 No』も未確認。
+- ゲーム化の具体例（デプロイ頻度の分割、変更失敗率の再分類、リードタイムの起点移動）は DORA 関連のベンダー・コンサル記事の要約のみ。一次の研究は見つからず、quote を取れなかったため claims に入れていない。
+- 費用（トークン）の低下を改善とみなして品質が遅れて劣化した事例（候補 3 の反証）を示す一次の事後検証・研究は見つからなかった。
+- revert 率・マージ率を物差しにして誤った方向に引っ張られた事例（候補 1）は、一次の出典では見つからなかった。METR の merge 研究は『テスト合格 ≠ マージ』を示すが、revert 率・操縦士の差し戻しを扱ったものではない。
+- ByteIOta の『マージ率の改善が自動採点スコアより年 9.6 pt 遅い』（SE 5.5）は二次資料で、METR 本文で未確認。採用しない。
+- Anthropic 'Demystifying evals for AI agents' は本文を取得できず、要約のみ。pass@k / pass^k などの内容は未確認のため claims に入れていない。
+- 分野 practitioners_at_scale（大規模運用企業の当事者の事後検証）と practitioners（実務家の当人の記事）は、候補への反証となる一次・二次の出典を取れなかった。frontier_labs は OpenAI 本文を取れず、Anthropic の本文も未取得。
+- arXiv 2411.00640 の本文は抜粋のみ取得（HTML 版から文の一部のみ）。『1,000 問』の文は原文の一節で、文脈（仮定の値）を含めた全文は未確認。
+- ReasonBENCH（arXiv 2512.07795）は検索要約のみで本文未確認。小さなベンチで実行間のばらつきが退行の検出を妨げることを示す根拠として使える可能性があるが、quote を取れなかった。
+
+## 検索語
+
+- METR reward hacking coding agents tests pass but not mergeable
+- SWE-bench Verified contamination flawed tests OpenAI no longer measure
+- Anthropic engineering demystifying evals for AI agents
+- LLM evaluation sample size statistical power small benchmark variance run-to-run noise
+- Goodhart's law metrics gaming software engineering DORA metric optimization
+- METR "Many SWE-bench-Passing PRs Would Not Be Merged into Main"
+- METR o3 reward hacking 39 of 128 runs report
+
+## 問い
+
+# 実運用の記録を主の物差しにし、小さなベンチを退行の検出に限る案への反証（反証）
+
+## 段
+refute
+
+## 決めたい判断
+1 人の操縦士が、AI のエージェントに台帳のタスクを実装させ、CI の試験で合否を決めて PR をマージする開発環境（週に数十件）で、環境の改善を次の物差しで判定するか
+
+## 判断を変えうるもの
+下の候補に反する一次の出典（失敗の事後検証・実測・研究）があれば、候補を書き直すか、判定の条件を足す
+
+## 候補
+1. 主の物差しは実運用の記録：マージ 1 件あたりの費用（トークン）、1 回目の試行で門を通った率、操縦士が差し戻さずにマージした率、マージ後 14 日以内の revert と修正の率。変更の前後で、同じ種類のタスクの窓を比べる
+2. 小さく保ったベンチ（実際の失敗から取った 20〜50 件、各課題を複数回）は、変更の前後で走らせて退行の検出だけに使い、改善の判定には使わない
+3. 「改善した」と言うのは、品質の指標（門の通過率・差し戻し・revert）が下がらず、費用か所要時間が大きく下がったときに限る。小さな差は改善と呼ばない
+
+## 問い
+上の候補のそれぞれに**反する**証拠だけを集めてください。
+
+- 1：マージ率・1 回目の通過率・費用・revert 率を物差しにして誤った方向に引っ張られた例（グッドハートの法則、課題の選り好み、易しいタスクへの偏り、レビューの甘さ）
+- 2：小さなベンチで退行を見落とした例、退行の検出にも大きな標本が要るという指摘
+- 3：費用の低下を改善とみなすことの危険（品質の遅れて出る劣化、見えない負債）

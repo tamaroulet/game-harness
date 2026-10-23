@@ -116,3 +116,18 @@ premises:
   checked_at: 2026-10-23
   recheck_by: 2026-11-22
   used_by: [ADR-005 D-7]
+- id: P-021
+  text: 環境の改善は実運用の記録（費用・1 回目の通過・差し戻し・revert）で測り、小さなベンチは退行の検出に限る。小さな標本では小さな差を改善と判定できない
+  kind: research
+  basis: [R-20261023-r4-improvement-metrics-compare#C2, R-20261023-r4-improvement-metrics-compare#C3, R-20261023-r4-improvement-metrics-compare#C5, R-20261023-r5-improvement-metrics-refute#C8, R-20261023-r1-small-bench-self-improvement#C1]
+  note: 候補 3 を最前線で採っている一次の報告は無い（r4 の unknowns）。Anthropic の、事前の評価と本番の監視の併用（r4#C4）に依る
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-005 D-5]
+- id: P-022
+  text: テストに通ることはマージに値することと同じでない。すり抜けは採点が見える環境で起きる
+  kind: research
+  basis: [R-20261023-r4-improvement-metrics-compare#C8, R-20261023-r5-improvement-metrics-refute#C1, R-20261023-r5-improvement-metrics-refute#C9, R-20261023-m2-verification-of-agent-changes#C9]
+  checked_at: 2026-10-23
+  recheck_by: 2026-11-22
+  used_by: [ADR-005 D-4, ADR-005 D-5]
