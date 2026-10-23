@@ -1,11 +1,11 @@
-active_task_id: W-145
+active_task_id: W-144
 constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (game-harness#44).
 last_verification:
-  task: W-142
+  task: W-145
   exit_code: 0
-  at: '2026-10-23T14:39:20'
+  at: '2026-10-23T20:19:51'
 next_id: 106
 nodes:
 - id: A
@@ -3080,7 +3080,7 @@ tasks:
   title: 台帳に「止めた」「取り下げた」を足し、立て直しの外の作業を止める
   group: rebuild-0
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'rebuild-0: ledger-hold'
   by: executor
   purpose: 止めたものは H ラインに取られず、次のタスクに選ばれず、目的までの距離の分母に入らないようにして、立て直しの木だけが動く状態にする。セクター 0 で最初にマージする
@@ -3101,7 +3101,7 @@ tasks:
   title: H ラインが止まっている間も、report.md に正しい状態を出す（W-110 を畳む）
   group: rebuild-0
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'rebuild-0: report-stopped'
   by: executor
   purpose: H ラインが止まっていても、書いた時刻・main の版・止まっていること・照合の最後の時刻が report.md に出て、総監督と操縦士が今の状態を読める
@@ -3146,8 +3146,19 @@ tasks:
   slug: 'rebuild-0: bench-safety'
   by: pilot
   purpose: bench のアカウントと定期起動の安全の残りを、立て直しの間の暫定の形で手当てする。手順は実行役が用意する
-  deliverable: 手当ての記録（受入で決める）
+  deliverable: docs/ops/rebuild_hold.yaml（手当ての記録）、tests/test_rebuild_hold.py
   depends_on: []
+  acceptance:
+  - 手当ての記録 docs/ops/rebuild_hold.yaml に、対象の 1〜8 の行がある。各行に、扱い（済み・見送りと理由）、確かめた命令、確かめた時刻、確かめた者、立て直しの後に外す条件がある
+  - 定期起動の 4・5・6（game-harness-hline・game-harness-runner・HLine_AutoResume_1900）が無効（Disabled）である
+  - bench のパスワードを、2026-10-23 以降に操縦士が変えた。記録には日時だけがあり、パスワードの値は Git にもどのセッションにも無い
+  - 記録の中の「確かめた命令」は、どれも読み取りだけの命令である
+  oracle:
+  - path: tests/test_rebuild_hold.py
+    from: director
+  verification:
+    command: python -m unittest tests.test_rebuild_hold
+    expected_exit_code: 0
 - id: W-148
   title: 台帳の project_goal と L5 をそろえる（文は操縦士が決める）
   group: rebuild-0

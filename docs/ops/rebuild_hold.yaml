@@ -1,0 +1,86 @@
+task: W-147
+rows:
+- id: 1
+  target: bench のアカウントのパスワード
+  handling: 済み
+  changed_at: '2026-10-23T20:24:34+09:00'
+  state: 有効 True（アカウントは消さず、無効にもしない）
+  check_command: (Get-LocalUser -Name bench) | Select-Object Name, Enabled, PasswordLastSet
+  checked_at: '2026-10-23T20:24:58+09:00'
+  checked_by: 実行役（会話の席。読み取りの命令を走らせて写した）
+  release_condition: 外さない（パスワードを変えたことの記録）。W-156 で bench を使わないと決まれば、アカウントを無効にする
+  note: 操縦士が管理者の PowerShell で、乱数の値に変えた（表示も保存もしない）。値は誰も知らず、Git にもどのセッションにも無い。bench を使うときに管理者が設定し直す
+- id: 2
+  target: bench の読みの拒否（C:\src\.local\oracles・inbox・out）
+  handling: 済み
+  state:
+    oracles:
+    - bench:(OI)(CI)(DENY)(W,D,DC)
+    - bench:(OI)(CI)(DENY)(R)
+    inbox:
+    - bench:(OI)(CI)(DENY)(W,D,DC)
+    - bench:(OI)(CI)(DENY)(R)
+    out:
+    - bench:(OI)(CI)(DENY)(W,D,DC)
+    - bench:(OI)(CI)(DENY)(R)
+  check_command: icacls C:\src\.local\oracles; icacls C:\src\.local\inbox; icacls C:\src\.local\out
+  checked_at: '2026-10-23T20:24:58+09:00'
+  checked_by: 実行役（会話の席。読み取りの命令を走らせて写した）
+  release_condition: 外さない（ベンチの走行の隔離。docs/ops/bench_account.md の 2）
+- id: 3
+  target: bench のベンチの clone への許し（C:\src\.local\bench）
+  handling: 済み
+  state:
+  - bench:(OI)(CI)(M)
+  check_command: icacls C:\src\.local\bench
+  checked_at: '2026-10-23T20:24:59+09:00'
+  checked_by: 実行役（会話の席。読み取りの命令を走らせて写した）
+  release_condition: 外さない（ベンチの走行に要る。docs/ops/bench_account.md の 3）
+- id: 4
+  target: 定期起動 game-harness-hline
+  handling: 済み
+  state: Disabled
+  check_command: (Get-ScheduledTask -TaskName game-harness-hline).State
+  checked_at: '2026-10-23T20:25:01+09:00'
+  checked_by: 実行役（会話の席。読み取りの命令を走らせて写した）
+  release_condition: 作業の経路（W-156）で、H ラインと走らせ役を戻すと決めたとき
+- id: 5
+  target: 定期起動 game-harness-runner
+  handling: 済み
+  state: Disabled
+  check_command: (Get-ScheduledTask -TaskName game-harness-runner).State
+  checked_at: '2026-10-23T20:25:02+09:00'
+  checked_by: 実行役（会話の席。読み取りの命令を走らせて写した）
+  release_condition: 作業の経路（W-156）で、H ラインと走らせ役を戻すと決めたとき。ログオンの起動条件がある。有効に戻すと次のログオンで黙って走る
+- id: 6
+  target: 定期起動 HLine_AutoResume_1900
+  handling: 済み
+  state: Disabled
+  check_command: (Get-ScheduledTask -TaskName HLine_AutoResume_1900).State
+  checked_at: '2026-10-23T20:25:04+09:00'
+  checked_by: 実行役（会話の席。読み取りの命令を走らせて写した）
+  release_condition: 作業の経路（W-156）で、H ラインと走らせ役を戻すと決めたとき。2026-10-23 に操縦士が無効にした（消していない）
+- id: 7
+  target: 定期起動 UnityProject_*（3 本）
+  handling: 見送り
+  reason: 立て直しの範囲の外（別のプロジェクト）。無効のままであることだけを記録する
+  state:
+    UnityProject_AutoRunner: Disabled
+    UnityProject_MorningReport: Disabled
+    UnityProject_PM1Report: Disabled
+  check_command: Get-ScheduledTask -TaskName UnityProject_* | Select-Object TaskName, State
+  checked_at: '2026-10-23T20:25:09+09:00'
+  checked_by: 実行役（会話の席。読み取りの命令を走らせて写した）
+  release_condition: 外す手当ては無い（範囲の外）
+- id: 8
+  target: agy の導入先の書き換えの拒否（docs/ops/agy_acl.md）
+  handling: 見送り
+  reason: W-156 で agy を実装役に使うと決まったときに、docs/ops/agy_acl.md の「適用」を行う。それまでは起動の前の SHA-256 の照合が単独で働く
+  state:
+    deny_entries: 1
+    agy_pinned: 合格
+    agy_pinned_exit: 0
+  check_command: icacls %LOCALAPPDATA%\agy\bin; python -m harness.agy_pinned
+  checked_at: '2026-10-23T20:25:09+09:00'
+  checked_by: 実行役（会話の席。読み取りの命令を走らせて写した）
+  release_condition: 適用した後は、agy を更新するときに docs/ops/agy_acl.md の「外し方」で外す
