@@ -11,7 +11,7 @@ from hline_report import write_report
 TEMPLATE = ROOT / "harness" / "templates" / "director_room" / "CLAUDE.md"
 
 
-def director_settings(inbox, src_root=None, home_dirs=(".claude", ".gemini")):
+def director_settings(inbox, src_root=None, home_dirs=(".claude", ".gemini"), mirror=None):
     """総監督の設定：シェルを無効にし、受信箱の外と自分の設定・H ラインの書くファイルへの書き込みを拒否する。deny は
     allow より強く「受信箱だけ許す」と書けないので、受信箱の外を作った時点の一覧で全部拒否する。"""
     inbox = Path(inbox)
@@ -22,6 +22,8 @@ def director_settings(inbox, src_root=None, home_dirs=(".claude", ".gemini")):
     outside += [p for p in sorted(inbox.parent.iterdir()) if p != inbox]
     edit = [rule(p) if p.is_dir() else rule(p)[:-3] for p in outside] + [f"~/{d}/**" for d in home_dirs]
     edit += [rule(inbox / ".claude")] + [rule(inbox).replace("/**", "/" + n) for n in sorted(RESERVED)]
+    if mirror is not None and rule(Path(mirror)) not in edit:   # main の写し（W-150）は読めて書けない。setup の時点に無くても拒む
+        edit.append(rule(Path(mirror)))
     out = Path(src_root) / ".local" / "out"  # 走行の生ログ out/hline だけは読める。ほかは作った時点の一覧で拒否する
     others = [p for p in sorted(out.iterdir()) if p.name != "hline"] if out.is_dir() else []
     read = [rule(Path(src_root) / ".local" / "wt")] + [rule(p) if p.is_dir() else rule(p)[:-3] for p in others]
@@ -36,7 +38,7 @@ def setup(cfg):
     (inbox / ".claude").mkdir(parents=True, exist_ok=True)
     Path(cfg["out"]).mkdir(parents=True, exist_ok=True)
     (inbox / ".claude" / "settings.json").write_text(
-        json.dumps(director_settings(inbox), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        json.dumps(director_settings(inbox, mirror=cfg.get("mirror")), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     shutil.copyfile(TEMPLATE, inbox / "CLAUDE.md")
     (inbox / "TODO.md").touch()
     write_report(cfg, load_state(cfg))

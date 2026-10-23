@@ -741,10 +741,12 @@ class ReportEachStep(World):
     def test_the_report_starts_with_the_progress_report_and_the_h_section_follows(self):
         self.put("010-a")
         snaps = self.run_with_snapshots()
+        # 冒頭は main の写しの節（W-150）。その後に目的までの距離・関門の流れ・進捗ツリーが続く
         goal = "## 目的までの距離\n- R3-a: 差し替え\n\n## 関門ごとの流れ\n- 差し替え\n\n"
-        self.assertTrue(snaps["実装 1-1 T-010-a"].startswith(goal + "## 進捗ツリー\n- 人間作業: NONE\n"))
+        mirror = r"## main の写し\n- main の写し: [^\n]+\n\n"
+        self.assertRegex(snaps["実装 1-1 T-010-a"], "^" + mirror + re.escape(goal + "## 進捗ツリー\n- 人間作業: NONE\n"))
         report = self.report()   # 走行の終わりは統合 PR の待ち。人間作業の行だけが置き換わる
-        self.assertTrue(report.startswith(goal + "## 進捗ツリー\n- 人間作業: REVIEW_REQUIRED "))
+        self.assertRegex(report, "^" + mirror + re.escape(goal + "## 進捗ツリー\n- 人間作業: REVIEW_REQUIRED "))
         self.assertLess(report.index("## 進捗ツリー"), report.index("## H ライン"))
 
     def test_an_environment_fault_stops_the_run_and_the_report_says_so(self):

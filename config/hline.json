@@ -6,6 +6,8 @@
   "out": "${local}/out/hline",
   "_out_note": "生ログ・取り込んだ What の控え。総監督の部屋からは読めない（setup の deny）",
   "oracles": "${local}/oracles",
+  "mirror": "${local}/main",
+  "_mirror_note": "総監督が読む main の写し（W-150）。人の作業コピーと別の clone。python -m harness.main_mirror sync が origin/main に合わせ、写しの中の変更を捨てる。受信箱の settings は写しへの書き込みを拒む",
   "_oracles_note": "非公開オラクルの置き場。実装役の呼び出しの禁止の列（harness/oracle_deny.py）が inbox・out とともに、この下への Read・Grep・Glob と Bash を拒む",
   "base": "origin/main",
   "integration_branch": "hline/integration",
