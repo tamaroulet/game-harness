@@ -281,7 +281,7 @@ class CompleteTests(unittest.TestCase):
         with contextlib.redirect_stdout(buf):
             code = progress.main(["tree"])
         self.assertEqual(code, 0)
-        self.assertIn("W-153", buf.getvalue())
+        self.assertIn("- A 自律長期開発基盤", buf.getvalue())
 
 
 class _Fixed:
