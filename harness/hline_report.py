@@ -293,7 +293,11 @@ def human_line(cfg, st):
 
 
 def write_report(cfg, st):
-    text, human = progress_report(cfg), human_line(cfg, st)
+    try:
+        text = progress_report(cfg)
+    except progress.ProgressError as e:
+        text = f"## ⚠️ 台帳（過去ログ）を読めません\n\n- 理由: {e}\n"
+    human = human_line(cfg, st)
     if human:
         text = re.sub(r"^- 人間作業:.*$", lambda _: human, text, flags=re.M)
     probe = hline_probe.safe_section(cfg, pr=st.get("awaiting_pr"), waits=True)

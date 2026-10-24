@@ -182,7 +182,11 @@ def intake(cfg, st):
             skipped.extend({"file": src.name, "reason": r} for r in ([why] if isinstance(why, str) else why))
             continue
         if entry:   # 機械と監修役を通った。台帳の項目を統合ブランチに積んでから、What を待ちに入れる（積む前に落ちれば What は受信箱に残る）
-            hline_ledger_entry.stack(cfg, entry, name)
+            try:
+                hline_ledger_entry.stack(cfg, entry, name)
+            except progress.ProgressError as e:
+                skipped.append({"file": src.name, "reason": f"統合ブランチの台帳（過去ログ）を読めないため、次の走行で取り直します: {e}"})
+                continue
         what_path(cfg, name).parent.mkdir(parents=True, exist_ok=True)
         what_path(cfg, name).write_bytes(src.read_bytes())   # 読み直した文字列でなく、元のバイト列を写す（改行を替えない。D-114）
         st["items"][name] = {"status": "waiting", "title": title_of(text), "replaced": bool(old),
