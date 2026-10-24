@@ -42,6 +42,7 @@ import tree_docs  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REL_PATH = "docs/progress.yaml"
+ARCHIVE_REL_PATH = "docs/progress_archive.yaml"
 STATUSES = ("pending", "in_progress", "completed", "stopped", "withdrawn")
 OPEN = ("pending", "in_progress")   # 次のタスクに選ばれうる値
 HELD = {"stopped": "止めた", "withdrawn": "取り下げた"}   # 理由（reason）を持ち、H ラインが取らず、次のタスクに選ばれず、目的までの距離の分母に入らない。止めたものは再開しうる。取り下げたものは戻さない
@@ -80,8 +81,33 @@ def _label(t):
 
 # ============================================================ 読み書き
 
-def load(path):
+def load_raw(path):
     return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+
+
+def load_archive(path=None):
+    p = Path(path) if path else ROOT / ARCHIVE_REL_PATH
+    if p.exists():
+        return yaml.safe_load(p.read_text(encoding="utf-8"))
+    return None
+
+
+def load(path, include_archive=True):
+    p = Path(path)
+    state = yaml.safe_load(p.read_text(encoding="utf-8"))
+    if include_archive and isinstance(state, dict) and "tasks" in state:
+        archive = load_archive(p.parent / "progress_archive.yaml")
+        if archive and isinstance(archive.get("tasks"), list):
+            merged = dict(state)
+            # 完了タスクを先頭、アクティブタスクを末尾に結合（元の台帳順序を完全再現）
+            merged["tasks"] = list(archive["tasks"]) + list(state.get("tasks", []))
+            return merged
+    return state
+
+
+def load_with_archive(path=None):
+    p = Path(path) if path else ROOT / REL_PATH
+    return load(p, include_archive=True)
 
 
 def dump(state):
@@ -89,16 +115,25 @@ def dump(state):
 
 
 def save(state, path):
-    Path(path).write_text(dump(state), encoding="utf-8", newline="\n")
+    p = Path(path)
+    archive = load_archive(p.parent / "progress_archive.yaml")
+    if archive and isinstance(archive.get("tasks"), list):
+        archived_ids = {t["id"] for t in archive["tasks"] if isinstance(t, dict) and "id" in t}
+        to_save = dict(state)
+        to_save["tasks"] = [t for t in state.get("tasks", []) if t.get("id") not in archived_ids]
+        p.write_text(dump(to_save), encoding="utf-8", newline="\n")
+    else:
+        p.write_text(dump(state), encoding="utf-8", newline="\n")
 
 
 def _deps(t):
     return t.get("depends_on") or []
 
 
-def dependency_problems(tasks):
+def dependency_problems(tasks, archived_task_ids=None):
     """depends_on の問題（依存先が無い・循環・完了したのに依存先が未完了）。"""
     problems = []
+    archived_ids = set(archived_task_ids or ())
     by_id = {t.get("id"): t for t in tasks}
     for t in tasks:
         deps = _deps(t)
@@ -106,9 +141,9 @@ def dependency_problems(tasks):
             problems.append(f"task {t.get('id')} の depends_on はタスク ID の列です")
             continue
         for d in deps:
-            if d not in by_id:
+            if d not in by_id and d not in archived_ids:
                 problems.append(f"task {t.get('id')} の depends_on {d} が tasks にありません")
-            elif t.get("status") == "completed" and by_id[d].get("status") != "completed":
+            elif d in by_id and t.get("status") == "completed" and by_id[d].get("status") != "completed":
                 problems.append(f"task {t.get('id')} は完了ですが、依存先 {d} が完了ではありません")
     # 循環（色塗りの深さ優先。自分自身への依存も含む）
     state_of = {}
@@ -197,7 +232,11 @@ def validate(state):
         if v is not None and (not isinstance(v, dict) or not isinstance(v.get("command"), str)
                               or not isinstance(v.get("expected_exit_code"), int)):
             problems.append(f"task {tid} の verification は command（文字列）と expected_exit_code（整数）を持ちます")
-    problems += dependency_problems(state["tasks"])
+    archive = load_archive()
+    archived_ids = set()
+    if archive and isinstance(archive.get("tasks"), list):
+        archived_ids = {t["id"] for t in archive["tasks"] if isinstance(t, dict) and "id" in t}
+    problems += dependency_problems(state["tasks"], archived_task_ids=archived_ids)
     problems += [f"task {tid} は取り下げた {d} に依存しています（依存を書き直してください）"
                  for tid, d in _open_dependents(state["tasks"], "withdrawn")]
     active = [t["id"] for t in state["tasks"] if t.get("status") == "in_progress"]
@@ -516,7 +555,7 @@ def main(argv=None):
             return _complete_cli(args.task_id, args.ref)
         if args.cmd == "review":
             review(args.task_id, args.url, path)
-            print(report(load(path), tree_docs.read_dir(ROOT)), end="")
+            print(report(load_with_archive(path), tree_docs.read_dir(ROOT)), end="")
             return 0
         state = load(path)
         problems = validate(state)
@@ -525,17 +564,18 @@ def main(argv=None):
                 print(f"NG: {p}")
             for w in held_dependents(state.get("tasks") or []) if isinstance(state, dict) else []:
                 print(f"待ち: {w}")
-            if args.cmd == "check" and dump(state) != path.read_text(encoding="utf-8"):
+            if args.cmd == "check" and dump(load_raw(path)) != path.read_text(encoding="utf-8"):
                 print("NG: 正規の書式ではありません（手で編集した可能性があります）")
                 return 1
             print(f"{'合格' if not problems else '不合格'}（{len(problems)} 件）")
             return 0 if not problems else 1
+        view_state = load_with_archive(path)
         if args.cmd == "report":
-            print(report(state, tree_docs.read_dir(ROOT)), end="")
+            print(report(view_state, tree_docs.read_dir(ROOT)), end="")
         elif args.cmd == "hook":
             print(hook_output(state))
         else:
-            print(anchor(state) if args.cmd == "anchor" else tree(state, args.all, tree_docs.read_dir(ROOT)), end="")
+            print(anchor(state) if args.cmd == "anchor" else tree(view_state, args.all, tree_docs.read_dir(ROOT)), end="")
     except ProgressError as e:
         # 状態・前提の不備（照合できない、現在のタスクではない等）。検証の不合格（1）と区別する
         print(f"ABORT: {e}")
