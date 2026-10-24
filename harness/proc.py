@@ -3,6 +3,7 @@
 pipeline とアダプタが共通で使う。scheduler は長い子プロセスの出力を逐次ファイルへ
 書く別の起動方法（run_logged）を持つ。
 """
+import os
 import shutil
 import subprocess
 import sys
@@ -41,9 +42,12 @@ def decoded(data):
 
 def run(args, cwd, ttl, label, env=None, input=None):
     """shell=False。stdin は塞ぐ（input を渡したときだけ、それを標準入力に流す）。ウィンドウも出さない。TTL は必須。"""
+    sub_env = dict(os.environ if env is None else env)
+    sub_env.setdefault("PYTHONUTF8", "1")
+    sub_env.setdefault("PYTHONIOENCODING", "utf-8")
     child = job_object.Child(args, cwd=str(cwd), stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                             env=env, creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
+                             env=sub_env, creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
     try:
         with child as p:
             out, err = p.communicate(input=input.encode("utf-8") if input is not None else None, timeout=ttl)
