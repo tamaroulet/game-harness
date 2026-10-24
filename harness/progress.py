@@ -94,12 +94,24 @@ def load(path, include_archive=True):
     p = Path(path)
     state = yaml.safe_load(p.read_text(encoding="utf-8"))
     if include_archive and isinstance(state, dict) and "tasks" in state:
-        archive = load_archive(p.parent / "progress_archive.yaml")
-        if archive and isinstance(archive.get("tasks"), list):
+        archive_decl = state.get("archive")
+        if archive_decl:
+            arch_p = p.parent / Path(archive_decl).name
+            if not arch_p.exists():
+                raise ProgressError(f"過去ログ宣言 {archive_decl} がありますが、ファイルが存在しません: {arch_p}")
+            archive = yaml.safe_load(arch_p.read_text(encoding="utf-8"))
+            if not isinstance(archive, dict) or not isinstance(archive.get("tasks"), list):
+                raise ProgressError(f"過去ログ {arch_p} の形式が不正です（tasks リストがありません）")
             merged = dict(state)
-            # 完了タスクを先頭、アクティブタスクを末尾に結合（元の台帳順序を完全再現）
             merged["tasks"] = list(archive["tasks"]) + list(state.get("tasks", []))
             return merged
+        else:
+            archive = load_archive(p.parent / "progress_archive.yaml")
+            if archive and isinstance(archive.get("tasks"), list):
+                merged = dict(state)
+                # 完了タスクを先頭、アクティブタスクを末尾に結合（元の台帳順序を完全再現）
+                merged["tasks"] = list(archive["tasks"]) + list(state.get("tasks", []))
+                return merged
     return state
 
 
@@ -112,6 +124,7 @@ def read_ref(show_fn):
     """show_fn(rel_path) -> str | None を通じて台帳（docs/progress.yaml）と
     過去ログ（docs/progress_archive.yaml）を読み、透過的に結合した辞書を返す。
     progress.yaml が読めなければ None。
+    台帳に archive 宣言があるのに過去ログが読めなければ ProgressError を送出する（フェイルクローズド）。
     """
     text = show_fn(REL_PATH)
     if text is None:
@@ -119,14 +132,27 @@ def read_ref(show_fn):
     state = yaml.safe_load(text)
     if not isinstance(state, dict) or "tasks" not in state:
         return state
-    archive_text = show_fn(ARCHIVE_REL_PATH)
-    if archive_text:
+    archive_decl = state.get("archive")
+    if archive_decl:
+        archive_text = show_fn(archive_decl)
+        if archive_text is None:
+            raise ProgressError(f"過去ログ宣言 {archive_decl} がありますが、ファイルを読み込めませんでした")
         archive = yaml.safe_load(archive_text)
-        if isinstance(archive, dict) and isinstance(archive.get("tasks"), list):
-            merged = dict(state)
-            # 完了タスクを先頭、アクティブタスクを末尾に結合（元の台帳順序を完全再現）
-            merged["tasks"] = list(archive["tasks"]) + list(state.get("tasks", []))
-            return merged
+        if not isinstance(archive, dict) or not isinstance(archive.get("tasks"), list):
+            raise ProgressError(f"過去ログ {archive_decl} の形式が不正です（tasks リストがありません）")
+        merged = dict(state)
+        merged["tasks"] = list(archive["tasks"]) + list(state.get("tasks", []))
+        return merged
+    else:
+        # archive 宣言が無い古い ref のための後方互換
+        archive_text = show_fn(ARCHIVE_REL_PATH)
+        if archive_text:
+            archive = yaml.safe_load(archive_text)
+            if isinstance(archive, dict) and isinstance(archive.get("tasks"), list):
+                merged = dict(state)
+                # 完了タスクを先頭、アクティブタスクを末尾に結合（元の台帳順序を完全再現）
+                merged["tasks"] = list(archive["tasks"]) + list(state.get("tasks", []))
+                return merged
     return state
 
 

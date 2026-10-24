@@ -67,7 +67,7 @@ def load_ledger(cfg):
             st = progress.read_ref(show_fn)
             if st is not None:
                 return ref, st
-        except Unreadable as e:
+        except (Unreadable, progress.ProgressError) as e:
             why.append(str(e))
     raise Unreadable("台帳を読めない: " + "／".join(why))
 

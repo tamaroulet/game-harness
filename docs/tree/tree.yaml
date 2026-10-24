@@ -215,9 +215,7 @@ requirements:
   verify_by: [test:independent]
   status: 検証済み
   depends_on: []
-  tasks: [W-176]
-  proposals:
-  - 過去ログが読めなかったときに現役だけを返さない（現役の台帳に過去ログの宣言を書き、読めなければ例外）。ループを再開する前の条件（reply-architect-20261024-21.md §3）
+  tasks: [W-176, W-177]
   evidence:
   - 台帳 3,546 行（副操縦士の知らせ。README P11 では 3,545 行、済み 166 件）
   - >-
