@@ -556,11 +556,18 @@ class Factory:
             return
         ttl = cfg["ttl_seconds"]["git"]
         code, instr, _ = proc.run(["git", "show", f"{start}:{rel}"], self.clone, ttl, "git show (reviewer instruction)")
-        code2, text, _ = proc.run(["git", "show", f"{start}:{hline_queue.progress.REL_PATH}"], self.clone, ttl, "git show (ledger)")
-        if code != 0 or code2 != 0:
+        if code != 0:
             return
+
+        def show_fn(rel_path):
+            c, out, _ = proc.run(["git", "show", f"{start}:{rel_path}"], self.clone, ttl, f"git show ({rel_path})")
+            return out if c == 0 else None
+
         try:
-            rows = {t["id"]: t for t in yaml.safe_load(text)["tasks"]}
+            ledger = hline_queue.progress.read_ref(show_fn)
+            if not ledger or "tasks" not in ledger:
+                return
+            rows = {t["id"]: t for t in ledger["tasks"]}
         except Exception:   # noqa: BLE001
             return
         for p in sorted((self.work / "inbox").glob("P-*.md")):

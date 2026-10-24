@@ -39,4 +39,6 @@
 | 2026-10-24 | 休眠ゲームライン（unity-2d）のスケジューラテスト 5 本（test_scheduler_a/b/c/gdd/layout）を tests/dormant/ へ退避し、必須 CI の探索対象から除外した。ローカル全件テスト所要時間を 5〜7 分から 73.9 秒へ高速化（W-174 止血着工） | W-174 | 軽い | ローカル fastsuite 実測値、E5 律速分析、操縦士の指示 | 操縦士（合意・指示）、副操縦士（実務） | 戻せる（ファイルを tests/ に戻す） |
 | 2026-10-24 | サブプロセス起動共通部（harness/proc.py）で PYTHONUTF8=1 および PYTHONIOENCODING=utf-8 を自動注入し、Windows 環境での CP932 混入・文字化けを防止。単体テスト（tests/test_utf8_enforcement.py）を追加し直書き歯止め台帳を更新 | W-175 | 軽い | ローカル fastsuite 実測値（76.2 秒、2159 件 PASS）、操縦士の通し承認 | 操縦士（包括承認）、副操縦士（実務） | 戻せる（コミットを戻す） |
 | 2026-10-24 | 台帳（docs/progress.yaml）から完了済みタスク 166 件を docs/progress_archive.yaml へ分離し、行数を 3589 行から 875 行（75.6% 削減、44.7KB）に軽量化。harness.progress に load_with_archive を導入し、レポート出力の完全一致と依存検証の健全性を両立（W-176 止血） | W-176 | 軽い | docs/rebuild/README.md §4、操縦士の包括指示、ベースライン比較実測 | 操縦士（包括指示）、副操縦士（実務） | 戻せる（アーカイブを台帳に戻す） |
+| 2026-10-24 | 台帳直読み箇所（8箇所）を progress.read_ref / load_git_ref に統一し過去ログを透過読込。bench_start のアーカイブ除外と不変条件・等価性テスト（tests/test_archive_equivalence.py）を追加して台帳分割の完全止血を実施 | W-176 | 利害が絡む（台帳参照共通化と等価性保証） | 総監督返答（20本目）、Argon定性批評（盲点4点）、fastsuite実測（2167件全件PASS） | 総監督（指摘）、Argon（評価・盲点補正）、操縦士（包括承認）、副操縦士（実務） | 戻せる |
+
 

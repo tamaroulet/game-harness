@@ -223,7 +223,7 @@ class Integrate(unittest.TestCase):
 
         def fake_run(args, cwd, ttl, label, env=None, input=None):
             asked.append(args[-1])
-            return (0, yaml.safe_dump(served, allow_unicode=True), "") if "hline/integration" in args[-1] else (1, "", "")
+            return (0, yaml.safe_dump(served, allow_unicode=True), "") if args[-1] == f"origin/{CFG['integration_branch']}:{progress.REL_PATH}" else (1, "", "")
 
         with mock.patch.object(hline.proc, "run", side_effect=fake_run):
             text = hline_report.progress_report(CFG)

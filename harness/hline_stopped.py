@@ -73,11 +73,17 @@ def main_head(cfg, runner):
 def main_ledger(cfg, runner):
     """origin/main の台帳。読めなければ None と理由。"""
     import hline_probe
-    out, why = hline_probe.git(cfg, ["show", f"{cfg['base']}:docs/progress.yaml"], runner)
-    if why:
-        return None, why
+    import progress
+
+    def show_fn(rel_path):
+        out, why = hline_probe.git(cfg, ["show", f"{cfg['base']}:{rel_path}"], runner)
+        return out if not why else None
+
     try:
-        return yaml.safe_load(out), None
+        st = progress.read_ref(show_fn)
+        if st is None:
+            return None, f"{cfg['base']} の台帳を読めません"
+        return st, None
     except Exception as e:   # noqa: BLE001
         return None, f"台帳を読めない: {type(e).__name__}"
 
