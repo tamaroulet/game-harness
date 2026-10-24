@@ -270,6 +270,12 @@ def _count(ts):
     return f"（{sum(t['status'] == 'completed' for t in ts)}/{sum(not is_held(t) for t in ts)}{held}）"
 
 
+def _completions(state, node_id):
+    """ノードの直下のタスクの完了の時刻（説明の古さに使う）。子のノードの下は見ない。見ると、上のノードは下のどのタスクが
+    済んでも古くなり、印が意味を失う（総監督の検め 2026-10-24 の 9 本目 §3）。"""
+    return [t.get("completed_at") for t in state["tasks"] if t["group"] == node_id]
+
+
 def _contains_active(state, node_id):
     return any(t["id"] == state.get("active_task_id") for t in _tasks_under(state, node_id))
 
@@ -288,7 +294,7 @@ def tree(state, expand_all=False, docs=None):
         ts = _tasks_under(state, node["id"])
         mark = "[x]" if _done(state, node) else "[ ]"
         count = _count(ts) if ts else ""
-        doc = "" if docs is None or _done(state, node) else tree_docs.marks(docs.get(node["id"]), [t.get("completed_at") for t in ts])
+        doc = "" if docs is None or _done(state, node) else tree_docs.marks(docs.get(node["id"]), _completions(state, node["id"]))
         lines.append(f"{'  ' * depth}- {mark} {node['id']} {node['title']}{count}{doc}")
 
     def siblings(nodes, depth):
@@ -323,7 +329,7 @@ def tree(state, expand_all=False, docs=None):
 
     for root in _children(state, None):
         # 根は常に 1 段目まで開く（全体の位置づけを示すため）
-        doc = "" if docs is None or _done(state, root) else tree_docs.marks(docs.get(root["id"]), [t.get("completed_at") for t in _tasks_under(state, root["id"])])
+        doc = "" if docs is None or _done(state, root) else tree_docs.marks(docs.get(root["id"]), _completions(state, root["id"]))
         lines.append(f"- {root['id']} {root['title']}{doc}")
         siblings(_children(state, root["id"]), 1)
     return "\n".join(lines) + "\n"

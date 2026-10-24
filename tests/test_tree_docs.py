@@ -156,6 +156,19 @@ class TreeMarkTests(unittest.TestCase):
     def test_without_docs_tree_is_unchanged(self):
         self.assertNotIn("〔", progress.tree(fake(), True))
 
+    def test_stale_looks_only_at_tasks_directly_under_the_node(self):
+        """子のノードの下のタスクが済んでも、親は古くならない（総監督の検め 9 本目 §3 の推奨）。"""
+        s = fake()
+        s["nodes"].append({"id": "KID", "title": "child", "parent": "OK"})
+        s["tasks"].append(task("T8", "KID", "completed", completed_at="2026-10-30T09:00:00"))
+        s["tasks"].append(task("T9", "KID", "pending"))
+        docs = {**self.docs, "KID": doc("KID", day="2026-10-24")}
+        text = progress.tree(s, True, docs)
+        line = lambda nid: next(l for l in text.splitlines() if f" {nid} " in l)  # noqa: E731
+        self.assertIn("説明が古い", line("KID"))
+        self.assertNotIn("説明が古い", line("OK"))
+        self.assertNotIn("説明が古い", line("A"))
+
     def test_complete_time_is_what_stale_compares(self):
         self.assertTrue(tree_docs.stale(doc("X", day="2026-10-24"), ["2026-10-25T00:00:01"]))
         self.assertFalse(tree_docs.stale(doc("X", day="2026-10-25"), ["2026-10-25T23:00:00"]))
