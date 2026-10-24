@@ -216,10 +216,6 @@ requirements:
   status: 検証済み
   depends_on: []
   tasks: [W-176, W-177]
-  proposals:
-  - >-
-    過去ログが読めないときの例外の受け方をそろえる。hline_ledger_entry.base_state は「読めなければ ValueError」の約束なのに ProgressError が抜ける。
-    hline_report.progress_report と hline_ledger_entry.on_integration は例外がそのまま上がる。ループを再開する前に、呼び手がどう扱うかを決めて試験で縛る（reply-architect-20261024-30.md §3）
   evidence:
   - 台帳 3,546 行（副操縦士の知らせ。README P11 では 3,545 行、済み 166 件）
   - >-

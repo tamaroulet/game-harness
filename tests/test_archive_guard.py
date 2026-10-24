@@ -5,6 +5,7 @@
 （フェイルクローズド）ことを厳格に検証する。
 """
 import unittest
+from unittest import mock
 from pathlib import Path
 import sys
 import yaml
@@ -16,6 +17,9 @@ import progress  # noqa: E402
 import goal_distance  # noqa: E402
 import hline_queue  # noqa: E402
 import hline_stopped  # noqa: E402
+import hline_ledger_entry  # noqa: E402
+import hline_report  # noqa: E402
+import hline_git  # noqa: E402
 
 
 class ArchiveGuardTests(unittest.TestCase):
@@ -103,9 +107,9 @@ class ArchiveGuardTests(unittest.TestCase):
         try:
             def fake_proc_run(args, cwd, ttl, label):
                 cmd_str = " ".join(args)
-                if f"origin/main:{progress.REL_PATH}" in cmd_str:
+                if progress.REL_PATH in cmd_str:
                     return 0, self.active_text, ""
-                if f"origin/main:{progress.ARCHIVE_REL_PATH}" in cmd_str:
+                if progress.ARCHIVE_REL_PATH in cmd_str:
                     return 0, self.archive_text, ""
                 return 1, "", "not found"
 
@@ -123,8 +127,21 @@ class ArchiveGuardTests(unittest.TestCase):
             # 4. goal_distance.load_ledger
             import goal_distance as gd
             ref, st_gd = gd.load_ledger(cfg)
-            self.assertEqual(ref, "origin/main")
+            self.assertIn(ref, ("origin/hline/integration", "origin/main"))
             self.assertTrue(any(t["id"] == "W-122" for t in st_gd["tasks"]))
+
+            # 5. hline_ledger_entry.base_state
+            st_base = hline_ledger_entry.base_state(cfg)
+            self.assertIsNotNone(st_base)
+            self.assertTrue(any(t["id"] == "W-122" for t in st_base["tasks"]))
+
+            # 6. hline_ledger_entry.on_integration
+            with mock.patch.object(hline_git, "integration_exists", return_value=True):
+                self.assertTrue(hline_ledger_entry.on_integration(cfg, "W-122"))
+
+            # 7. hline_report.progress_report
+            rep = hline_report.progress_report(cfg)
+            self.assertIn("W-122", rep)
         finally:
             proc.run = orig_proc_run
 
@@ -136,9 +153,9 @@ class ArchiveGuardTests(unittest.TestCase):
         try:
             def fake_proc_run_archive_fail(args, cwd, ttl, label):
                 cmd_str = " ".join(args)
-                if f"origin/main:{progress.REL_PATH}" in cmd_str:
+                if progress.REL_PATH in cmd_str:
                     return 0, self.active_text, ""
-                if f"origin/main:{progress.ARCHIVE_REL_PATH}" in cmd_str:
+                if progress.ARCHIVE_REL_PATH in cmd_str:
                     return 1, "", "git show failed"
                 return 1, "", "not found"
 
@@ -157,6 +174,20 @@ class ArchiveGuardTests(unittest.TestCase):
             import goal_distance as gd
             with self.assertRaises(gd.Unreadable):
                 gd.load_ledger(cfg)
+
+            # 4. hline_ledger_entry.base_state は ValueError を送出する（ProgressError を包む契約）
+            with self.assertRaises(ValueError) as ctx_base:
+                hline_ledger_entry.base_state(cfg)
+            self.assertIsInstance(ctx_base.exception.__cause__, progress.ProgressError)
+
+            # 5. hline_ledger_entry.on_integration は ProgressError を送出する（False を返さずフェイルクローズド）
+            with mock.patch.object(hline_git, "integration_exists", return_value=True):
+                with self.assertRaises(progress.ProgressError):
+                    hline_ledger_entry.on_integration(cfg, "W-122")
+
+            # 6. hline_report.progress_report は ProgressError を送出する（黙って現役だけを返さずフェイルクローズド）
+            with self.assertRaises(progress.ProgressError):
+                hline_report.progress_report(cfg)
         finally:
             proc.run = orig_proc_run
 

@@ -96,7 +96,8 @@ def load(path, include_archive=True):
     if include_archive and isinstance(state, dict) and "tasks" in state:
         archive_decl = state.get("archive")
         if archive_decl:
-            arch_p = p.parent / Path(archive_decl).name
+            arch_candidate = ROOT / archive_decl
+            arch_p = arch_candidate if arch_candidate.exists() else (p.parent / Path(archive_decl).name)
             if not arch_p.exists():
                 raise ProgressError(f"過去ログ宣言 {archive_decl} がありますが、ファイルが存在しません: {arch_p}")
             archive = yaml.safe_load(arch_p.read_text(encoding="utf-8"))
