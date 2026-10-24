@@ -1,11 +1,11 @@
-active_task_id: W-149
+active_task_id: W-150
 constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (game-harness#44).
 last_verification:
-  task: W-169
+  task: W-149
   exit_code: 0
-  at: '2026-10-24T00:57:51'
+  at: '2026-10-24T09:33:48'
 next_id: 106
 nodes:
 - id: A
@@ -3202,7 +3202,7 @@ tasks:
   title: ノードの説明の置き場（承認の欄と予算の記録の欄を含める）
   group: rebuild-1
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'rebuild-1: node-notes'
   by: executor
   purpose: セクターごとに、何の目的で作ったかと、人の承認・使ったトークンと時間を、台帳の木のノードに溜められるようにする
@@ -3219,11 +3219,12 @@ tasks:
   verification:
     command: python -m unittest tests.test_tree_docs
     expected_exit_code: 0
+  completed_at: '2026-10-24T09:33:48'
 - id: W-150
   title: 総監督が常に main の版を読める（settings の変更は setup のコードで行う）
   group: rebuild-1
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'rebuild-1: director-reads-main'
   by: executor
   purpose: 総監督が、どの版を読んだかの分かる main の中身を読めるようにする
