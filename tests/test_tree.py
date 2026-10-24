@@ -118,6 +118,21 @@ class TestTreeAcceptanceSynthetic(unittest.TestCase):
         problems = tree.check(self.base_tree, l)
         self.assertTrue(any("T-ORPHAN" in p and "どの要件にもありません" in p for p in problems))
 
+
+    def test_empty_project_goal_fails(self):
+        tree_d = copy.deepcopy(self.base_tree)
+        ledger_d = copy.deepcopy(self.base_ledger)
+        ledger_d["project_goal"] = ""
+        problems = tree.check(tree_d, ledger_d)
+        self.assertTrue(any("project_goal" in p for p in problems), problems)
+
+    def test_objective_missing_depends_on_fails(self):
+        tree_d = copy.deepcopy(self.base_tree)
+        tree_d["objective"] = {"title": "自律開発基盤の確立", "depends_on": ["req.nonexistent"]}
+        ledger_d = copy.deepcopy(self.base_ledger)
+        problems = tree.check(tree_d, ledger_d)
+        self.assertTrue(any("req.nonexistent" in p for p in problems), problems)
+
     def test_uncompleted_task_in_multiple_requirements_fails(self):
         t = copy.deepcopy(self.base_tree)
         t["requirements"][0]["tasks"].append("T-02")

@@ -45,7 +45,6 @@ ARCHIVE_REL_PATH = "docs/progress_archive.yaml"
 STATUSES = ("pending", "in_progress", "completed", "stopped", "withdrawn")
 OPEN = ("pending", "in_progress")   # 次のタスクに選ばれうる値
 HELD = {"stopped": "止めた", "withdrawn": "取り下げた"}   # 理由（reason）を持ち、H ラインが取らず、次のタスクに選ばれず、目的までの距離の分母に入らない。止めたものは再開しうる。取り下げたものは戻さない
-REBUILD = "rebuild"   # 立て直しのノード。下のタスクは、検証が書かれるまで次のタスクに選ばない
 TAIL_LINES = 20
 VERIFY_TTL = 1800
 GIT_TTL = 120
@@ -345,10 +344,8 @@ def _contains_active(state, node_id):
     return any(t["id"] == state.get("active_task_id") for t in _tasks_under(state, node_id))
 
 
-def tree(state, expand_all=False, docs=None):
+def tree(state, expand_all=False):
     """人間と PR 用。既定では現在のタスクを含む枝だけを展開し、他の枝は件数に畳む。
-
-    docs（{ノードの id: 説明の本文}）を渡すと、完了でないノードの行に、承認の有無と説明の古さの印を付ける（W-149）。
 
     既定の表示では、続けて並ぶ完了した兄弟の段を 1 行にまとめる。展開した枝のタスクは完了も未完了もすべて出す。
     行数の上限は設けない。--all では現在地を含まない枝もすべて出す。
@@ -359,8 +356,7 @@ def tree(state, expand_all=False, docs=None):
         ts = _tasks_under(state, node["id"])
         mark = "[x]" if _done(state, node) else "[ ]"
         count = _count(ts) if ts else ""
-        doc = ""
-        lines.append(f"{'  ' * depth}- {mark} {node['id']} {node['title']}{count}{doc}")
+        lines.append(f"{'  ' * depth}- {mark} {node['id']} {node['title']}{count}")
 
     def siblings(nodes, depth):
         done = []
@@ -394,8 +390,7 @@ def tree(state, expand_all=False, docs=None):
 
     for root in _children(state, None):
         # 根は常に 1 段目まで開く（全体の位置づけを示すため）
-        doc = ""
-        lines.append(f"- {root['id']} {root['title']}{doc}")
+        lines.append(f"- {root['id']} {root['title']}")
         siblings(_children(state, root["id"]), 1)
     return "\n".join(lines) + "\n"
 
@@ -406,8 +401,8 @@ def hook_output(state):
                                               "additionalContext": anchor(state)}}, ensure_ascii=False)
 
 
-def report(state, docs=None):
-    """チャット報告の全文。ツリーと状態だけで、作文を挟む余地を残さない。docs は tree に渡す。"""
+def report(state):
+    """チャット報告の全文。ツリーと状態だけで、作文を挟む余地を残さない。"""
     tid = state.get("active_task_id")
     t = task(state, tid) if tid else None
     v = (t or {}).get("verification")
@@ -418,7 +413,7 @@ def report(state, docs=None):
         human = f"- 人間作業: TASK {tid} {t['title']}（操縦士）"
     else:
         human = "- 人間作業: NONE"
-    lines =["## 進捗ツリー"] + tree(state, docs=docs).splitlines() + [
+    lines =["## 進捗ツリー"] + tree(state).splitlines() + [
         "",
         "## 状態",
         f"- 現在タスク: {tid}（{t['title']}）" if t else "- 現在タスク: NONE",
@@ -462,18 +457,6 @@ def main_version(repo_root, ref, fetch=True):
     if st is None:
         raise ProgressError(f"{ref} に {REL_PATH} がありません。検証コマンドは main に入ってから有効になります")
     return st
-
-
-def in_rebuild(state, t):
-    """t が立て直しのノード（REBUILD）の下にあるか。"""
-    parents = {n.get("id"): n.get("parent") for n in state.get("nodes") or []}
-    node, seen = t.get("group"), set()
-    while node is not None and node not in seen:
-        if node == REBUILD:
-            return True
-        seen.add(node)
-        node = parents.get(node)
-    return False
 
 
 def selectable(state, t):
@@ -538,7 +521,7 @@ def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, 
         out(f"REJECT: 終了コード {rc}（期待 {v['expected_exit_code']}）。{task_id} は完了にしません")
         return 1
     t["status"] = "completed"
-    t["completed_at"] = at   
+    t["completed_at"] = at
     t.pop("review_pr", None)
     advance_active(state)
     save(state, path)
@@ -578,7 +561,7 @@ def main(argv=None):
             return _complete_cli(args.task_id, args.ref)
         if args.cmd == "review":
             review(args.task_id, args.url, path)
-            print(report(load(path), None), end="")
+            print(report(load(path)), end="")
             return 0
         state = load(path)
         problems = validate(state)
@@ -593,11 +576,11 @@ def main(argv=None):
             print(f"{'合格' if not problems else '不合格'}（{len(problems)} 件）")
             return 0 if not problems else 1
         if args.cmd == "report":
-            print(report(state, None), end="")
+            print(report(state), end="")
         elif args.cmd == "hook":
             print(hook_output(state))
         else:
-            print(anchor(state) if args.cmd == "anchor" else tree(state, args.all, None), end="")
+            print(anchor(state) if args.cmd == "anchor" else tree(state, args.all), end="")
     except ProgressError as e:
         # 状態・前提の不備（照合できない、現在のタスクではない等）。検証の不合格（1）と区別する
         print(f"ABORT: {e}")

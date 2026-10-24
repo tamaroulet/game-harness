@@ -112,7 +112,7 @@ def render(cfg, mark, runner=None, clock=None, mirror_failed=None):
     def git(args):
         out, err = hline_probe.git(cfg, args, runner)
         return None if err else out
-    tree = progress.report(ledger, None) if ledger else f"## 進捗ツリー\n- {hline_probe.failure(why)}\n"
+    tree = progress.report(ledger) if ledger else f"## 進捗ツリー\n- {hline_probe.failure(why)}\n"
     st = hline_queue.load_state(cfg)
     parts = ["\n".join(head) + "\n", hline_report.goal_section(cfg, checks=hline_checks.cached_section), hline_report.flow_section(cfg), tree,
              hline_report.h_section(cfg, st, stopped_at=ran), hline_probe.safe_section(cfg, runner=runner, clock=clock),

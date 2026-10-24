@@ -142,7 +142,7 @@ VERIFY = {"command": "python -m unittest tests.x", "expected_exit_code": 0}
 def rebuild_ledger(*tasks):
     state = sample(*tasks)
     state["nodes"] += [{"id": "rebuild", "title": "rebuild", "parent": "A"},
-                       {"id": "rebuild", "title": "sector", "parent": "rebuild"}]
+    ]
     return state
 
 
@@ -270,7 +270,7 @@ class RealLedger(unittest.TestCase):
 
     def test_an_in_progress_rebuild_task_has_its_acceptance_verification_and_oracle(self):
         for t in self.state["tasks"]:
-            if t["status"] == "in_progress" and progress.in_rebuild(self.state, t):
+            if t["status"] == "in_progress" and t.get("group") in self.rebuild_nodes():
                 with self.subTest(task=t["id"]):
                     self.assertTrue(t.get("acceptance"))
                     self.assertTrue(t.get("verification"))

@@ -27,16 +27,18 @@ def check(tree_data: dict, ledger_data: dict) -> list[str]:
             problems.append("objective に title がありません")
     elif isinstance(obj, list):
         if len(obj) != 1:
-            problems.append(f"objective が {len(obj)} 個あります（ちょうど 1 つ必要）")
+            problems.append(f"objective が {len(obj)} 個あります（ちょうど 1 個必要）")
         obj_text = obj[0] if obj else ""
     elif isinstance(obj, str):
         obj_text = obj
     else:
-        problems.append(f"objective の形式が不正です: {type(obj)}")
+        problems.append(f"objective の型が不正です: {type(obj)}")
         obj_text = ""
 
-    proj_goal = ledger_data.get("project_goal", "")
-    if obj_text and proj_goal and obj_text.strip() != proj_goal.strip():
+    proj_goal = (ledger_data.get("project_goal") or "").strip()
+    if not proj_goal:
+        problems.append("台帳（docs/progress.yaml）に project_goal が無いか空です")
+    elif obj_text and obj_text.strip() != proj_goal:
         problems.append(f"objective と project_goal の文字列が一致しません: objective={obj_text!r} vs project_goal={proj_goal!r}")
 
     requirements = tree_data.get("requirements", [])
@@ -67,6 +69,11 @@ def check(tree_data: dict, ledger_data: dict) -> list[str]:
             for v in vb_list:
                 if v not in ALLOWED_VERIFY_BY:
                     problems.append(f"要件 {rid} の verify_by {v!r} は許可された値 {ALLOWED_VERIFY_BY} ではありません")
+
+    if isinstance(obj, dict):
+        for dep in obj.get("depends_on") or []:
+            if dep not in req_ids:
+                problems.append(f"objective の depends_on 先 {dep!r} が要件に存在しません")
 
     for rid, req in req_map.items():
         deps = req.get("depends_on", [])
@@ -108,19 +115,18 @@ def check(tree_data: dict, ledger_data: dict) -> list[str]:
             task_occurrences[tid] = task_occurrences.get(tid, 0) + 1
 
     for tid, t in ledger_tasks.items():
-        st = t.get("status")
-        if st in UNCOMPLETED_STATUSES:
+        if t.get("status") in UNCOMPLETED_STATUSES:
             count = task_occurrences.get(tid, 0)
             if count == 0:
-                problems.append(f"台帳の未完了タスク {tid!r} ({st}) がどの要件にもありません")
+                problems.append(f"未完了タスク {tid!r} ({t.get('status')}) がどの要件にもありません")
             elif count > 1:
-                problems.append(f"台帳の未完了タスク {tid!r} ({st}) が複数の要件 ({count} 箇所) にあります")
+                problems.append(f"未完了タスク {tid!r} が複数の要件に重複して現れています（{count} 回）")
 
     return problems
 
 
-def main() -> int:
-    root = Path(__file__).resolve().parent.parent
+def main():
+    root = ROOT
     tree_path = root / "docs" / "tree" / "tree.yaml"
     if not tree_path.exists():
         print(f"Error: {tree_path} not found", file=sys.stderr)
@@ -134,14 +140,15 @@ def main() -> int:
 
     problems = check(tree_data, ledger_data)
     if problems:
-        print(f"FAILED: {len(problems)} problems found:")
+        print(f"FAILED: {len(problems)} problems found:", file=sys.stderr)
         for p in problems:
-            print(f"  - {p}")
+            print(f"  - {p}", file=sys.stderr)
         return 1
-    else:
-        print("ALL TREE CHECKS PASSED")
-        return 0
+    print("ALL TREE CHECKS PASSED")
+    return 0
 
+
+ROOT = Path(__file__).resolve().parent.parent
 
 if __name__ == "__main__":
     sys.exit(exitcode.normalized(main))

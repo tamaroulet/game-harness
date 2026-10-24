@@ -1,4 +1,4 @@
-"""台帳の project_goal の検査（tree.yaml の objective と一致すること）。"""
+"""台帳の project_goal の検査（tree.yaml の objective と一致すること、確定文の芯になる語を守ること）。"""
 import unittest
 from pathlib import Path
 import yaml
@@ -18,6 +18,11 @@ class ProjectGoal(unittest.TestCase):
 
     def test_the_goal_matches_tree_objective(self):
         self.assertEqual(self.goal, self.objective)
+
+    def test_the_goal_has_core_phrases(self):
+        """操縦士が確定した文の芯になる語（総監督の一覧。削らない）。"""
+        for phrase in ("単一コンテキスト型", "3D の物理演算", "統制された比較実験", "ハーネス側が勝つことは完了の条件にしない"):
+            self.assertIn(phrase, self.goal)
 
     def test_the_old_stages_are_gone(self):
         for word in ("D-109", "段 1 軽い 3D 通し", "R5 の製品の付け足し"):

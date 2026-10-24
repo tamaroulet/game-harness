@@ -3,159 +3,51 @@
   "components": {
     "director": {
       "title": "総監督（週次の起動・受信箱・照合・probe・目的までの距離）",
-      "modules": [
-        "director_launch.py",
-        "hline_room.py",
-        "hline_checks.py",
-        "probe.py",
-        "goal_distance.py",
-        "hline_probe.py",
-        "main_mirror.py"
-      ]
+      "modules": ["director_launch.py", "hline_room.py", "hline_checks.py", "probe.py", "goal_distance.py", "hline_probe.py", "main_mirror.py"]
     },
     "hline": {
       "title": "H ライン（内側の自律ループ：取り込み・実装の試行・積む・統合 PR・報告）",
-      "modules": [
-        "hline.py",
-        "hline_abort.py",
-        "hline_agy.py",
-        "hline_base.py",
-        "hline_budget.py",
-        "hline_cron.py",
-        "hline_extend.py",
-        "hline_followup.py",
-        "hline_gc.py",
-        "hline_git.py",
-        "hline_halt.py",
-        "hline_stopped.py",
-        "hline_hygiene.py",
-        "hline_ledger_entry.py",
-        "hline_merge.py",
-        "hline_pending.py",
-        "hline_prompt.py",
-        "hline_queue.py",
-        "hline_quota.py",
-        "hline_report.py",
-        "hline_resume.py",
-        "hline_review.py",
-        "hline_task.py",
-        "hline_usage.py",
-        "implementer_context.py",
-        "narrow_dir.py",
-        "symbolmap.py",
-        "tool_policy.py",
-        "agy_stream.py",
-        "agy_pinned.py"
-      ]
+      "modules": ["hline.py", "hline_abort.py", "hline_agy.py", "hline_base.py", "hline_budget.py", "hline_cron.py", "hline_extend.py",
+                  "hline_followup.py", "hline_gc.py", "hline_git.py", "hline_halt.py", "hline_stopped.py", "hline_hygiene.py", "hline_ledger_entry.py",
+                  "hline_merge.py", "hline_pending.py", "hline_prompt.py", "hline_queue.py", "hline_quota.py", "hline_report.py",
+                  "hline_resume.py", "hline_review.py", "hline_task.py", "hline_usage.py", "implementer_context.py", "narrow_dir.py",
+                  "symbolmap.py", "tool_policy.py", "agy_stream.py", "agy_pinned.py"]
     },
     "gate": {
       "title": "門（Gate 1：影響テスト・編集境界・保護パス・規模・全件）",
-      "modules": [
-        "hline_gate.py",
-        "hline_suite.py",
-        "hline_boundary.py",
-        "hline_protect.py",
-        "hline_foundation.py",
-        "hline_spec.py",
-        "hline_symbols.py",
-        "gate_flow.py",
-        "gate_order.py",
-        "impacted.py",
-        "fastsuite.py",
-        "size_limits.py",
-        "base_whitelist.py"
-      ]
+      "modules": ["hline_gate.py", "hline_suite.py", "hline_boundary.py", "hline_protect.py", "hline_foundation.py", "hline_spec.py",
+                  "hline_symbols.py", "gate_flow.py", "gate_order.py", "impacted.py", "fastsuite.py", "size_limits.py",
+                  "base_whitelist.py"]
     },
     "factory": {
       "title": "工廠とベンチ（計画役・計画の監修・凍結の 10 本・採点・非劣性）",
-      "modules": [
-        "bench_freeze.py",
-        "bench_guard.py",
-        "bench_regress.py",
-        "bench_run.py",
-        "bench_score.py",
-        "bench_start.py",
-        "bench_verify.py",
-        "planner.py",
-        "plan_check.py",
-        "plan_loop.py",
-        "reqcov.py"
-      ]
+      "modules": ["bench_freeze.py", "bench_guard.py", "bench_regress.py", "bench_run.py", "bench_score.py", "bench_start.py",
+                  "bench_verify.py", "planner.py", "plan_check.py", "plan_loop.py", "reqcov.py"]
     },
     "outer": {
       "title": "外側の周期と計器（外側の統合・周期の報告・週次の報告・失敗の分類・北極星）",
-      "modules": [
-        "hline_outer.py",
-        "outer_cycles.py",
-        "cycle_report.py",
-        "weekly_report.py",
-        "failure_classes.py",
-        "northstar.py"
-      ]
+      "modules": ["hline_outer.py", "outer_cycles.py", "cycle_report.py", "weekly_report.py", "failure_classes.py", "northstar.py"]
     },
     "game_line": {
       "title": "ゲームのライン（MS3・MS4：スケジューラ・パイプライン・分解・契約と性質の道具・アダプタ）",
-      "modules": [
-        "scheduler.py",
-        "pipeline.py",
-        "decompose.py",
-        "declare.py",
-        "contract.py",
-        "contractgen.py",
-        "prop*.py",
-        "nlgen.py",
-        "testgen.py",
-        "invgen.py",
-        "invrun.py",
-        "oracle.py",
-        "unit_schema.py",
-        "witness.py",
-        "witness_selftest.py",
-        "gdd_check.py",
-        "spec.py",
-        "playtest.py",
-        "canary.py",
-        "diagproj.py",
-        "telemetry.py",
-        "project.py",
-        "adapters/"
-      ]
+      "modules": ["scheduler.py", "pipeline.py", "decompose.py", "declare.py", "contract.py", "contractgen.py",
+                  "prop*.py", "nlgen.py", "testgen.py", "invgen.py", "invrun.py", "oracle.py", "unit_schema.py", "witness.py",
+                  "witness_selftest.py", "gdd_check.py", "spec.py", "playtest.py", "canary.py", "diagproj.py", "telemetry.py",
+                  "project.py", "adapters/"]
     },
     "experiments": {
       "title": "A/B と v2r の実験の道具",
-      "modules": [
-        "ab/",
-        "provenance.py"
-      ]
+      "modules": ["ab/", "provenance.py"]
     },
     "research": {
       "title": "外部の調べもの（調べ役・照合・前提の台帳・索引）",
-      "modules": [
-        "research.py",
-        "research_verify.py",
-        "premises.py"
-      ]
+      "modules": ["research.py", "research_verify.py", "premises.py"]
     },
     "foundation": {
       "title": "共通の土台（子プロセス・ファイル・進捗の台帳・モデルの固定・環境の台帳）",
-      "modules": [
-        "proc.py",
-        "fileops.py",
-        "job_object.py",
-        "exitcode.py",
-        "infra_retry.py",
-        "transient.py",
-        "textnorm.py",
-        "model_pin.py",
-        "progress.py",
-        "oracle_deny.py",
-        "toolchain.py",
-        "machine.py",
-        "envcheck.py",
-        "envscan.py",
-        "arch_inventory.py",
-        "tree.py"
-      ]
+      "modules": ["proc.py", "fileops.py", "job_object.py", "exitcode.py", "infra_retry.py", "transient.py", "textnorm.py",
+                  "model_pin.py", "progress.py", "oracle_deny.py", "toolchain.py", "machine.py", "envcheck.py", "envscan.py",
+                  "arch_inventory.py", "tree.py"]
     }
   }
 }

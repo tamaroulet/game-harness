@@ -268,6 +268,21 @@ class CompleteTests(unittest.TestCase):
         with self.assertRaises(progress.ProgressError):
             self.complete()
 
+    def test_main_cli_report_and_tree(self):
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = progress.main(["report"])
+        self.assertEqual(code, 0)
+        self.assertIn("## 進捗ツリー", buf.getvalue())
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = progress.main(["tree"])
+        self.assertEqual(code, 0)
+        self.assertIn("W-153", buf.getvalue())
+
 
 class _Fixed:
     def isoformat(self, timespec):
