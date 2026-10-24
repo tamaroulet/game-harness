@@ -57,7 +57,9 @@ class RepoProgressTests(unittest.TestCase):
 
     def test_is_in_canonical_form(self):
         # 手で編集すると書式がずれる。状態の書き換えは CLI だけが行う
-        self.assertEqual(progress.dump(self.state), self.path.read_text(encoding="utf-8"))
+        raw = progress.load_raw(self.path)
+        self.assertEqual(progress.dump(raw), self.path.read_text(encoding="utf-8"))
+
 
     def test_anchor_stays_small(self):
         # 350 トークン前後に収める（日本語混じりで 1 文字 ≒ 1 トークンと見ても上限内）
@@ -65,6 +67,21 @@ class RepoProgressTests(unittest.TestCase):
 
     def test_report_builds(self):
         self.assertTrue(progress.report(self.state).startswith("## 進捗ツリー\n"))
+
+    def test_archive_exists_and_valid(self):
+        archive = progress.load_archive()
+        self.assertIsNotNone(archive)
+        self.assertIsInstance(archive.get("tasks"), list)
+        self.assertEqual(len(archive["tasks"]), 166)
+
+    def test_load_with_archive_merges_all(self):
+        merged = progress.load_with_archive(self.path)
+        self.assertEqual(len(merged["tasks"]), 208)
+
+    def test_active_progress_size_is_reduced(self):
+        lines = len(self.path.read_text(encoding="utf-8").splitlines())
+        self.assertLessEqual(lines, 1000)
+
 
 
 class ViewTests(unittest.TestCase):
