@@ -3357,26 +3357,25 @@ tasks:
     command: python -m unittest tests.test_director_research
     expected_exit_code: 0
 - id: W-172
-  title: Argon がリポジトリの写しを読んで評価する段
+  title: Argon がリポジトリを全部読んで、事前と事後を定性で評価する
   group: rebuild-1
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-1: repo-evaluator'
+  slug: 'rebuild-1: argon-evaluator'
   by: executor
-  purpose: 評価者 Argon が、main か PR の枝の写しを自分で読み、木の節と差分を評価できるようにする（docs/rebuild/README.md §4 の段 3）
-  deliverable: 写しを取り出す命令と、Argon の評価の段（受入で決める）
-  depends_on:
-  - W-150
+  purpose: 別系統の評価者 Argon が、リポジトリを全部（main も枝も）読んだうえで、木の節とタスクを事前（子の節で親に届くか）と事後（届いたか）に定性で評価できるようにする（docs/rebuild/README.md §4 の段 3。操縦士 2026-10-24）
+  deliverable: Argon の評価を起こす命令と、評価の記録（受入で決める）
+  depends_on: []
   acceptance:
-  - 1 つの命令で、指定した ref（main か PR の枝）の木を、人の作業コピー（`C:\src\game-harness`）と別の場所に取り出す（写し）。写しの根に、ref の名前と SHA の記録がある。写しは総監督も読める（`python -m harness.hline setup` が書く settings で `Read` を許し、`Edit` を拒む）
-  - 写しの中で、agy の Argon を、読み取りだけの形（`--mode plan --sandbox`）で、評価の問い（評価する節・観点・渡す記録）を入れて 1 回走らせる。走る前と後で写しのファイルの指紋が同じでなければ、その評価を無効にして理由を出す
-  - 評価の出力は形（節ごとに、判定〈届く・届かない・判じられない〉・根拠・反論）で受ける。根拠は、写しの中の `path:行` か、渡した記録の名前で書かせ、`path:行` が写しに実在するかを機械で照らす。照らせない根拠には印を付ける。形が崩れた出力は記録しない
-  - 1 回の評価の費用（モデル・入力と出力のトークン・秒）が記録に残る。medium で 1 回走らせた実測の値が、`docs/rebuild/README.md` か `decision_log.md` にある
+  - 1 つの命令で、Argon がリポジトリの全部（main とすべての枝）を読める場所で走る。読む範囲を枝やファイルで縛らない
+  - 事前の評価：木の節かタスクの案を渡すと、Argon が、子の節（またはタスク）でねらいに届くかを、理由とともに文章で返す
+  - 事後の評価：済んだタスクか PR を渡すと、Argon が、ねらいに届いたかを、理由とともに文章で返す
+  - 評価の文と、その回の費用（モデル・入力と出力のトークン・秒）が記録に残り、総監督と会話の席が読める
   oracle:
-  - path: tests/test_repo_evaluator.py
+  - path: tests/test_argon_evaluator.py
     from: director
   verification:
-    command: python -m unittest tests.test_repo_evaluator
+    command: python -m unittest tests.test_argon_evaluator
     expected_exit_code: 0
 - id: W-155
   title: 作業を別の起動で試し、費用と出来を測る
