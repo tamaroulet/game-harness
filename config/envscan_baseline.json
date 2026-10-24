@@ -309,7 +309,7 @@
   },
   "harness/proc.py": {
    "os_specific": 9,
-   "encoding": 2,
+   "encoding": 4,
    "exe_suffix": 4
   },
   "harness/progress.py": {
