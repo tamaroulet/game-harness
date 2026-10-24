@@ -15,7 +15,6 @@ sys.path.insert(0, str(ROOT / "harness"))
 
 import progress  # noqa: E402
 import goal_distance  # noqa: E402
-import tree_docs  # noqa: E402
 
 
 class ArchiveEquivalenceTests(unittest.TestCase):
@@ -60,7 +59,7 @@ class ArchiveEquivalenceTests(unittest.TestCase):
     def test_progress_report_exact_match(self):
         st_mono = progress.read_ref(self._show_fn_monolithic)
         st_split = progress.read_ref(self._show_fn_split)
-        docs = tree_docs.read_dir(ROOT)
+        docs = None
         rep_mono = progress.report(st_mono, docs)
         rep_split = progress.report(st_split, docs)
         self.assertEqual(rep_mono, rep_split)

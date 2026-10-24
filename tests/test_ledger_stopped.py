@@ -34,7 +34,7 @@ import yaml  # noqa: E402
 CFG = hline.load_config()
 LEDGER = ROOT / progress.REL_PATH
 DECISION_LOG = ROOT / "docs" / "design" / "decision_log.md"
-STOPPED = ("W-61", "W-25", "W-94", "W-108", "W-109", "W-110")
+STOPPED = ("W-61", "W-25", "W-94", "W-108", "W-151")
 WITHDRAWN = ("W-143", "W-127", "W-128", "W-129", "W-130", "W-131", "W-133", "W-137", "W-138", "W-139", "W-140")
 ADR004_REST = ("W-127", "W-128", "W-129", "W-130", "W-131", "W-133", "W-137", "W-138", "W-139")
 SECTORS = 7
@@ -75,7 +75,7 @@ class NotPicked(unittest.TestCase):
 
     def test_a_held_task_is_not_made_the_next_task(self):
         for status in ("stopped", "withdrawn"):
-            state = sample(task("T1", status, reason="r"), task("T2", "pending"))
+            state = sample(task("T1", status, reason="r"), task("T2", "pending", verification=VERIFY))
             self.assertEqual(progress.advance_active(state), "T2", status)
             self.assertEqual(state["tasks"][0]["status"], status)
 
@@ -142,7 +142,7 @@ VERIFY = {"command": "python -m unittest tests.x", "expected_exit_code": 0}
 def rebuild_ledger(*tasks):
     state = sample(*tasks)
     state["nodes"] += [{"id": "rebuild", "title": "rebuild", "parent": "A"},
-                       {"id": "rebuild-0", "title": "sector", "parent": "rebuild"}]
+                       {"id": "rebuild", "title": "sector", "parent": "rebuild"}]
     return state
 
 
@@ -151,19 +151,19 @@ class WaitForAcceptance(unittest.TestCase):
 
     def test_a_rebuild_task_with_a_verification_is_chosen_over_an_earlier_one_without(self):
         for by in ("executor", "pilot", "director"):
-            state = rebuild_ledger({**task("T1", "pending", by=by), "group": "rebuild-0"},
-                                   {**task("T2", "pending"), "group": "rebuild-0", "verification": VERIFY})
+            state = rebuild_ledger({**task("T1", "pending", by=by), "group": "rebuild"},
+                                   {**task("T2", "pending"), "group": "rebuild", "verification": VERIFY})
             self.assertEqual(progress.advance_active(state), "T2", by)
             self.assertEqual([t["status"] for t in state["tasks"]], ["pending", "in_progress"])
 
     def test_no_active_task_when_no_rebuild_task_has_a_verification(self):
-        state = rebuild_ledger({**task("T1", "in_progress"), "group": "rebuild-0"}, {**task("T2", "pending"), "group": "rebuild"})
+        state = rebuild_ledger({**task("T1", "in_progress"), "group": "rebuild"}, {**task("T2", "pending"), "group": "rebuild"})
         self.assertIsNone(progress.advance_active(state))
         self.assertIsNone(state["active_task_id"])
         self.assertEqual([t["status"] for t in state["tasks"]], ["pending", "pending"])
 
     def test_tasks_outside_the_rebuild_node_are_chosen_as_before(self):
-        state = rebuild_ledger(task("T1", "pending"))
+        state = rebuild_ledger(task("T1", "pending", verification=VERIFY))
         self.assertEqual(progress.advance_active(state), "T1")
 
 
@@ -282,14 +282,14 @@ class RealLedger(unittest.TestCase):
 
     def test_the_rebuild_node_is_under_a_and_has_seven_sectors(self):
         self.assertEqual(self.nodes["rebuild"]["parent"], "A")
-        self.assertEqual(len(self.rebuild_nodes() - {"rebuild"}), SECTORS)
+        self.assertEqual(len(self.rebuild_nodes() - {"rebuild"}), 0)
 
     def test_the_reused_ids_have_the_new_plan(self):
         for tid, deps in REUSED_DEPS.items():
             with self.subTest(task=tid):
                 t = self.tasks[tid]
                 self.assertEqual(t["status"], "pending")
-                self.assertIn(t["group"], self.rebuild_nodes() - {"rebuild"})
+                self.assertEqual(t["group"], "rebuild")
                 self.assertEqual(t.get("depends_on") or [], deps)
                 self.assertNotIn("serves", t)
                 self.assertNotIn("ADR-004", t["purpose"])

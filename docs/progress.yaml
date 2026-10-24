@@ -94,29 +94,8 @@ nodes:
   title: 外側ループ（週次非劣性検証）
 - id: rebuild
   parent: A
-  title: 立て直し（元のハーネスが健全に動くまで作り直す。セクター 0〜6）
-- id: rebuild-0
-  parent: rebuild
-  title: セクター 0：止血
-- id: rebuild-1
-  parent: rebuild
-  title: セクター 1：同じ木を見る
-- id: rebuild-2
-  parent: rebuild
-  title: セクター 2：判断と作業を分ける
-- id: rebuild-3
-  parent: rebuild
-  title: セクター 3：確かめの独立
-- id: rebuild-4
-  parent: rebuild
-  title: セクター 4：無駄と縛り
-- id: rebuild-5
-  parent: rebuild
-  title: セクター 5：調べた知識の上で判断する
-- id: rebuild-6
-  parent: rebuild
-  title: セクター 6：通しと締め
-project_goal: 人の手を借りずに、測りながら自分を良くし続けられる開発の工廠（C4）を作り、3D の物理演算を含むゲームを題材にした長期開発で、単一コンテキスト型と対決させる（C5。勝ちを完了の条件にしない）。木は nodes の rebuild（立て直し）→ W-18（段 4）→ 段 5（置き場は W-153 で作る）
+  title: 立て直し（構造は docs/tree/tree.yaml が持つ）
+project_goal: 人の手を借りずに、計測しながら自己改善し続けられる開発ハーネスとゲーム生成パイプラインを作り、 3D の物理演算を含むゲームを題材にした長期開発で、単一コンテキスト型のエージェントと統制された比較実験を行い、 優劣を判定する（ハーネス側が勝つことは完了の条件にしない）
 tasks:
 - id: W-143
   title: 段 A4：上位の設計の決定（ADR-005：部品ごとに、残す・既製のものに置き換える・捨てる）
@@ -468,7 +447,7 @@ tasks:
   title: README を今の構成に合わせ、書いたパスが実在することを試験で縛る
   group: outer
   target_repo: game-harness
-  status: stopped
+  status: withdrawn
   slug: 'outer: readme-current'
   serves: R4
   purpose: README が前の構成（audit.py・scheduler.py を主役）のまま残り、人と外部の読み手が実態を取り違える。今の構成に合わせ、また古びたら CI で気づけるようにする
@@ -484,12 +463,12 @@ tasks:
   verification:
     command: python -m unittest tests.test_readme_paths
     expected_exit_code: 0
-  reason: 立て直しの間は H ラインを止める。by の無いタスクは H ラインに取られうるので止める。再開は作業の経路（W-156）を決めてから
+  reason: 語彙の置き換え（#296）と木の投入で、README は書き直しになる
 - id: W-110
   title: report.md の probe と未収束の表示を実態に合わせる（統合ブランチが無いとき・取り直せない未収束）
   group: outer
   target_repo: game-harness
-  status: stopped
+  status: withdrawn
   slug: 'outer: report-settled'
   serves: R4
   purpose: 統合ブランチが無いときの probe の終了コード 128 と、取り直せない未収束が、故障や滞留に見えて、総監督と操縦士の判断を誤らせる。表示を実態に合わせる
@@ -505,10 +484,10 @@ tasks:
   verification:
     command: python -m unittest tests.test_report_settled
     expected_exit_code: 0
-  reason: 中身（統合ブランチが無いときの probe と未収束の表示）を W-144 に畳んだ。残した差分は W-144 の材料にする
+  reason: 中身は W-144 に畳んだ（引継ぎの A42）
 - id: W-150
   title: 総監督が常に main の版を読める（settings の変更は setup のコードで行う）
-  group: rebuild-1
+  group: rebuild
   target_repo: game-harness
   status: in_progress
   slug: 'rebuild-1: director-reads-main'
@@ -529,9 +508,9 @@ tasks:
     expected_exit_code: 0
 - id: W-151
   title: 総監督の写しを機械が PR にする道
-  group: rebuild-1
+  group: rebuild
   target_repo: game-harness
-  status: pending
+  status: stopped
   slug: 'rebuild-1: director-pr-path'
   by: executor
   purpose: '総監督が受信箱に置いた木や文書の写しを、機械が main への PR にする。この道ができるまでは、by: director のタスクは、総監督の成果物を実行役が写す PR の中で実行役が complete を走らせ、検証の試験は実行役が書く（from: executor）。道ができた後の完了の流れもここで決める'
@@ -550,9 +529,10 @@ tasks:
   verification:
     command: python -m unittest tests.test_director_outbox
     expected_exit_code: 0
+  reason: 木の改訂が多くなって、ワーカーが写す手番が無駄になったら起こす
 - id: W-152
   title: 知識の正本を Git に集める
-  group: rebuild-1
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild-1: knowledge-in-git'
@@ -560,7 +540,6 @@ tasks:
   purpose: 総監督の文書（deferred・invariants・pipeline・drafts/what を含む）・checks/・調べものの記録と索引・引継ぎを Git に集め、人から見えるようにする
   deliverable: Git に移した文書の一覧（受入で決める）
   depends_on:
-  - W-151
   - W-169
   acceptance:
   - docs/director/ が総監督の文書の正本になる。W-169 の表で残した決まり・deferred.md・総監督の引継ぎ・会話の席の引継ぎが入り、docs/director/INDEX.md から辿れる。受信箱の drafts/director/ に、移したものの写しが残らない
@@ -574,36 +553,30 @@ tasks:
     command: python -m unittest tests.test_director_docs
     expected_exit_code: 0
 - id: W-153
-  title: ロードマップを木に吸収し、索引の役と投入の境界を合わせる
-  group: rebuild-1
+  title: 木（tree.yaml）を Git に入れ、雛形の検査と旧い区分の節を置き換える
+  group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-1: roadmap-into-tree'
-  by: director
-  purpose: ロードマップの関門を木に移し、崩れた仮定（A16・A32・A37・A40・A45 ほか）を見直し、段 5 の置き場を作り、ノードの説明を書いて更新し続ける
-  deliverable: 木のノードの説明と、段 5 のノード（受入で決める）
+  slug: 'rebuild: tree-into-git'
+  by: executor
+  purpose: 目的・要件・タスクの構造の正本を docs/tree/tree.yaml 1 本にし、台帳の未完了のタスクがすべて要件から辿れることを CI で確かめる
+  deliverable: docs/tree/tree.yaml・docs/tree/README.md・木の検査とその試験・台帳の仕分け
   depends_on:
-  - W-148
-  - W-150
-  - W-151
-  - W-152
   - W-169
-  - W-171
-  - W-172
   acceptance:
-  - roadmap.md の関門の節（関門 1〜4・段 5・計画役への移行・人の手番の見通し）のうち今も効く中身が、木のノードの説明（docs/tree/）に移り、roadmap.md は正本として残らない（W-152 の「移さなかったもの」に載る）
-  - 段 5 のノード（台帳と docs/tree/）があり、W-113・W-114 の材料の在りかと、題材の条件（3D の物理演算）を持つ。段 4（W-18）のノードの説明に、組み直しの前提（基準を取り直してから使う）がある
-  - 引継ぎの前提の仮定のうち崩れたもの（A16・A32・A37・A40・A45 ほか）が、照らした出典つきで書き直されるか消されている
-  - 総監督の索引（docs/director/INDEX.md）の役の表と投入の境界が、木と立て直しの役の分け方に合い、W-169 の表で消すとした行が無い
+  - python -m unittest tests.test_tree が通り、受入の試験をすべて含む
+  - python -m harness.progress check が通り、残すタスクの depends_on に、取り下げ・保留の 8 件の ID が 1 つも無い
+  - fastsuite が全件通り、harness/ と tests/ に tree_docs の字が残らない。台帳とその過去ログに rebuild-0〜rebuild-6 の字が残らない
+  - python -m harness.hline_stopped report で書いた report.md の「目的までの距離」が、この PR の前と同じ文字列
   oracle:
-  - path: tests/test_tree_roadmap.py
-    from: executor
+  - path: tests/test_tree.py
+    from: director
   verification:
-    command: python -m unittest tests.test_tree_roadmap
+    command: python -m unittest tests.test_tree
     expected_exit_code: 0
 - id: W-154
-  title: 操縦士が毎回受け取るものと、CLAUDE.md の報告の規則を作り直す
-  group: rebuild-1
+  title: 高リスク（Tier 2）の PR に付ける 5 行の要約の形と道を作る
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild-1: pilot-report'
@@ -626,7 +599,7 @@ tasks:
     expected_exit_code: 0
 - id: W-171
   title: 総監督が外部の情報を調べられる
-  group: rebuild-1
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild-1: director-research'
@@ -647,7 +620,7 @@ tasks:
     expected_exit_code: 0
 - id: W-172
   title: Argon がリポジトリを全部読んで、事前と事後を定性で評価する
-  group: rebuild-1
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild-1: argon-evaluator'
@@ -668,7 +641,7 @@ tasks:
     expected_exit_code: 0
 - id: W-155
   title: 作業を別の起動で試し、費用と出来を測る
-  group: rebuild-2
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild-2: separate-runs'
@@ -678,7 +651,7 @@ tasks:
   depends_on: []
 - id: W-156
   title: 作業の経路を決める（H ライン・別の起動・CI）
-  group: rebuild-2
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild-2: work-route'
@@ -688,21 +661,24 @@ tasks:
   depends_on:
   - W-155
 - id: W-157
-  title: タスクを起こすときに、承認済みのノードへ辿れることを機械で確かめる
-  group: rebuild-2
+  title: タスクが tree.yaml の要件から辿れることを機械で確かめる
+  group: rebuild
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'rebuild-2: approved-node-check'
   by: executor
   purpose: 承認されていない枝にタスクが足されないように、タスクから承認済みのノードへの辿りを機械で確かめる
   deliverable: 台帳の検査と試験（受入で決める）
   depends_on:
   - W-149
+  verification:
+    command: python -m unittest tests.test_tree
+    expected_exit_code: 0
 - id: W-158
   title: 人の承認をノードの説明の単位で受け、粒度を上げていく
-  group: rebuild-2
+  group: rebuild
   target_repo: game-harness
-  status: pending
+  status: withdrawn
   slug: 'rebuild-2: node-approval'
   by: executor
   purpose: 人が PR やコードの単位でなく、セクターの説明の単位で承認できるようにし、承認の単位を大きくしていく
@@ -710,11 +686,12 @@ tasks:
   depends_on:
   - W-149
   - W-157
+  reason: リスクの層（req.risk-tiers）が置き換える
 - id: W-159
   title: セクターの説明・検め・承認を AI どうしで回す
-  group: rebuild-2
+  group: rebuild
   target_repo: game-harness
-  status: pending
+  status: withdrawn
   slug: 'rebuild-2: ai-review-loop'
   by: executor
   purpose: セクターの説明と検めと承認を、総監督と別系統の検め役の AI どうしで回し、人はより大きな群を承認する
@@ -722,9 +699,10 @@ tasks:
   depends_on:
   - W-156
   - W-158
+  reason: 14 本目で合意済み。旧い区分の管理タスク
 - id: W-134
   title: 完成の基準を別の AI が先に書く
-  group: rebuild-3
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild: test-first'
@@ -735,7 +713,7 @@ tasks:
   - W-156
 - id: W-160
   title: 物理の課題の判定を、許す誤差と見る時間の幅で書く形
-  group: rebuild-3
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild-3: physics-oracle-form'
@@ -745,7 +723,7 @@ tasks:
   depends_on: []
 - id: W-132
   title: 確かめを強める（テストを弱める変更を落とし、モデルの記録の欠けをふさぐ）
-  group: rebuild-3
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild: gate-hardening'
@@ -755,7 +733,7 @@ tasks:
   depends_on: []
 - id: W-135
   title: 別系統のモデルによる差分の助言
-  group: rebuild-3
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild: advisory-review'
@@ -766,7 +744,7 @@ tasks:
   - W-156
 - id: W-161
   title: 1 件あたりの時間・費用・キャッシュを測る
-  group: rebuild-4
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild-4: cost-per-task'
@@ -776,7 +754,7 @@ tasks:
   depends_on: []
 - id: W-162
   title: 縛り（数の上限と権限）の棚卸しと、緩める案
-  group: rebuild-4
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild-4: limits-inventory'
@@ -787,9 +765,9 @@ tasks:
   - W-161
 - id: W-163
   title: トークンを減らす
-  group: rebuild-4
+  group: rebuild
   target_repo: game-harness
-  status: pending
+  status: withdrawn
   slug: 'rebuild-4: fewer-tokens'
   by: executor
   purpose: W-161 の測りと W-156 の経路の上で、1 件あたりのトークンを減らす
@@ -797,9 +775,10 @@ tasks:
   depends_on:
   - W-161
   - W-156
+  reason: 中身を req.ledger-light・req.unconverged-capped の具体の案に分けた。題が目的だけで、受入にならない
 - id: W-136
   title: 使っていない部品を外す（物理の課題 10 本・判定役・工廠のベンチは外さない）
-  group: rebuild-4
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild: dormant-split'
@@ -809,9 +788,9 @@ tasks:
   depends_on: []
 - id: W-165
   title: 総監督が調べものを回し、結果を受け取れる
-  group: rebuild-5
+  group: rebuild
   target_repo: game-harness
-  status: pending
+  status: withdrawn
   slug: 'rebuild-5: director-research'
   by: executor
   purpose: 総監督が問いを置き、調べものの結果を Git の中で読めるようにする
@@ -819,20 +798,22 @@ tasks:
   depends_on:
   - W-151
   - W-152
+  reason: W-171 と同じ
 - id: W-166
   title: 総監督の仮定（A）・前提（P）・調べものの主張（C）の番号を 1 つにする
-  group: rebuild-5
+  group: rebuild
   target_repo: game-harness
-  status: pending
+  status: withdrawn
   slug: 'rebuild-5: one-premise-ledger'
   by: executor
   purpose: 前提を 1 つの台帳の番号で引けるようにし、3 つの番号の体系の食い違いをなくす
   deliverable: 番号の対応と移した台帳（受入で決める）
   depends_on:
   - W-152
+  reason: '木の要件の status: 仮説 が、仮定・前提の番号を置き換える。新しい番号は作らない'
 - id: W-167
   title: 調べ方の質を直す（当てはまりの基準・強さの判定・候補の偏り）
-  group: rebuild-5
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild-5: research-quality'
@@ -842,26 +823,25 @@ tasks:
   depends_on: []
 - id: W-170
   title: 練習の課題か新しい物理の課題 1 本を、承認から判定の合格まで人の手を挟まずに通す
-  group: rebuild-6
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild-6: end-to-end'
   by: executor
-  purpose: 練習の課題（docs/bench/practice/P1・P2）か新しい物理の課題 1 本を、承認から判定役の照合の合格まで通す。凍結した 10 本は使わない。執行者は W-156 で決まる経路で書き直す。main へのマージを人が承認するかは W-158 で決める。総監督は生ログで判じる
+  purpose: 練習の課題（docs/bench/practice/P1・P2）か新しい物理の課題 1 本を、承認から判定役の照合の合格まで通す。凍結した 10 本は使わない。執行者は W-156 で決まる経路で書き直す。main へのマージを人が承認するかはリスクの層（W-154）で決める。総監督は生ログで判じる
   deliverable: 通しの記録（受入で決める）
   depends_on:
   - W-153
   - W-156
   - W-134
   - W-160
-  - W-165
-  - W-158
   - W-144
   - W-145
   - W-147
+  - W-154
 - id: W-168
   title: 会話の席の例外を畳み、木の持ち主を総監督へ渡す
-  group: rebuild-6
+  group: rebuild
   target_repo: game-harness
   status: pending
   slug: 'rebuild-6: hand-back'
@@ -871,5 +851,4 @@ tasks:
   depends_on:
   - W-170
   - W-154
-  - W-166
   - W-169

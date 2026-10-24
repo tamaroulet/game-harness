@@ -1,0 +1,452 @@
+# 目的・要件・タスクの木（第 3 弾、2026-10-24、総監督）
+# 形と欄の意味は同じ場所の README.md。第 1 弾・第 2 弾に Argon の事前の評価を受けた。第 3 弾は第 2 弾の条件 4 つを取り込んだ版
+# 第 2 弾の形：節は objective と requirement だけ。depends_on は要件どうしだけ。タスクは要件の tasks に台帳の ID を 1 か所だけ書く。
+# タスクどうしの順は台帳の depends_on が持つ。台帳に無い案は proposals に書く。
+
+objective:
+  id: objective
+  title: >-
+    人の手を借りずに、計測しながら自己改善し続けられる開発ハーネスとゲーム生成パイプラインを作り、
+    3D の物理演算を含むゲームを題材にした長期開発で、単一コンテキスト型のエージェントと統制された比較実験を行い、
+    優劣を判定する（ハーネス側が勝つことは完了の条件にしない）
+  source: >-
+    docs/progress.yaml の project_goal（操縦士の文、game-harness#284）を標準の語彙で言い直した。
+    第 2 弾で Argon の案を取り込んだ。ただし「計測と回帰ベンチマークを通じて」は「計測しながら」に戻した
+    （回帰ベンチマークで改善を検出できるかは req.benchmark-sensitivity の仮説で、最終目的で決めない）。
+    操縦士がこの文で確定した（2026-10-24、副操縦士の知らせ）。Git に入れるときに台帳の project_goal もこの文に直す
+  depends_on: [req.self-improvement, req.measurable, req.comparison-valid, req.harness-healthy]
+
+requirements:
+
+# ---- 最終目的のすぐ下 ----
+
+- id: req.self-improvement
+  title: 自己改善のサイクルが続けて回る
+  achieved_when: >-
+    ハーネスが自分の計測から改善のタスクを起こし、実装し、点を下げずに取り込むサイクルが、
+    人の手を挟まずに続けて回っている（回数の決め方は req.measurable が満たされてから決める）
+  verify_by: [reviewer, human]
+  status: 未達
+  depends_on:
+  - req.measurable
+  - req.harness-healthy
+  - req.planner-capability-known
+  - req.turn-cutoff-reduced
+  - req.agents-md-effect
+  - req.operator-proposals-placed
+  - req.failure-attribution
+  tasks: [W-61, W-25, W-94]
+  evidence:
+  - report.md 00:58 の版：改善サイクルの回数 0/4。W-61・W-25・W-94 は止めた
+
+- id: req.measurable
+  title: 改善が点を下げたかを、走り直しの揺れと区別して判定できる
+  achieved_when: >-
+    点を決めるもの（仕様・判定役・非公開のテスト・固定の計画・実装のモデルと版・試行の回数・取り込み前の自動検査・環境）が記録で固定され、
+    変えたら基準を取り直す決まりが機械で守られている。基準の値が、今のパイプラインで取り直されている
+  verify_by: [test:independent, reviewer]
+  status: 未達
+  depends_on: [req.baseline-retaken, req.benchmark-sensitivity, req.gemini-quota]
+  evidence:
+  - 引継ぎの A14（roadmap D-128）：点を決めるものを変えたら基準を取り直す
+  - 引継ぎの A16：今の基準 102/110（N=1）は、立て直しでパイプラインが変わるので、そのままは使えない
+
+- id: req.comparison-valid
+  title: 単一コンテキスト型との比較が、統制された実験として判定になる
+  achieved_when: >-
+    両方が満点に張り付かない規模の題材があり、事前に登録した規約（docs/bench/protocol.md）のもとで、勝ち負けのどちらも実験の結論になる
+  verify_by: [reviewer, human]
+  status: 未達
+  depends_on: [req.self-improvement, req.measurable, req.task-scale, req.physics-engine]
+  evidence:
+  - 11 本目 §2a。比較の規約は W-68 で置いた（docs/bench/protocol.md）
+
+- id: req.harness-healthy
+  title: ハーネスが健全で、上の 3 つに進むのを妨げる欠陥と無駄が無い
+  achieved_when: >-
+    1 本の課題が、承認から判定の合格まで人の手を挟まずに通り、その記録を読んだレビュアーが「欠陥と無駄に妨げられていない」と判じている。
+    臨時にプランナーとワーカーを兼ねている席が閉じている。そのうえで操縦士がループの再開を決めている
+  verify_by: [reviewer, human]
+  status: 未達
+  depends_on:
+  - req.end-to-end-run
+  - req.verify-independent
+  - req.protected-checks
+  - req.risk-tiers
+  - req.runner-isolated
+  - req.env-contained
+  - req.wiring-executed
+  - req.no-waste
+  - req.planner-tools
+  - req.roles-separated
+  - req.tree-in-git
+  - req.progress-reviewed
+  tasks: [W-168]
+  evidence:
+  - docs/design/adr-004.md §1（欠陥 5 つでループを止めた）
+  - docs/rebuild/README.md §3 の P0〜P12
+
+# ---- ハーネスが健全：欠陥（adr-004 §1）と配線 ----
+
+- id: req.verify-independent
+  title: すべてのコード変更で、合否が実装した者以外の検証で決まる
+  achieved_when: >-
+    機能の追加に限らず、ハーネスの改修を含むすべてのコード変更のタスクで、受入テストはプランナーが実装の前に別の PR で入れている。
+    テストのファイル（tests/** と受入テストの置き場）を保護パスにし、CI が PR の触れたパスだけで機械的に決める（コミットの名義は偽れるので見ない）：
+    (1) テストのファイルとそれ以外を同じ PR で変えたら落とす。
+    (2) テストのファイルだけの PR で、新しいファイルを足すだけのものは中リスク（レビュアーの差分の監査で通る。足したテストは縛りを強めるだけで、弱められない）。
+    (3) 既存のテストのファイルを変える・消す PR は高リスク（req.risk-tiers。単独の PR で人の承認）。
+    差分の意味は、レビュアーが監査している
+  verify_by: [test:independent, reviewer]
+  status: 未達
+  depends_on: [req.protected-checks]
+  tasks: [W-134, W-132, W-135]
+  proposals:
+  - CI の検査：上の (1)〜(3) を、PR の変えたパスの一覧から決める段
+  evidence:
+  - Argon の批評（第 2 弾）の 4：コミットの名義は偽れる。保護パスで担保する
+  - (2) と (3) は PR の中身で決まり、誰が出したかに依らない。誰が承認したかを区別するところだけが req.protected-checks（AI 用のアカウント）に依る
+  - adr-004.md §1 の 1：合否は影響テストの終了コードと人のラベル 1 枚だけ
+  - adr-004.md §1 の 2：テストの出どころを書いた 71 件中 63 件（88.7%）が実装した者自身（from self）
+
+- id: req.protected-checks
+  title: 検査のコード・CI の定義・権限の設定を、ワーカーが変えられない
+  achieved_when: >-
+    main にブランチ保護があり、保護パス（CI のワークフロー・合否を決めるスクリプト・常駐ワーカー・権限の設定・既存のテスト）を変える PR は、
+    人のアカウントの承認なしにはマージできない。承認の検査が、人と AI のアカウントを区別できる
+  verify_by: [test:independent, human]
+  status: 未達
+  depends_on: []
+  proposals:
+  - （人間）main のブランチ保護と保護パスを設定する（取り下げた W-130・W-131 の中身）
+  - （人間）AI 用の GitHub アカウントを分け、承認の検査が人と区別できるようにする
+  evidence:
+  - adr-004.md §1 の 3
+  - .github/scripts/ms4_approval_gate.py:18：ラベルを最後に付けた者が承認者の一覧に居るかだけを見る。実行役は操縦士のアカウントで付ける（11 本目 §2c）
+
+- id: req.risk-tiers
+  title: 変更がリスクの層で分かれ、高リスクの変更は単独の PR で人が短く判断できる
+  achieved_when: >-
+    PR が、触れたパスから機械で低・中・高の層に分かれる。高リスク（CI のワークフロー・合否を決めるスクリプト・常駐ワーカー・権限・既存のテストの変更と削除）は、
+    ほかの変更と束ねた PR では CI が落ちる。高リスクの PR の本文に 5 行の要約（変更の要旨と理由・高リスクの理由・検証テストの書き手・副作用と配線の到達・レビュアーの批評）がある。
+    人の承認なしの自動マージは低リスクだけで、req.protected-checks が満たされてから始める
+  verify_by: [test:independent, human]
+  status: 未達
+  depends_on: [req.protected-checks, req.wiring-executed]
+  tasks: [W-154]
+  proposals:
+  - 層を触れたパスから決める検査と、高リスクを束ねた PR を落とす CI の段
+  evidence:
+  - 語彙と再建の資料（review\vocabulary_and_architecture_rebuild.md）§4 の 1
+  - W-154（操縦士が毎回受け取るもの）は、5 行の要約の形に絞って直す
+
+- id: req.runner-isolated
+  title: 常駐ワーカーが Git の管理下にあり、人の作業コピーから隔離され、例外で黙って止まらない
+  achieved_when: >-
+    常駐ワーカーのスクリプトがリポジトリにあり、テストがある。人の作業コピー（C:\src\game-harness）に触れない場所だけで動く。
+    例外で止まったら report.md に出る
+  verify_by: [test:independent, reviewer]
+  status: 未達
+  depends_on: []
+  proposals:
+  - 常駐ワーカー（run_night_loop.ps1）を Git に入れて隔離する（副操縦士が手順 2 で着手。取り下げた W-129 の中身。高リスクで単独の PR）
+  evidence:
+  - adr-004.md §1 の 4
+  - 10-23 に走らせ役が人の作業コピーを checkout --detach して壊した（W-147 の一覧の 4）
+  - 452 回続けて落ちた（副操縦士の資料 §2。出どころは未確認）
+
+- id: req.env-contained
+  title: 環境と版の直書きが境界の中に集まり、増えない
+  achieved_when: >-
+    外部の命令の名前・文字コードの手当て・OS に固有の処理が、決めた境界のモジュールの外に無い。増えたら CI が落ちる
+  verify_by: [test:independent]
+  status: 自己検証のみ
+  depends_on: []
+  tasks: [W-125, W-126]
+  proposals:
+  - UTF-8 の共通の強制（PR #298。台帳の ID は未確認）
+  evidence:
+  - adr-004.md §1 の 5：外部の命令の名前の直書き 46 ファイル 247 か所、文字コードの個別の手当て 56 ファイル 104 か所、OS 固有 17 ファイル 59 か所
+  - W-125（増やせない歯止め）・W-126（環境の台帳）は済み。減らすことは済んでいない
+
+- id: req.wiring-executed
+  title: 本線の入口から実際に実行されないモジュールが、理由付きの許しの一覧の外に無い
+  achieved_when: >-
+    CI が、入口（python -m で起こすモジュールの一覧）ごとのスモークテストを、カバレッジを取りながら走らせ、
+    harness/ の各モジュールに実行された行があることを確かめる。実行されないモジュールがあれば落とす。
+    import の連鎖での到達の検査は、速い一次のふるいとしてだけ使う（トップレベルに import を 1 行書けば通るので、合否にはしない）。
+    許しの一覧には理由と、数の上限がある
+  verify_by: [test:independent, reviewer]
+  status: 未達
+  depends_on: []
+  proposals:
+  - 配線の検査の CI（手順 2。台帳の ID は未確認）。合否は入口のスモークのカバレッジで決める
+  evidence:
+  - コミット 1b207e0 の文：検査の部品 hline_red・hline_tdd は、最初から呼び出しが無かった（GitHub の API を要約で読んだ）
+  - Argon の批評（第 1 弾）：import の到達だけでは、トップレベルに 1 行書けばすり抜ける
+  - 静的な呼び出しのグラフでなくスモークのカバレッジにした理由：Python の動的な呼び出し（設定から名前で引く道具など）を静的な解析では辿りきれず、誤って落とす
+
+# ---- ハーネスが健全：無駄 ----
+
+- id: req.no-waste
+  title: トークン・人の待ち時間・AI の作業時間に、目的に照らした無駄が無い
+  achieved_when: >-
+    下の各要件が満たされ、手順とデータを目的に照らしたレビュアーの評価で、除けるのに残っている無駄が挙がらない
+  verify_by: [reviewer]
+  status: 未達
+  depends_on: [req.ci-fast, req.ledger-light, req.unconverged-capped, req.no-human-relay]
+  tasks: [W-161, W-162]
+  evidence:
+  - docs/rebuild/README.md §2「無駄が無いこと」、P10・P11
+
+- id: req.ci-fast
+  title: PR ごとの CI の待ちが、動いていない部品のテストで延びていない
+  achieved_when: 必須の CI から休眠のゲームのラインを外し、前と後の秒が PR に出ている
+  verify_by: [test:independent]
+  status: 自己検証のみ
+  depends_on: []
+  tasks: [W-136]
+  evidence:
+  - PR #297 がマージ済み（副操縦士の知らせ。秒の前後は総監督は未確認）。W-136 のうち部品を外す残りは、この要件の外（req.no-waste のレビュアーの評価で判じる）
+
+- id: req.ledger-light
+  title: 現役の台帳を読む量が、済んだタスクの分だけ膨らんでいない
+  achieved_when: >-
+    済んだタスクが別のファイルにあり、report.md の目的までの距離・関門ごとの流れ・進捗ツリーが分ける前と同じ文字列で、
+    2 つを合わせた項目の集合が分ける前と同じ。現役の台帳を 1 回読むトークンの前後が PR に出ている
+  verify_by: [test:independent]
+  status: 検証済み
+  depends_on: []
+  tasks: [W-176]
+  proposals:
+  - 過去ログが読めなかったときに現役だけを返さない（現役の台帳に過去ログの宣言を書き、読めなければ例外）。ループを再開する前の条件（reply-architect-20261024-21.md §3）
+  evidence:
+  - 台帳 3,546 行（副操縦士の知らせ。README P11 では 3,545 行、済み 166 件）
+  - >-
+    W-176（PR #299）で実装済み（副操縦士の知らせ）。「検証済み」にしないのは、試験を書いたのが実装した者（ワーカー）で、
+    総監督は PR の実物も、上の 3 つの条件（report.md の文字列が同じ・項目の集合が同じ・トークンの前後）が満たされたかも読んでいないから。
+    review\299\ に実物が置かれて総監督が条件を確かめるか、レビュアーの事後の評価が「届いた」とすれば「検証済み」にする
+  - >-
+    2026-10-24 に review\299\ を読んだ（reply-architect-20261024-20.md）。harness.progress の CLI では等価。
+    しかし git show <ref>:docs/progress.yaml を直に読む 8 か所（goal_distance・hline_report・hline_stopped・hline_queue・hline_ledger_entry など）が過去ログを読まず、
+    条件 1（hline_stopped report の節が同じ）は満たされていない。ref から読む関数に寄せる PR の後に「検証済み」にする
+  - >-
+    2026-10-24 に review\300\ を読んだ（reply-architect-20261024-21.md）。8 か所がすべて progress.read_ref を通ることを総監督が逐語で確かめた。
+    距離（R4 の前提タスク 78／80）は分ける前の report.md と同じ。これで「検証済み」にした。試験は作り方から等価になる形で、8 か所の道を通っていない（記録だけ）
+
+- id: req.unconverged-capped
+  title: 収束しないタスクが、試行を重ねてトークンを使い切らない
+  achieved_when: >-
+    同じ差分のときの打ち切りに加えて、1 件のタスクが使うトークンに上限があり、超えたら打ち切って記録を残す
+  verify_by: [test:independent]
+  status: 未達
+  depends_on: []
+  proposals:
+  - 1 件のタスクのトークンの上限と、超えたときの打ち切り
+  evidence:
+  - report.md：410-s4-1-refactorer は 6 回の試行で 6,794,108 トークン、501-b7-5 は 4 回で 4,406,437 トークン
+  - 同じ差分で打ち切る守りは今もある（W-14・W-73）
+
+- id: req.no-human-relay
+  title: 人がファイルを運ばずに、プランナーとレビュアーが PR の実物を読める
+  achieved_when: >-
+    main と、開いている PR の枝の写しが、総監督とレビュアーの読める場所に機械で置かれる。受信箱の review\ へ人が運ぶ手番が要らない
+  verify_by: [test:independent]
+  status: 自己検証のみ
+  depends_on: []
+  tasks: [W-150]
+  evidence:
+  - PR #291（W-150）はマージ済み（副操縦士の知らせ）。枝の写し（13 本目で頼んだ受入 4）が入ったかは総監督は未確認
+  - README P10：7 時間で 19 通を人が運んだ
+
+# ---- ハーネスが健全：計画と役 ----
+
+- id: req.planner-tools
+  title: プランナー（総監督）が、自分で読み、調べ、知識を残して木を直していける
+  achieved_when: >-
+    総監督が受信箱から、main と枝を逐語で読め、外の情報の問いを出して出典の照合された記録を受け取れ、知識を Git に残せる
+  verify_by: [test:independent, reviewer]
+  status: 未達
+  depends_on: [req.no-human-relay]
+  tasks: [W-171, W-152, W-167, W-151]
+  evidence:
+  - README §2 の方向 1（操縦士）：適切に検索できる土壌を作る
+  - README P7：12 件のうち 4 件の出典が不良だった
+  - 第 2 弾で、木の最初の投入（req.tree-in-git）の前提から外した。木を作り始めるのに要るのではなく、木を外の情報で直すのに要る
+  - W-151 は stopped（保留）。網羅の検査は stopped も未完了として数えるので、ここに付ける（Argon の批評（第 2 弾）の 2）
+
+- id: req.roles-separated
+  title: 4 つの役（プランナー・ワーカー・レビュアー・人間）が分かれ、判断する者が手を動かさない
+  achieved_when: >-
+    台帳のどのタスクも、実行する役が 4 つのどれかに決まっている。プランナーの起動はコードを書かず、ワーカーの起動は木と受入テストを書かない
+  verify_by: [reviewer, human]
+  status: 未達
+  depends_on: []
+  tasks: [W-155, W-156]
+  evidence:
+  - README P8・P9
+  - 16 本目 §3 の役の対応
+
+- id: req.ledger-triaged
+  title: 台帳の未完了のタスクが、木の要件に付くか、取り下げられている
+  achieved_when: >-
+    台帳の pending・in_progress・stopped のタスクがそれぞれ、木のどれかの要件の tasks にあるか、withdrawn になっている。
+    取り下げは操縦士が確かめている
+  verify_by: [test:independent, human]
+  status: 未達
+  depends_on: []
+  proposals:
+  - 仕分けの案は README.md §5 の表。操縦士の確認の後、ワーカーが台帳の status を直す PR を出す（台帳の分離の前でも後でもよい）
+  evidence:
+  - Argon の批評（第 1 弾）の 3：旧い区分の管理タスク（W-158・W-159 など）が木に流れ込む
+
+- id: req.tree-in-git
+  title: 木が Git にあり、台帳の未完了のタスクがすべて木の要件から辿れる
+  achieved_when: >-
+    この木が docs/tree/tree.yaml 1 本で入り、それを検査するテストが、循環の無いこと・depends_on の先がすべてあること・tasks の ID が台帳にあること・
+    台帳の未完了（pending・in_progress・stopped）のタスクがすべてどれかの要件の tasks にあることを確かめる。W-149 の雛形の検査（harness/tree_docs.py・tests/test_tree_docs.py）と
+    12 枚の Markdown と、台帳の旧い区分の節（rebuild-0〜rebuild-6）は、同じ PR で取り除くか置き換える。
+    台帳の側（harness/progress.py）は次のとおりに置き換え、W-153 の受入に書く：
+    (a) rebuild-0〜6 の節を消し、その下のタスクの group は節 rebuild 1 つにする（構造は木が持ち、台帳に写さない）。
+    (b) progress.py の group の検査は、group が台帳の nodes にあることを見るだけのまま（rebuild が残るので通る）。
+    (c) 検証の書かれていないタスクを次のタスクに選ばない安全装置（in_rebuild と selectable）は、rebuild の下に限らず、すべてのタスクに広げる。
+        広げた後、検証の無い未完了のタスクが選ばれないことと、検証のあるタスクの選び方が変わらないことを試験で確かめる
+  verify_by: [test:independent]
+  status: 未達
+  depends_on: [req.ledger-triaged]
+  tasks: [W-153, W-157]
+  evidence:
+  - README P1・P3
+  - Argon の批評（第 1 弾）の 1：今の雛形の検査が 12 枚と 7 つの見出しを縛るので、1 本にする PR で一緒に外さないと CI が落ちる（総監督は tree_docs.py を読んでいない。clone が古い）
+  - 第 2 弾で、W-153 の前提から req.planner-tools を外した（木の最初の投入は手順 2 と並べて進める）
+  - harness/progress.py:49（REBUILD）・:442（in_rebuild）・:454（selectable）。手元の clone 9fdaabe で読んだ（main と違うかもしれない）
+
+- id: req.progress-reviewed
+  title: 進みを、状態を持たない別系統のレビュアーが事前と事後に評価している
+  achieved_when: >-
+    木の要件とタスクの案に事前の評価が、済んだタスクと PR に事後の評価が、記録として残る。
+    評価に引いた記録（どのファイルのどの値か）があり、照らせるところは機械で照らす
+  verify_by: [test:independent, human]
+  status: 未達
+  depends_on: []
+  tasks: [W-172]
+  evidence:
+  - README P2・P4・P5
+  - docs/design/premises.yaml の P-024・P-026：評価者の誤りは共有される。評価だけを独立の検証とみなさない（11 本目の D4）
+  - 第 1 弾への Argon の批評は、台帳の外で回したもの（W-172 はまだ）
+
+- id: req.end-to-end-run
+  title: 1 本の課題が、承認から判定の合格まで人の手を挟まずに通る
+  achieved_when: >-
+    練習の課題か新しい物理の課題 1 本が、承認・実装・検証テスト・判定役の照合の合格まで、人の手番なしに通った記録がある（凍結した 10 本は使わない）
+  verify_by: [reviewer, human]
+  status: 未達
+  depends_on:
+  - req.verify-independent
+  - req.protected-checks
+  - req.risk-tiers
+  - req.runner-isolated
+  - req.env-contained
+  - req.wiring-executed
+  - req.roles-separated
+  - req.tree-in-git
+  tasks: [W-170, W-160]
+  evidence:
+  - 第 3 弾で req.env-contained を足した（Argon の批評（第 2 弾）の 4。文字コードなどの環境の障害が通しで再発しないように）
+
+# ---- 測れること・自己改善・比較：仮説（11 本目の H1〜H10） ----
+
+- id: req.baseline-retaken
+  title: 回帰ベンチマークの基準が、今のパイプラインで取り直されている
+  achieved_when: >-
+    立て直しの後のパイプラインで基準を取り直し、走り直しの揺れの幅が分かる回数（何回かは req.benchmark-sensitivity で決める）を走らせた記録がある
+  verify_by: [reviewer, human]
+  status: 仮説
+  depends_on: [req.harness-healthy, req.benchmark-sensitivity, req.gemini-quota]
+  evidence:
+  - 元の H1。1 回の取り直しは約 4 時間（引継ぎの A16：T=3.93 時間、10 本で 46,228,782 トークン）。取り下げた W-138 の中身
+
+- id: req.benchmark-sensitivity
+  title: 回帰ベンチマークが、ハーネスの改善を検出できるかが分かっている
+  achieved_when: >-
+    10 本程度の課題を 1〜3 回走らせるベンチマークで改善を検出できるか、できないならハーネスの計測で代えるかが、記録と外の情報で決まっている
+  verify_by: [reviewer, human]
+  status: 仮説
+  depends_on: [req.planner-tools]
+  evidence:
+  - 元の H2。premises.yaml の P-018：1 回の走りで点は 2〜6 ポイント動き、満点に張り付いた課題は情報を持たない
+
+- id: req.gemini-quota
+  title: Gemini の利用枠が、ベンチマークの実装・調べもの・レビュアーで足りるか分かっている
+  achieved_when: レビュアーの 1 回の費用と、ベンチマーク 1 回の費用から、週あたりの使い方の見積もりがあり、枠と比べてある
+  verify_by: [reviewer]
+  status: 仮説
+  depends_on: [req.progress-reviewed]
+  evidence:
+  - 元の H9。Argon の費用（9 本目の知らせ）：medium で入力 約 2.4 万トークン・82 秒、high で約 21 万・346 秒
+  - 引継ぎの A76（手持ち）：ベンチの実装（agy）と同じ枠を分け合う
+
+- id: req.failure-attribution
+  title: 落ちたとき、ハーネスの不具合か実装モデルの力不足かを機械で見分けられる
+  achieved_when: 未収束の記録に、落ちの帰属（ハーネス・環境・実装モデル）が付き、人が手で見分けなくてよい
+  verify_by: [test:independent, reviewer]
+  status: 仮説
+  depends_on: [req.harness-healthy]
+  evidence:
+  - 元の H3。B09 の落ちを操縦士が手で見分けた（deferred.md の X-30）
+
+- id: req.planner-capability-known
+  title: planner が自分で計画を立てる力が測られている
+  achieved_when: 固定の計画を使わずに planner がタスクと受入テストを書いた走行の記録があり、両立しない合格条件を書く型が出るかが分かっている
+  verify_by: [reviewer]
+  status: 仮説
+  depends_on: [req.harness-healthy]
+  evidence:
+  - 元の H4。固定の計画で測ってきた（W-99 で初手の確定 0/10）。deferred.md の X-11・X-12・X-18・X-23。W-114（計画役だけの走行）は受信箱の材料で、台帳に無い
+
+- id: req.turn-cutoff-reduced
+  title: 実装モデルのターン切れが、タスクを小さくすれば減るかが分かっている
+  achieved_when: タスクの大きさとターン切れの率の関係が、走行の記録から出ている
+  verify_by: [reviewer]
+  status: 仮説
+  depends_on: [req.harness-healthy]
+  evidence:
+  - 元の H7。W42 の試行 96 回のうち error_max_turns 22 回（引継ぎの A28）
+
+- id: req.agents-md-effect
+  title: 実装モデルに知識の文書（AGENTS.md）を渡すと 1 回目の落ちが減るかが分かっている
+  achieved_when: 渡す走行と渡さない走行で、1 回で済んだ率が比べてある
+  verify_by: [reviewer]
+  status: 仮説
+  depends_on: [req.harness-healthy, req.measurable]
+  tasks: [W-108]
+  evidence:
+  - 元の H8。引継ぎの A27（操縦士が 10-21 に「仮説のまま計器で判定してよい」）
+
+- id: req.operator-proposals-placed
+  title: 操縦士の改善の提案 6 件が、点を決めるものに触れるかで仕分けられている
+  achieved_when: 6 件（知識の基盤・衝突の再生成・評価と改善の繰り返し・MCP と Roslyn・コンテナと並列・画像による審査）のそれぞれに、点を決めるものに触れるかと、入れる時機が書いてある
+  verify_by: [human]
+  status: 仮説
+  depends_on: [req.measurable]
+  evidence:
+  - 元の H10。drafts/director/roadmap.md の「操縦士の改善提案 6 件の位置付け」
+
+- id: req.task-scale
+  title: 単一コンテキスト型が満点に張り付かない規模の題材がある
+  achieved_when: 単一コンテキスト型が満点を取らない題材の仕様・判定役・隠しテストがそろい、事前登録の読み方が決まっている
+  verify_by: [reviewer, human]
+  status: 仮説
+  depends_on: [req.measurable]
+  evidence:
+  - 元の H5。今の 10 本と 4 モジュールの型のすべてで単一コンテキスト型が満点（D-108、引継ぎの A39）
+  - 材料：受信箱の drafts/director/W-113/（隠しテストは Git に入れない）。W-113 は台帳に無い
+
+- id: req.physics-engine
+  title: 3D の物理演算の題材を、MuJoCo の Python で足りるかが分かっている
+  achieved_when: 題材に要る物理の機能が MuJoCo の Python で足りるか、外部エンジンとの境界が要るかが、記録と外の情報で決まっている
+  verify_by: [reviewer, human]
+  status: 仮説
+  depends_on: [req.planner-tools]
+  evidence:
+  - 元の H6。deferred.md の X-03。実行環境は MuJoCo 3.15.0／Python 3.12.10（report.md の probe）
