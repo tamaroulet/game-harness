@@ -145,6 +145,61 @@ class Mirror(unittest.TestCase):
         self.assertIn(f"（写しが古い：origin/main は {newer}）", top[1])
 
 
+    def test_mirror_at_or_overlapping_root_raises_mirror_error(self):
+        before = snapshot(self.human)
+        self.cfg["mirror"] = str(self.human)
+        with self.assertRaises(main_mirror.MirrorError):
+            main_mirror.sync(self.cfg, root=self.human)
+        self.assertEqual(snapshot(self.human), before)
+        self.cfg["mirror"] = str(self.human.parent)
+        with self.assertRaises(main_mirror.MirrorError):
+            main_mirror.sync(self.cfg, root=self.human)
+        self.assertEqual(snapshot(self.human), before)
+        self.cfg["mirror"] = str(self.human / "nested")
+        with self.assertRaises(main_mirror.MirrorError):
+            main_mirror.sync(self.cfg, root=self.human)
+        self.assertEqual(snapshot(self.human), before)
+
+    def test_sync_branches_mirrors_open_prs_and_removes_closed(self):
+        branches_dir = self.tmp / "branches"
+        self.cfg["branches"] = str(branches_dir)
+        git("checkout", "-q", "-b", "feat-101", cwd=self.feeder)
+        (self.feeder / "f1.txt").write_text("pr 101", encoding="utf-8")
+        git("add", "-A", cwd=self.feeder)
+        git("commit", "-q", "-m", "feat-101", cwd=self.feeder)
+        git("push", "-q", "origin", "feat-101", cwd=self.feeder)
+        sha1 = git("rev-parse", "HEAD", cwd=self.feeder)
+        git("checkout", "-q", "main", cwd=self.feeder)
+
+        git("checkout", "-q", "-b", "feat-102", cwd=self.feeder)
+        (self.feeder / "f2.txt").write_text("pr 102", encoding="utf-8")
+        git("add", "-A", cwd=self.feeder)
+        git("commit", "-q", "-m", "feat-102", cwd=self.feeder)
+        git("push", "-q", "origin", "feat-102", cwd=self.feeder)
+        sha2 = git("rev-parse", "HEAD", cwd=self.feeder)
+        git("checkout", "-q", "main", cwd=self.feeder)
+
+        open_prs = [
+            {"number": 101, "headRefName": "feat-101", "headRefOid": sha1},
+            {"number": 102, "headRefName": "feat-102", "headRefOid": sha2},
+        ]
+        main_mirror.sync(self.cfg, root=self.human, clock=stopped.CLOCK, open_prs=open_prs)
+        self.assertTrue((branches_dir / "101").exists())
+        self.assertTrue((branches_dir / "102").exists())
+        self.assertEqual(git("rev-parse", "HEAD", cwd=branches_dir / "101"), sha1)
+        self.assertEqual(git("rev-parse", "HEAD", cwd=branches_dir / "102"), sha2)
+        rec101 = json.loads((branches_dir / "101" / main_mirror.RECORD_BRANCH).read_text(encoding="utf-8"))
+        self.assertEqual(rec101["number"], 101)
+        self.assertEqual(rec101["sha"], sha1)
+
+        open_prs_closed = [
+            {"number": 102, "headRefName": "feat-102", "headRefOid": sha2},
+        ]
+        main_mirror.sync(self.cfg, root=self.human, clock=stopped.CLOCK, open_prs=open_prs_closed)
+        self.assertFalse((branches_dir / "101").exists())
+        self.assertTrue((branches_dir / "102").exists())
+
+
 class StoppedReportTop(stopped.Base):
     """止まっている間の report.md の冒頭（## 書き出し）に、写しの行が出る。"""
 
@@ -219,16 +274,30 @@ class RoomSettings(unittest.TestCase):
         deny = hline_room.director_settings(inbox, src_root=src, mirror=mirror)["permissions"]["deny"]
         self.assertEqual(deny.count(f"Edit({rule})"), 1)
 
+    def test_settings_deny_edit_but_not_read_of_branches(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        src = tmp / "src"
+        inbox = src / ".local" / "inbox"
+        inbox.mkdir(parents=True)
+        branches = src / ".local" / "branches"
+        deny = hline_room.director_settings(inbox, src_root=src, branches=branches)["permissions"]["deny"]
+        rule = "//" + branches.as_posix().replace(":", "", 1).lower() + "/**"
+        self.assertIn(f"Edit({rule})", deny)
+        self.assertFalse([d for d in deny if d.startswith("Read(") and rule[:-3] in d])
+
     def test_setup_writes_the_mirror_rule_and_claude_md_names_it(self):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, True)
         cfg = json.loads(json.dumps(stopped.CFG))
-        cfg.update(inbox=str(tmp / "inbox"), out=str(tmp / "out"), mirror=str(tmp / "main"))
+        cfg.update(inbox=str(tmp / "inbox"), out=str(tmp / "out"), mirror=str(tmp / "main"), branches=str(tmp / "branches"))
         with mock.patch.object(hline_room, "write_report"), contextlib.redirect_stdout(io.StringIO()):
             hline_room.setup(cfg)
         deny = json.loads((tmp / "inbox" / ".claude" / "settings.json").read_text(encoding="utf-8"))["permissions"]["deny"]
         rule = "//" + (tmp / "main").as_posix().replace(":", "", 1).lower() + "/**"
+        rule_b = "//" + (tmp / "branches").as_posix().replace(":", "", 1).lower() + "/**"
         self.assertIn(f"Edit({rule})", deny)
+        self.assertIn(f"Edit({rule_b})", deny)
         self.assertFalse([d for d in deny if d.startswith("Read(") and rule[:-3] in d])
         self.assertEqual(json.loads((ROOT / "config" / "hline.json").read_text(encoding="utf-8"))["mirror"], "${local}/main")
         local = json.loads((ROOT / "config" / "machine.example.json").read_text(encoding="utf-8"))["paths"]["local"]

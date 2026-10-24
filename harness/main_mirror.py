@@ -18,7 +18,10 @@ import hline_probe  # noqa: E402
 import proc  # noqa: E402
 from hline_base import ROOT, load_config  # noqa: E402
 
+import shutil
+
 RECORD = ".mirror.json"
+RECORD_BRANCH = ".branch.json"
 
 
 def remote_and_branch(cfg):
@@ -37,21 +40,88 @@ class MirrorError(Exception):
     pass
 
 
-def sync(cfg, root=ROOT, runner=None, clock=None):
+def check_no_overlap(target_path, root_path, label="写しの場所"):
+    target_res = Path(target_path).resolve()
+    root_res = Path(root_path).resolve()
+    if target_res == root_res or root_res in target_res.parents or target_res in root_res.parents:
+        raise MirrorError(f"{label} {target_path} が作業コピー {root_path} と重なっています（作業ツリーの保護のため停止します）")
+
+
+def get_open_prs(cfg, runner=None):
+    """開いている PR の一覧（[{"number": 291, "headRefName": "...", "headRefOid": "..."}]）を返す。"""
+    try:
+        res = subprocess.run(["gh", "pr", "list", "--state", "open", "--json", "number,headRefName,headRefOid"],
+                             capture_output=True, text=True, check=True)
+        return json.loads(res.stdout)
+    except Exception:
+        return []
+
+
+def sync_branches(cfg, root=ROOT, mirror=None, remote=None, runner=None, clock=None, open_prs=None):
+    """開いている PR の枝の写しを取り出し、閉じた PR の写しを消す。"""
+    branches_path = cfg.get("branches")
+    if not branches_path:
+        return
+    branches_dir = Path(branches_path)
+    check_no_overlap(branches_dir, root, "枝の写しの場所")
+    branches_dir.mkdir(parents=True, exist_ok=True)
+
+    if open_prs is None:
+        prs = get_open_prs(cfg, runner)
+    elif callable(open_prs):
+        prs = open_prs()
+    else:
+        prs = open_prs
+
+    mirror = Path(cfg["mirror"]) if mirror is None else mirror
+    now_stamp = hline_probe.stamp(time.time() if clock is None else clock)
+
+    active_nums = set()
+    for pr in prs:
+        num = str(pr["number"])
+        active_nums.add(num)
+        branch = pr.get("headRefName", f"pr-{num}")
+        sha = pr.get("headRefOid") or pr.get("sha")
+        target = branches_dir / num
+
+        if not (target / ".git").exists():
+            if target.exists():
+                shutil.rmtree(target, ignore_errors=True)
+            _git(cfg, runner, ["clone", "-q", "--shared", str(mirror), str(target)])
+
+        _git(cfg, runner, ["-C", str(target), "reset", "-q", "--hard", sha])
+        _git(cfg, runner, ["-C", str(target), "clean", "-q", "-f", "-d", "-x"])
+
+        rec = {
+            "number": int(num),
+            "branch": branch,
+            "sha": sha,
+            "at": now_stamp,
+        }
+        (target / RECORD_BRANCH).write_text(json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    for item in branches_dir.iterdir():
+        if item.is_dir() and item.name not in active_nums:
+            shutil.rmtree(item, ignore_errors=True)
+
+
+def sync(cfg, root=ROOT, runner=None, clock=None, open_prs=None):
     """写しを origin/main の HEAD に合わせ、記録（{"sha", "at", "base"}）を返す。合わせられなければ MirrorError。"""
     mirror = Path(cfg["mirror"])
+    check_no_overlap(mirror, root, "写しの場所")
     remote, branch = remote_and_branch(cfg)
     if not (mirror / ".git").exists():
         if mirror.exists() and any(mirror.iterdir()):
             raise MirrorError(f"写しの場所 {mirror} に、Git でないファイルがあります（消さずに止めます。中を確かめてから空にしてください）")
         url = _git(cfg, runner, ["-C", str(root), "remote", "get-url", remote]).strip()
         _git(cfg, runner, ["clone", "-q", "--origin", remote, url, str(mirror)])
-    _git(cfg, runner, ["-C", str(mirror), "fetch", "-q", "--prune", remote])
+    _git(cfg, runner, ["-C", str(mirror), "fetch", "-q", "--prune", remote, f"+refs/heads/*:refs/remotes/{remote}/*"])
     _git(cfg, runner, ["-C", str(mirror), "reset", "-q", "--hard", cfg["base"]])
     _git(cfg, runner, ["-C", str(mirror), "clean", "-q", "-f", "-d", "-x"])
     sha = _git(cfg, runner, ["-C", str(mirror), "rev-parse", "HEAD"]).strip()
     rec = {"sha": sha, "at": hline_probe.stamp(time.time() if clock is None else clock), "base": f"{remote}/{branch}"}
     (mirror / RECORD).write_text(json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    sync_branches(cfg, root=root, mirror=mirror, remote=remote, runner=runner, clock=clock, open_prs=open_prs)
     return rec
 
 
