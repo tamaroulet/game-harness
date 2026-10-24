@@ -169,5 +169,26 @@ class TestSelectableExpansion(unittest.TestCase):
         self.assertEqual(progress.advance_active(state), "T1")
 
 
+class TestLedgerNoLegacyRebuildSectors(unittest.TestCase):
+    def test_no_rebuild_numbered_sectors_in_ledgers(self):
+        """W-153 受入: 台帳とその過去ログに rebuild-0〜rebuild-6 の字が残らないことを検証する。"""
+        import re
+        from pathlib import Path
+        root = Path(__file__).resolve().parent.parent
+        prog_path = root / "docs" / "progress.yaml"
+        arch_path = root / "docs" / "progress_archive.yaml"
+        pat = re.compile(r"\brebuild-[0-6]\b")
+
+        for path in (prog_path, arch_path):
+            if not path.exists():
+                continue
+            for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+                # W-153 の acceptance 文言自体（rebuild-0〜rebuild-6 の字が残らない）は除外
+                if "rebuild-0" in line and "残らない" in line:
+                    continue
+                m = pat.search(line)
+                self.assertIsNone(m, f"{path}:{i} に旧区分 '{m.group(0) if m else ''}' が残っています: {line}")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -490,7 +490,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: in_progress
-  slug: 'rebuild-1: director-reads-main'
+  slug: 'rebuild: director-reads-main'
   by: executor
   purpose: 総監督が、どの版を読んだかの分かる main の中身を読めるようにする
   deliverable: 読み取りの場所と setup のコード（受入で決める）
@@ -511,7 +511,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: stopped
-  slug: 'rebuild-1: director-pr-path'
+  slug: 'rebuild: director-pr-path'
   by: executor
   purpose: '総監督が受信箱に置いた木や文書の写しを、機械が main への PR にする。この道ができるまでは、by: director のタスクは、総監督の成果物を実行役が写す PR の中で実行役が complete を走らせ、検証の試験は実行役が書く（from: executor）。道ができた後の完了の流れもここで決める'
   deliverable: 写しの置き場と PR にする道（受入で決める）
@@ -535,7 +535,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-1: knowledge-in-git'
+  slug: 'rebuild: knowledge-in-git'
   by: executor
   purpose: 総監督の文書（deferred・invariants・pipeline・drafts/what を含む）・checks/・調べものの記録と索引・引継ぎを Git に集め、人から見えるようにする
   deliverable: Git に移した文書の一覧（受入で決める）
@@ -580,7 +580,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-1: pilot-report'
+  slug: 'rebuild: pilot-report'
   by: executor
   purpose: 操縦士が見るのは方向と進捗とセクターの説明だけになるように、毎回の報告の中身と形を作り直す。操縦士が承認する
   deliverable: 報告の命令と CLAUDE.md の報告の節（受入で決める）
@@ -603,7 +603,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-1: director-research'
+  slug: 'rebuild: director-research'
   by: executor
   purpose: 総監督が木と計画を作るために、受信箱から問いを出し、外の情報の記録を受け取れるようにする（docs/rebuild/README.md §4 の段 2）
   deliverable: 受信箱の research/ の問い・束・結果の道と、setup の許し（受入で決める）
@@ -624,7 +624,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-1: argon-evaluator'
+  slug: 'rebuild: argon-evaluator'
   by: executor
   purpose: 別系統の評価者 Argon が、リポジトリを全部（main も枝も）読んだうえで、木の節とタスクを事前（子の節で親に届くか）と事後（届いたか）に定性で評価できるようにする（docs/rebuild/README.md §4 の段 3。操縦士 2026-10-24）
   deliverable: Argon の評価を起こす命令と、評価の記録（受入で決める）
@@ -645,7 +645,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-2: separate-runs'
+  slug: 'rebuild: separate-runs'
   by: executor
   purpose: 判断する席と作業する起動を分けたときの費用と出来を測る。記録は Git か out/hline に出し、総監督が読めるようにする
   deliverable: 試しの記録（受入で決める）
@@ -655,7 +655,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-2: work-route'
+  slug: 'rebuild: work-route'
   by: director
   purpose: 止まっているキューと走らせ役の扱いを含めて、作業の経路を決める。総監督が案を書き、操縦士が決める
   deliverable: 経路の決定と decision_log.md の行（受入で決める）
@@ -666,7 +666,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: completed
-  slug: 'rebuild-2: approved-node-check'
+  slug: 'rebuild: approved-node-check'
   by: executor
   purpose: 承認されていない枝にタスクが足されないように、タスクから承認済みのノードへの辿りを機械で確かめる
   deliverable: 台帳の検査と試験（受入で決める）
@@ -686,7 +686,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: withdrawn
-  slug: 'rebuild-2: node-approval'
+  slug: 'rebuild: node-approval'
   by: executor
   purpose: 人が PR やコードの単位でなく、セクターの説明の単位で承認できるようにし、承認の単位を大きくしていく
   deliverable: 承認の記録の形と道（受入で決める）
@@ -699,7 +699,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: withdrawn
-  slug: 'rebuild-2: ai-review-loop'
+  slug: 'rebuild: ai-review-loop'
   by: executor
   purpose: セクターの説明と検めと承認を、総監督と別系統の検め役の AI どうしで回し、人はより大きな群を承認する
   deliverable: 検め役の起動と記録（受入で決める）
@@ -723,7 +723,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-3: physics-oracle-form'
+  slug: 'rebuild: physics-oracle-form'
   by: director
   purpose: これから作る物理の課題の判定を、二値の合否でなく、許す誤差と見る時間の幅で書く形を決める。凍結した 10 本は替えない
   deliverable: 判定の形の文書（受入で決める）
@@ -754,7 +754,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-4: cost-per-task'
+  slug: 'rebuild: cost-per-task'
   by: executor
   purpose: 1 件の作業が使う時間・トークン・キャッシュを測り、予算の数字を決める材料にする
   deliverable: 測りの命令と記録（受入で決める）
@@ -764,7 +764,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-4: limits-inventory'
+  slug: 'rebuild: limits-inventory'
   by: director
   purpose: 試行・ターン・時間・字数の上限と settings の拒否を棚卸しし、緩める案を出す。総監督自身の権限を緩める案は、操縦士が決める
   deliverable: 縛りの一覧と案（受入で決める）
@@ -775,7 +775,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: withdrawn
-  slug: 'rebuild-4: fewer-tokens'
+  slug: 'rebuild: fewer-tokens'
   by: executor
   purpose: W-161 の測りと W-156 の経路の上で、1 件あたりのトークンを減らす
   deliverable: 減らす変更と前後の測り（受入で決める）
@@ -798,7 +798,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: withdrawn
-  slug: 'rebuild-5: director-research'
+  slug: 'rebuild: director-research-relay'
   by: executor
   purpose: 総監督が問いを置き、調べものの結果を Git の中で読めるようにする
   deliverable: 問いの入口と結果の置き場（受入で決める）
@@ -811,7 +811,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: withdrawn
-  slug: 'rebuild-5: one-premise-ledger'
+  slug: 'rebuild: one-premise-ledger'
   by: executor
   purpose: 前提を 1 つの台帳の番号で引けるようにし、3 つの番号の体系の食い違いをなくす
   deliverable: 番号の対応と移した台帳（受入で決める）
@@ -823,7 +823,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-5: research-quality'
+  slug: 'rebuild: research-quality'
   by: executor
   purpose: 調べものが、この環境への当てはまりを見て強さを判じ、候補を偏りなく並べるようにする
   deliverable: 調べ方の段と判定の変更（受入で決める）
@@ -833,7 +833,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-6: end-to-end'
+  slug: 'rebuild: end-to-end'
   by: executor
   purpose: 練習の課題（docs/bench/practice/P1・P2）か新しい物理の課題 1 本を、承認から判定役の照合の合格まで通す。凍結した 10 本は使わない。執行者は W-156 で決まる経路で書き直す。main へのマージを人が承認するかはリスクの層（W-154）で決める。総監督は生ログで判じる
   deliverable: 通しの記録（受入で決める）
@@ -851,7 +851,7 @@ tasks:
   group: rebuild
   target_repo: game-harness
   status: pending
-  slug: 'rebuild-6: hand-back'
+  slug: 'rebuild: hand-back'
   by: executor
   purpose: 会話の席を会話と判断だけに戻し、木の持ち主を総監督へ渡す。凍結した未決と人の手番（W-113・W-114 など）を戻す
   deliverable: 引き渡しの記録（受入で決める）
