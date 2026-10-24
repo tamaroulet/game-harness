@@ -3335,6 +3335,49 @@ tasks:
   verification:
     command: python -m unittest tests.test_pilot_brief
     expected_exit_code: 0
+- id: W-171
+  title: 総監督が外部の情報を調べられる
+  group: rebuild-1
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild-1: director-research'
+  by: executor
+  purpose: 総監督が木と計画を作るために、受信箱から問いを出し、外の情報の記録を受け取れるようにする（docs/rebuild/README.md §4 の段 2）
+  deliverable: 受信箱の research/ の問い・束・結果の道と、setup の許し（受入で決める）
+  depends_on: []
+  acceptance:
+  - 総監督が受信箱の `research/questions/` に問いを置くと、機械が形（`research_protocol.md` §4）を調べ役を呼ばずに確かめる。形が違う問いは、理由を受信箱の `research/results/<問いの名前>.md` に書いて返す。問いは `## 節` の欄で木の節の名前を持つ
+  - '形の通った問いは、木の節ごとに 1 つの束（`research/bundles/<節>.md`：節の名前・束ねた問いの名前と本文）にまとめる。操縦士の印（束のファイルの末尾の「承認: <日付> <名前>」の行）がある束の問いだけが調べ役に渡る。印の無い問いは渡らず、利用枠を使わない'
+  - 調べ役の記録（主張・出典・格・照合の印・検索語・確かめられなかったこと）が、受信箱の `research/results/<問いの名前>.md` に写る。利用枠切れで積まれた問いと、まだ印の無い問いも、同じ場所に状態として出る
+  - 集める段（`map`・`compare`）の既定の調べ役が、`docs/rebuild/README.md` §4 の段 2（「Gemini が集め」）と合っている。合わせないなら、その決定と理由が `docs/design/decision_log.md` に 1 行ある
+  oracle:
+  - path: tests/test_director_research.py
+    from: director
+  verification:
+    command: python -m unittest tests.test_director_research
+    expected_exit_code: 0
+- id: W-172
+  title: Argon がリポジトリの写しを読んで評価する段
+  group: rebuild-1
+  target_repo: game-harness
+  status: pending
+  slug: 'rebuild-1: repo-evaluator'
+  by: executor
+  purpose: 評価者 Argon が、main か PR の枝の写しを自分で読み、木の節と差分を評価できるようにする（docs/rebuild/README.md §4 の段 3）
+  deliverable: 写しを取り出す命令と、Argon の評価の段（受入で決める）
+  depends_on:
+  - W-150
+  acceptance:
+  - 1 つの命令で、指定した ref（main か PR の枝）の木を、人の作業コピー（`C:\src\game-harness`）と別の場所に取り出す（写し）。写しの根に、ref の名前と SHA の記録がある。写しは総監督も読める（`python -m harness.hline setup` が書く settings で `Read` を許し、`Edit` を拒む）
+  - 写しの中で、agy の Argon を、読み取りだけの形（`--mode plan --sandbox`）で、評価の問い（評価する節・観点・渡す記録）を入れて 1 回走らせる。走る前と後で写しのファイルの指紋が同じでなければ、その評価を無効にして理由を出す
+  - 評価の出力は形（節ごとに、判定〈届く・届かない・判じられない〉・根拠・反論）で受ける。根拠は、写しの中の `path:行` か、渡した記録の名前で書かせ、`path:行` が写しに実在するかを機械で照らす。照らせない根拠には印を付ける。形が崩れた出力は記録しない
+  - 1 回の評価の費用（モデル・入力と出力のトークン・秒）が記録に残る。medium で 1 回走らせた実測の値が、`docs/rebuild/README.md` か `decision_log.md` にある
+  oracle:
+  - path: tests/test_repo_evaluator.py
+    from: director
+  verification:
+    command: python -m unittest tests.test_repo_evaluator
+    expected_exit_code: 0
 - id: W-155
   title: 作業を別の起動で試し、費用と出来を測る
   group: rebuild-2
