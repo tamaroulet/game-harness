@@ -3,7 +3,7 @@
   "components": {
     "director": {
       "title": "総監督（週次の起動・受信箱・照合・probe・目的までの距離）",
-      "modules": ["director_launch.py", "hline_room.py", "hline_checks.py", "probe.py", "goal_distance.py", "hline_probe.py"]
+      "modules": ["director_launch.py", "hline_room.py", "hline_checks.py", "probe.py", "goal_distance.py", "hline_probe.py", "main_mirror.py"]
     },
     "hline": {
       "title": "H ライン（内側の自律ループ：取り込み・実装の試行・積む・統合 PR・報告）",

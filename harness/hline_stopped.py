@@ -82,9 +82,10 @@ def main_ledger(cfg, runner):
         return None, f"台帳を読めない: {type(e).__name__}"
 
 
-def render(cfg, mark, runner=None, clock=None):
-    """止まっている間の report.md の本文。"""
+def render(cfg, mark, runner=None, clock=None, mirror_failed=None):
+    """止まっている間の report.md の本文。mirror_failed は、書く前に写しを合わせるのに失敗した理由。"""
     import hline_checks
+    import main_mirror
     import hline_probe
     import hline_queue
     import hline_report
@@ -96,6 +97,7 @@ def render(cfg, mark, runner=None, clock=None):
         "## 書き出し",
         f"- 書いた時刻: {hline_probe.stamp(clock)}（python -m harness.hline_stopped report。H ラインの走行の外）",
         f"- {cfg['base']} の HEAD: {main_head(cfg, runner)}",
+        *([main_mirror.line(cfg, main_mirror.base_head(cfg, runner), mirror_failed)] if cfg.get("mirror") else []),
         f"- H ライン: 止まっている（理由: {mark['reason']}／止めた時刻: {mark['at']}）",
         f"- H ラインが最後に走った時刻: {ran}",
     ]
@@ -113,11 +115,19 @@ def render(cfg, mark, runner=None, clock=None):
     return "\n".join(p.rstrip("\n") for p in parts) + "\n"
 
 
-def write(cfg, runner=None, clock=None):
+def write(cfg, runner=None, clock=None, sync=False):
+    """sync なら、書く前に main の写しを合わせる（W-150。失敗しても書き、冒頭の行に理由を出す）。"""
     mark = marker(cfg)
     if mark is None:
         raise ValueError(f"止めた印（{marker_path(cfg)}）がありません。走っている間の report.md は hline poll が書きます")
-    text = render(cfg, mark, runner, clock)
+    failed = None
+    if sync and cfg.get("mirror"):
+        import main_mirror
+        try:
+            main_mirror.sync(cfg, runner=runner, clock=clock)
+        except main_mirror.MirrorError as e:
+            failed = str(e)
+    text = render(cfg, mark, runner, clock, failed)
     (Path(cfg["inbox"]) / "report.md").write_text(text, encoding="utf-8")
     return text
 
@@ -139,7 +149,7 @@ def main(argv=None):
             return 0
         if args.action == "stop":
             stop(cfg, args.reason)
-        write(cfg)
+        write(cfg, sync=True)
         print(f"report.md を書き直しました: {Path(cfg['inbox']) / 'report.md'}")
         return 0
     except ValueError as e:

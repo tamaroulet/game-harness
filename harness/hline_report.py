@@ -25,6 +25,7 @@ from hline_git import remote_ref
 from hline_queue import by_status, downstream_impact, missing_deps, save_state
 
 import proc  # noqa: E402
+import main_mirror  # noqa: E402
 import progress  # noqa: E402
 import tree_docs  # noqa: E402
 
@@ -297,7 +298,7 @@ def write_report(cfg, st):
     if human:
         text = re.sub(r"^- 人間作業:.*$", lambda _: human, text, flags=re.M)
     probe = hline_probe.safe_section(cfg, pr=st.get("awaiting_pr"), waits=True)
-    body = goal_section(cfg).rstrip("\n") + "\n\n" + flow_section(cfg).rstrip("\n") + "\n\n" + text + "\n" + h_section(cfg, st) + "\n" + probe + "\n" + hline_checks.safe_section(cfg)
+    body = "".join(s.rstrip("\n") + "\n\n" for s in [main_mirror.section(cfg)] if s) + goal_section(cfg).rstrip("\n") + "\n\n" + flow_section(cfg).rstrip("\n") + "\n\n" + text + "\n" + h_section(cfg, st) + "\n" + probe + "\n" + hline_checks.safe_section(cfg)
     (Path(cfg["inbox"]) / "report.md").write_text(body, encoding="utf-8")
     write_todo(cfg, st)
 

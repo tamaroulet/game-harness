@@ -47,6 +47,8 @@
   未収束が増えてもラインは止まらない（独立した What は処理を続ける）
 - game-harness のリポジトリの文書を読む（`docs/design/**` など）
 - 走行の生ログ（`C:\src\.local\out\hline\` 配下）を必要に応じて読み取る
+- main の写し（`C:\src\.local\main`）を読む。根の `.mirror.json` に、合わせた SHA と時刻がある。古いかは `report.md` の冒頭に出る。写しへの書き込みは拒まれる
+- 開いている PR の枝の写し（`C:\src\.local\branches\<PR 番号>`）を読む。根の `.branch.json` に枝名・PR 番号・SHA・時刻がある。写しへの書き込みは拒まれる
 
 ## 総監督にできないこと（設定で拒否される）
 
