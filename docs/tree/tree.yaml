@@ -216,6 +216,10 @@ requirements:
   status: 検証済み
   depends_on: []
   tasks: [W-176, W-177]
+  proposals:
+  - >-
+    過去ログが読めないときの例外の受け方をそろえる。hline_ledger_entry.base_state は「読めなければ ValueError」の約束なのに ProgressError が抜ける。
+    hline_report.progress_report と hline_ledger_entry.on_integration は例外がそのまま上がる。ループを再開する前に、呼び手がどう扱うかを決めて試験で縛る（reply-architect-20261024-30.md §3）
   evidence:
   - 台帳 3,546 行（副操縦士の知らせ。README P11 では 3,545 行、済み 166 件）
   - >-
@@ -289,12 +293,14 @@ requirements:
     台帳の pending・in_progress・stopped のタスクがそれぞれ、木のどれかの要件の tasks にあるか、withdrawn になっている。
     取り下げは操縦士が確かめている
   verify_by: [test:independent, human]
-  status: 未達
+  status: 検証済み
   depends_on: []
-  proposals:
-  - 仕分けの案は README.md §5 の表。操縦士の確認の後、ワーカーが台帳の status を直す PR を出す（台帳の分離の前でも後でもよい）
   evidence:
   - Argon の批評（第 1 弾）の 3：旧い区分の管理タスク（W-158・W-159 など）が木に流れ込む
+  - >-
+    PR #301 で仕分け（取り下げ 7・保留 W-151・依存の直し）が main に入った（#302 のマージ 5b51bfa、副操縦士の知らせ）。
+    仕分けは操縦士が確かめた（19 本目）。未完了のタスクがすべて要件にあることは tests/test_tree.py の検査が縛る。
+    総監督が #301 の差分を逐語で読んだ（reply-architect-20261024-23・26）
 
 - id: req.tree-in-git
   title: 木が Git にあり、台帳の未完了のタスクがすべて木の要件から辿れる
@@ -308,7 +314,7 @@ requirements:
     (c) 検証の書かれていないタスクを次のタスクに選ばない安全装置（in_rebuild と selectable）は、rebuild の下に限らず、すべてのタスクに広げる。
         広げた後、検証の無い未完了のタスクが選ばれないことと、検証のあるタスクの選び方が変わらないことを試験で確かめる
   verify_by: [test:independent]
-  status: 未達
+  status: 検証済み
   depends_on: [req.ledger-triaged]
   tasks: [W-153, W-157]
   evidence:
@@ -316,6 +322,10 @@ requirements:
   - Argon の批評（第 1 弾）の 1：今の雛形の検査が 12 枚と 7 つの見出しを縛るので、1 本にする PR で一緒に外さないと CI が落ちる（総監督は tree_docs.py を読んでいない。clone が古い）
   - 第 2 弾で、W-153 の前提から req.planner-tools を外した（木の最初の投入は手順 2 と並べて進める）
   - harness/progress.py:49（REBUILD）・:442（in_rebuild）・:454（selectable）。手元の clone 9fdaabe で読んだ（main と違うかもしれない）
+  - >-
+    PR #301（木の投入・tree_docs の撤去・progress.py の (a)〜(c)）と #302（W-153・W-157 の complete、slug の rebuild-N の撤去と試験）が main に入った
+    （5b51bfa、副操縦士の知らせ）。試験の中身は総監督が決め、ワーカーが書き、総監督が差分を逐語で読んだ（reply-architect-20261024-23・26・27・28）。
+    「目的までの距離」が前と同じかは、次に report.md が書き直されたときに総監督が照らす
 
 - id: req.progress-reviewed
   title: 進みを、状態を持たない別系統のレビュアーが事前と事後に評価している
