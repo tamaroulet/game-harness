@@ -193,6 +193,15 @@ def gh(cfg, args, label):
     return must(proc.resolve_cli("gh") + args, ROOT, cfg["ttl_seconds"]["gh"], label)
 
 
+def list_open_prs(cfg):
+    """開いている PR の一覧（[{"number": 291, "headRefName": "...", "headRefOid": "..."}]）を返す。"""
+    try:
+        raw = gh(cfg, ["pr", "list", "--state", "open", "--json", "number,headRefName,headRefOid"], "gh pr list")
+        return json.loads(raw)
+    except Exception:
+        return []
+
+
 def open_pr(cfg):
     """統合ブランチから main への、開いている PR の URL。無ければ None。"""
     out = gh(cfg, ["pr", "list", "--head", cfg["integration_branch"], "--base", "main", "--state", "open",

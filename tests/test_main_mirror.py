@@ -54,6 +54,7 @@ class Mirror(unittest.TestCase):
         git("clone", "-q", str(self.origin), str(self.human), cwd=self.tmp)
         (self.human / "local-edit.txt").write_text("人の作業", encoding="utf-8")
         self.cfg = json.loads(json.dumps(stopped.CFG))
+        self.cfg.pop("branches", None)
         self.cfg["mirror"] = str(self.tmp / "mirror")
 
     def commit(self, name, text):
@@ -202,6 +203,10 @@ class Mirror(unittest.TestCase):
 
 class StoppedReportTop(stopped.Base):
     """止まっている間の report.md の冒頭（## 書き出し）に、写しの行が出る。"""
+
+    def setUp(self):
+        super().setUp()
+        self.cfg.pop("branches", None)
 
     def test_stale_mirror_in_the_stopped_report(self):
         mirror = self.tmp / "mirror"

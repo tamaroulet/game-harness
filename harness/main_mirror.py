@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402
 import hline_probe  # noqa: E402
+import hline_git  # noqa: E402
 import proc  # noqa: E402
 from hline_base import ROOT, load_config  # noqa: E402
 
@@ -49,12 +50,7 @@ def check_no_overlap(target_path, root_path, label="写しの場所"):
 
 def get_open_prs(cfg, runner=None):
     """開いている PR の一覧（[{"number": 291, "headRefName": "...", "headRefOid": "..."}]）を返す。"""
-    try:
-        res = subprocess.run(["gh", "pr", "list", "--state", "open", "--json", "number,headRefName,headRefOid"],
-                             capture_output=True, text=True, check=True)
-        return json.loads(res.stdout)
-    except Exception:
-        return []
+    return hline_git.list_open_prs(cfg)
 
 
 def sync_branches(cfg, root=ROOT, mirror=None, remote=None, runner=None, clock=None, open_prs=None):
