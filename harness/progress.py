@@ -38,7 +38,6 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402  python -m harness.progress でも python harness/progress.py でも読めるように
-import tree_docs  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REL_PATH = "docs/progress.yaml"
@@ -239,8 +238,6 @@ def validate(state, archived_task_ids=None):
             problems.append(f"node {n.get('id')} の parent {n['parent']} がありません")
         if n.get("status") not in (None, "completed"):
             problems.append(f"node {n.get('id')} の status は completed か省略だけです")
-        if "note" in n:
-            problems.append(f"node {n.get('id')} の note は使いません（説明は {tree_docs.DIR}/{n.get('id')}.md に置く）")
     task_ids = [t.get("id") for t in state["tasks"]]
     if len(set(task_ids)) != len(task_ids):
         problems.append("tasks の id が重複しています")
@@ -362,7 +359,7 @@ def tree(state, expand_all=False, docs=None):
         ts = _tasks_under(state, node["id"])
         mark = "[x]" if _done(state, node) else "[ ]"
         count = _count(ts) if ts else ""
-        doc = "" if docs is None or _done(state, node) else tree_docs.marks(docs.get(node["id"]), _completions(state, node["id"]))
+        doc = ""
         lines.append(f"{'  ' * depth}- {mark} {node['id']} {node['title']}{count}{doc}")
 
     def siblings(nodes, depth):
@@ -397,7 +394,7 @@ def tree(state, expand_all=False, docs=None):
 
     for root in _children(state, None):
         # 根は常に 1 段目まで開く（全体の位置づけを示すため）
-        doc = "" if docs is None or _done(state, root) else tree_docs.marks(docs.get(root["id"]), _completions(state, root["id"]))
+        doc = ""
         lines.append(f"- {root['id']} {root['title']}{doc}")
         siblings(_children(state, root["id"]), 1)
     return "\n".join(lines) + "\n"
@@ -480,11 +477,9 @@ def in_rebuild(state, t):
 
 
 def selectable(state, t):
-    """次のタスクに選べるか。立て直しのタスクは、受入を書く者が検証を書くまで選ばない（操縦士のタスクも同じ）。"""
+    """次のタスクに選べるか。検証の書かれていないタスクは、グループに依らず選ばない。"""
     return (t["status"] in OPEN and not unmet_dependencies(state, t)
-            and not (in_rebuild(state, t) and not t.get("verification")))
-
-
+            and bool(t.get("verification")))
 def advance_active(state):
     """選べる未完了のタスク（selectable）のうち、進捗の順で最初のものを現在のタスクにする（ほかの in_progress は pending に戻す）。新しい id（無ければ None）を返す。"""
     nxt = next((x for x in state["tasks"] if selectable(state, x)), None)
@@ -543,7 +538,7 @@ def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, 
         out(f"REJECT: 終了コード {rc}（期待 {v['expected_exit_code']}）。{task_id} は完了にしません")
         return 1
     t["status"] = "completed"
-    t["completed_at"] = at   # ノードの説明の古さを測る（tree_docs.stale）
+    t["completed_at"] = at   
     t.pop("review_pr", None)
     advance_active(state)
     save(state, path)
@@ -583,7 +578,7 @@ def main(argv=None):
             return _complete_cli(args.task_id, args.ref)
         if args.cmd == "review":
             review(args.task_id, args.url, path)
-            print(report(load(path), tree_docs.read_dir(ROOT)), end="")
+            print(report(load(path), None), end="")
             return 0
         state = load(path)
         problems = validate(state)
@@ -598,11 +593,11 @@ def main(argv=None):
             print(f"{'合格' if not problems else '不合格'}（{len(problems)} 件）")
             return 0 if not problems else 1
         if args.cmd == "report":
-            print(report(state, tree_docs.read_dir(ROOT)), end="")
+            print(report(state, None), end="")
         elif args.cmd == "hook":
             print(hook_output(state))
         else:
-            print(anchor(state) if args.cmd == "anchor" else tree(state, args.all, tree_docs.read_dir(ROOT)), end="")
+            print(anchor(state) if args.cmd == "anchor" else tree(state, args.all, None), end="")
     except ProgressError as e:
         # 状態・前提の不備（照合できない、現在のタスクではない等）。検証の不合格（1）と区別する
         print(f"ABORT: {e}")

@@ -37,7 +37,7 @@ def sample(first_cmd=f'{PY} -c "import sys; sys.exit(0)"'):
             {"id": "T1", "title": "first", "group": "G1", "target_repo": "r", "status": "in_progress",
              "verification": {"command": first_cmd, "expected_exit_code": 0}},
             {"id": "T2", "title": "second", "group": "G1", "target_repo": "r", "status": "pending",
-             "verification": None},
+             "verification": {"command": f'{PY} -c "import sys; sys.exit(0)"', "expected_exit_code": 0}},
             {"id": "T3", "title": "third", "group": "G2", "target_repo": "r", "status": "pending",
              "verification": None},
         ],
