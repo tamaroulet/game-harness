@@ -38,7 +38,6 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402  python -m harness.progress でも python harness/progress.py でも読めるように
-import tree_docs  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REL_PATH = "docs/progress.yaml"
@@ -46,7 +45,6 @@ ARCHIVE_REL_PATH = "docs/progress_archive.yaml"
 STATUSES = ("pending", "in_progress", "completed", "stopped", "withdrawn")
 OPEN = ("pending", "in_progress")   # 次のタスクに選ばれうる値
 HELD = {"stopped": "止めた", "withdrawn": "取り下げた"}   # 理由（reason）を持ち、H ラインが取らず、次のタスクに選ばれず、目的までの距離の分母に入らない。止めたものは再開しうる。取り下げたものは戻さない
-REBUILD = "rebuild"   # 立て直しのノード。下のタスクは、検証が書かれるまで次のタスクに選ばない
 TAIL_LINES = 20
 VERIFY_TTL = 1800
 GIT_TTL = 120
@@ -239,8 +237,6 @@ def validate(state, archived_task_ids=None):
             problems.append(f"node {n.get('id')} の parent {n['parent']} がありません")
         if n.get("status") not in (None, "completed"):
             problems.append(f"node {n.get('id')} の status は completed か省略だけです")
-        if "note" in n:
-            problems.append(f"node {n.get('id')} の note は使いません（説明は {tree_docs.DIR}/{n.get('id')}.md に置く）")
     task_ids = [t.get("id") for t in state["tasks"]]
     if len(set(task_ids)) != len(task_ids):
         problems.append("tasks の id が重複しています")
@@ -348,10 +344,8 @@ def _contains_active(state, node_id):
     return any(t["id"] == state.get("active_task_id") for t in _tasks_under(state, node_id))
 
 
-def tree(state, expand_all=False, docs=None):
+def tree(state, expand_all=False):
     """人間と PR 用。既定では現在のタスクを含む枝だけを展開し、他の枝は件数に畳む。
-
-    docs（{ノードの id: 説明の本文}）を渡すと、完了でないノードの行に、承認の有無と説明の古さの印を付ける（W-149）。
 
     既定の表示では、続けて並ぶ完了した兄弟の段を 1 行にまとめる。展開した枝のタスクは完了も未完了もすべて出す。
     行数の上限は設けない。--all では現在地を含まない枝もすべて出す。
@@ -362,8 +356,7 @@ def tree(state, expand_all=False, docs=None):
         ts = _tasks_under(state, node["id"])
         mark = "[x]" if _done(state, node) else "[ ]"
         count = _count(ts) if ts else ""
-        doc = "" if docs is None or _done(state, node) else tree_docs.marks(docs.get(node["id"]), _completions(state, node["id"]))
-        lines.append(f"{'  ' * depth}- {mark} {node['id']} {node['title']}{count}{doc}")
+        lines.append(f"{'  ' * depth}- {mark} {node['id']} {node['title']}{count}")
 
     def siblings(nodes, depth):
         done = []
@@ -397,8 +390,7 @@ def tree(state, expand_all=False, docs=None):
 
     for root in _children(state, None):
         # 根は常に 1 段目まで開く（全体の位置づけを示すため）
-        doc = "" if docs is None or _done(state, root) else tree_docs.marks(docs.get(root["id"]), _completions(state, root["id"]))
-        lines.append(f"- {root['id']} {root['title']}{doc}")
+        lines.append(f"- {root['id']} {root['title']}")
         siblings(_children(state, root["id"]), 1)
     return "\n".join(lines) + "\n"
 
@@ -409,8 +401,8 @@ def hook_output(state):
                                               "additionalContext": anchor(state)}}, ensure_ascii=False)
 
 
-def report(state, docs=None):
-    """チャット報告の全文。ツリーと状態だけで、作文を挟む余地を残さない。docs は tree に渡す。"""
+def report(state):
+    """チャット報告の全文。ツリーと状態だけで、作文を挟む余地を残さない。"""
     tid = state.get("active_task_id")
     t = task(state, tid) if tid else None
     v = (t or {}).get("verification")
@@ -421,7 +413,7 @@ def report(state, docs=None):
         human = f"- 人間作業: TASK {tid} {t['title']}（操縦士）"
     else:
         human = "- 人間作業: NONE"
-    lines =["## 進捗ツリー"] + tree(state, docs=docs).splitlines() + [
+    lines =["## 進捗ツリー"] + tree(state).splitlines() + [
         "",
         "## 状態",
         f"- 現在タスク: {tid}（{t['title']}）" if t else "- 現在タスク: NONE",
@@ -467,24 +459,10 @@ def main_version(repo_root, ref, fetch=True):
     return st
 
 
-def in_rebuild(state, t):
-    """t が立て直しのノード（REBUILD）の下にあるか。"""
-    parents = {n.get("id"): n.get("parent") for n in state.get("nodes") or []}
-    node, seen = t.get("group"), set()
-    while node is not None and node not in seen:
-        if node == REBUILD:
-            return True
-        seen.add(node)
-        node = parents.get(node)
-    return False
-
-
 def selectable(state, t):
-    """次のタスクに選べるか。立て直しのタスクは、受入を書く者が検証を書くまで選ばない（操縦士のタスクも同じ）。"""
+    """次のタスクに選べるか。検証の書かれていないタスクは、グループに依らず選ばない。"""
     return (t["status"] in OPEN and not unmet_dependencies(state, t)
-            and not (in_rebuild(state, t) and not t.get("verification")))
-
-
+            and bool(t.get("verification")))
 def advance_active(state):
     """選べる未完了のタスク（selectable）のうち、進捗の順で最初のものを現在のタスクにする（ほかの in_progress は pending に戻す）。新しい id（無ければ None）を返す。"""
     nxt = next((x for x in state["tasks"] if selectable(state, x)), None)
@@ -543,7 +521,7 @@ def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, 
         out(f"REJECT: 終了コード {rc}（期待 {v['expected_exit_code']}）。{task_id} は完了にしません")
         return 1
     t["status"] = "completed"
-    t["completed_at"] = at   # ノードの説明の古さを測る（tree_docs.stale）
+    t["completed_at"] = at
     t.pop("review_pr", None)
     advance_active(state)
     save(state, path)
@@ -583,7 +561,7 @@ def main(argv=None):
             return _complete_cli(args.task_id, args.ref)
         if args.cmd == "review":
             review(args.task_id, args.url, path)
-            print(report(load(path), tree_docs.read_dir(ROOT)), end="")
+            print(report(load(path)), end="")
             return 0
         state = load(path)
         problems = validate(state)
@@ -598,11 +576,11 @@ def main(argv=None):
             print(f"{'合格' if not problems else '不合格'}（{len(problems)} 件）")
             return 0 if not problems else 1
         if args.cmd == "report":
-            print(report(state, tree_docs.read_dir(ROOT)), end="")
+            print(report(state), end="")
         elif args.cmd == "hook":
             print(hook_output(state))
         else:
-            print(anchor(state) if args.cmd == "anchor" else tree(state, args.all, tree_docs.read_dir(ROOT)), end="")
+            print(anchor(state) if args.cmd == "anchor" else tree(state, args.all), end="")
     except ProgressError as e:
         # 状態・前提の不備（照合できない、現在のタスクではない等）。検証の不合格（1）と区別する
         print(f"ABORT: {e}")

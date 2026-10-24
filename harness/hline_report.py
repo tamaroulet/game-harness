@@ -27,7 +27,6 @@ from hline_queue import by_status, downstream_impact, missing_deps, save_state
 import proc  # noqa: E402
 import main_mirror  # noqa: E402
 import progress  # noqa: E402
-import tree_docs  # noqa: E402
 
 MARK = "<!-- hline-queue:"
 BODY_MAX = 60000   # GitHub の PR 本文の上限は 65536 文字
@@ -78,7 +77,7 @@ def progress_report(cfg):
     for ref in (remote_ref(cfg), cfg["base"]):
         st = progress.read_ref(lambda p: git(["show", f"{ref}:{p}"]))
         if st is not None:
-            return progress.report(st, tree_docs.read_git(git, ref))
+            return progress.report(st)
     return must([sys.executable, "-m", "harness.progress", "report"], ROOT, t, "report")
 
 

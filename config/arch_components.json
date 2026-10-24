@@ -47,7 +47,7 @@
       "title": "共通の土台（子プロセス・ファイル・進捗の台帳・モデルの固定・環境の台帳）",
       "modules": ["proc.py", "fileops.py", "job_object.py", "exitcode.py", "infra_retry.py", "transient.py", "textnorm.py",
                   "model_pin.py", "progress.py", "oracle_deny.py", "toolchain.py", "machine.py", "envcheck.py", "envscan.py",
-                  "arch_inventory.py", "tree_docs.py"]
+                  "arch_inventory.py", "tree.py"]
     }
   }
 }
