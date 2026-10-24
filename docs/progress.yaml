@@ -4,9 +4,9 @@ constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (game-harness#44).
 last_verification:
-  task: W-157
+  task: W-177
   exit_code: 0
-  at: '2026-10-25T01:03:14'
+  at: '2026-10-25T02:32:00'
 next_id: 106
 nodes:
 - id: A
@@ -864,7 +864,7 @@ tasks:
   title: 過去ログが読めないときの守り（台帳の archive 宣言と読み込み失敗時の例外送出）
   group: rebuild
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'rebuild: protect-archive-read'
   by: executor
   purpose: 現役の台帳に archive 宣言を置き、過去ログが読めないときに黙って現役だけを返さず例外（ProgressError）を出す（フェイルクローズド）
@@ -882,3 +882,4 @@ tasks:
   verification:
     command: python -m unittest tests.test_archive_guard
     expected_exit_code: 0
+  completed_at: '2026-10-25T02:32:00'
