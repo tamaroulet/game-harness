@@ -26,6 +26,7 @@ from hline_queue import by_status, downstream_impact, missing_deps, save_state
 
 import proc  # noqa: E402
 import progress  # noqa: E402
+import tree_docs  # noqa: E402
 
 MARK = "<!-- hline-queue:"
 BODY_MAX = 60000   # GitHub の PR 本文の上限は 65536 文字
@@ -61,13 +62,22 @@ def line_status(cfg, st):
     return "統合 PR 待ち" if st["awaiting_pr"] else "走行中"
 
 
+def git_text(args, ttl):
+    """git の出力。失敗なら None（ノードの説明を読めないときは、ツリーに印を付けない）。"""
+    code, out, _ = proc.run(["git", *args], ROOT, ttl, f"git {args[0]}")
+    return out if code == 0 else None
+
+
 def progress_report(cfg):
     """進捗の report。統合ブランチの docs/progress.yaml を映す（統合ブランチが無ければ base）。"""
     t = cfg["ttl_seconds"]["git"]
+
+    def git(args):
+        return git_text(args, t)
     for ref in (remote_ref(cfg), cfg["base"]):
-        code, out, _ = proc.run(["git", "show", f"{ref}:{progress.REL_PATH}"], ROOT, t, "git show")
-        if code == 0:
-            return progress.report(yaml.safe_load(out))
+        out = git(["show", f"{ref}:{progress.REL_PATH}"])
+        if out is not None:
+            return progress.report(yaml.safe_load(out), tree_docs.read_git(git, ref))
     return must([sys.executable, "-m", "harness.progress", "report"], ROOT, t, "report")
 
 

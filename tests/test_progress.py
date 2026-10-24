@@ -173,6 +173,7 @@ class CompleteTests(unittest.TestCase):
         self.assertEqual([t["status"] for t in s["tasks"]], ["completed", "in_progress", "pending"])
         self.assertEqual(s["active_task_id"], "T2")
         self.assertEqual(s["last_verification"], {"task": "T1", "exit_code": 0, "at": "2026-09-23T00:00:00"})
+        self.assertEqual(s["tasks"][0]["completed_at"], "2026-09-23T00:00:00")   # ノードの説明の古さを測る（W-149）
         self.assertEqual(progress.validate(s), [])
 
     def test_review_marks_the_active_task_and_complete_clears_it(self):

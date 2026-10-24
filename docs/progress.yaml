@@ -89,7 +89,6 @@ nodes:
 - id: W-18
   parent: A
   title: 段 4：Outer Loop の確立（C4）
-  note: 立て直しで確かめの仕組みと工廠の経路が変わったので、基準は取り直してから使う
 - id: outer
   parent: W-18
   title: 外側ループ（週次非劣性検証）
