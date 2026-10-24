@@ -29,8 +29,9 @@ class ArchiveEquivalenceTests(unittest.TestCase):
         active_state = yaml.safe_load(cls.active_text)
         archive_state = yaml.safe_load(cls.archive_text)
 
-        # 分割前の単一巨大 YAML を忠実に再現
+        # 分割前の単一巨大 YAML を忠実に再現（archive 宣言なし）
         monolithic_state = dict(active_state)
+        monolithic_state.pop("archive", None)
         monolithic_state["tasks"] = list(archive_state["tasks"]) + list(active_state.get("tasks", []))
         cls.monolithic_text = yaml.safe_dump(monolithic_state, allow_unicode=True, sort_keys=False)
 
@@ -52,8 +53,10 @@ class ArchiveEquivalenceTests(unittest.TestCase):
         st_mono = progress.read_ref(self._show_fn_monolithic)
         st_split = progress.read_ref(self._show_fn_split)
         self.assertIsNotNone(st_mono)
-        self.assertIsNotNone(st_split)
-        self.assertEqual(st_mono, st_split)
+        # archive 宣言の有無を除き、タスク・ノード・制約等が完全一致すること
+        st_split_comparable = dict(st_split)
+        st_split_comparable.pop("archive", None)
+        self.assertEqual(st_mono, st_split_comparable)
         self.assertEqual(len(st_split["tasks"]), len(st_mono["tasks"]))
 
     def test_progress_report_exact_match(self):
@@ -85,12 +88,22 @@ class ArchiveEquivalenceTests(unittest.TestCase):
             self.assertEqual(note_mono, note_split, f"rung {rung} の前提タスク注記が不一致です")
 
     def test_read_ref_without_archive(self):
-        # アーカイブが存在しないリポジトリ（初期状態など）でも progress.yaml 単独で正しく読めること
+        # 1. archive 宣言がある現役台帳で過去ログが読めなければ ProgressError
         def show_fn_no_archive(rel_path):
             if rel_path == progress.REL_PATH:
                 return self.active_text
             return None
-        st = progress.read_ref(show_fn_no_archive)
+        with self.assertRaises(progress.ProgressError):
+            progress.read_ref(show_fn_no_archive)
+
+        # 2. archive 宣言の無い古い台帳なら progress.yaml 単独で正しく読めること
+        def show_fn_legacy(rel_path):
+            if rel_path == progress.REL_PATH:
+                active_legacy = dict(yaml.safe_load(self.active_text))
+                active_legacy.pop("archive", None)
+                return yaml.safe_dump(active_legacy, allow_unicode=True)
+            return None
+        st = progress.read_ref(show_fn_legacy)
         self.assertIsNotNone(st)
         self.assertEqual(len(st["tasks"]), len(yaml.safe_load(self.active_text)["tasks"]))
 

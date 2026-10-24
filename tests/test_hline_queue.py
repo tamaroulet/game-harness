@@ -219,11 +219,20 @@ class Integrate(unittest.TestCase):
     def test_the_report_mirrors_the_progress_of_the_integration_branch(self):
         served = progress.load(REPO / "docs" / "progress.yaml")
         progress.task(served, "S1-1")["status"] = "completed"
+        arch = progress.load_archive()
+        arch_ids = {t["id"] for t in arch.get("tasks", [])} if arch else set()
+        active_served = dict(served)
+        active_served["tasks"] = [t for t in served.get("tasks", []) if t.get("id") not in arch_ids]
         asked = []
 
         def fake_run(args, cwd, ttl, label, env=None, input=None):
             asked.append(args[-1])
-            return (0, yaml.safe_dump(served, allow_unicode=True), "") if args[-1] == f"origin/{CFG['integration_branch']}:{progress.REL_PATH}" else (1, "", "")
+            if args[-1] == f"origin/{CFG['integration_branch']}:{progress.REL_PATH}":
+                return (0, yaml.safe_dump(active_served, allow_unicode=True), "")
+            if args[-1] == f"origin/{CFG['integration_branch']}:{progress.ARCHIVE_REL_PATH}":
+                arch_text = (REPO / progress.ARCHIVE_REL_PATH).read_text(encoding="utf-8")
+                return (0, arch_text, "")
+            return (1, "", "")
 
         with mock.patch.object(hline.proc, "run", side_effect=fake_run):
             text = hline_report.progress_report(CFG)
