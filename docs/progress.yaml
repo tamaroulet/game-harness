@@ -3,9 +3,9 @@ constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (game-harness#44).
 last_verification:
-  task: W-149
+  task: W-157
   exit_code: 0
-  at: '2026-10-24T09:33:48'
+  at: '2026-10-25T01:03:14'
 next_id: 106
 nodes:
 - id: A
@@ -556,7 +556,7 @@ tasks:
   title: 木（tree.yaml）を Git に入れ、雛形の検査と旧い区分の節を置き換える
   group: rebuild
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'rebuild: tree-into-git'
   by: executor
   purpose: 目的・要件・タスクの構造の正本を docs/tree/tree.yaml 1 本にし、台帳の未完了のタスクがすべて要件から辿れることを CI で確かめる
@@ -574,6 +574,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_tree
     expected_exit_code: 0
+  completed_at: '2026-10-25T01:03:08'
 - id: W-154
   title: 高リスク（Tier 2）の PR に付ける 5 行の要約の形と道を作る
   group: rebuild
@@ -664,7 +665,7 @@ tasks:
   title: タスクが tree.yaml の要件から辿れることを機械で確かめる
   group: rebuild
   target_repo: game-harness
-  status: pending
+  status: completed
   slug: 'rebuild-2: approved-node-check'
   by: executor
   purpose: 承認されていない枝にタスクが足されないように、タスクから承認済みのノードへの辿りを機械で確かめる
@@ -679,6 +680,7 @@ tasks:
   oracle:
   - path: tests/test_tree.py
     from: director
+  completed_at: '2026-10-25T01:03:14'
 - id: W-158
   title: 人の承認をノードの説明の単位で受け、粒度を上げていく
   group: rebuild
