@@ -76,9 +76,9 @@ def progress_report(cfg):
     def git(args):
         return git_text(args, t)
     for ref in (remote_ref(cfg), cfg["base"]):
-        out = git(["show", f"{ref}:{progress.REL_PATH}"])
-        if out is not None:
-            return progress.report(yaml.safe_load(out), tree_docs.read_git(git, ref))
+        st = progress.read_ref(lambda p: git(["show", f"{ref}:{p}"]))
+        if st is not None:
+            return progress.report(st, tree_docs.read_git(git, ref))
     return must([sys.executable, "-m", "harness.progress", "report"], ROOT, t, "report")
 
 

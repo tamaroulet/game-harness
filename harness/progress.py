@@ -110,6 +110,39 @@ def load_with_archive(path=None):
     return load(p, include_archive=True)
 
 
+def read_ref(show_fn):
+    """show_fn(rel_path) -> str | None を通じて台帳（docs/progress.yaml）と
+    過去ログ（docs/progress_archive.yaml）を読み、透過的に結合した辞書を返す。
+    progress.yaml が読めなければ None。
+    """
+    text = show_fn(REL_PATH)
+    if text is None:
+        return None
+    state = yaml.safe_load(text)
+    if not isinstance(state, dict) or "tasks" not in state:
+        return state
+    archive_text = show_fn(ARCHIVE_REL_PATH)
+    if archive_text:
+        archive = yaml.safe_load(archive_text)
+        if isinstance(archive, dict) and isinstance(archive.get("tasks"), list):
+            merged = dict(state)
+            # 完了タスクを先頭、アクティブタスクを末尾に結合（元の台帳順序を完全再現）
+            merged["tasks"] = list(archive["tasks"]) + list(state.get("tasks", []))
+            return merged
+    return state
+
+
+def load_git_ref(ref, repo_root=ROOT, timeout=GIT_TTL):
+    """git show <ref>:<rel_path> を使って指定 ref の台帳（過去ログ結合済み）を読む。"""
+    def show_fn(rel_path):
+        r = subprocess.run(["git", "show", f"{ref}:{rel_path}"], cwd=repo_root,
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=timeout)
+        return r.stdout if r.returncode == 0 else None
+    return read_ref(show_fn)
+
+
+
 def dump(state):
     return yaml.safe_dump(state, allow_unicode=True, sort_keys=False, width=1000)
 
@@ -186,7 +219,7 @@ def unmet_dependencies(state, t):
     return [d for d in _deps(t) if d not in done]
 
 
-def validate(state):
+def validate(state, archived_task_ids=None):
     """問題の一覧（空なら合格）。"""
     problems = []
     if not isinstance(state, dict):
@@ -232,11 +265,7 @@ def validate(state):
         if v is not None and (not isinstance(v, dict) or not isinstance(v.get("command"), str)
                               or not isinstance(v.get("expected_exit_code"), int)):
             problems.append(f"task {tid} の verification は command（文字列）と expected_exit_code（整数）を持ちます")
-    archive = load_archive()
-    archived_ids = set()
-    if archive and isinstance(archive.get("tasks"), list):
-        archived_ids = {t["id"] for t in archive["tasks"] if isinstance(t, dict) and "id" in t}
-    problems += dependency_problems(state["tasks"], archived_task_ids=archived_ids)
+    problems += dependency_problems(state["tasks"], archived_task_ids=archived_task_ids)
     problems += [f"task {tid} は取り下げた {d} に依存しています（依存を書き直してください）"
                  for tid, d in _open_dependents(state["tasks"], "withdrawn")]
     active = [t["id"] for t in state["tasks"] if t.get("status") == "in_progress"]
@@ -432,11 +461,10 @@ def main_version(repo_root, ref, fetch=True):
                            timeout=GIT_TTL)
         if r.returncode != 0:
             raise ProgressError(f"git fetch に失敗しました: {r.stderr.strip()[:200]}")
-    r = subprocess.run(["git", "show", f"{ref}:{REL_PATH}"], cwd=repo_root, capture_output=True,
-                       text=True, encoding="utf-8", errors="replace", timeout=GIT_TTL)
-    if r.returncode != 0:
+    st = load_git_ref(ref, repo_root=repo_root)
+    if st is None:
         raise ProgressError(f"{ref} に {REL_PATH} がありません。検証コマンドは main に入ってから有効になります")
-    return yaml.safe_load(r.stdout)
+    return st
 
 
 def in_rebuild(state, t):
@@ -555,7 +583,7 @@ def main(argv=None):
             return _complete_cli(args.task_id, args.ref)
         if args.cmd == "review":
             review(args.task_id, args.url, path)
-            print(report(load_with_archive(path), tree_docs.read_dir(ROOT)), end="")
+            print(report(load(path), tree_docs.read_dir(ROOT)), end="")
             return 0
         state = load(path)
         problems = validate(state)
@@ -569,13 +597,12 @@ def main(argv=None):
                 return 1
             print(f"{'合格' if not problems else '不合格'}（{len(problems)} 件）")
             return 0 if not problems else 1
-        view_state = load_with_archive(path)
         if args.cmd == "report":
-            print(report(view_state, tree_docs.read_dir(ROOT)), end="")
+            print(report(state, tree_docs.read_dir(ROOT)), end="")
         elif args.cmd == "hook":
             print(hook_output(state))
         else:
-            print(anchor(state) if args.cmd == "anchor" else tree(view_state, args.all, tree_docs.read_dir(ROOT)), end="")
+            print(anchor(state) if args.cmd == "anchor" else tree(state, args.all, tree_docs.read_dir(ROOT)), end="")
     except ProgressError as e:
         # 状態・前提の不備（照合できない、現在のタスクではない等）。検証の不合格（1）と区別する
         print(f"ABORT: {e}")

@@ -57,7 +57,16 @@ def load_ledger(cfg):
     why = []
     for ref in (remote_ref(cfg), cfg["base"]):
         try:
-            return ref, yaml.safe_load(show(cfg, ref, progress.REL_PATH))
+            def show_fn(rel_path):
+                try:
+                    return show(cfg, ref, rel_path)
+                except Unreadable:
+                    if rel_path == progress.REL_PATH:
+                        raise
+                    return None
+            st = progress.read_ref(show_fn)
+            if st is not None:
+                return ref, st
         except Unreadable as e:
             why.append(str(e))
     raise Unreadable("台帳を読めない: " + "／".join(why))

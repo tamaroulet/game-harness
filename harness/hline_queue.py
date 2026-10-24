@@ -199,11 +199,27 @@ def intake(cfg, st):
 
 def read_ledger(cfg):
     """base の台帳（docs/progress.yaml）を読み、{タスク ID: {"deps": [...], "done": bool}} を返す。読めなければ ValueError。"""
-    code, out, err = proc.run(["git", "show", f"{cfg['base']}:{progress.REL_PATH}"], ROOT, cfg["ttl_seconds"]["git"], "git show (ledger)")
-    if code != 0:
-        raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を読めません: {' '.join((err or out or '').split())[:200]}")
+    last_err = ""
+
+    def show_fn(rel_path):
+        nonlocal last_err
+        code, out, err = proc.run(["git", "show", f"{cfg['base']}:{rel_path}"], ROOT, cfg["ttl_seconds"]["git"], f"git show ({rel_path})")
+        if code != 0:
+            if rel_path == progress.REL_PATH:
+                last_err = " ".join((err or out or "").split())[:200]
+            return None
+        return out
+
     try:
-        tasks = yaml.safe_load(out)["tasks"]
+        st = progress.read_ref(show_fn)
+    except Exception as e:   # noqa: BLE001
+        raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を解釈できません: {type(e).__name__}") from e
+
+    if st is None:
+        detail = f": {last_err}" if last_err else ""
+        raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を読めません{detail}")
+    try:
+        tasks = st["tasks"]
         return {t["id"]: {"deps": list(t.get("depends_on") or []), "done": t.get("status") == "completed",
                           "status": t.get("status"), "by": t.get("by") or "hline", "oracle": list(t.get("oracle") or []), "row": t,
                           "after": list(t.get("after") or []), "rung": t.get("rung")} for t in tasks}

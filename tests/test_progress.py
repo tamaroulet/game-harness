@@ -71,12 +71,31 @@ class RepoProgressTests(unittest.TestCase):
     def test_archive_exists_and_valid(self):
         archive = progress.load_archive()
         self.assertIsNotNone(archive)
-        self.assertIsInstance(archive.get("tasks"), list)
-        self.assertEqual(len(archive["tasks"]), 166)
+        tasks = archive.get("tasks")
+        self.assertIsInstance(tasks, list)
+        self.assertGreater(len(tasks), 0)
+        # 不変条件 1: アーカイブされたタスクはすべて completed
+        for t in tasks:
+            self.assertEqual(t.get("status"), "completed", f"アーカイブ内タスク {t.get('id')} が completed ではありません")
+        # 不変条件 2: アーカイブ内で ID が一意
+        archived_ids = [t["id"] for t in tasks]
+        self.assertEqual(len(archived_ids), len(set(archived_ids)), "アーカイブ内で ID が重複しています")
 
     def test_load_with_archive_merges_all(self):
-        merged = progress.load_with_archive(self.path)
-        self.assertEqual(len(merged["tasks"]), 208)
+        active_raw = progress.load(self.path, include_archive=False)
+        archive = progress.load_archive()
+        merged = progress.load(self.path, include_archive=True)
+        active_tasks = active_raw.get("tasks", [])
+        archive_tasks = (archive or {}).get("tasks", [])
+        # 不変条件 3: アクティブとアーカイブで ID が重複しない
+        active_ids = {t["id"] for t in active_tasks}
+        archive_ids = {t["id"] for t in archive_tasks}
+        self.assertEqual(active_ids & archive_ids, set(), "アクティブ台帳とアーカイブで ID が重複しています")
+        # 不変条件 4: 結合タスク数が厳密に合計と一致
+        self.assertEqual(len(merged["tasks"]), len(active_tasks) + len(archive_tasks))
+        # 不変条件 5: 依存関係がすべて解決している
+        problems = progress.dependency_problems(merged["tasks"])
+        self.assertEqual(problems, [], f"結合後の依存関係に不備があります: {problems}")
 
     def test_active_progress_size_is_reduced(self):
         lines = len(self.path.read_text(encoding="utf-8").splitlines())

@@ -92,7 +92,7 @@ def build(repo, base, task, ledger):
     for entry in filter(None, listing):
         meta, _, raw = entry.partition(b"\t")
         path = raw.decode("utf-8", "surrogateescape")
-        if excluded(path, package) or (blob is not None and path == LEDGER_PATH):
+        if excluded(path, package) or (blob is not None and path in (LEDGER_PATH, progress.ARCHIVE_REL_PATH)):
             continue
         mode, _kind, sha = meta.decode().split()
         lines.append(f"{mode} {sha}\t{path}\0")

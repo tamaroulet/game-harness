@@ -24,6 +24,7 @@ import hline_checks  # noqa: E402
 import hline_report  # noqa: E402
 import hline_stopped  # noqa: E402
 import yaml  # noqa: E402
+import progress  # noqa: E402
 
 CFG = hline.load_config()
 SHA = "0123456789abcdef0123456789abcdef01234567"
@@ -45,7 +46,9 @@ def fake_run(args, cwd, ttl, label, env=None, input=None):
     if args[:2] == ["git", "fetch"]:
         return 0, "", ""
     if args[:2] == ["git", "show"]:
-        return (0, yaml.safe_dump(LEDGER, allow_unicode=True), "") if args[2].startswith("origin/main:") else (128, "", "fatal: bad")
+        if args[2] == f"origin/main:{progress.REL_PATH}":
+            return 0, yaml.safe_dump(LEDGER, allow_unicode=True), ""
+        return 128, "", "fatal: bad"
     if args[:2] == ["git", "log"]:
         if args[-1] != "origin/main":
             return 128, "", f"fatal: bad revision '{args[-1]}'"

@@ -55,10 +55,22 @@ def module_of(path):
 
 def base_state(cfg):
     """base の台帳（docs/progress.yaml を読んだ辞書）。読めなければ ValueError。"""
-    code, out, err = proc.run(["git", "show", f"{cfg['base']}:{progress.REL_PATH}"], hline_git.ROOT, cfg["ttl_seconds"]["git"], "git show (ledger)")
-    if code != 0:
-        raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を読めません: {' '.join((err or out or '').split())[:200]}")
-    return yaml.safe_load(out)
+    last_err = ""
+
+    def show_fn(rel_path):
+        nonlocal last_err
+        code, out, err = proc.run(["git", "show", f"{cfg['base']}:{rel_path}"], hline_git.ROOT, cfg["ttl_seconds"]["git"], f"git show ({rel_path})")
+        if code != 0:
+            if rel_path == progress.REL_PATH:
+                last_err = " ".join((err or out or "").split())[:200]
+            return None
+        return out
+
+    st = progress.read_ref(show_fn)
+    if st is None:
+        detail = f": {last_err}" if last_err else ""
+        raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を読めません{detail}")
+    return st
 
 
 def exists_in_base(cfg, path):
@@ -167,8 +179,13 @@ def on_integration(cfg, task):
     """統合ブランチの台帳にすでにこのタスクがあるか。"""
     if not hline_git.integration_exists(cfg):
         return False
-    code, out, _ = proc.run(["git", "show", f"{hline_git.remote_ref(cfg)}:{progress.REL_PATH}"], hline_git.ROOT, cfg["ttl_seconds"]["git"], "git show (integration ledger)")
-    return code == 0 and task in {t.get("id") for t in (yaml.safe_load(out) or {}).get("tasks", [])}
+    ref = hline_git.remote_ref(cfg)
+    def show_fn(rel_path):
+        code, out, _ = proc.run(["git", "show", f"{ref}:{rel_path}"], hline_git.ROOT, cfg["ttl_seconds"]["git"], f"git show ({rel_path})")
+        return out if code == 0 else None
+
+    st = progress.read_ref(show_fn)
+    return st is not None and task in {t.get("id") for t in (st.get("tasks") or [])}
 
 
 def stack(cfg, entry, name):
