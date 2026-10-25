@@ -2,6 +2,8 @@
   "_comment": "H ライン（ハーネス自身の改修の自律ループ、段 0）の設定。docs/design/foundation_v3_review.md（改訂 5）§3。harness/hline.py が読む。",
   "inbox": "${local}/inbox",
   "_inbox_note": "Git の外の受信箱。総監督が What を 1 件 1 ファイル（*.md）で置く。名前の順に 1 回 1 件だけ取る。report.md・TODO.md・CLAUDE.md は H ラインが書くので取らない",
+  "checks": "docs/checks",
+  "_checks_note": "照合の宣言の置き場（W-152）。Git の中の置き場から読む",
   "worktrees": "${local}/wt",
   "out": "${local}/out/hline",
   "_out_note": "生ログ・取り込んだ What の控え。総監督の部屋からは読めない（setup の deny）",

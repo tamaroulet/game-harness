@@ -1,0 +1,10 @@
+{
+  "kind": "git_log",
+  "ref": "origin/main",
+  "paths": [
+    "tests/test_testbed_judge_basic.py",
+    "tests/test_testbed_judge_stress.py",
+    "tests/testbed_judge_util.py"
+  ],
+  "expect_commits": 1
+}

@@ -1,0 +1,7 @@
+{
+  "kind": "reqcov",
+  "ref": "origin/main",
+  "spec": "docs/testbed/spec.md",
+  "whats": "9*-g1-*.md",
+  "tests": "tests/test_testbed_judge_*.py"
+}

@@ -68,7 +68,7 @@ class Base(unittest.TestCase):
         self.inbox, self.out = self.tmp / "inbox", self.tmp / "out"
         self.inbox.mkdir()
         self.out.mkdir()
-        self.cfg.update(inbox=str(self.inbox), out=str(self.out))
+        self.cfg.update(inbox=str(self.inbox), out=str(self.out), checks=str(self.inbox / "checks"))
         for name, value in (("goal_section", "## 目的までの距離\n- 偽\n"), ("flow_section", "## 関門ごとの流れ\n- 偽\n")):
             p = mock.patch.object(hline_report, name, return_value=value)
             p.start()

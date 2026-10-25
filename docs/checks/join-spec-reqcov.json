@@ -1,0 +1,9 @@
+{
+  "kind": "unittest",
+  "ref": "origin/main",
+  "modules": ["tests.join_spec_reqcov_judge"],
+  "overlay": {
+    "tests/join_spec_reqcov_judge.py": "docs/director/tools/join_spec_reqcov_judge.py"
+  },
+  "expect": "pass"
+}
