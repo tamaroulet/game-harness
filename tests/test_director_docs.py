@@ -6,6 +6,7 @@
 ③ docs/**/*.md の C:\\src\\.local を含む行が、許しの一覧の場所だけを指す
 ④ 移さなかったものの一覧があり、hidden/ を含むパスが Git の木に無い
 """
+import json
 import re
 import shutil
 import sys
@@ -56,33 +57,33 @@ class TestDirectorDocs(unittest.TestCase):
                 f"参照先の正本文書 {target_path} が実在すること",
             )
 
-    def test_checks_read_from_git_without_inbox_checks(self):
-        """② H ラインの照合の読み込みが Git の中の置き場を読む（偽の受信箱に checks/ が無くても照合が読める）。"""
-        tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp, True)
-        fake_inbox = tmp / "inbox"
-        fake_inbox.mkdir(parents=True)
-        # fake_inbox の下には checks ディレクトリを作成しない
-        fake_cfg = {"inbox": str(fake_inbox)}
+    def test_checks_read_from_git_with_config(self):
+        """② H ラインの照合の読み込みが設定（config/hline.json）に基づき Git の中の docs/checks を読むこと。"""
+        config_path = ROOT / "config" / "hline.json"
+        self.assertTrue(config_path.is_file(), "config/hline.json が存在すること")
+        with open(config_path, encoding="utf-8") as f:
+            hline_cfg = json.load(f)
+        self.assertIn("checks", hline_cfg, "config/hline.json に 'checks' が設定されていること")
 
-        checks_path = hline_checks.checks_dir(fake_cfg)
-        self.assertTrue(
-            checks_path.is_dir(),
-            f"checks_dir が実在するディレクトリを返すこと: {checks_path}",
-        )
-        # Git 内の docs/checks または checks を指していること
-        self.assertIn(
+        checks_path = hline_checks.checks_dir(hline_cfg)
+        self.assertEqual(
             checks_path.resolve(),
-            [(ROOT / "docs" / "checks").resolve(), (ROOT / "checks").resolve()],
+            (ROOT / "docs" / "checks").resolve(),
+            f"checks_dir が ROOT/docs/checks を指していること: {checks_path}",
+        )
+        self.assertTrue(checks_path.is_dir(), f"checks_dir が実在するディレクトリであること: {checks_path}")
+
+        # 照合宣言 JSON が存在すること（今までの 7 件）
+        json_files = list(checks_path.glob("*.json"))
+        self.assertEqual(
+            len(json_files),
+            7,
+            f"Git の照合置き場に宣言 JSON が 7 件存在すること（実測: {len(json_files)} 件）",
         )
 
-        # 照合宣言 JSON が存在すること
-        json_files = list(checks_path.glob("*.json"))
-        self.assertGreaterEqual(
-            len(json_files),
-            5,
-            f"Git の照合置き場に宣言 JSON が存在すること（実測: {len(json_files)} 件）",
-        )
+        # checks が無い場合は KeyError で落ちること（総監督 42 本目 §3.1）
+        with self.assertRaises(KeyError):
+            hline_checks.checks_dir({"inbox": "fake/inbox"})
 
     def test_docs_local_path_references_allowed(self):
         """③ docs/**/*.md の C:\\src\\.local を含む行が、許しの一覧の場所だけを指す。"""

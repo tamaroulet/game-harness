@@ -35,25 +35,13 @@ class Invalid(Exception):
 
 def checks_dir(cfg):
     """照合の宣言の置き場。
-    1. cfg に 'checks' が指定されていればそれ（設定優先、相対パスは ROOT 起点）。
-    2. cfg['inbox'] 配下に checks/ ディレクトリが存在すればそちら（既存テスト・後方互換）。
-    3. それ以外（偽の受信箱に checks/ が無い場合や本番）は Git 内の docs/checks（W-152 正本）。
+    cfg['checks'] だけを読む（相対なら ROOT 起点）。無ければ KeyError で落とす。
+    受信箱や根の checks/ を探す道は消す（総監督 42 本目 §3.1）。
     """
-    if "checks" in cfg:
-        p = Path(cfg["checks"])
-        return p if p.is_absolute() else ROOT / p
-    inbox = cfg.get("inbox")
-    if inbox:
-        inbox_checks = Path(inbox) / "checks"
-        if inbox_checks.is_dir():
-            return inbox_checks
-    git_checks = ROOT / "docs" / "checks"
-    if git_checks.is_dir():
-        return git_checks
-    git_root_checks = ROOT / "checks"
-    if git_root_checks.is_dir():
-        return git_root_checks
-    return Path(inbox) / "checks" if inbox else git_checks
+    if "checks" not in cfg:
+        raise KeyError("cfg に 'checks' が指定されていません")
+    p = Path(cfg["checks"])
+    return p if p.is_absolute() else ROOT / p
 
 
 def ref_of(decl):
