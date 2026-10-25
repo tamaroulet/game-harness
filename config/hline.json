@@ -123,6 +123,7 @@
     "headless_flag": "-p",
     "model_flag": "--model",
     "model": "gemini-4-argon-medium",
+    "model_name": "gemini-4-argon-medium",
     "output_format_args": [
       "--output-format",
       "stream-json"

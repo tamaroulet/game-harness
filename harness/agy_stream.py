@@ -34,10 +34,15 @@ def args(imp, cli, prompt, ttl, conversation_id=None):
     （v2-dry-05 の B、WinError 206）。
     """
     if is_stream(imp):
-        a = list(cli) + [imp["headless_flag"] + "=", "--input-format", STREAM,
-                         imp["auto_approve_flag"], imp["model_flag"], imp["model_name"]]
+        a = list(cli) + [imp["headless_flag"] + "=", "--input-format", STREAM]
+        if imp.get("auto_approve_flag"):
+            a.append(imp["auto_approve_flag"])
+        a += [imp["model_flag"], imp["model_name"]]
     else:
-        a = list(cli) + [imp["headless_flag"], prompt, imp["auto_approve_flag"], imp["model_flag"], imp["model_name"]]
+        a = list(cli) + [imp["headless_flag"], prompt]
+        if imp.get("auto_approve_flag"):
+            a.append(imp["auto_approve_flag"])
+        a += [imp["model_flag"], imp["model_name"]]
     a += list(imp.get("output_format_args") or [])
     a += list(imp.get("extra_flags") or [])
     if imp.get("effort"):

@@ -14,10 +14,12 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import agy_pinned
 import agy_stream
 import exitcode
 from hline_base import ROOT, load_config
 import machine
+import model_pin
 import proc
 import progress
 import yaml
@@ -337,44 +339,20 @@ def _build_prompt(kind, target, target_ctx, copies, shas):
     return "\n".join(lines)
 
 
-def evaluator_args(evaluator, exe_path, ttl):
-    """evaluator の起動引数。プロンプトは含めず標準入力で渡す（総監督 49 本目 §3-2）。"""
-    is_stream = agy_stream.is_stream(evaluator)
-    headless = evaluator.get("headless_flag", "-p")
-    model_flag = evaluator.get("model_flag", "--model")
-    model_name = evaluator.get("model_name") or evaluator.get("model")
-
-    if is_stream:
-        cmd = [exe_path, headless + "=", "--input-format", agy_stream.STREAM, model_flag, model_name]
-    else:
-        cmd = [exe_path, headless, model_flag, model_name]
-
-    cmd += list(evaluator.get("output_format_args") or [])
-    cmd += list(evaluator.get("extra_flags") or [])
-    if evaluator.get("effort"):
-        cmd += ["--effort", evaluator["effort"]]
-    if is_stream:
-        cmd += ["--print-timeout", f"{max(int(ttl) - agy_stream.PRINT_TIMEOUT_MARGIN, 30)}s"]
-    return cmd
-
-
 def _call_argon_model(prompt, cfg, run_fn=proc.run):
     """config/hline.json の evaluator 設定に従い agy CLI 等で本物のモデルを呼ぶ。
-    プロンプトは標準入力で渡し、引数には載せない（Windows 32767 文字制限・改行対策、総監督 49 本目 §3-2）。
-    呼べないときは ArgonError で落とし、固定文や LOW は絶対に返さない。
+    agy_pinned による指紋検査、model_pin によるモデル固定検査、agy_stream.args による引数構築、
+    実行後の報告モデル照合を行い、違えば落として記録を書かない（総監督 50 本目 §3）。
+    プロンプトは標準入力で渡し、引数には載せない。
     """
     evaluator = cfg.get("evaluator")
     if not evaluator or not isinstance(evaluator, dict):
         raise ArgonError("config/hline.json に evaluator 設定がありません")
 
+    where = "config/hline.json の evaluator"
     cli = evaluator.get("cli")
     if not cli:
-        raise ArgonError("config/hline.json の evaluator に cli が指定されていません")
-    model = evaluator.get("model")
-    if not model:
-        raise ArgonError("config/hline.json の evaluator に model が指定されていません")
-
-    ttl = int(evaluator.get("ttl_seconds", 600))
+        raise ArgonError(f"{where} に cli が指定されていません")
 
     # CLI のパス解決
     exe_path = shutil.which(cli)
@@ -390,11 +368,26 @@ def _call_argon_model(prompt, cfg, run_fn=proc.run):
     if not exe_path:
         raise ArgonError(f"evaluator の CLI コマンドが見つかりません: {cli}")
 
-    cmd = evaluator_args(evaluator, exe_path, ttl)
+    ttl = int(evaluator.get("ttl_seconds", 600))
 
     if agy_stream.is_stream(evaluator):
+        try:
+            agy_pinned.require()
+        except agy_pinned.AgyDigestError as e:
+            raise ArgonError(f"評価役 CLI の指紋照合に失敗しました: {e}") from e
+        try:
+            model_pin.require_implementer(evaluator, where)
+        except model_pin.ModelPinError as e:
+            raise ArgonError(str(e)) from e
+        cmd = agy_stream.args(evaluator, [exe_path], prompt, ttl)
         stdin_data = agy_stream.stdin_for(evaluator, prompt)
     else:
+        model = evaluator.get("model") or evaluator.get("model_name")
+        if not model:
+            raise ArgonError(f"{where} に model が指定されていません")
+        cmd = [exe_path, evaluator.get("headless_flag", "-p"), evaluator.get("model_flag", "--model"), model]
+        cmd += list(evaluator.get("output_format_args") or [])
+        cmd += list(evaluator.get("extra_flags") or [])
         stdin_data = prompt
 
     start_time = time.time()
@@ -415,19 +408,27 @@ def _call_argon_model(prompt, cfg, run_fn=proc.run):
     if agy_stream.is_stream(evaluator):
         parsed = agy_stream.parse(stdout_text)
         response_text = (parsed.get("response") or "").strip()
+        if not response_text:
+            raise ArgonError("evaluator CLI の応答本文（response）が空でした")
+
+        # 実際に走ったモデルの照合（総監督 50 本目 §3）
+        try:
+            reported_model = model_pin.check_reported(evaluator["model_name"], parsed.get("model"), where)
+        except model_pin.ModelPinError as e:
+            raise ArgonError(str(e)) from e
+
         usage_info = parsed.get("usage") or {}
         p_tokens = usage_info.get("input_tokens")
         c_tokens = usage_info.get("output_tokens")
-        if not response_text:
-            response_text = stdout_text
     else:
         response_text = stdout_text
+        reported_model = evaluator.get("model_name") or evaluator.get("model")
         p_tokens = None
         c_tokens = None
 
     if p_tokens is not None and c_tokens is not None:
         usage = {
-            "model": model,
+            "model": reported_model,
             "seconds": round(duration, 3),
             "prompt_tokens": p_tokens,
             "completion_tokens": c_tokens,
@@ -435,7 +436,7 @@ def _call_argon_model(prompt, cfg, run_fn=proc.run):
         }
     else:
         usage = {
-            "model": model,
+            "model": reported_model,
             "seconds": round(duration, 3),
             "prompt_tokens": None,
             "completion_tokens": None,

@@ -279,14 +279,15 @@ class TestArgonEvaluator(unittest.TestCase):
             captured["cwd"] = cwd
             captured["ttl"] = ttl
             captured["input"] = input
-            res_stream = json.dumps({
+            init_line = json.dumps({"event": "init", "init": {"model": "gemini-4-argon-medium"}})
+            res_line = json.dumps({
                 "event": "result",
                 "result": {
                     "response": "判定: LOW\n判断点: プロンプト標準入力渡し確認完了",
                     "usage": {"input_tokens": 1500, "output_tokens": 60},
                 },
             })
-            return 0, res_stream, ""
+            return 0, f"{init_line}\n{res_line}\n", ""
 
         ret_text, usage = argon_eval._call_argon_model(prompt, self.cfg, run_fn=mock_run)
 
@@ -312,9 +313,10 @@ class TestArgonEvaluator(unittest.TestCase):
         - stream-json から実測トークンが得られる場合は tokens_estimated: false
         - トークンが得られない場合は prompt_tokens/completion_tokens は None で tokens_estimated: true
         """
-        # (a) トークン取得不能ケース（プレーンテキスト応答）
+        # (a) トークン取得不能ケース（プレーンテキスト応答、cli: claude）
         plain_cfg = dict(self.cfg)
         plain_eval = dict(self.cfg["evaluator"])
+        plain_eval["cli"] = "claude"
         plain_eval["output_format_args"] = []
         plain_cfg["evaluator"] = plain_eval
 
@@ -333,6 +335,54 @@ class TestArgonEvaluator(unittest.TestCase):
 
         with self.assertRaises(ArgonError):
             argon_eval.collect_copies(no_branches_cfg)
+
+    def test_11_reported_model_check(self):
+        """11. 実際に走ったモデルを確かめ、それを記録する（総監督 50 本目 §3）。
+        - 偽の run_fn が、設定と違うモデルを報告する stream-json を返すと落ちて記録が増えない
+        - 同じモデルを報告すると、記録の model がそのモデルになる
+        """
+        evals_file = self.out_dir / "evals.jsonl"
+        lines_before = len(evals_file.read_text(encoding="utf-8").splitlines()) if evals_file.exists() else 0
+
+        # (a) 違うモデルが報告された場合: ArgonError で落ち、記録が増えないこと
+        def mock_run_wrong_model(args, cwd, ttl, label, env=None, input=None):
+            init_line = json.dumps({"event": "init", "init": {"model": "different-unapproved-model"}})
+            res_line = json.dumps({"event": "result", "result": {"response": "判定: LOW\n判断点: NG"}})
+            return 0, f"{init_line}\n{res_line}\n", ""
+
+        with self.assertRaises(ArgonError):
+            argon_eval._call_argon_model("test prompt", self.cfg, run_fn=mock_run_wrong_model)
+
+        lines_after_wrong = len(evals_file.read_text(encoding="utf-8").splitlines()) if evals_file.exists() else 0
+        self.assertEqual(lines_before, lines_after_wrong)
+
+        # (b) モデルが報告されない場合: ArgonError で落ち、記録が増えないこと
+        def mock_run_no_model(args, cwd, ttl, label, env=None, input=None):
+            res_line = json.dumps({"event": "result", "result": {"response": "判定: LOW\n判断点: NG"}})
+            return 0, f"{res_line}\n", ""
+
+        with self.assertRaises(ArgonError):
+            argon_eval._call_argon_model("test prompt", self.cfg, run_fn=mock_run_no_model)
+
+        # (c) 同じモデルが報告された場合: 正常終了し、記録の model に入ること
+        def mock_run_correct_model(args, cwd, ttl, label, env=None, input=None):
+            init_line = json.dumps({"event": "init", "init": {"model": "gemini-4-argon-medium"}})
+            res_line = json.dumps({
+                "event": "result",
+                "result": {
+                    "response": "判定: LOW\n判断点: モデル一致確認完了",
+                    "usage": {"input_tokens": 100, "output_tokens": 20},
+                },
+            })
+            return 0, f"{init_line}\n{res_line}\n", ""
+
+        with patch.object(argon_eval, "proc") as mock_proc:
+            mock_proc.run = mock_run_correct_model
+            rec = argon_eval.evaluate("pre", "req.risk-tiers", cfg=self.cfg)
+            self.assertEqual(rec["model"], "gemini-4-argon-medium")
+
+        lines_after_correct = len(evals_file.read_text(encoding="utf-8").splitlines())
+        self.assertEqual(lines_after_correct, lines_before + 1)
 
 
 if __name__ == "__main__":
