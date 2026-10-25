@@ -229,6 +229,10 @@ requirements:
   - >-
     2026-10-24 に review\300\ を読んだ（reply-architect-20261024-21.md）。8 か所がすべて progress.read_ref を通ることを総監督が逐語で確かめた。
     距離（R4 の前提タスク 78／80）は分ける前の report.md と同じ。これで「検証済み」にした。試験は作り方から等価になる形で、8 か所の道を通っていない（記録だけ）
+  - >-
+    過去ログの守り：W-177（PR #303、326932d）で archive 宣言と ProgressError、PR #305（bef2ed6、CI の test 4 分 48 秒で緑、副操縦士の知らせ）で例外の受け方をそろえた。
+    base_state は ValueError に包む、intake は skipped に理由を書いて What を受信箱に残す、write_report は report.md に警告と人間作業の行を出す。
+    load の過去ログのパスは台帳のリポジトリの根から 1 つに決めた。総監督が 3 版の差分を逐語で読んだ（reply-architect-20261024-33-reply・34・35）
 
 - id: req.unconverged-capped
   title: 収束しないタスクが、試行を重ねてトークンを使い切らない

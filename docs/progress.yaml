@@ -1,12 +1,12 @@
-active_task_id: W-150
+active_task_id: W-152
 archive: docs/progress_archive.yaml
 constraints:
 - Do not edit docs/progress.yaml by hand. State changes only via `python -m harness.progress complete`.
 - Write issues and PRs with the repository name (game-harness#44).
 last_verification:
-  task: W-177
+  task: W-150
   exit_code: 0
-  at: '2026-10-25T02:32:00'
+  at: '2026-10-25T11:11:15'
 next_id: 106
 nodes:
 - id: A
@@ -490,7 +490,7 @@ tasks:
   title: 総監督が常に main の版を読める（settings の変更は setup のコードで行う）
   group: rebuild
   target_repo: game-harness
-  status: in_progress
+  status: completed
   slug: 'rebuild: director-reads-main'
   by: executor
   purpose: 総監督が、どの版を読んだかの分かる main の中身を読めるようにする
@@ -507,6 +507,7 @@ tasks:
   verification:
     command: python -m unittest tests.test_main_mirror
     expected_exit_code: 0
+  completed_at: '2026-10-25T11:11:15'
 - id: W-151
   title: 総監督の写しを機械が PR にする道
   group: rebuild
@@ -535,7 +536,7 @@ tasks:
   title: 知識の正本を Git に集める
   group: rebuild
   target_repo: game-harness
-  status: pending
+  status: in_progress
   slug: 'rebuild: knowledge-in-git'
   by: executor
   purpose: 総監督の文書（deferred・invariants・pipeline・drafts/what を含む）・checks/・調べものの記録と索引・引継ぎを Git に集め、人から見えるようにする
