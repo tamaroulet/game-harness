@@ -258,6 +258,14 @@ requirements:
   evidence:
   - PR #291（W-150）はマージ済み（副操縦士の知らせ）。枝の写し（13 本目で頼んだ受入 4）が入ったかは総監督は未確認
   - README P10：7 時間で 19 通を人が運んだ
+  - >-
+    2026-10-25（reply-architect-20261024-37.md）：総監督が C:\src\.local\main（.mirror.json は 1db9836、01:00）と branches\285\ を直に読めた。
+    ただし受信箱の settings に写しへの書き込みの拒否が無く、CLAUDE.md に写しの行が無い（setup を写しの前に走らせたまま）。写しは #302 より前で古く、#306 の枝の写しも無い。
+    setup の走らせ直しと写しの同期を総監督が実物で確かめるまで「自己検証のみ」のままにする
+  - >-
+    2026-10-25（reply-architect-20261024-38.md）：setup の走らせ直しの後、settings に Edit(//c/src/.local/main/**)・Edit(//c/src/.local/branches/**) があり、
+    CLAUDE.md の 50・51 行に写しがあり、.mirror.json と report.md の冒頭が d0fb02a（11:35）にそろったのを総監督が実物で確かめた。
+    枝の写しは hline_stopped report の中で合わせる（副操縦士の知らせ）ので、走らせる手番が人に残る。新しく開いた PR を review\ を経ずに枝の写しで読めたら「検証済み」にする
 
 # ---- ハーネスが健全：計画と役 ----
 
