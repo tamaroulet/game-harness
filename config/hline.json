@@ -12,6 +12,8 @@
   "_mirror_note": "総監督が読む main の写し（W-150）。人の作業コピーと別の clone。python -m harness.main_mirror sync が origin/main に合わせ、写しの中の変更を捨てる。受信箱の settings は写しへの書き込みを拒む",
   "branches": "${local}/branches",
   "_branches_note": "総監督が読む開いている PR の枝の写し（W-150）。開いている PR ごとに取り出し、閉じたものは消す。受信箱の settings は枝の写しへの書き込みを拒む",
+  "argon": "${local}/out/hline/argon",
+  "_argon_note": "Argon 定性評価の記録の置き場（W-172）。総監督は読めるが書けない out/hline 配下に置き、評価の改ざんを防ぐ",
   "_oracles_note": "非公開オラクルの置き場。実装役の呼び出しの禁止の列（harness/oracle_deny.py）が inbox・out とともに、この下への Read・Grep・Glob と Bash を拒む",
   "base": "origin/main",
   "integration_branch": "hline/integration",
