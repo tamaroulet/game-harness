@@ -1,9 +1,9 @@
 """Argon：別系統の評価役（W-172）。
 
-リポジトリ全体（main とすべての枝の写し）を読んだうえで、
+リポジトリ全体（main とすべての開いている PR 枝の写し）を読んだうえで、
 木の節とタスクを事前（子の節・タスクでねらいに届くか）と事後（届いたか）に定性で評価する。
 記録は config/hline.json の argon（out/hline/argon/）に JSONL で残す。
-総監督 47 本目（2026-10-25）に基づく実装。
+総監督 47・48 本目（2026-10-25）に基づく実装。
 """
 from dataclasses import dataclass
 import datetime
@@ -11,12 +11,14 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from hline_base import ROOT, load_config
 import exitcode
+from hline_base import ROOT, load_config
 import machine
 import progress
 import yaml
@@ -24,8 +26,8 @@ import yaml
 
 VALID_DECISIONS = {"LOW", "MEDIUM", "HIGH"}
 FALLBACK_DECISION = "HIGH"
-DECISION_RE = re.compile(r"判定\s*[:：]\s*(LOW|MEDIUM|HIGH)", re.IGNORECASE)
-RATIONALE_RE = re.compile(r"判断点\s*[:：]\s*(.+)", re.IGNORECASE)
+DECISION_LINE_RE = re.compile(r"^判定\s*[:：]\s*(LOW|MEDIUM|HIGH)\s*$", re.IGNORECASE)
+RATIONALE_LINE_RE = re.compile(r"^判断点\s*[:：]\s*(.+)$", re.IGNORECASE)
 
 
 class ArgonError(Exception):
@@ -44,34 +46,40 @@ def argon_dir(cfg):
 def collect_copies(cfg):
     """main の写しおよびすべての開いている PR 枝の写しを集める。
     写しの根の外（oracles や受信箱など）は絶対に読まない。
+    写しが存在しない、または SHA が読めないときは ArgonError で落とす。
     戻り値: (copies_dict, shas_dict)
-      copies_dict: {copy_key: {relative_path: text_content}}
-      shas_dict: {copy_key: sha_string}
     """
-    mirror_path = cfg.get("mirror")
-    branches_path = cfg.get("branches")
+    if "mirror" not in cfg:
+        raise ArgonError("config に mirror がありません")
+
+    mirror_path = cfg["mirror"]
+    mirror_dir = Path(mirror_path)
+    if not mirror_dir.exists() or not mirror_dir.is_dir():
+        raise ArgonError(f"main の写しの場所が存在しません: {mirror_dir}")
+
+    main_sha = _read_mirror_sha(mirror_dir)
+    if not main_sha:
+        raise ArgonError(f"main の写しの .mirror.json から SHA が読めません: {mirror_dir}")
 
     copies = {}
     shas = {}
 
-    # 1. main の写し
-    if mirror_path:
-        mirror_dir = Path(mirror_path)
-        if mirror_dir.exists() and mirror_dir.is_dir():
-            sha = _read_mirror_sha(mirror_dir)
-            copies["main"] = _read_tree_files(mirror_dir)
-            shas["main"] = sha
+    copies["main"] = _read_tree_files(mirror_dir)
+    shas["main"] = main_sha
 
-    # 2. 枝の写し（branches 配下の各 PR）
+    # 枝の写し（branches）
+    branches_path = cfg.get("branches")
     if branches_path:
         branches_dir = Path(branches_path)
         if branches_dir.exists() and branches_dir.is_dir():
             for child in sorted(branches_dir.iterdir()):
                 if child.is_dir():
-                    sha = _read_branch_sha(child)
+                    branch_sha = _read_branch_sha(child)
+                    if not branch_sha:
+                        raise ArgonError(f"枝の写し {child.name} の .branch.json から SHA が読めません")
                     copy_key = f"branches/{child.name}"
                     copies[copy_key] = _read_tree_files(child)
-                    shas[copy_key] = sha
+                    shas[copy_key] = branch_sha
 
     return copies, shas
 
@@ -81,11 +89,12 @@ def _read_mirror_sha(mirror_dir):
     if meta.exists():
         try:
             doc = json.loads(meta.read_text(encoding="utf-8"))
-            if "sha" in doc:
-                return str(doc["sha"])
+            sha = doc.get("sha")
+            if sha and isinstance(sha, str) and sha.strip():
+                return sha.strip()
         except Exception:
             pass
-    return "unknown"
+    return None
 
 
 def _read_branch_sha(branch_dir):
@@ -93,11 +102,12 @@ def _read_branch_sha(branch_dir):
     if meta.exists():
         try:
             doc = json.loads(meta.read_text(encoding="utf-8"))
-            if "sha" in doc:
-                return str(doc["sha"])
+            sha = doc.get("sha")
+            if sha and isinstance(sha, str) and sha.strip():
+                return sha.strip()
         except Exception:
             pass
-    return "unknown"
+    return None
 
 
 def _read_tree_files(root_dir):
@@ -134,9 +144,7 @@ def build_preflight_context(target_id, root=ROOT):
         target = requirements[target_id]
         context["target_type"] = "requirement"
         context["target_data"] = target
-        # 子の節（depends_on に target_id を含む要件）
         child_reqs = [r for r in requirements.values() if target_id in (r.get("depends_on") or [])]
-        # 子タスク（target.tasks または serves に target_id を持つタスク）
         direct_task_ids = set(target.get("tasks") or [])
         child_tasks = [t for t in tasks.values() if t["id"] in direct_task_ids or t.get("serves") == target_id]
         context["children"] = {
@@ -147,10 +155,8 @@ def build_preflight_context(target_id, root=ROOT):
         target = tasks[target_id]
         context["target_type"] = "task"
         context["target_data"] = target
-        # 親の要件
         parent_req_id = target.get("serves")
         parent_req = requirements.get(parent_req_id) if parent_req_id else None
-        # 子タスク（depends_on に target_id を含むタスク）
         child_tasks = [t for t in tasks.values() if target_id in (t.get("depends_on") or [])]
         context["parent"] = parent_req
         context["children"] = {"tasks": child_tasks}
@@ -170,7 +176,6 @@ def build_postimpl_context(target_id, root=ROOT, copies=None):
 
     context = {"target": target_id, "kind": "post"}
 
-    # PR 番号（数字のみ、または #<数字>）
     pr_num = None
     target_str = str(target_id).strip()
     if target_str.isdigit():
@@ -198,20 +203,36 @@ def build_postimpl_context(target_id, root=ROOT, copies=None):
 
 
 def parse_decision(response_text):
-    """モデルの応答から判定と判断点を抽出する。
-    判定が LOW / MEDIUM / HIGH でない、または欠けているときは HIGH に安全倒しする。
+    """モデルの応答から判定と判断点を抽出する（総監督 48 本目 §3-2）。
+    - 行の頭から '判定:' で始まり、値が 1 つだけで行が終わる行に限る
+    - その行が 1 つも無いとき、2 つ以上あるとき、値が 3 つ以外のときは HIGH（安全倒し）
     """
-    m_dec = DECISION_RE.search(response_text)
-    m_rat = RATIONALE_RE.search(response_text)
+    decision_matches = []
+    rationale_matches = []
 
-    if m_dec:
-        dec = m_dec.group(1).upper()
+    for line in response_text.splitlines():
+        line = line.strip()
+        m_dec = DECISION_LINE_RE.match(line)
+        if m_dec:
+            decision_matches.append(m_dec.group(1).upper())
+        m_rat = RATIONALE_LINE_RE.match(line)
+        if m_rat:
+            rationale_matches.append(m_rat.group(1).strip())
+
+    rationale = rationale_matches[-1] if rationale_matches else ""
+
+    # 1 件のみマッチした場合のみ採用
+    if len(decision_matches) == 1:
+        dec = decision_matches[0]
         if dec in VALID_DECISIONS:
-            rationale = m_rat.group(1).strip() if m_rat else ""
             return dec, rationale
 
-    # 欠損または不正値の場合は HIGH（人へ回す側）に倒す
-    rationale = m_rat.group(1).strip() if m_rat else "判定が不正または欠落しているため HIGH に倒しました"
+    # 0 件、または複数行の一致、または不正値の場合はすべて HIGH に倒す
+    fallback_reason = "判定行が 1 件に特定できないか不正なため HIGH に安全倒し"
+    if not rationale:
+        rationale = fallback_reason
+    else:
+        rationale = f"{rationale}（{fallback_reason}）"
     return FALLBACK_DECISION, rationale
 
 
@@ -227,7 +248,7 @@ def evaluate(kind, target, cfg=None, model_fn=None, root=ROOT):
     if kind not in ("pre", "post"):
         raise ArgonError(f"未対応の評価種別です: {kind}（pre または post を指定してください）")
 
-    # 1. すべての写し（main と branches）を読み取る
+    # 1. すべての写し（main と branches）を読み取る（写し不備時は ArgonError）
     copies, shas = collect_copies(cfg)
 
     # 2. 事前／事後の文脈を構築
@@ -242,15 +263,15 @@ def evaluate(kind, target, cfg=None, model_fn=None, root=ROOT):
     # 4. モデル呼び出し（差し替え可能）
     start_time = time.time()
     if model_fn is None:
-        # 本番モデル呼び出し
-        response_text, usage = _call_gemini_model(prompt)
+        # 本物のモデル呼び出し（総監督 48 本目 §3-1、呼べないときは落とす）
+        response_text, usage = _call_argon_model(prompt, cfg)
     else:
         response_text, usage = model_fn(prompt)
     duration = time.time() - start_time
     if "seconds" not in usage:
         usage["seconds"] = round(duration, 3)
 
-    # 5. 判定と判断点の抽出（欠落・不正時は HIGH に安全倒し）
+    # 5. 判定と判断点の抽出（欠落・重複・不正時は HIGH に安全倒し）
     decision, rationale = parse_decision(response_text)
 
     # 6. 記録の保存（out/hline/argon/ 配下の JSONL）
@@ -270,6 +291,7 @@ def evaluate(kind, target, cfg=None, model_fn=None, root=ROOT):
             "completion_tokens": usage.get("completion_tokens", 0),
             "seconds": usage.get("seconds", 0.0),
         },
+        "prompt_chars": len(prompt),
         "shas": shas,
         "recorded_at": datetime.datetime.now().isoformat(),
     }
@@ -303,30 +325,80 @@ def _build_prompt(kind, target, target_ctx, copies, shas):
         "",
         "## 評価指示",
         "1. 上記のリポジトリ全体と対象の文脈を照査し、定性的な評価を行ってください。",
-        "2. 事前評価の場合は『子の節・タスクでねらいに届くか（隙間なく届くか、検証が exit 0 で測れるか）』を論じてください。",
-        "3. 事後評価の場合は『済んだタスク・PR がねらいに届いたか（モックと実関数の整合、例外連鎖、波及の安全性）』を論じてください。",
-        "4. 評価文の末尾に、必ず次の形式で構造化判定を添えてください：",
-        "判定: LOW | MEDIUM | HIGH",
+        "2. 事前評価の場合は『子の節・タスクでねらいに届くか』を論じてください。",
+        "3. 事後評価の場合は『済んだタスク・PR がねらいに届いたか』を論じてください。",
+        "4. 評価文の末尾に、必ず次の形式で構造化判定を添えてください（行頭から記載、値は 1 つのみ）：",
+        "判定: LOW | MEDIUM | HIGH のいずれか 1 つ",
         "判断点: <1行の要約理由>",
     ])
 
     return "\n".join(lines)
 
 
-def _call_gemini_model(prompt):
-    """本番環境での Gemini 呼び出し（google-genai / agy / subprocess 等）。"""
-    # 簡易スタブ: 外部設定・CLI から呼び出し
-    return (
-        "評価文: リポジトリ全量を読みました。\n判定: LOW\n判断点: ねらいに届いています",
-        {"prompt_tokens": 1000, "completion_tokens": 100, "seconds": 1.0, "model": "argon-evaluator"}
-    )
+def _call_argon_model(prompt, cfg):
+    """config/hline.json の evaluator 設定に従い agy CLI 等で本物のモデルを呼ぶ。
+    呼べないときは ArgonError で落とし、固定文や LOW は絶対に返さない（総監督 48 本目 §3-1）。
+    """
+    evaluator = cfg.get("evaluator")
+    if not evaluator or not isinstance(evaluator, dict):
+        raise ArgonError("config/hline.json に evaluator 設定がありません")
+
+    cli = evaluator.get("cli")
+    if not cli:
+        raise ArgonError("config/hline.json の evaluator に cli が指定されていません")
+    model = evaluator.get("model")
+    if not model:
+        raise ArgonError("config/hline.json の evaluator に model が指定されていません")
+
+    extra_flags = evaluator.get("extra_flags", [])
+
+    # CLI のパス解決
+    exe_path = shutil.which(cli)
+    if not exe_path:
+        for bin_key in ("agy_bin", "bin"):
+            bin_dir = machine.names().get(bin_key)
+            if bin_dir:
+                candidate = Path(bin_dir) / cli
+                if candidate.exists():
+                    exe_path = str(candidate)
+                    break
+
+    if not exe_path:
+        raise ArgonError(f"evaluator の CLI コマンドが見つかりません: {cli}")
+
+    cmd = [exe_path] + list(extra_flags) + ["--model", model, prompt]
+
+    start_time = time.time()
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=300)
+    except Exception as e:
+        raise ArgonError(f"evaluator CLI の実行に失敗しました: {e}") from e
+    duration = time.time() - start_time
+
+    if res.returncode != 0:
+        err_msg = res.stderr.strip() or f"exit code {res.returncode}"
+        raise ArgonError(f"evaluator CLI がエラーで終了しました: {err_msg}")
+
+    stdout_text = res.stdout.strip()
+    if not stdout_text:
+        raise ArgonError("evaluator CLI の出力が空でした")
+
+    usage = {
+        "model": model,
+        "seconds": round(duration, 3),
+        "prompt_tokens": len(prompt) // 4,   # 概算トークン
+        "completion_tokens": len(stdout_text) // 4,
+    }
+
+    return stdout_text, usage
 
 
-def main(argv=None):
+def main(argv=None, cfg=None):
+    """CLI 入口。引数がちょうど 2 つ（種類と対象）でないときは 1 で終了し記録を書かない。"""
     if argv is None:
         argv = sys.argv[1:]
 
-    if len(argv) < 2:
+    if len(argv) != 2:
         print("使い方: python -m harness.argon_eval <pre|post> <target_id_or_pr>", file=sys.stderr)
         return 1
 
@@ -334,10 +406,10 @@ def main(argv=None):
     target = argv[1]
 
     try:
-        record = evaluate(kind, target)
+        record = evaluate(kind, target, cfg=cfg)
         print(f"Argon 評価完了 [{record['kind']}: {record['target']}]")
         print(f"判定: {record['decision']} / 判断点: {record['rationale']}")
-        print(f"費用: {record['usage']['prompt_tokens']} in, {record['usage']['completion_tokens']} out ({record['usage']['seconds']}s)")
+        print(f"費用: {record['usage']['seconds']}s (prompt chars: {record['prompt_chars']})")
         return 0
     except Exception as e:
         print(f"エラー: {e}", file=sys.stderr)

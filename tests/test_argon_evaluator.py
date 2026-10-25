@@ -1,9 +1,9 @@
-"""Argon 定性評価器のオラクル試験（from: director、総監督 47 本目 §4）。
+"""Argon 定性評価器のオラクル試験（from: director、総監督 47・48 本目）。
 
-1. 1 つの命令で走る（事前と事後が同じ入口、絞り込み引数なし）。
-2. 全部を読む（main 写しと枝写しの全ファイルがモデル入力に入り、写しの根の外（oracles 等）は入らない）。
+1. 1 つの命令で走る（引数はちょうど 2 つ、事前と事後が同じ入口、絞り込み引数なし、本物の置き場を汚さない）。
+2. 全部を読む（main 写しと枝写しの全ファイルがモデル入力に入り、外（oracles/）は入らない）。
 3. 事前と事後（事前: 文と子の文、事後: 受入または枝写し、モデル返信がそのまま記録に入る）。
-4. 記録の形（1 回 1 行 JSONL、out/hline/argon/、判定 LOW/MED/HIGH と判断点、費用、SHA。不正・欠損時は HIGH に安全倒し）。
+4. 記録の形と判定の安全倒し（JSONL 記録、雛形や引用の混在は HIGH に倒す、呼べないとき・写し欠損時は落とす）。
 """
 import json
 from pathlib import Path
@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from harness import argon_eval
+from harness.argon_eval import ArgonError
 from harness.hline_base import ROOT, load_config
 
 
@@ -72,25 +73,41 @@ class TestArgonEvaluator(unittest.TestCase):
             }
         return _model
 
-    def test_1_single_command_entrypoint_with_no_scope_filters(self):
-        """1. 1 つの命令で走る。事前と事後が同じ入口から走り、範囲を絞る引数が無い。"""
-        # main() に pre と post のどちらを渡しても正常終了する
-        model = self.fake_model()
+    def test_1_single_command_entrypoint_with_exact_two_args_and_no_leak(self):
+        """1. 1 つの命令で走る（総監督 48 本目 §3-3）。
+        - 引数がちょうど 2 つ（種類と対象）のときは一時 cfg を通して正常終了する
+        - 引数が 2 つでないとき（余計な絞り込み引数など）は 1 で終わり、記録を書かない
+        - 本物の置き場には一切書かない
+        """
+        evals_file = self.out_dir / "evals.jsonl"
+        self.assertFalse(evals_file.exists())
+
+        fake = self.fake_model("判定: LOW\n判断点: OK")
 
         # pre
-        with patch.object(argon_eval, "_call_gemini_model", return_value=("判定: LOW\n判断点: OK", {"model": "m", "prompt_tokens": 1, "completion_tokens": 1, "seconds": 0.1})):
-            ret_pre = argon_eval.main(["pre", "req.risk-tiers"])
+        with patch.object(argon_eval, "_call_argon_model", return_value=("判定: LOW\n判断点: OK", {"model": "m", "prompt_tokens": 1, "completion_tokens": 1, "seconds": 0.1})):
+            ret_pre = argon_eval.main(["pre", "req.risk-tiers"], cfg=self.cfg)
             self.assertEqual(ret_pre, 0)
 
         # post
-        with patch.object(argon_eval, "_call_gemini_model", return_value=("判定: LOW\n判断点: OK", {"model": "m", "prompt_tokens": 1, "completion_tokens": 1, "seconds": 0.1})):
-            ret_post = argon_eval.main(["post", "W-152"])
+        with patch.object(argon_eval, "_call_argon_model", return_value=("判定: LOW\n判断点: OK", {"model": "m", "prompt_tokens": 1, "completion_tokens": 1, "seconds": 0.1})):
+            ret_post = argon_eval.main(["post", "W-152"], cfg=self.cfg)
             self.assertEqual(ret_post, 0)
 
-        # 範囲を絞るオプション引数が定義されていない（余計な引数はエラー扱い）
-        ret_err = argon_eval.main(["pre", "req.risk-tiers", "--files-only"])
-        # argv[0] と argv[1] だけを解釈し、範囲を枝やファイルで絞る引数は提供しない
-        self.assertIn(ret_pre, (0, None))
+        # 一時置き場に 2 行記録されたこと
+        lines = evals_file.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(lines), 2)
+
+        # 範囲を絞る引数や余計な引数があるときは 1 で終了し、記録が増えないこと
+        ret_err = argon_eval.main(["pre", "req.risk-tiers", "--files-only"], cfg=self.cfg)
+        self.assertEqual(ret_err, 1)
+
+        ret_err_short = argon_eval.main(["pre"], cfg=self.cfg)
+        self.assertEqual(ret_err_short, 1)
+
+        # 行が増えていないこと
+        lines_after = evals_file.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(lines_after), 2)
 
     def test_2_reads_all_copies_and_excludes_outside_roots(self):
         """2. 全部を読む。仮の main の写しと 2 つの枝の写しを置くと、3 つすべてのファイルが入力に入り、外（oracles/）は入らない。"""
@@ -121,7 +138,6 @@ class TestArgonEvaluator(unittest.TestCase):
         prompt_pre = self.prompts_received[-1]
 
         self.assertIn("req.risk-tiers", prompt_pre)
-        # 節の親・子情報（tasks や depends_on）が文脈に含まれている
         self.assertIn("W-154", prompt_pre)
         self.assertEqual(rec_pre["evaluation"], "事前評価: 子タスクでねらいに届きます。\n判定: MEDIUM\n判断点: 要件と子タスクの網羅性を確認")
 
@@ -143,59 +159,80 @@ class TestArgonEvaluator(unittest.TestCase):
         self.assertEqual(rec_post_pr["evaluation"], "事後PR評価: 枝の変更内容を確認しました。\n判定: LOW\n判断点: 差分健全")
 
     def test_4_record_format_and_fail_safe_to_high(self):
-        """4. 記録の形。
-        1 回が 1 行の JSONL で、config/hline.json の 1 か所（out/hline/argon/）に出る。受信箱には書かない。
-        1 行が持つもの：事前事後・対象・評価文・判定（LOW/MED/HIGH）・判断点・費用・写しSHA。
-        判定が 3 つのどれでもないときや欠けているときは、HIGH と同じく人へ回す印にする。
+        """4. 記録の形と判定の安全倒し（総監督 48 本目 §3-2）。
+        - 正常判定は LOW/MEDIUM/HIGH
+        - 雛形そのまま（判定: LOW | MEDIUM | HIGH）は HIGH に倒す
+        - 引用の LOW と最後の HIGH がある応答は HIGH に倒す
+        - 判定行が欠けている、または不正な場合も HIGH に倒す
         """
         evals_file = self.out_dir / "evals.jsonl"
-        self.assertFalse(evals_file.exists())
 
         # 正常系 (LOW)
         model_low = self.fake_model("定性評価全文。\n判定: LOW\n判断点: 良好です")
         rec1 = argon_eval.evaluate("pre", "W-172", cfg=self.cfg, model_fn=model_low)
+        self.assertEqual(rec1["decision"], "LOW")
 
-        self.assertTrue(evals_file.exists())
+        # 異常系 1: 雛形そのまま（値が 1 つでない） → HIGH
+        model_template = self.fake_model("定性評価。\n判定: LOW | MEDIUM | HIGH\n判断点: テンプレート")
+        rec2 = argon_eval.evaluate("post", "W-172", cfg=self.cfg, model_fn=model_template)
+        self.assertEqual(rec2["decision"], "HIGH")
+
+        # 異常系 2: 引用の LOW と最後の HIGH が混在（複数判定行） → HIGH
+        model_quote = self.fake_model("過去の評価には\n判定: LOW\nとありましたが、再評価結果は\n判定: HIGH\n判断点: リスク発見")
+        rec3 = argon_eval.evaluate("post", "301", cfg=self.cfg, model_fn=model_quote)
+        self.assertEqual(rec3["decision"], "HIGH")
+
+        # 異常系 3: 判定行なし → HIGH
+        model_none = self.fake_model("感想文だけで判定行がありません。")
+        rec4 = argon_eval.evaluate("post", "302", cfg=self.cfg, model_fn=model_none)
+        self.assertEqual(rec4["decision"], "HIGH")
+
+        # 記録された行の確認
         lines = evals_file.read_text(encoding="utf-8").splitlines()
-        self.assertEqual(len(lines), 1)
+        self.assertEqual(len(lines), 4)
+        for line in lines:
+            row = json.loads(line)
+            self.assertIn("prompt_chars", row)
+            self.assertIn("shas", row)
+            self.assertEqual(row["shas"]["main"], "main_sha_123")
 
-        row1 = json.loads(lines[0])
-        self.assertEqual(row1["kind"], "pre")
-        self.assertEqual(row1["target"], "W-172")
-        self.assertEqual(row1["decision"], "LOW")
-        self.assertEqual(row1["rationale"], "良好です")
-        self.assertIn("prompt_tokens", row1["usage"])
-        self.assertIn("completion_tokens", row1["usage"])
-        self.assertIn("seconds", row1["usage"])
-        self.assertEqual(row1["shas"]["main"], "main_sha_123")
-        self.assertEqual(row1["shas"]["branches/301"], "branch1_sha_456")
-        self.assertEqual(row1["shas"]["branches/302"], "branch2_sha_789")
+    def test_5_fails_when_evaluator_unconfigured_or_unreachable(self):
+        """5. 本物の呼び出しが呼べないときは落とし、LOW を返さない（総監督 48 本目 §3-1）。"""
+        evals_file = self.out_dir / "evals.jsonl"
 
-        # 異常系 1: 判定が 3 つのどれでもない (UNKNOWN)
-        model_bad = self.fake_model("定性評価全文。\n判定: UNKNOWN\n判断点: 不明な状態")
-        rec2 = argon_eval.evaluate("post", "W-172", cfg=self.cfg, model_fn=model_bad)
+        # evaluator 設定が無い cfg
+        no_eval_cfg = dict(self.cfg)
+        no_eval_cfg.pop("evaluator", None)
 
-        lines = evals_file.read_text(encoding="utf-8").splitlines()
-        self.assertEqual(len(lines), 2)
-        row2 = json.loads(lines[1])
-        # HIGH（人へ回す側）に安全倒しされていること
-        self.assertEqual(row2["decision"], "HIGH")
+        ret = argon_eval.main(["pre", "req.risk-tiers"], cfg=no_eval_cfg)
+        self.assertNotEqual(ret, 0)
+        self.assertFalse(evals_file.exists())
 
-        # 異常系 2: 判定行が欠けている
-        model_missing = self.fake_model("ただの感想文で判定がありません。")
-        rec3 = argon_eval.evaluate("post", "302", cfg=self.cfg, model_fn=model_missing)
+        # 存在しない CLI を指定した cfg
+        bad_cli_cfg = dict(self.cfg)
+        bad_cli_cfg["evaluator"] = {"cli": "non_existent_command_xyz", "model": "m"}
 
-        lines = evals_file.read_text(encoding="utf-8").splitlines()
-        self.assertEqual(len(lines), 3)
-        row3 = json.loads(lines[2])
-        # 判定欠落時も HIGH に安全倒しされていること
-        self.assertEqual(row3["decision"], "HIGH")
+        ret_bad = argon_eval.main(["pre", "req.risk-tiers"], cfg=bad_cli_cfg)
+        self.assertNotEqual(ret_bad, 0)
+        self.assertFalse(evals_file.exists())
 
-    def test_argon_dir_requires_argon_key_without_fallback(self):
-        """argon_dir は cfg['argon'] だけを読む。無ければ KeyError で落とす。"""
-        empty_cfg = {}
-        with self.assertRaises(KeyError):
-            argon_eval.argon_dir(empty_cfg)
+    def test_6_fails_when_copies_missing_or_corrupt(self):
+        """6. 写しが存在しない、または SHA が読めないときは落とし、記録を書かない（総監督 48 本目 §3-4）。"""
+        evals_file = self.out_dir / "evals.jsonl"
+        model = self.fake_model()
+
+        # (a) mirror パスが存在しない
+        broken_mirror_cfg = dict(self.cfg)
+        broken_mirror_cfg["mirror"] = str(self.tmp / "non_existent_main")
+        with self.assertRaises(ArgonError):
+            argon_eval.evaluate("pre", "req.risk-tiers", cfg=broken_mirror_cfg, model_fn=model)
+        self.assertFalse(evals_file.exists())
+
+        # (b) .mirror.json が壊れていて SHA が読めない
+        (self.mirror_dir / ".mirror.json").write_text("{}", encoding="utf-8")
+        with self.assertRaises(ArgonError):
+            argon_eval.evaluate("pre", "req.risk-tiers", cfg=self.cfg, model_fn=model)
+        self.assertFalse(evals_file.exists())
 
 
 if __name__ == "__main__":
