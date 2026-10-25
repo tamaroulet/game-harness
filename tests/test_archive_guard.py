@@ -89,6 +89,7 @@ class ArchiveGuardTests(unittest.TestCase):
         """一時ディレクトリの台帳が過去ログを宣言し、その過去ログが無い場合、
         ROOT 側に過去ログがあってもフォールバックせず ProgressError を送出する。
         """
+        self.assertTrue((progress.ROOT / progress.ARCHIVE_REL_PATH).exists())
         with tempfile.TemporaryDirectory() as d:
             tmp_root = Path(d)
             docs_dir = tmp_root / "docs"
@@ -116,7 +117,6 @@ class ArchiveGuardTests(unittest.TestCase):
         self.assertGreater(len(st["tasks"]), len(arch_tasks))
         self.assertTrue(any(t["id"] == "W-122" and t["status"] == "completed" for t in st["tasks"]))
 
-        # 2. hline_queue.read_ledger
         # 2. hline_queue.read_ledger
         cfg = {"base": "origin/main", "integration_branch": "hline/integration", "ttl_seconds": {"git": 10}}
         import proc
@@ -288,8 +288,8 @@ class ArchiveGuardTests(unittest.TestCase):
             self.assertTrue(any("過去ログ" in s.get("reason", "") for s in st["skipped"]))
 
     def test_write_report_warns_and_avoids_silent_corruption_when_archive_fails(self):
-        """progress_report が ProgressError を投げるとき、write_report はクラッシュせず、
-        report.md に過去ログが読めない警告と理由を出力する。
+        """過去ログだけが読めないとき、write_report は本物の progress_report・各節を回しても
+        クラッシュせず、report.md を警告と理由・人間作業で上書きし、古い報告を残さない。
         """
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -297,22 +297,46 @@ class ArchiveGuardTests(unittest.TestCase):
             inbox.mkdir(parents=True)
             report_md = inbox / "report.md"
             report_md.write_text("## 古い正常な報告\n", encoding="utf-8")
-            cfg = {"inbox": str(inbox), "root": str(root), "base": "origin/main", "git_timeout": 5}
-            st = {"items": {}, "awaiting_pr": None}
+            cfg = {
+                "inbox": str(inbox), "root": str(root), "base": "origin/main",
+                "integration_branch": "hline/integration",
+                "ttl_seconds": {"git": 10}, "out": str(root / "out")
+            }
+            # 人間作業が残ることも確かめるため awaiting_pr を設定
+            st = {"items": {}, "awaiting_pr": "https://github.com/owner/repo/pull/123", "skipped": []}
 
-            with mock.patch.object(hline_report, "progress_report", side_effect=progress.ProgressError("過去ログ宣言 docs/progress_archive.yaml が読み込めません")), \
-                    mock.patch.object(hline_report, "goal_section", return_value="## 目的までの距離\n"), \
-                    mock.patch.object(hline_report, "flow_section", return_value="## 関門\n"), \
-                    mock.patch.object(hline_report, "h_section", return_value="## Hライン\n"), \
-                    mock.patch.object(hline_report.hline_probe, "safe_section", return_value="## probe\n"), \
-                    mock.patch.object(hline_report.hline_checks, "safe_section", return_value="## checks\n"):
-                hline_report.write_report(cfg, st)
+            import proc
+            orig_proc_run = proc.run
+            try:
+                def fake_proc_run_archive_fail(args, cwd, ttl, label):
+                    cmd_str = " ".join(args)
+                    if f"origin/main:{progress.REL_PATH}" in cmd_str:
+                        return 0, self.active_text, ""
+                    if f"origin/main:{progress.ARCHIVE_REL_PATH}" in cmd_str:
+                        return 1, "", "git show failed"
+                    return 1, "", "not found"
 
-            # 1. report.md が更新されている
+                proc.run = fake_proc_run_archive_fail
+
+                # 外に出る副作用・環境依存（照合・probe）のみモックし、台帳や各節は本物を回す
+                with mock.patch.object(hline_report.hline_probe, "safe_section", return_value="## probe\n"), \
+                        mock.patch.object(hline_report.hline_checks, "safe_section", return_value="## checks\n"):
+                    hline_report.write_report(cfg, st)
+            finally:
+                proc.run = orig_proc_run
+
             body = report_md.read_text(encoding="utf-8")
-            # 2. 警告見出しと理由が出力されている
+            # 1. 警告見出しと過去ログ読めない理由が出力されている
             self.assertIn("## ⚠️ 台帳（過去ログ）を読めません", body)
-            self.assertIn("過去ログ宣言 docs/progress_archive.yaml が読み込めません", body)
+            self.assertIn("過去ログ宣言 docs/progress_archive.yaml がありますが、ファイルを読み込めませんでした", body)
+            # 2. 古い報告が残っていない（上書きされている）
+            self.assertNotIn("## 古い正常な報告", body)
+            # 3. 人間作業の行が警告の後ろに残っている
+            self.assertIn("- 人間作業: REVIEW_REQUIRED https://github.com/owner/repo/pull/123", body)
+            # 4. 各節（目的までの距離、関門ごとの流れ、Hライン）が本物で生成されている
+            self.assertIn("## 目的までの距離", body)
+            self.assertIn("## 関門ごとの流れ", body)
+            self.assertIn("## H ライン", body)
 
 
 if __name__ == "__main__":
