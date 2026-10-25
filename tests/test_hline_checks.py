@@ -44,8 +44,9 @@ class Checks(unittest.TestCase):
         self.inbox, self.out = self.tmp / "inbox", self.tmp / "out"
         (self.inbox / "checks").mkdir(parents=True)
         self.out.mkdir()
-        self.cfg = {"inbox": str(self.inbox), "out": str(self.out), "base": "origin/main",
-                    "integration_branch": "hline/integration", "ttl_seconds": {"git": 5, "gate": 5}}
+        self.cfg = {"inbox": str(self.inbox), "out": str(self.out), "checks": str(self.inbox / "checks"),
+                    "base": "origin/main", "integration_branch": "hline/integration",
+                    "ttl_seconds": {"git": 5, "gate": 5}}
 
     def declare(self, name, **decl):
         (self.inbox / "checks" / f"{name}.json").write_text(json.dumps(decl), encoding="utf-8")

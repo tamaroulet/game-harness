@@ -40,8 +40,8 @@ class Overlay(unittest.TestCase):
         (self.inbox / "checks").mkdir(parents=True)
         (self.inbox / "drafts").mkdir()
         self.out.mkdir()
-        self.cfg = {"inbox": str(self.inbox), "out": str(self.out), "base": "origin/main",
-                    "integration_branch": "hline/integration", "ttl_seconds": {"git": 5, "gate": 5}}
+        self.cfg = {"inbox": str(self.inbox), "out": str(self.out), "checks": str(self.inbox / "checks"),
+                    "base": "origin/main", "integration_branch": "hline/integration", "ttl_seconds": {"git": 5, "gate": 5}}
 
     def draft(self, name, text):
         path = self.inbox / "drafts" / name

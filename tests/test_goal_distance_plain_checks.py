@@ -15,7 +15,7 @@ class PassingModulesPlainChecks(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
-        self.cfg = {"inbox": str(self.tmp)}
+        self.cfg = {"inbox": str(self.tmp), "checks": str(self.tmp / "checks")}
         (self.tmp / "checks").mkdir()
         self.status = {}
 

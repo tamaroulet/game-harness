@@ -544,7 +544,7 @@ tasks:
   depends_on:
   - W-169
   acceptance:
-  - docs/director/ が総監督の文書の正本になる。W-169 の表で残した決まり・deferred.md・総監督の引継ぎ・会話の席の引継ぎが入り、docs/director/INDEX.md から辿れる。受信箱の drafts/director/ に、移したものの写しが残らない
+  - docs/director/ が総監督の文書の正本になる。W-169 の表で残した決まり・deferred.md・総監督の引継ぎ・会話の席の引継ぎが入り、docs/director/INDEX.md から辿れる。書き続ける文書（handoff・INDEX・木）は受信箱の下書きに残し、それ以外の移したものの写しが drafts/director/ に残らない
   - 照合の宣言（受信箱の checks/*.json）が Git の中に移り、H ラインはそこから読む
   - docs/ の文書が、Git の外の場所（C:\src\.local の下）を根拠として引かない。引いてよい場所（生ログ・main の写し・受信箱など）は一覧にして、その一覧の外を指す行が無い
   - 移さなかったもの（済んだ下書き・drafts/what/ の古い What・W-113 の隠しテストと参照実装など）の一覧と理由がある。非公開のオラクルにあたるものは Git に入れない

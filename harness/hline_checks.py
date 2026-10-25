@@ -1,4 +1,4 @@
-"""report.md の「## 照合」節：総監督が受信箱の checks/ に宣言した照合を走らせて、結果を出す。
+"""report.md の「## 照合」節：照合宣言（docs/checks/ または受信箱の checks/）を走らせて、結果を出す。
 
 宣言は 1 ファイル 1 件の JSON（checks/<名前>.json）。種類は reqcov・git_log・progress_check・unittest の 4 つだけ。
 どの照合も ref の時点の中身（detach した作業ツリー）に対して走らせ、根の作業ツリーの状態に依らない。
@@ -34,7 +34,14 @@ class Invalid(Exception):
 
 
 def checks_dir(cfg):
-    return Path(cfg["inbox"]) / "checks"
+    """照合の宣言の置き場。
+    cfg['checks'] だけを読む（相対なら ROOT 起点）。無ければ KeyError で落とす。
+    受信箱や根の checks/ を探す道は消す（総監督 42 本目 §3.1）。
+    """
+    if "checks" not in cfg:
+        raise KeyError("cfg に 'checks' が指定されていません")
+    p = Path(cfg["checks"])
+    return p if p.is_absolute() else ROOT / p
 
 
 def ref_of(decl):
@@ -111,15 +118,22 @@ def validate(decl):
 
 
 def overlay_sources(cfg, decl):
-    """overlay の写し先（木の中の相対パス）→ 写し元の絶対パス。drafts/ の外・無いファイルは Invalid。"""
-    drafts = (Path(cfg["inbox"]) / "drafts").resolve()
+    """overlay の写し先（木の中の相対パス）→ 写し元の絶対パス。drafts/ または docs/ の外・無いファイルは Invalid。"""
+    drafts = (Path(cfg["inbox"]) / "drafts").resolve() if "inbox" in cfg else None
+    git_docs = (ROOT / "docs").resolve()
     found = {}
     for dest, src in decl.get("overlay", {}).items():
-        path = (Path(cfg["inbox"]) / src).resolve()
-        if drafts not in path.parents:
-            raise Invalid(f"overlay の写し元が drafts/ の外: {src!r}")
-        if not path.is_file():
-            raise Invalid(f"overlay の写し元が無い: {src!r}")
+        path = None
+        if drafts:
+            p = (Path(cfg["inbox"]) / src).resolve()
+            if p.is_file() and drafts in p.parents:
+                path = p
+        if path is None:
+            p = (ROOT / src).resolve()
+            if p.is_file() and git_docs in p.parents:
+                path = p
+        if path is None:
+            raise Invalid(f"overlay の写し元が無いか許されないパス: {src!r}")
         found[dest] = path
     return found
 
