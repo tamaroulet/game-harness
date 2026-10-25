@@ -130,13 +130,16 @@ requirements:
     人の承認なしの自動マージは低リスクだけで、req.protected-checks が満たされてから始める
   verify_by: [test:independent, human]
   status: 未達
-  depends_on: [req.protected-checks, req.wiring-executed]
+  depends_on: [req.protected-checks, req.wiring-executed, req.progress-reviewed]
   tasks: [W-154]
   proposals:
   - 層を触れたパスから決める検査と、高リスクを束ねた PR を落とす CI の段
   evidence:
   - 語彙と再建の資料（review\vocabulary_and_architecture_rebuild.md）§4 の 1
   - W-154（操縦士が毎回受け取るもの）は、5 行の要約の形に絞って直す
+  - >-
+    2026-10-25 操縦士と会話の席の設計（受信箱の drafts/director/proposal_review_architecture.md、41 本目）：人が呼ばれるのは高リスク・AI の HIGH・3 回続けての落ち・大きな節目だけ。
+    AI の所見は止める向きにだけ効き、通す鍵にしない。低リスクの自律マージは、層を触れたパスから機械で決める検査が入ってから始める（それまでは総監督の検めと CI の後に副操縦士がマージ）
 
 - id: req.runner-isolated
   title: 常駐ワーカーが Git の管理下にあり、人の作業コピーから隔離され、例外で黙って止まらない
@@ -252,7 +255,7 @@ requirements:
   achieved_when: >-
     main と、開いている PR の枝の写しが、総監督とレビュアーの読める場所に機械で置かれる。受信箱の review\ へ人が運ぶ手番が要らない
   verify_by: [test:independent]
-  status: 自己検証のみ
+  status: 検証済み
   depends_on: []
   tasks: [W-150]
   evidence:
@@ -266,6 +269,10 @@ requirements:
     2026-10-25（reply-architect-20261024-38.md）：setup の走らせ直しの後、settings に Edit(//c/src/.local/main/**)・Edit(//c/src/.local/branches/**) があり、
     CLAUDE.md の 50・51 行に写しがあり、.mirror.json と report.md の冒頭が d0fb02a（11:35）にそろったのを総監督が実物で確かめた。
     枝の写しは hline_stopped report の中で合わせる（副操縦士の知らせ）ので、走らせる手番が人に残る。新しく開いた PR を review\ を経ずに枝の写しで読めたら「検証済み」にする
+  - >-
+    2026-10-25（reply-architect-20261024-39.md）：PR #307 を review\ を経ずに検めた。branches\307\.branch.json の sha dc4f5ca が知らせと合い、
+    docs/tree/tree.yaml を main の写し（d0fb02a、12:03）と行で比べ、違いが req.no-human-relay の evidence 2 項（8 行）だけで、下書きと同じなのを総監督が確かめた。
+    これで「検証済み」にした。残り：変えたファイルの一覧は副操縦士の知らせに頼る（総監督は git を走らせられない）。写しを合わせる命令は人の側（副操縦士）が走らせる
 
 # ---- ハーネスが健全：計画と役 ----
 
@@ -342,8 +349,12 @@ requirements:
     評価に引いた記録（どのファイルのどの値か）があり、照らせるところは機械で照らす
   verify_by: [test:independent, human]
   status: 未達
-  depends_on: []
+  depends_on: [req.no-human-relay]
   tasks: [W-172]
+  proposals:
+  - >-
+    影響束（Context Bundle）：変更関数の前後の署名と raise 節・1 ホップの呼び出し元・テストの patch/Mock の先と実関数の署名の対比を機械で抜き出し、
+    評価の第一の入力にする（Argon の案、40 本目）。W-172 の最初の版の記録で見落としが出てから、別のタスクにするか決める
   evidence:
   - README P2・P4・P5
   - docs/design/premises.yaml の P-024・P-026：評価者の誤りは共有される。評価だけを独立の検証とみなさない（11 本目の D4）
