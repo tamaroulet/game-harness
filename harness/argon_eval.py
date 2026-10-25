@@ -5,21 +5,20 @@
 記録は config/hline.json の argon（out/hline/argon/）に JSONL で残す。
 総監督 47・48 本目（2026-10-25）に基づく実装。
 """
-from dataclasses import dataclass
 import datetime
 import json
-import os
 from pathlib import Path
 import re
 import shutil
-import subprocess
 import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import agy_stream
 import exitcode
 from hline_base import ROOT, load_config
 import machine
+import proc
 import progress
 import yaml
 
@@ -67,19 +66,21 @@ def collect_copies(cfg):
     copies["main"] = _read_tree_files(mirror_dir)
     shas["main"] = main_sha
 
-    # 枝の写し（branches）
-    branches_path = cfg.get("branches")
-    if branches_path:
-        branches_dir = Path(branches_path)
-        if branches_dir.exists() and branches_dir.is_dir():
-            for child in sorted(branches_dir.iterdir()):
-                if child.is_dir():
-                    branch_sha = _read_branch_sha(child)
-                    if not branch_sha:
-                        raise ArgonError(f"枝の写し {child.name} の .branch.json から SHA が読めません")
-                    copy_key = f"branches/{child.name}"
-                    copies[copy_key] = _read_tree_files(child)
-                    shas[copy_key] = branch_sha
+    # 枝の写し（branches）: 設定に無いのは誤りなので落とす（総監督 49 本目 §4）
+    if "branches" not in cfg:
+        raise ArgonError("config に branches がありません")
+
+    branches_path = cfg["branches"]
+    branches_dir = Path(branches_path)
+    if branches_dir.exists() and branches_dir.is_dir():
+        for child in sorted(branches_dir.iterdir()):
+            if child.is_dir():
+                branch_sha = _read_branch_sha(child)
+                if not branch_sha:
+                    raise ArgonError(f"枝の写し {child.name} の .branch.json から SHA が読めません")
+                copy_key = f"branches/{child.name}"
+                copies[copy_key] = _read_tree_files(child)
+                shas[copy_key] = branch_sha
 
     return copies, shas
 
@@ -287,9 +288,10 @@ def evaluate(kind, target, cfg=None, model_fn=None, root=ROOT):
         "rationale": rationale,
         "model": usage.get("model", "argon"),
         "usage": {
-            "prompt_tokens": usage.get("prompt_tokens", 0),
-            "completion_tokens": usage.get("completion_tokens", 0),
+            "prompt_tokens": usage.get("prompt_tokens"),
+            "completion_tokens": usage.get("completion_tokens"),
             "seconds": usage.get("seconds", 0.0),
+            "tokens_estimated": usage.get("tokens_estimated", False),
         },
         "prompt_chars": len(prompt),
         "shas": shas,
@@ -335,9 +337,31 @@ def _build_prompt(kind, target, target_ctx, copies, shas):
     return "\n".join(lines)
 
 
-def _call_argon_model(prompt, cfg):
+def evaluator_args(evaluator, exe_path, ttl):
+    """evaluator の起動引数。プロンプトは含めず標準入力で渡す（総監督 49 本目 §3-2）。"""
+    is_stream = agy_stream.is_stream(evaluator)
+    headless = evaluator.get("headless_flag", "-p")
+    model_flag = evaluator.get("model_flag", "--model")
+    model_name = evaluator.get("model_name") or evaluator.get("model")
+
+    if is_stream:
+        cmd = [exe_path, headless + "=", "--input-format", agy_stream.STREAM, model_flag, model_name]
+    else:
+        cmd = [exe_path, headless, model_flag, model_name]
+
+    cmd += list(evaluator.get("output_format_args") or [])
+    cmd += list(evaluator.get("extra_flags") or [])
+    if evaluator.get("effort"):
+        cmd += ["--effort", evaluator["effort"]]
+    if is_stream:
+        cmd += ["--print-timeout", f"{max(int(ttl) - agy_stream.PRINT_TIMEOUT_MARGIN, 30)}s"]
+    return cmd
+
+
+def _call_argon_model(prompt, cfg, run_fn=proc.run):
     """config/hline.json の evaluator 設定に従い agy CLI 等で本物のモデルを呼ぶ。
-    呼べないときは ArgonError で落とし、固定文や LOW は絶対に返さない（総監督 48 本目 §3-1）。
+    プロンプトは標準入力で渡し、引数には載せない（Windows 32767 文字制限・改行対策、総監督 49 本目 §3-2）。
+    呼べないときは ArgonError で落とし、固定文や LOW は絶対に返さない。
     """
     evaluator = cfg.get("evaluator")
     if not evaluator or not isinstance(evaluator, dict):
@@ -350,7 +374,7 @@ def _call_argon_model(prompt, cfg):
     if not model:
         raise ArgonError("config/hline.json の evaluator に model が指定されていません")
 
-    extra_flags = evaluator.get("extra_flags", [])
+    ttl = int(evaluator.get("ttl_seconds", 600))
 
     # CLI のパス解決
     exe_path = shutil.which(cli)
@@ -366,31 +390,59 @@ def _call_argon_model(prompt, cfg):
     if not exe_path:
         raise ArgonError(f"evaluator の CLI コマンドが見つかりません: {cli}")
 
-    cmd = [exe_path] + list(extra_flags) + ["--model", model, prompt]
+    cmd = evaluator_args(evaluator, exe_path, ttl)
+
+    if agy_stream.is_stream(evaluator):
+        stdin_data = agy_stream.stdin_for(evaluator, prompt)
+    else:
+        stdin_data = prompt
 
     start_time = time.time()
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=300)
+        code, out, err = run_fn(cmd, cwd=ROOT, ttl=ttl, label="argon_eval", input=stdin_data)
     except Exception as e:
         raise ArgonError(f"evaluator CLI の実行に失敗しました: {e}") from e
     duration = time.time() - start_time
 
-    if res.returncode != 0:
-        err_msg = res.stderr.strip() or f"exit code {res.returncode}"
+    if code != 0:
+        err_msg = (err or "").strip() or f"exit code {code}"
         raise ArgonError(f"evaluator CLI がエラーで終了しました: {err_msg}")
 
-    stdout_text = res.stdout.strip()
+    stdout_text = (out or "").strip()
     if not stdout_text:
         raise ArgonError("evaluator CLI の出力が空でした")
 
-    usage = {
-        "model": model,
-        "seconds": round(duration, 3),
-        "prompt_tokens": len(prompt) // 4,   # 概算トークン
-        "completion_tokens": len(stdout_text) // 4,
-    }
+    if agy_stream.is_stream(evaluator):
+        parsed = agy_stream.parse(stdout_text)
+        response_text = (parsed.get("response") or "").strip()
+        usage_info = parsed.get("usage") or {}
+        p_tokens = usage_info.get("input_tokens")
+        c_tokens = usage_info.get("output_tokens")
+        if not response_text:
+            response_text = stdout_text
+    else:
+        response_text = stdout_text
+        p_tokens = None
+        c_tokens = None
 
-    return stdout_text, usage
+    if p_tokens is not None and c_tokens is not None:
+        usage = {
+            "model": model,
+            "seconds": round(duration, 3),
+            "prompt_tokens": p_tokens,
+            "completion_tokens": c_tokens,
+            "tokens_estimated": False,
+        }
+    else:
+        usage = {
+            "model": model,
+            "seconds": round(duration, 3),
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "tokens_estimated": True,
+        }
+
+    return response_text, usage
 
 
 def main(argv=None, cfg=None):

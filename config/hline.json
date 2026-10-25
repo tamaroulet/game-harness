@@ -120,13 +120,21 @@
   "_reviewer_note": "取り込みの段の監修役（harness/hline_review.py）。実装役と同じ CLI とモデルで、道具（ファイルの読み書き・コマンド）を許さずに 1 回呼ぶ。指示は base から読む。判定は生ログの置き場の review/ に控える。合格は決めない（Gate 1 には入れない）",
   "evaluator": {
     "cli": "agy",
+    "headless_flag": "-p",
+    "model_flag": "--model",
     "model": "gemini-4-argon-medium",
+    "output_format_args": [
+      "--output-format",
+      "stream-json"
+    ],
     "extra_flags": [
-      "--print",
-      "--dangerously-skip-permissions"
-    ]
+      "--mode",
+      "plan",
+      "--sandbox"
+    ],
+    "ttl_seconds": 600
   },
-  "_evaluator_note": "独立評価役 Argon（harness/argon_eval.py、W-172）。agy CLI を通して別系統モデルで定性評価を行う。モデル名・CLI はここからのみ引き、認証は agy の既存権限を利用する",
+  "_evaluator_note": "独立評価役 Argon（harness/argon_eval.py、W-172）。agy を --mode plan と --sandbox（道具不許可）で呼び、標準入力からプロンプトを渡す。認証は agy の既存権限を利用する",
   "planner": {
     "cli": "claude",
     "headless_flag": "-p",

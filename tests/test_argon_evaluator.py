@@ -234,6 +234,106 @@ class TestArgonEvaluator(unittest.TestCase):
             argon_eval.evaluate("pre", "req.risk-tiers", cfg=self.cfg, model_fn=model)
         self.assertFalse(evals_file.exists())
 
+    def test_7_evaluator_config_has_no_dangerous_permissions_flags(self):
+        """7. 評価役に道具を許さない（総監督 49 本目 §3-1）。
+        - 本物の config/hline.json の evaluator 設定を検証
+        - extra_flags に --dangerously-skip-permissions や同類の旗が無いこと
+        - --mode plan と --sandbox が含まれていること
+        """
+        real_cfg = load_config()
+        self.assertIn("evaluator", real_cfg)
+        evaluator = real_cfg["evaluator"]
+
+        extra_flags = evaluator.get("extra_flags", [])
+        # 危険なスキップ旗が無いこと
+        dangerous_flags = {
+            "--dangerously-skip-permissions",
+            "--skip-permissions",
+            "--auto-approve",
+            "-y",
+            "--yes",
+        }
+        for flag in extra_flags:
+            self.assertNotIn(flag, dangerous_flags)
+
+        # 全設定値（文字列・リスト内）にも危険旗が無いこと
+        evaluator_dump = json.dumps(evaluator)
+        for df in dangerous_flags:
+            self.assertNotIn(df, evaluator_dump)
+
+        # --mode plan と --sandbox が指定されていること
+        self.assertIn("--mode", extra_flags)
+        idx = extra_flags.index("--mode")
+        self.assertEqual(extra_flags[idx + 1], "plan")
+        self.assertIn("--sandbox", extra_flags)
+
+    def test_8_prompt_passed_via_stdin_not_in_command_arguments(self):
+        """8. プロンプトは標準入力で渡す（総監督 49 本目 §3-2）。
+        - run_fn を差し替え、プロンプトが引数（cmd）に含まれず、標準入力（input）に入ることを確かめる
+        """
+        prompt = "THIS_IS_A_VERY_LONG_PROMPT_WITH_LINES\nLINE2\nLINE3"
+        captured = {}
+
+        def mock_run(args, cwd, ttl, label, env=None, input=None):
+            captured["args"] = args
+            captured["cwd"] = cwd
+            captured["ttl"] = ttl
+            captured["input"] = input
+            res_stream = json.dumps({
+                "event": "result",
+                "result": {
+                    "response": "判定: LOW\n判断点: プロンプト標準入力渡し確認完了",
+                    "usage": {"input_tokens": 1500, "output_tokens": 60},
+                },
+            })
+            return 0, res_stream, ""
+
+        ret_text, usage = argon_eval._call_argon_model(prompt, self.cfg, run_fn=mock_run)
+
+        # プロンプトがコマンド引数に含まれていないこと
+        for arg in captured["args"]:
+            self.assertNotIn("THIS_IS_A_VERY_LONG_PROMPT", arg)
+            self.assertNotIn(prompt, arg)
+
+        # プロンプトが標準入力（input）に入っていること（stream-json の場合は JSON event 形式）
+        self.assertIsNotNone(captured["input"])
+        stdin_json = json.loads(captured["input"])
+        self.assertEqual(stdin_json["event"], "user")
+        self.assertEqual(stdin_json["message"]["content"], prompt)
+
+        # 返信テキストとトークン数が正しく抽出されていること
+        self.assertEqual(ret_text, "判定: LOW\n判断点: プロンプト標準入力渡し確認完了")
+        self.assertEqual(usage["prompt_tokens"], 1500)
+        self.assertEqual(usage["completion_tokens"], 60)
+        self.assertFalse(usage["tokens_estimated"])
+
+    def test_9_token_extraction_and_estimation_flag(self):
+        """9. トークンを推定で記録しない（総監督 49 本目 §3-3）。
+        - stream-json から実測トークンが得られる場合は tokens_estimated: false
+        - トークンが得られない場合は prompt_tokens/completion_tokens は None で tokens_estimated: true
+        """
+        # (a) トークン取得不能ケース（プレーンテキスト応答）
+        plain_cfg = dict(self.cfg)
+        plain_eval = dict(self.cfg["evaluator"])
+        plain_eval["output_format_args"] = []
+        plain_cfg["evaluator"] = plain_eval
+
+        def mock_run_plain(args, cwd, ttl, label, env=None, input=None):
+            return 0, "判定: LOW\n判断点: プレーンテキスト", ""
+
+        _, usage_plain = argon_eval._call_argon_model("short prompt", plain_cfg, run_fn=mock_run_plain)
+        self.assertIsNone(usage_plain["prompt_tokens"])
+        self.assertIsNone(usage_plain["completion_tokens"])
+        self.assertTrue(usage_plain["tokens_estimated"])
+
+    def test_10_fails_when_branches_unconfigured(self):
+        """10. branches 欄が無いときは設定誤りとして落とす（総監督 49 本目 §4）。"""
+        no_branches_cfg = dict(self.cfg)
+        no_branches_cfg.pop("branches", None)
+
+        with self.assertRaises(ArgonError):
+            argon_eval.collect_copies(no_branches_cfg)
+
 
 if __name__ == "__main__":
     unittest.main()
