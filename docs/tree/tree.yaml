@@ -138,7 +138,7 @@ requirements:
   - 語彙と再建の資料（review\vocabulary_and_architecture_rebuild.md）§4 の 1
   - W-154（操縦士が毎回受け取るもの）は、5 行の要約の形に絞って直す
   - >-
-    2026-10-25 操縦士と会話の席の設計（受信箱の drafts/director/proposal_review_architecture.md、41 本目）：人が呼ばれるのは高リスク・AI の HIGH・3 回続けての落ち・大きな節目だけ。
+    2026-10-25 操縦士と会話の席の設計（docs/director/proposal_review_architecture.md、#308 で Git に入った。41 本目）：人が呼ばれるのは高リスク・AI の HIGH・3 回続けての落ち・大きな節目だけ。
     AI の所見は止める向きにだけ効き、通す鍵にしない。低リスクの自律マージは、層を触れたパスから機械で決める検査が入ってから始める（それまでは総監督の検めと CI の後に副操縦士がマージ）
 
 - id: req.runner-isolated
