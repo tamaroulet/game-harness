@@ -293,9 +293,15 @@ def human_line(cfg, st):
 
 
 def write_report(cfg, st):
-    text, human = progress_report(cfg), human_line(cfg, st)
-    if human:
-        text = re.sub(r"^- 人間作業:.*$", lambda _: human, text, flags=re.M)
+    human = human_line(cfg, st)
+    try:
+        text = progress_report(cfg)
+        if human:
+            text = re.sub(r"^- 人間作業:.*$", lambda _: human, text, flags=re.M)
+    except progress.ProgressError as e:
+        text = f"## ⚠️ 台帳（過去ログ）を読めません\n\n- 理由: {e}\n"
+        if human:
+            text += f"\n{human}\n"
     probe = hline_probe.safe_section(cfg, pr=st.get("awaiting_pr"), waits=True)
     body = "".join(s.rstrip("\n") + "\n\n" for s in [main_mirror.section(cfg)] if s) + goal_section(cfg).rstrip("\n") + "\n\n" + flow_section(cfg).rstrip("\n") + "\n\n" + text + "\n" + h_section(cfg, st) + "\n" + probe + "\n" + hline_checks.safe_section(cfg)
     (Path(cfg["inbox"]) / "report.md").write_text(body, encoding="utf-8")

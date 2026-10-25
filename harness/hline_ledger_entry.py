@@ -66,7 +66,10 @@ def base_state(cfg):
             return None
         return out
 
-    st = progress.read_ref(show_fn)
+    try:
+        st = progress.read_ref(show_fn)
+    except progress.ProgressError as e:
+        raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を読めません: {e}") from e
     if st is None:
         detail = f": {last_err}" if last_err else ""
         raise ValueError(f"{cfg['base']} の {progress.REL_PATH} を読めません{detail}")
