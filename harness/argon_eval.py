@@ -9,7 +9,6 @@ import datetime
 import json
 from pathlib import Path
 import re
-import shutil
 import sys
 import time
 
@@ -18,7 +17,6 @@ import agy_pinned
 import agy_stream
 import exitcode
 from hline_base import ROOT, load_config
-import machine
 import model_pin
 import proc
 import progress
@@ -339,12 +337,14 @@ def _build_prompt(kind, target, target_ctx, copies, shas):
     return "\n".join(lines)
 
 
-def _call_argon_model(prompt, cfg, run_fn=proc.run):
+def _call_argon_model(prompt, cfg, run_fn=None):
     """config/hline.json の evaluator 設定に従い agy CLI 等で本物のモデルを呼ぶ。
     agy_pinned による指紋検査、model_pin によるモデル固定検査、agy_stream.args による引数構築、
-    実行後の報告モデル照合を行い、違えば落として記録を書かない（総監督 50 本目 §3）。
+    実行後の報告モデル照合を行い、違えば落として記録を書かない（総監督 50 本目 §3、51 本目 §3・§4）。
     プロンプトは標準入力で渡し、引数には載せない。
     """
+    if run_fn is None:
+        run_fn = proc.run
     evaluator = cfg.get("evaluator")
     if not evaluator or not isinstance(evaluator, dict):
         raise ArgonError("config/hline.json に evaluator 設定がありません")
@@ -354,41 +354,22 @@ def _call_argon_model(prompt, cfg, run_fn=proc.run):
     if not cli:
         raise ArgonError(f"{where} に cli が指定されていません")
 
-    # CLI のパス解決
-    exe_path = shutil.which(cli)
-    if not exe_path:
-        for bin_key in ("agy_bin", "bin"):
-            bin_dir = machine.names().get(bin_key)
-            if bin_dir:
-                candidate = Path(bin_dir) / cli
-                if candidate.exists():
-                    exe_path = str(candidate)
-                    break
+    if not agy_stream.is_stream(evaluator):
+        raise ArgonError(f"{where} の output_format_args に stream-json が指定されていません")
 
-    if not exe_path:
-        raise ArgonError(f"evaluator の CLI コマンドが見つかりません: {cli}")
+    try:
+        agy_pinned.require()
+    except agy_pinned.AgyDigestError as e:
+        raise ArgonError(f"評価役 CLI の指紋照合に失敗しました: {e}") from e
+    try:
+        model_pin.require_implementer(evaluator, where)
+    except model_pin.ModelPinError as e:
+        raise ArgonError(str(e)) from e
 
+    cli_cmd = proc.resolve_cli(cli)
     ttl = int(evaluator.get("ttl_seconds", 600))
-
-    if agy_stream.is_stream(evaluator):
-        try:
-            agy_pinned.require()
-        except agy_pinned.AgyDigestError as e:
-            raise ArgonError(f"評価役 CLI の指紋照合に失敗しました: {e}") from e
-        try:
-            model_pin.require_implementer(evaluator, where)
-        except model_pin.ModelPinError as e:
-            raise ArgonError(str(e)) from e
-        cmd = agy_stream.args(evaluator, [exe_path], prompt, ttl)
-        stdin_data = agy_stream.stdin_for(evaluator, prompt)
-    else:
-        model = evaluator.get("model") or evaluator.get("model_name")
-        if not model:
-            raise ArgonError(f"{where} に model が指定されていません")
-        cmd = [exe_path, evaluator.get("headless_flag", "-p"), evaluator.get("model_flag", "--model"), model]
-        cmd += list(evaluator.get("output_format_args") or [])
-        cmd += list(evaluator.get("extra_flags") or [])
-        stdin_data = prompt
+    cmd = agy_stream.args(evaluator, cli_cmd, prompt, ttl, auto_approve=False)
+    stdin_data = agy_stream.stdin_for(evaluator, prompt)
 
     start_time = time.time()
     try:
@@ -405,26 +386,19 @@ def _call_argon_model(prompt, cfg, run_fn=proc.run):
     if not stdout_text:
         raise ArgonError("evaluator CLI の出力が空でした")
 
-    if agy_stream.is_stream(evaluator):
-        parsed = agy_stream.parse(stdout_text)
-        response_text = (parsed.get("response") or "").strip()
-        if not response_text:
-            raise ArgonError("evaluator CLI の応答本文（response）が空でした")
+    parsed = agy_stream.parse(stdout_text)
+    response_text = (parsed.get("response") or "").strip()
+    if not response_text:
+        raise ArgonError("evaluator CLI の応答本文（response）が空でした")
 
-        # 実際に走ったモデルの照合（総監督 50 本目 §3）
-        try:
-            reported_model = model_pin.check_reported(evaluator["model_name"], parsed.get("model"), where)
-        except model_pin.ModelPinError as e:
-            raise ArgonError(str(e)) from e
+    try:
+        reported_model = model_pin.check_reported(evaluator["model_name"], parsed.get("model"), where)
+    except model_pin.ModelPinError as e:
+        raise ArgonError(str(e)) from e
 
-        usage_info = parsed.get("usage") or {}
-        p_tokens = usage_info.get("input_tokens")
-        c_tokens = usage_info.get("output_tokens")
-    else:
-        response_text = stdout_text
-        reported_model = evaluator.get("model_name") or evaluator.get("model")
-        p_tokens = None
-        c_tokens = None
+    usage_info = parsed.get("usage") or {}
+    p_tokens = usage_info.get("input_tokens")
+    c_tokens = usage_info.get("output_tokens")
 
     if p_tokens is not None and c_tokens is not None:
         usage = {

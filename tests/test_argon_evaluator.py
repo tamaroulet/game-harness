@@ -308,25 +308,23 @@ class TestArgonEvaluator(unittest.TestCase):
         self.assertEqual(usage["completion_tokens"], 60)
         self.assertFalse(usage["tokens_estimated"])
 
-    def test_9_token_extraction_and_estimation_flag(self):
-        """9. トークンを推定で記録しない（総監督 49 本目 §3-3）。
-        - stream-json から実測トークンが得られる場合は tokens_estimated: false
-        - トークンが得られない場合は prompt_tokens/completion_tokens は None で tokens_estimated: true
+    def test_9_fails_when_output_format_not_stream_json(self):
+        """9. output_format_args が stream-json でない evaluator 設定は落とす（総監督 51 本目 §3-2）。
+        - stream-json でない場合は ArgonError で落ち、記録が増えないこと
         """
-        # (a) トークン取得不能ケース（プレーンテキスト応答、cli: claude）
-        plain_cfg = dict(self.cfg)
-        plain_eval = dict(self.cfg["evaluator"])
-        plain_eval["cli"] = "claude"
-        plain_eval["output_format_args"] = []
-        plain_cfg["evaluator"] = plain_eval
+        evals_file = self.out_dir / "evals.jsonl"
+        lines_before = len(evals_file.read_text(encoding="utf-8").splitlines()) if evals_file.exists() else 0
 
-        def mock_run_plain(args, cwd, ttl, label, env=None, input=None):
-            return 0, "判定: LOW\n判断点: プレーンテキスト", ""
+        non_stream_cfg = dict(self.cfg)
+        non_stream_eval = dict(self.cfg["evaluator"])
+        non_stream_eval["output_format_args"] = []
+        non_stream_cfg["evaluator"] = non_stream_eval
 
-        _, usage_plain = argon_eval._call_argon_model("short prompt", plain_cfg, run_fn=mock_run_plain)
-        self.assertIsNone(usage_plain["prompt_tokens"])
-        self.assertIsNone(usage_plain["completion_tokens"])
-        self.assertTrue(usage_plain["tokens_estimated"])
+        with self.assertRaises(ArgonError):
+            argon_eval._call_argon_model("test prompt", non_stream_cfg)
+
+        lines_after = len(evals_file.read_text(encoding="utf-8").splitlines()) if evals_file.exists() else 0
+        self.assertEqual(lines_before, lines_after)
 
     def test_10_fails_when_branches_unconfigured(self):
         """10. branches 欄が無いときは設定誤りとして落とす（総監督 49 本目 §4）。"""
@@ -383,6 +381,39 @@ class TestArgonEvaluator(unittest.TestCase):
 
         lines_after_correct = len(evals_file.read_text(encoding="utf-8").splitlines())
         self.assertEqual(lines_after_correct, lines_before + 1)
+
+    def test_12_agy_stream_args_fail_safe_and_auto_approve_flag(self):
+        """12. agy_stream.args のフェイルセーフと auto_approve=False（総監督 51 本目 §3-1）。
+        - auto_approve を渡さず、auto_approve_flag 欄のない辞書で呼ぶと KeyError になること
+        - auto_approve=False を渡した場合に、auto_approve_flag（--yolo 等）が引数に含まれず、
+          auto_approve_flag が無い辞書でも KeyError にならずに引数が構築されること
+        """
+        from harness import agy_stream
+
+        # auto_approve=True (既定) で auto_approve_flag が欠損していると KeyError
+        imp_missing = {
+            "cli": "agy",
+            "headless_flag": "-p",
+            "model_flag": "--model",
+            "model_name": "m",
+            "output_format_args": ["stream-json"],
+        }
+        with self.assertRaises(KeyError):
+            agy_stream.args(imp_missing, ["agy"], "prompt", 60)
+
+        # auto_approve=False なら auto_approve_flag が無くても呼べる
+        args_no_flag = agy_stream.args(imp_missing, ["agy"], "prompt", 60, auto_approve=False)
+        self.assertNotIn("--yolo", args_no_flag)
+        self.assertNotIn("--dangerously-skip-permissions", args_no_flag)
+
+        # auto_approve_flag が定義されていても、auto_approve=False なら引数に含まれない
+        imp_with_flag = dict(imp_missing, auto_approve_flag="--dangerously-skip-permissions")
+        args_with_flag_false = agy_stream.args(imp_with_flag, ["agy"], "prompt", 60, auto_approve=False)
+        self.assertNotIn("--dangerously-skip-permissions", args_with_flag_false)
+
+        # auto_approve=True (既定) なら引数に含まれる
+        args_with_flag_true = agy_stream.args(imp_with_flag, ["agy"], "prompt", 60)
+        self.assertIn("--dangerously-skip-permissions", args_with_flag_true)
 
 
 if __name__ == "__main__":

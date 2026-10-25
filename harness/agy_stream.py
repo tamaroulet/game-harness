@@ -26,23 +26,24 @@ def is_stream(imp):
     return STREAM in (imp.get("output_format_args") or [])
 
 
-def args(imp, cli, prompt, ttl, conversation_id=None):
+def args(imp, cli, prompt, ttl, conversation_id=None, auto_approve=True):
     """agy の引数。cli は resolve_cli の結果（リスト）。
 
     stream-json のときは、プロンプトを引数に載せず標準入力で渡す（stdin_for）。Windows のコマンドラインは
     32767 字までで、v2.1c で契約（GddReference）を埋め込んだら内側ループの 2 回目（反例つき）が超えた
     （v2-dry-05 の B、WinError 206）。
     """
+    approve = [imp["auto_approve_flag"]] if auto_approve else []
     if is_stream(imp):
-        a = list(cli) + [imp["headless_flag"] + "=", "--input-format", STREAM]
-        if imp.get("auto_approve_flag"):
-            a.append(imp["auto_approve_flag"])
-        a += [imp["model_flag"], imp["model_name"]]
+        a = list(cli) + [imp["headless_flag"] + "=", "--input-format", STREAM] + approve + [
+            imp["model_flag"],
+            imp["model_name"],
+        ]
     else:
-        a = list(cli) + [imp["headless_flag"], prompt]
-        if imp.get("auto_approve_flag"):
-            a.append(imp["auto_approve_flag"])
-        a += [imp["model_flag"], imp["model_name"]]
+        a = list(cli) + [imp["headless_flag"], prompt] + approve + [
+            imp["model_flag"],
+            imp["model_name"],
+        ]
     a += list(imp.get("output_format_args") or [])
     a += list(imp.get("extra_flags") or [])
     if imp.get("effort"):
