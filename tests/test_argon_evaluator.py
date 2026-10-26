@@ -19,6 +19,15 @@ from harness.hline_base import ROOT, load_config
 
 class TestArgonEvaluator(unittest.TestCase):
     def setUp(self):
+        # CI 隔離: 実バイナリや agy 本物の指紋に依存しないようモック化（総監督 52 本目 §3）
+        p_req = patch.object(argon_eval.agy_pinned, "require", return_value={})
+        p_req.start()
+        self.addCleanup(p_req.stop)
+
+        p_cli = patch.object(argon_eval.proc, "resolve_cli", side_effect=lambda cli: [cli])
+        p_cli.start()
+        self.addCleanup(p_cli.stop)
+
         self.tmp = Path(tempfile.mkdtemp(prefix="argon_test_"))
         self.mirror_dir = self.tmp / "main"
         self.branches_dir = self.tmp / "branches"
@@ -296,6 +305,11 @@ class TestArgonEvaluator(unittest.TestCase):
             self.assertNotIn("THIS_IS_A_VERY_LONG_PROMPT", arg)
             self.assertNotIn(prompt, arg)
 
+        # 許しの旗が含まれていないこと（総監督 52 本目 §4）
+        self.assertNotIn("--dangerously-skip-permissions", captured["args"])
+        self.assertNotIn("--yolo", captured["args"])
+        self.assertNotIn("--skip-permissions", captured["args"])
+
         # プロンプトが標準入力（input）に入っていること（stream-json の場合は JSON event 形式）
         self.assertIsNotNone(captured["input"])
         stdin_json = json.loads(captured["input"])
@@ -343,24 +357,37 @@ class TestArgonEvaluator(unittest.TestCase):
         lines_before = len(evals_file.read_text(encoding="utf-8").splitlines()) if evals_file.exists() else 0
 
         # (a) 違うモデルが報告された場合: ArgonError で落ち、記録が増えないこと
+        called_wrong = False
         def mock_run_wrong_model(args, cwd, ttl, label, env=None, input=None):
+            nonlocal called_wrong
+            called_wrong = True
             init_line = json.dumps({"event": "init", "init": {"model": "different-unapproved-model"}})
             res_line = json.dumps({"event": "result", "result": {"response": "判定: LOW\n判断点: NG"}})
             return 0, f"{init_line}\n{res_line}\n", ""
 
-        with self.assertRaises(ArgonError):
+        with self.assertRaises(ArgonError) as ctx_wrong:
             argon_eval._call_argon_model("test prompt", self.cfg, run_fn=mock_run_wrong_model)
+
+        self.assertTrue(called_wrong, "run_fn が呼ばれる前に落ちており、モデル照合で落ちていない")
+        self.assertIsInstance(ctx_wrong.exception.__cause__, argon_eval.model_pin.ModelPinError)
+        self.assertIn("different-unapproved-model", str(ctx_wrong.exception))
 
         lines_after_wrong = len(evals_file.read_text(encoding="utf-8").splitlines()) if evals_file.exists() else 0
         self.assertEqual(lines_before, lines_after_wrong)
 
         # (b) モデルが報告されない場合: ArgonError で落ち、記録が増えないこと
+        called_no_model = False
         def mock_run_no_model(args, cwd, ttl, label, env=None, input=None):
+            nonlocal called_no_model
+            called_no_model = True
             res_line = json.dumps({"event": "result", "result": {"response": "判定: LOW\n判断点: NG"}})
             return 0, f"{res_line}\n", ""
 
-        with self.assertRaises(ArgonError):
+        with self.assertRaises(ArgonError) as ctx_no_model:
             argon_eval._call_argon_model("test prompt", self.cfg, run_fn=mock_run_no_model)
+
+        self.assertTrue(called_no_model, "run_fn が呼ばれる前に落ちており、モデル照合で落ちていない")
+        self.assertIsInstance(ctx_no_model.exception.__cause__, argon_eval.model_pin.ModelPinError)
 
         # (c) 同じモデルが報告された場合: 正常終了し、記録の model に入ること
         def mock_run_correct_model(args, cwd, ttl, label, env=None, input=None):
@@ -414,6 +441,28 @@ class TestArgonEvaluator(unittest.TestCase):
         # auto_approve=True (既定) なら引数に含まれる
         args_with_flag_true = agy_stream.args(imp_with_flag, ["agy"], "prompt", 60)
         self.assertIn("--dangerously-skip-permissions", args_with_flag_true)
+
+    def test_13_fails_when_agy_digest_mismatch(self):
+        """13. 指紋照合に失敗したときは ArgonError で落ち、CLI 実行されず記録も増えない（総監督 52 本目 §3）。"""
+        evals_file = self.out_dir / "evals.jsonl"
+        lines_before = len(evals_file.read_text(encoding="utf-8").splitlines()) if evals_file.exists() else 0
+
+        run_called = False
+        def mock_run(args, cwd, ttl, label, env=None, input=None):
+            nonlocal run_called
+            run_called = True
+            return 0, "", ""
+
+        with patch.object(argon_eval.agy_pinned, "require", side_effect=argon_eval.agy_pinned.AgyDigestError("fake sha mismatch")):
+            with self.assertRaises(ArgonError) as ctx:
+                argon_eval._call_argon_model("test prompt", self.cfg, run_fn=mock_run)
+
+        self.assertFalse(run_called, "指紋不一致なのに run_fn が実行された")
+        self.assertIsInstance(ctx.exception.__cause__, argon_eval.agy_pinned.AgyDigestError)
+        self.assertIn("指紋照合に失敗しました", str(ctx.exception))
+
+        lines_after = len(evals_file.read_text(encoding="utf-8").splitlines()) if evals_file.exists() else 0
+        self.assertEqual(lines_before, lines_after)
 
 
 if __name__ == "__main__":
