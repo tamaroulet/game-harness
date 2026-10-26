@@ -25,8 +25,10 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import yaml
 
 try:
+    from harness import exitcode
     from harness.hline_base import load_config
 except ImportError:
+    import exitcode
     from hline_base import load_config
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -334,4 +336,4 @@ def main(argv: Optional[List[str]] = None, cfg: Optional[Dict[str, Any]] = None,
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(exitcode.normalized(main))
