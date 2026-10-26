@@ -27,6 +27,7 @@
    - docs/design/decision_log.md に W-154、操縦士、承認の行があること。
 """
 import contextlib
+import fnmatch
 import io
 import json
 import os
@@ -131,26 +132,26 @@ def make_test_env(base_dir: Path, pr_num: str = "311", is_high_risk: bool = True
     )
     (docs_dir / "progress.yaml").write_text(progress_yaml, encoding="utf-8")
 
-    # 4. 層の表 config/risk_tiers.json (root 配下, 55 本目 §3-2 & §3-3)
+    # 4. 層の表 config/risk_tiers.json (root 配下, 56 本目 §3-1)
     risk_tiers = {
         "_comment": "高リスク（Tier 2）PR 判定用層の表",
         "tiers": {
             "tier2": {
-                "CI のワークフロー": [".github/workflows/*.yml", ".github/workflows/*.yaml"],
-                "合否を決めるスクリプト": ["knowledge/scripts/diff_quarantine.py", "knowledge/scripts/validate_knowledge.py"],
-                "常駐ワーカー": ["harness/hline_cron.py", "harness/hline_probe.py"],
-                "権限": [".claude/", "config/permissions.json", "config/protected_paths.json"],
+                "CI のワークフロー": [".github/workflows/*.yml"],
+                "合否を決めるスクリプト": [".github/scripts/ms4_approval_gate.py", "harness/fastsuite.py"],
+                "常駐ワーカー": ["harness/hline_cron.py", "harness/hline.py"],
+                "権限": [".claude/", "config/hline.json", "config/protected_paths.json", "harness/hline_room.py", "harness/tool_policy.py"],
                 "既存のテスト": ["tests/"],
             }
         }
     }
     (config_dir / "risk_tiers.json").write_text(json.dumps(risk_tiers, indent=2), encoding="utf-8")
 
-    # 5. 部品表 config/arch_components.json (root 配下)
+    # 5. 部品表 config/arch_components.json (root 配下, 56 本目 §3-3: パスに出ない鍵と title)
     arch_components = {
         "components": {
-            "director": {
-                "title": "総監督",
+            "room": {
+                "title": "総監督の部屋",
                 "modules": ["director_launch.py"],
             }
         }
@@ -352,10 +353,11 @@ class TestPilotBriefMechanicalContent(unittest.TestCase):
             self.assertEqual(len(lines), 5)
             high_risk_line = lines[1]
             self.assertIn("tests/test_existing.py", high_risk_line)
-            # 消したこと（削除 / 削除済み等）が分かる語が含まれること
-            self.assertTrue(
-                "削除" in high_risk_line or "消した" in high_risk_line or "deleted" in high_risk_line,
-                f"消したことが分かる表記が必要: '{high_risk_line}'",
+            # 消したこと（削除）が分かる語が含まれること（56 本目 §4: 出力の語を「削除」に固定）
+            self.assertIn(
+                "削除",
+                high_risk_line,
+                f"消したことが分かる表記として '削除' が必要: '{high_risk_line}'",
             )
         finally:
             shutil.rmtree(del_test_tmp, ignore_errors=True)
@@ -381,15 +383,15 @@ class TestPilotBriefMechanicalContent(unittest.TestCase):
             shutil.rmtree(multi_tmp, ignore_errors=True)
 
     def test_side_effects_and_wiring_reach(self):
-        """副作用と配線の到達: 外側パス、harness 部品、未達固定文。"""
+        """副作用と配線の到達: 外側パス、harness 部品、未達固定文（56 本目 §3-3: 偽陽性排除）。"""
         code, out = self.run_brief(["311"])
         self.assertEqual(code, 0)
         lines = out.splitlines()
         side_line = lines[3]
         # 外側パス (config/sample.json)
         self.assertIn("config/sample.json", side_line)
-        # 部品 (総監督 / director)
-        self.assertTrue("総監督" in side_line or "director" in side_line)
+        # 部品 (パス director_launch.py に出ない title「総監督の部屋」を行に出すことを or なしで検証)
+        self.assertIn("総監督の部屋", side_line)
         # 配線到達は未達固定
         self.assertIn("配線の検査は未達（req.wiring-executed）", side_line)
 
@@ -482,7 +484,7 @@ class TestPilotBriefMechanicalContent(unittest.TestCase):
 
 
 class TestPilotBriefRealConfigAndTable(unittest.TestCase):
-    """55 本目 §3-3: 42 本目の教えに基づき、本物の層の表（config/risk_tiers.json）の構造を確かめる。"""
+    """55 本目 §3-3 & 56 本目 §3-1: 42 本目の教えに基づき、本物の層の表（config/risk_tiers.json）の構造を確かめる。"""
 
     def test_real_risk_tiers_table(self):
         """本物の層の表が読め、5 区分がすべて存在し、どの区分も空でないこと。"""
@@ -498,23 +500,77 @@ class TestPilotBriefRealConfigAndTable(unittest.TestCase):
             val = tier2[category]
             self.assertTrue(bool(val), f"区分 '{category}' が空でないこと")
 
+    def test_real_risk_tiers_patterns_match_existing_paths(self):
+        """56 本目 §3-1: 本物の表の全パターンが ROOT 下に実在し、主要スクリプトが対応区分に当たること。"""
+        table_path = ROOT / "config" / "risk_tiers.json"
+        self.assertTrue(table_path.exists(), f"本物の層の表が存在すること: {table_path}")
+        data = json.loads(table_path.read_text(encoding="utf-8"))
+        tier2 = data["tiers"]["tier2"]
+
+        for category, patterns in tier2.items():
+            for pat in patterns:
+                if "*" in pat or "?" in pat:
+                    matched = list(ROOT.glob(pat))
+                    self.assertTrue(
+                        len(matched) > 0,
+                        f"区分 '{category}' の glob パターン '{pat}' が ROOT 下の実在ファイルに 1 つも当たりません",
+                    )
+                else:
+                    path = ROOT / pat
+                    self.assertTrue(
+                        path.exists(),
+                        f"区分 '{category}' のパス '{pat}' が ROOT の下に実在しません: {path}",
+                    )
+
+        # .github/scripts/ms4_approval_gate.py が「合否を決めるスクリプト」に当たる
+        self.assertTrue(
+            any(fnmatch.fnmatch(".github/scripts/ms4_approval_gate.py", p) for p in tier2["合否を決めるスクリプト"]),
+            ".github/scripts/ms4_approval_gate.py が「合否を決めるスクリプト」に当たること",
+        )
+        # harness/hline_cron.py が「常駐ワーカー」に当たる
+        self.assertTrue(
+            any(fnmatch.fnmatch("harness/hline_cron.py", p) for p in tier2["常駐ワーカー"]),
+            "harness/hline_cron.py が「常駐ワーカー」に当たること",
+        )
+
 
 class TestPilotBriefClaudeMdAndRules(unittest.TestCase):
     """受入 3: game-harness の CLAUDE.md の報告の節と、消した決まりの非存在。"""
 
     def test_claude_md_report_section_has_command_name(self):
-        """55 本目 §4: CLAUDE.md 全文ではなく「報告」の節の中に harness.pilot_brief があること。"""
+        """55 本目 §4 & 56 本目 §3-2: CLAUDE.md 全文ではなく「報告」の節の中に harness.pilot_brief があること。"""
         claude_md_path = ROOT / "CLAUDE.md"
         self.assertTrue(claude_md_path.exists(), "CLAUDE.md が存在すること")
         content = claude_md_path.read_text(encoding="utf-8")
 
-        # 報告に関する記述の節・箇条を探す
-        report_sections = [
-            line for line in content.splitlines() if "報告" in line or "report" in line
+        # 56 本目 §3-2: 報告の節の見出しから次の見出しまでの範囲を切り出し、report_sections を確かめに使う
+        report_sections = []
+        in_report = False
+        for line in content.splitlines():
+            if line.startswith("## ") and any(k in line for k in ("進捗", "報告", "report")):
+                in_report = True
+                continue
+            elif line.startswith("## ") and in_report:
+                break
+            if in_report and line.strip():
+                report_sections.append(line.strip())
+
+        self.assertTrue(report_sections, "CLAUDE.md に報告の節が存在すること")
+
+        # report_sections の中に harness.pilot_brief を含む行が存在することを確認
+        brief_report_lines = [
+            line for line in report_sections if "harness.pilot_brief" in line
         ]
-        self.assertTrue(report_sections, "CLAUDE.md に報告に関する記述が存在すること")
-        # 報告の文脈（全体テキストの中の報告記述周辺）に harness.pilot_brief があること
-        self.assertIn("harness.pilot_brief", content, "CLAUDE.md の報告記述に harness.pilot_brief があること")
+        self.assertTrue(
+            brief_report_lines,
+            "CLAUDE.md の報告の節の中に harness.pilot_brief を含む行が見つかりません",
+        )
+        # その行が報告の文脈（PR や 本文、報告）を持つことを見る
+        for line in brief_report_lines:
+            self.assertTrue(
+                any(k in line for k in ("PR", "本文", "報告")),
+                f"harness.pilot_brief を含む行が報告の文脈を持ちません: '{line}'",
+            )
 
     def test_removed_rules_do_not_exist_in_docs(self):
         """消した決まり（PR-33, IX-22, IX-23）が CLAUDE.md・docs/director/**・docs/prompts/** に無いこと。"""
