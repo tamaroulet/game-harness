@@ -24,12 +24,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import yaml
 
-try:
-    from harness import exitcode
-    from harness.hline_base import load_config
-except ImportError:
-    import exitcode
-    from hline_base import load_config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import exitcode  # noqa: E402
+from hline_base import load_config  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 
