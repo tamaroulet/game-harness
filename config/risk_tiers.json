@@ -1,0 +1,27 @@
+{
+  "_comment": "高リスク（Tier 2）の PR の判定に使う層の表（W-154、req.risk-tiers）。変更不可パスを定める config/protected_paths.json とは異なり、変更時に 5 行の要約と操縦士承認を要する高リスク変更の対象パスを定める。権限や CI ワークフローなど互いに重なる項目がある。",
+  "tiers": {
+    "tier2": {
+      "CI のワークフロー": [
+        ".github/workflows/*.yml",
+        ".github/workflows/*.yaml"
+      ],
+      "合否を決めるスクリプト": [
+        "knowledge/scripts/diff_quarantine.py",
+        "knowledge/scripts/validate_knowledge.py"
+      ],
+      "常駐ワーカー": [
+        "harness/hline_cron.py",
+        "harness/hline_probe.py"
+      ],
+      "権限": [
+        ".claude/",
+        "config/permissions.json",
+        "config/protected_paths.json"
+      ],
+      "既存のテスト": [
+        "tests/"
+      ]
+    }
+  }
+}
