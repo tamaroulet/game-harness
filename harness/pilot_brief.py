@@ -3,14 +3,17 @@
     python -m harness.pilot_brief <PR 番号>
 
 1. 引数はちょうど 1 つ（PR 番号）。不正な引数なら 1 で終わり、何も出力しない。
-2. 層の表（config/risk_tiers.json）の tier2 区分に当たるパスが無ければ:
+2. 写しの根に .mirror.json または .branch.json が無ければ stderr に 1 行出し終了コード 2 で終わる。
+3. 層の表（config/risk_tiers.json）の tier2 区分に当たるパスが無ければ:
    「低リスク：5 行の要約は要らない」の 1 行を出して 0 で終わる。
-3. 高リスク（Tier 2）の PR なら、次の 5 行をこの順序で出力して 0 で終わる:
+4. 高リスク（Tier 2）の PR なら、次の 5 行をこの順序で出力して 0 で終わる:
    1. 要旨と理由: <タイトル>。目的: <目的>
    2. 高リスクの理由: <区分名>: <パス> ...
    3. 検証テストの書き手: <oracle パス>（from: <書き手>）
    4. 副作用と配線の到達: 外側パス: <パス> / 部品: <部品名> / 配線の検査は未達（req.wiring-executed）
    5. レビュアーの批評: <HIGH/LOW> <rationale>
+
+注（58 本目 §4）: main の写しと枝の写しを丸ごと比べているため、枝を切った後に main へ入った変更も枝の変更として出る（写しが merge-base を持つまでの制限）。
 """
 import fnmatch
 import json
@@ -21,26 +24,29 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import yaml
 
+try:
+    from harness.hline_base import load_config
+except ImportError:
+    from hline_base import load_config
+
 ROOT = Path(__file__).resolve().parent.parent
 
+# 58 本目 §4: 既存テストの特別扱い区分名
+CATEGORY_EXISTING_TESTS = "既存のテスト"
 
-def load_default_cfg(root: Path) -> Dict[str, str]:
-    hline_json_path = root / "config" / "hline.json"
-    local_dir = Path("C:/src/.local")
-    if hline_json_path.exists():
-        try:
-            data = json.loads(hline_json_path.read_text(encoding="utf-8"))
-            mirror = data.get("mirror", "${local}/main").replace("${local}", str(local_dir))
-            branches = data.get("branches", "${local}/branches").replace("${local}", str(local_dir))
-            argon = data.get("argon", "${local}/out/hline/argon").replace("${local}", str(local_dir))
-            return {"mirror": mirror, "branches": branches, "argon": argon}
-        except Exception:
-            pass
-    return {
-        "mirror": str(local_dir / "main"),
-        "branches": str(local_dir / "branches"),
-        "argon": str(local_dir / "out" / "hline" / "argon"),
-    }
+
+def resolve_cfg(cfg: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """58 本目 §3-1: 設定は本物の読み手 hline_base.load_config() を通す。フォールバックは作らない。"""
+    if cfg is not None:
+        return cfg
+    return load_config()
+
+
+def get_argon_dir(cfg: Dict[str, Any], root: Path) -> Path:
+    """Argon 記録の置き場を解決する。"""
+    raw = cfg["argon"]
+    p = Path(raw)
+    return p if p.is_absolute() else root / p
 
 
 def match_pattern(path_str: str, pattern: str) -> bool:
@@ -131,6 +137,7 @@ def get_argon_critique(argon_dir: Path, pr_num: str) -> str:
     if not evals_path.exists():
         return "無し（Argon 評価記録）"
 
+    query_pr = pr_num.strip().lstrip("#")
     matching_posts = []
     try:
         for line in evals_path.read_text(encoding="utf-8").splitlines():
@@ -139,7 +146,8 @@ def get_argon_critique(argon_dir: Path, pr_num: str) -> str:
                 continue
             try:
                 rec = json.loads(line)
-                if rec.get("kind") == "post" and str(rec.get("target")) == str(pr_num):
+                target_str = str(rec.get("target", "")).strip().lstrip("#")
+                if rec.get("kind") == "post" and target_str == query_pr:
                     matching_posts.append(rec)
             except Exception:
                 continue
@@ -161,7 +169,7 @@ def get_argon_critique(argon_dir: Path, pr_num: str) -> str:
     return "無し（Argon 評価記録）"
 
 
-def main(argv: Optional[List[str]] = None, cfg: Optional[Dict[str, str]] = None, root: Optional[Path] = None) -> int:
+def main(argv: Optional[List[str]] = None, cfg: Optional[Dict[str, Any]] = None, root: Optional[Path] = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
 
@@ -174,12 +182,25 @@ def main(argv: Optional[List[str]] = None, cfg: Optional[Dict[str, str]] = None,
         return 1
 
     root_path = Path(root).resolve() if root else ROOT
-    config = cfg if cfg is not None else load_default_cfg(root_path)
+    config = resolve_cfg(cfg)
 
     mirror_dir = Path(config["mirror"])
     branches_dir = Path(config["branches"])
-    argon_dir = Path(config["argon"])
+    argon_dir = get_argon_dir(config, root_path)
     branch_dir = branches_dir / pr_num
+
+    # 58 本目 §3-2: 写しの根に .mirror.json（main）または .branch.json（枝）が無ければ、
+    # stdout には何も出さず、stderr に 1 行出して終了コード 2 で終わる
+    mirror_marker = mirror_dir / ".mirror.json"
+    branch_marker = branch_dir / ".branch.json"
+
+    if not mirror_marker.exists():
+        sys.stderr.write(f"main の写しが見つかりません（.mirror.json がありません: {mirror_dir}）\n")
+        return 2
+
+    if not branch_marker.exists():
+        sys.stderr.write(f"枝の写しが見つかりません（.branch.json がありません: {branch_dir}）\n")
+        return 2
 
     deleted_files, modified_files, added_files = get_changed_files(mirror_dir, branch_dir)
     all_touched = deleted_files | modified_files | added_files
@@ -199,7 +220,7 @@ def main(argv: Optional[List[str]] = None, cfg: Optional[Dict[str, str]] = None,
     matched_categories: Dict[str, List[str]] = {}
 
     for cat_name, patterns in tier2.items():
-        if cat_name == "既存のテスト":
+        if cat_name == CATEGORY_EXISTING_TESTS:
             candidates = [(p, True) for p in sorted(deleted_files)] + [(p, False) for p in sorted(modified_files)]
         else:
             candidates = (

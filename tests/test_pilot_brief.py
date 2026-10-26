@@ -36,6 +36,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -193,16 +194,34 @@ class TestPilotBriefInvocation(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def run_brief(self, argv, cfg=None, root=None):
+    def run_brief(self, argv, cfg=Ellipsis, root=Ellipsis):
         if pilot_brief is None:
             self.fail("harness.pilot_brief がまだ実装されていません")
         out = io.StringIO()
         err = io.StringIO()
-        target_cfg = cfg or self.env["cfg"]
-        target_root = root or self.env["root"]
+        target_cfg = self.env["cfg"] if cfg is Ellipsis else cfg
+        target_root = self.env["root"] if root is Ellipsis else root
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = pilot_brief.main(argv, cfg=target_cfg, root=target_root)
         return code, out.getvalue(), err.getvalue()
+
+    def test_missing_branch_copy_exits_with_code_2_and_empty_stdout(self):
+        """58 本目 §3-2: 枝の写し（.branch.json）が無いときは stdout が空で終了コード 2、stderr に 1 行。"""
+        code, out, err = self.run_brief(["999"])
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertTrue(bool(err.strip()), "stderr に 1 行理由が出ること")
+        self.assertIn(".branch.json", err)
+
+    def test_missing_main_mirror_exits_with_code_2_and_empty_stdout(self):
+        """58 本目 §3-2: main の写し（.mirror.json）が無いときは stdout が空で終了コード 2、stderr に 1 行。"""
+        # .mirror.json を削除
+        (self.env["mirror_dir"] / ".mirror.json").unlink()
+        code, out, err = self.run_brief(["311"])
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertTrue(bool(err.strip()), "stderr に 1 行理由が出ること")
+        self.assertIn(".mirror.json", err)
 
     def test_requires_exactly_one_argument(self):
         """引数がちょうど 1 つでなければ 1 で終わり、何も出さない。"""
@@ -417,7 +436,7 @@ class TestPilotBriefMechanicalContent(unittest.TestCase):
             {"kind": "post", "target": "311", "decision": "HIGH", "rationale": "1件目の古い判定HIGH"},
             {"kind": "post", "target": "312", "decision": "HIGH", "rationale": "別PRの判定HIGH"},
             {"kind": "pre", "target": "311", "decision": "HIGH", "rationale": "事前判定HIGH"},
-            {"kind": "post", "target": "311", "decision": "LOW", "rationale": "最新の事後判定LOW"},
+            {"kind": "post", "target": "#311", "decision": "LOW", "rationale": "最新の事後判定LOW"},
         ]
         (self.env["argon_dir"] / "evals.jsonl").write_text(
             "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8"
@@ -532,6 +551,22 @@ class TestPilotBriefRealConfigAndTable(unittest.TestCase):
             any(fnmatch.fnmatch("harness/hline_cron.py", p) for p in tier2["常駐ワーカー"]),
             "harness/hline_cron.py が「常駐ワーカー」に当たること",
         )
+
+    def test_load_config_used_when_cfg_not_passed(self):
+        """58 本目 §3-1: cfg を渡さずに走らせたとき、hline_base.load_config の返す場所を読むこと。"""
+        tmp = Path(tempfile.mkdtemp(prefix="pilot_brief_cfg_test_"))
+        try:
+            env = make_test_env(tmp, pr_num="311", is_high_risk=False)
+            out = io.StringIO()
+            err = io.StringIO()
+            # load_config を差し替えて一時環境の cfg を返させる
+            with mock.patch("harness.pilot_brief.load_config", return_value=env["cfg"]):
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    code = pilot_brief.main(["311"], cfg=None, root=env["root"])
+                self.assertEqual(code, 0)
+                self.assertEqual(out.getvalue().strip(), "低リスク：5 行の要約は要らない")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 class TestPilotBriefClaudeMdAndRules(unittest.TestCase):
