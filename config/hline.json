@@ -12,6 +12,8 @@
   "_mirror_note": "総監督が読む main の写し（W-150）。人の作業コピーと別の clone。python -m harness.main_mirror sync が origin/main に合わせ、写しの中の変更を捨てる。受信箱の settings は写しへの書き込みを拒む",
   "branches": "${local}/branches",
   "_branches_note": "総監督が読む開いている PR の枝の写し（W-150）。開いている PR ごとに取り出し、閉じたものは消す。受信箱の settings は枝の写しへの書き込みを拒む",
+  "argon": "${local}/out/hline/argon",
+  "_argon_note": "Argon 定性評価の記録の置き場（W-172）。総監督は読めるが書けない out/hline 配下に置き、評価の改ざんを防ぐ",
   "_oracles_note": "非公開オラクルの置き場。実装役の呼び出しの禁止の列（harness/oracle_deny.py）が inbox・out とともに、この下への Read・Grep・Glob と Bash を拒む",
   "base": "origin/main",
   "integration_branch": "hline/integration",
@@ -116,6 +118,24 @@
     ]
   },
   "_reviewer_note": "取り込みの段の監修役（harness/hline_review.py）。実装役と同じ CLI とモデルで、道具（ファイルの読み書き・コマンド）を許さずに 1 回呼ぶ。指示は base から読む。判定は生ログの置き場の review/ に控える。合格は決めない（Gate 1 には入れない）",
+  "evaluator": {
+    "cli": "agy",
+    "headless_flag": "-p",
+    "model_flag": "--model",
+    "model": "gemini-4-argon-medium",
+    "model_name": "gemini-4-argon-medium",
+    "output_format_args": [
+      "--output-format",
+      "stream-json"
+    ],
+    "extra_flags": [
+      "--mode",
+      "plan",
+      "--sandbox"
+    ],
+    "ttl_seconds": 600
+  },
+  "_evaluator_note": "独立評価役 Argon（harness/argon_eval.py、W-172）。agy を --mode plan と --sandbox（道具不許可）で呼び、標準入力からプロンプトを渡す。認証は agy の既存権限を利用する",
   "planner": {
     "cli": "claude",
     "headless_flag": "-p",
