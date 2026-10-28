@@ -139,21 +139,11 @@
    "cli_name": 1,
    "encoding": 1
   },
-  "harness/canary.py": {
-   "cli_name": 7,
-   "encoding": 4,
-   "exe_suffix": 3
-  },
   "harness/contract.py": {
    "cli_name": 3
   },
   "harness/contractgen.py": {
    "encoding": 1
-  },
-  "harness/declare.py": {
-   "os_specific": 2,
-   "encoding": 2,
-   "exe_suffix": 3
   },
   "harness/decompose.py": {
    "cli_name": 5,
@@ -231,7 +221,7 @@
    "cli_name": 9
   },
   "harness/hline_probe.py": {
-   "cli_name": 7
+   "cli_name": 6
   },
   "harness/hline_prompt.py": {
    "cli_name": 1
@@ -332,9 +322,8 @@
    "encoding": 1
   },
   "harness/research.py": {
-   "cli_name": 2,
-   "encoding": 1,
-   "exe_suffix": 1
+   "cli_name": 1,
+   "encoding": 1
   },
   "harness/scheduler.py": {
    "cli_name": 14,

@@ -1,13 +1,37 @@
 {
-  "_comment": "今の構成の部品（段 A3、W-142）。harness/arch_inventory.py が部品ごとに費用と成果を数える。harness/ の .py はどれか 1 つの部品にだけ入る（tests/test_arch_inventory.py が確かめる）。名前は harness/ からの相対で、/ で終わるものはその下すべて、* は fnmatch の型",
+  "_comment": "今の構成の部品（段 A3、W-142）と判定（W-136）。harness/arch_inventory.py が部品ごとに費用と成果を数え、--reach で判定と入口から届くモジュールの数を出す。harness/ の .py はどれか 1 つの部品にだけ入る（tests/test_arch_inventory.py が確かめる）。名前は harness/ からの相対で、/ で終わるものはその下すべて、* は fnmatch の型。verdict は keep（残す）・remove_now（今捨てる）・remove_later（この後捨てる）・hypothesis（仮説として一回走らせる）。理由と外の実践との照らしは docs/design/harness_evaluation.md。判定の決まりは tests/test_arch_verdicts.py",
+  "entrypoints": {
+    "core": ["progress.py", "pilot_brief.py", "model_pin.py", "fastsuite.py"],
+    "rebuild": ["tree.py", "hline_stopped.py", "research.py", "research_verify.py", "premises.py", "argon_eval.py", "main_mirror.py", "arch_inventory.py"]
+  },
+  "removed": {
+    "canary.py": "2026-10-28 W-136。昔の題材（unity-2d）のゲームのラインのカナリアの道具。どこからも import されず、試験は自分の試験だけ、中身の最後の変更は 09-23",
+    "declare.py": "2026-10-28 W-136。昔の題材の仕様の宣言の道具（MS3）。どこからも import されず、試験は自分の試験だけ、中身の最後の変更は 09-26"
+  },
   "components": {
     "director": {
       "title": "総監督（週次の起動・受信箱・照合・probe・目的までの距離）",
-      "modules": ["director_launch.py", "hline_room.py", "hline_checks.py", "probe.py", "goal_distance.py", "hline_probe.py", "main_mirror.py", "pilot_brief.py"]
+      "modules": ["director_launch.py", "hline_room.py", "hline_checks.py", "probe.py", "goal_distance.py", "hline_probe.py", "main_mirror.py", "pilot_brief.py"],
+      "verdict": "hypothesis",
+      "decide_task": "W-170",
+      "assumption": "1 つの文脈で計画と実装を同時に抱えると崩れる（10-23、改善と開発の同時進行で破綻）。抽象度の高い計画と木を、実装と別の席に持たせる",
+      "decide_when": "W-170（練習か新しい物理の課題 1 本を、人の手を挟まずに通す）で、総監督が木から計画を出し、人が文を運ばずに流れが通れば残す。人が運ぶ回数が減らないか、道具を持つ頭の無い計画役（別の起動）の方が同じ計画を少ない人の手で出せるなら、受信箱に常駐する形を外す",
+      "module_verdicts": {
+        "pilot_brief.py": {"verdict": "keep", "why": "規約（CLAUDE.md）の高リスクの PR の 5 行の要約。規約の命令から届く"},
+        "main_mirror.py": {"verdict": "keep", "why": "読む席（総監督・Argon）が main の写しを読む道。常駐の総監督を外しても、評価役が読む写しとして使う"},
+        "goal_distance.py": {"verdict": "remove_later", "decide_task": "W-156", "why": "H ラインの時代の目的までの距離（R3・R4）。今の木（tree.yaml）と別の物差しで、受信箱の report の古い数の元。H ラインと一緒に外す"},
+        "hline_checks.py": {"verdict": "remove_later", "decide_task": "W-156", "why": "H ラインの関門と確かめの表示。H ラインと一緒に外す"},
+        "hline_probe.py": {"verdict": "remove_later", "decide_task": "W-156", "why": "H ラインの状態の探り。H ラインと一緒に外す"},
+        "probe.py": {"verdict": "remove_later", "decide_task": "W-156", "why": "hline_probe だけが使う探り。H ラインと一緒に外す"}
+      }
     },
     "evaluator": {
       "title": "評価役（Argon 定性評価・事前事後の定性評価と判定）",
-      "modules": ["argon_eval.py"]
+      "modules": ["argon_eval.py"],
+      "verdict": "hypothesis",
+      "decide_task": "W-135",
+      "assumption": "書き手は自分の仕事を甘く採点する（Anthropic 2026-03）。文脈を共有しない別系統のモデルに、事前と事後を評価させる（Cognition 2026-04）",
+      "decide_when": "本物の呼び出しは 0 回。今の作りは写しの全文（約 890 万字）を 1 つの入力に詰めるので、1 回の入力に入らない見込み。読ませ方を直して一回走らせ、W-135 で指摘の当たった割合を記録する。当たる指摘が出ない、または人の抜き取りと同じことしか言わないなら外す"
     },
     "hline": {
       "title": "H ライン（内側の自律ループ：取り込み・実装の試行・積む・統合 PR・報告）",
@@ -15,43 +39,88 @@
                   "hline_followup.py", "hline_gc.py", "hline_git.py", "hline_halt.py", "hline_stopped.py", "hline_hygiene.py", "hline_ledger_entry.py",
                   "hline_merge.py", "hline_pending.py", "hline_prompt.py", "hline_queue.py", "hline_quota.py", "hline_report.py",
                   "hline_resume.py", "hline_review.py", "hline_task.py", "hline_usage.py", "implementer_context.py", "narrow_dir.py",
-                  "symbolmap.py", "tool_policy.py", "agy_stream.py", "agy_pinned.py"]
+                  "symbolmap.py", "tool_policy.py", "agy_stream.py", "agy_pinned.py"],
+      "verdict": "remove_later",
+      "decide_task": "W-156",
+      "assumption": "1 つの長い会話では長い開発が続かない。タスクごとに新しい起動で実装させ、機械の関門で通す（外の実践の「新しい文脈で、進捗のファイルと git で引き継ぐ」に近い）",
+      "decide_when": "10-23 から止まっている。W-156 で作業の経路を決め、H ラインを使わないなら外す。外す前に、総監督が最初に読む report（hline_stopped が H ラインのモジュールを引き込む）と、受信箱の部屋の setup（hline.py の中）を H ラインの外へ移す。走行の記録（134 件・201 試行・約 1.26 億トークン）は out に残す",
+      "module_verdicts": {
+        "hline_base.py": {"verdict": "keep", "why": "規約の命令（progress・pilot_brief）から届く土台（場所と設定の読み込み）。H ラインを外すときは土台（foundation）へ移す"},
+        "agy_stream.py": {"verdict": "keep", "why": "評価役（argon_eval）と調べもの（research）が agy を呼ぶのに使う"},
+        "agy_pinned.py": {"verdict": "keep", "why": "agy の指紋の照合。評価役と調べものが使う"}
+      }
     },
     "gate": {
       "title": "門（Gate 1：影響テスト・編集境界・保護パス・規模・全件）",
       "modules": ["hline_gate.py", "hline_suite.py", "hline_boundary.py", "hline_protect.py", "hline_foundation.py", "hline_spec.py",
                   "hline_symbols.py", "gate_flow.py", "gate_order.py", "impacted.py", "fastsuite.py", "size_limits.py",
-                  "base_whitelist.py"]
+                  "base_whitelist.py"],
+      "verdict": "remove_later",
+      "decide_task": "W-156",
+      "assumption": "実装役が試験や保護パスを弱めて通す（H ラインの Gate 1：影響テスト・編集境界・保護パス・規模・全件）",
+      "decide_when": "W-156 で作業の経路から H ラインを外すと決めたら、一緒に外す。そのとき、保護パスの守り（hline_protect）は経路によらず要るので、CI の検査に移す（W-132）",
+      "module_verdicts": {
+        "fastsuite.py": {"verdict": "keep", "why": "必須の CI（test）が走らせる全件の試験"}
+      }
     },
     "factory": {
       "title": "工廠とベンチ（計画役・計画の監修・凍結の 10 本・採点・非劣性）",
       "modules": ["bench_freeze.py", "bench_guard.py", "bench_regress.py", "bench_run.py", "bench_score.py", "bench_start.py",
-                  "bench_verify.py", "planner.py", "plan_check.py", "plan_loop.py", "reqcov.py"]
+                  "bench_verify.py", "planner.py", "plan_check.py", "plan_loop.py", "reqcov.py"],
+      "verdict": "keep",
+      "assumption": "AI は自分で書いた試験で合格を宣言しがちで、試験をすり抜けもする（前提の台帳 P-016、METR 2025-06、ImpossibleBench 2025-10）。凍結した課題と、書き手から見えない判定で採点する",
+      "decide_when": "残す（W-136 の指示）。凍結の 10 本は単一コンテキスト型が満点で差を見分けない（前提の台帳 P-018）ので、非劣性（ハーネスを変えても悪くならないか）の床として使い、差を見る比較には使わない。計画役（planner・plan_check・plan_loop）は固定の計画を作る道具で、木からタスクに分ける役に使えるかは別に確かめる"
     },
     "outer": {
       "title": "外側の周期と計器（外側の統合・周期の報告・週次の報告・失敗の分類・北極星）",
-      "modules": ["hline_outer.py", "outer_cycles.py", "cycle_report.py", "weekly_report.py", "failure_classes.py", "northstar.py"]
+      "modules": ["hline_outer.py", "outer_cycles.py", "cycle_report.py", "weekly_report.py", "failure_classes.py", "northstar.py"],
+      "verdict": "remove_later",
+      "decide_task": "W-156",
+      "assumption": "ハーネス自身の改善を、課題の開発と別の周期で回し、計器で良し悪しを見る",
+      "decide_when": "周期は一度も回っていない（0 回。外側の統合 PR は開いたまま）。H ラインの統合 PR に依る作りなので、W-156 で H ラインを外すなら一緒に外す。外側の周期（C4）は、決まった経路の上で作り直す。arch_inventory の数え方（weekly_report・hline_usage）もそのとき直す"
     },
     "game_line": {
       "title": "ゲームのライン（MS3・MS4：スケジューラ・パイプライン・分解・契約と性質の道具・アダプタ）",
-      "modules": ["scheduler.py", "pipeline.py", "decompose.py", "declare.py", "contract.py", "contractgen.py",
+      "modules": ["scheduler.py", "pipeline.py", "decompose.py", "contract.py", "contractgen.py",
                   "prop*.py", "nlgen.py", "testgen.py", "invgen.py", "invrun.py", "oracle.py", "unit_schema.py", "witness.py",
-                  "witness_selftest.py", "gdd_check.py", "spec.py", "playtest.py", "canary.py", "diagproj.py", "telemetry.py",
-                  "project.py", "adapters/"]
+                  "witness_selftest.py", "gdd_check.py", "spec.py", "playtest.py", "diagproj.py", "telemetry.py",
+                  "project.py", "adapters/"],
+      "verdict": "keep",
+      "assumption": "（昔の題材の）仕様を単位に分け、契約と性質の試験で合否を決める。単位の仕様を書き手に任せると甘くなる",
+      "decide_when": "実験の道具（experiments）が使うモジュール（pipeline・性質と契約の道具・アダプタなど）は、experiments と同じ扱いで残す。どこからも使われない昔の題材の入口（スケジューラ・分解・仕様・遊びの試し・証拠の自己試験）は、生きている部品の試験と保護パスの試験が依っているので、その試験を書き換える続きの PR（高リスク）で消す",
+      "module_verdicts": {
+        "scheduler.py": {"verdict": "remove_later", "decide_task": "W-136", "why": "MS4 のスケジューラ。どこからも import されない。job_object・telemetry の試験と、保護パスの試験（test_no_inline_review）が依っているので、それを書き換える続きの PR で消す"},
+        "decompose.py": {"verdict": "remove_later", "decide_task": "W-136", "why": "昔の題材の仕様の分解役。どこからも import されない。telemetry の試験と保護パスの試験が依っている"},
+        "spec.py": {"verdict": "remove_later", "decide_task": "W-136", "why": "昔の題材の構造化役。スケジューラの設定（config/scheduler.json）とモデルの固定の検査（config/spec.json）と、その試験が名指ししている"},
+        "playtest.py": {"verdict": "remove_later", "decide_task": "W-136", "why": "昔の題材の遊びの試し。分解役の試験と一緒に書き換える"},
+        "witness_selftest.py": {"verdict": "remove_later", "decide_task": "W-136", "why": "操縦士が一度だけ確かめる道具（10-23 の記録）。toolchain・witness の試験が依っている"}
+      }
     },
     "experiments": {
       "title": "A/B と v2r の実験の道具",
-      "modules": ["ab/", "provenance.py"]
+      "modules": ["ab/", "provenance.py"],
+      "verdict": "keep",
+      "assumption": "単一コンテキスト型と同じ課題・同じ判定で比べないと、ハーネスの得が分からない（最終目的）",
+      "decide_when": "今ある唯一の比べる道具。次の比べ方（木の req.comparison-valid。まだタスクが無い）が決まり、この道具を使わないと決まったら remove_later に替える。凍結の 10 本は差を見分けない（前提の台帳 P-018）ので、道具より課題の側が先に要る"
     },
     "research": {
       "title": "外部の調べもの（調べ役・照合・前提の台帳・索引）",
-      "modules": ["research.py", "research_verify.py", "premises.py"]
+      "modules": ["research.py", "research_verify.py", "premises.py"],
+      "verdict": "keep",
+      "assumption": "AI は存在しない出典や、出典に無い文を挙げる。調べものを会話に貼ると、要約で薄れ、出どころが消える",
+      "decide_when": "出典の機械の照合と前提の台帳は、外の実践（引用の後付けの照合、部品ごとの仮定を書いて見直す）と同じ向きで残す。調べ方の質（W-167）と、誰が回すか（W-171 の今の形では人の命令）は別に直す"
     },
     "foundation": {
       "title": "共通の土台（子プロセス・ファイル・進捗の台帳・モデルの固定・環境の台帳）",
       "modules": ["proc.py", "fileops.py", "job_object.py", "exitcode.py", "infra_retry.py", "transient.py", "textnorm.py",
                   "model_pin.py", "progress.py", "oracle_deny.py", "toolchain.py", "machine.py", "envcheck.py", "envscan.py",
-                  "arch_inventory.py", "tree.py"]
+                  "arch_inventory.py", "tree.py"],
+      "verdict": "keep",
+      "assumption": "Windows の文字コード・子プロセス・環境の揺れで黙って壊れる。モデルが黙って変わる。状態を会話に持つと崩れ、手で完了にされる（台帳）",
+      "decide_when": "どれも、規約の命令・フック・CI か、ほかの部品から使われている。使う部品が外れたら一緒に見直す",
+      "module_verdicts": {
+        "oracle_deny.py": {"verdict": "remove_later", "decide_task": "W-156", "why": "H ラインの実装役の指示（hline_prompt）だけが使う。H ラインと一緒に外す"}
+      }
     }
   }
 }

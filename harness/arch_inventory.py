@@ -1,12 +1,19 @@
 """今の構成の実測（段 A3、W-142）：部品ごとに、費用（コードと試験の量・直した回数）と成果（走行の記録）を数える。
 
     python -m harness.arch_inventory [--since 2026-09-01] [--write docs/design/architecture_inventory.md]
+    python -m harness.arch_inventory --reach     部品ごとの判定と、入口から import で届くモジュールの数（W-136）
 
 **なぜ要るか**: 上位の設計（ADR-005）で、部品を残すか・置き換えるか・捨てるかを決める。思い込みでなく数字で決めるため、
 部品（config/arch_components.json）ごとに、リポジトリ（git）と走行の記録（H ラインの out・受信箱・bench/records）から機械で数える。
 手で書いた数字は入れない。走行の記録の無い PC（CI）では、走行の欄は「記録なし」になる。
+
+**判定（W-136）**: 部品ごとに、残す（keep）・今捨てる（remove_now）・この後捨てる（remove_later）・仮説として一回走らせる
+（hypothesis）のどれかと、補う弱さ・決める条件・決める台帳のタスクを config に持つ。理由は docs/design/harness_evaluation.md。
+「使われていない」は、入口（config の entrypoints）から import の文で届かないことで数える。文字列の中の名前と、子プロセスで
+起こす命令は辿らないので、届かないことは「消してよい」の必要条件で、十分条件ではない（試験と、ほかの部品の試験が依っていないかも見る）。
 """
 import argparse
+import ast
 import datetime
 import fnmatch
 import json
@@ -18,6 +25,7 @@ import bench_start  # noqa: E402
 import exitcode  # noqa: E402
 import hline_usage  # noqa: E402
 import machine  # noqa: E402
+import progress  # noqa: E402
 import weekly_report  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -53,6 +61,129 @@ def assign(comps, mods):
         else:
             owner[m] = hits[0]
     return owner, unassigned, doubled
+
+
+VERDICTS = ("keep", "remove_now", "remove_later", "hypothesis")   # 残す・今捨てる・この後捨てる・仮説として一回走らせる
+
+
+def load_config(path=CONFIG):
+    """ファイル全体（entrypoints・removed・components）。"""
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def verdict_of(comp, module):
+    """モジュールの判定。部品の中で違うものは module_verdicts に書き、無ければ部品の判定。"""
+    mv = (comp.get("module_verdicts") or {}).get(module)
+    return mv["verdict"] if mv else comp.get("verdict")
+
+
+def _module_index(base):
+    """{点で区切った名前: harness/ からの相対}。パッケージは __init__.py を名前に持つ（例 "ab" → "ab/__init__.py"）。"""
+    idx = {}
+    for p in base.rglob("*.py"):
+        rel = p.relative_to(base)
+        if "__pycache__" in rel.parts or "templates" in rel.parts:
+            continue
+        parts = list(rel.with_suffix("").parts)
+        if parts[-1] == "__init__":
+            parts = parts[:-1]
+        if parts:
+            idx[".".join(parts)] = rel.as_posix()
+    return idx
+
+
+def _longest(name, idx):
+    """name かその頭のうち、harness/ の中にある一番長いもの（import a.b.c の a.b.c → a.b → a）。"""
+    parts = name.split(".")
+    for i in range(len(parts), 0, -1):
+        cand = ".".join(parts[:i])
+        if cand in idx:
+            return cand
+    return None
+
+
+def _imports(tree, cur, idx):
+    """1 つのファイルの import の文が指す、harness/ の中のモジュール（点で区切った名前）。"""
+    out = set()
+    is_pkg = idx.get(cur, "").endswith("__init__.py")
+    pkg = cur.split(".") if is_pkg else cur.split(".")[:-1]   # 相対の import の基準のパッケージ
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                name = a.name[len("harness."):] if a.name.startswith("harness.") else a.name
+                hit = _longest(name, idx)
+                if hit:
+                    out.add(hit)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                base = pkg[:len(pkg) - (node.level - 1)] + (node.module.split(".") if node.module else [])
+                mod = ".".join(base)
+            else:
+                mod = node.module or ""
+                mod = "" if mod == "harness" else (mod[len("harness."):] if mod.startswith("harness.") else mod)
+            for a in node.names:
+                full = f"{mod}.{a.name}" if mod else a.name
+                if full in idx:                      # from p import x の x がモジュール
+                    out.add(full)
+                elif mod and _longest(mod, idx):     # from c import 関数 は c を使う
+                    out.add(_longest(mod, idx))
+    out.discard(cur)
+    return out
+
+
+def reach(roots, root=ROOT):
+    """roots（harness/ からの相対名）から import の文で辿って届く、harness/ の中のモジュールの相対名の集合。"""
+    base = Path(root) / "harness"
+    idx = _module_index(base)
+    rel_to_name = {v: k for k, v in idx.items()}
+    seen, stack = set(), [rel_to_name[r] for r in roots if r in rel_to_name]
+    while stack:
+        name = stack.pop()
+        if name in seen:
+            continue
+        seen.add(name)
+        try:
+            tree = ast.parse((base / idx[name]).read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            continue
+        stack.extend(_imports(tree, name, idx) - seen)
+    return {idx[n] for n in seen}
+
+
+def verdicts_report(root=ROOT, ledger=None):
+    """部品ごとの判定・届くモジュールの数・決めるタスクの状態と、決まりに反するもの（core から届くのに keep でない）。"""
+    cfg = load_config(Path(root) / "config" / "arch_components.json")
+    comps, entry = cfg["components"], cfg.get("entrypoints") or {}
+    owner, _, _ = assign(comps, modules(root))
+    reached = {k: reach(v, root) for k, v in entry.items()}
+    state = ledger if ledger is not None else progress.load_with_archive(Path(root) / progress.REL_PATH)
+    status = {t["id"]: t.get("status") for t in state.get("tasks") or [] if isinstance(t, dict) and "id" in t}
+    rows, problems = [], []
+    for name, c in comps.items():
+        mine = sorted(m for m, o in owner.items() if o == name)
+        per = {m: verdict_of(c, m) for m in mine}
+        tasks = {c.get("decide_task")} | {mv.get("decide_task") for mv in (c.get("module_verdicts") or {}).values()}
+        tasks.discard(None)
+        rows.append({"component": name, "verdict": c.get("verdict"), "modules": len(mine),
+                     "lines": sum(_lines(Path(root) / "harness" / m) for m in mine),
+                     "reached": {k: len([m for m in mine if m in v]) for k, v in reached.items()},
+                     "by_verdict": {v: len([m for m in mine if per[m] == v]) for v in VERDICTS if any(per[m] == v for m in mine)},
+                     "tasks": {t: status.get(t, "台帳に無い") for t in sorted(tasks)}})
+        problems += [f"{m}（{name}）は core から届くのに判定が {per[m]}" for m in mine if m in reached.get("core", ()) and per[m] != "keep"]
+    return {"rows": rows, "problems": problems, "removed": cfg.get("removed") or {}}
+
+
+def render_verdicts(rep):
+    lines = ["| 部品 | 判定 | モジュール | 行 | 入口から届く | モジュールの判定 | 決めるタスク |", "|:--|:--|--:|--:|:--|:--|:--|"]
+    for r in rep["rows"]:
+        reached = "・".join(f"{k} {v}" for k, v in r["reached"].items())
+        mixed = "・".join(f"{k} {v}" for k, v in r["by_verdict"].items())
+        tasks = "・".join(f"{t}（{s}）" for t, s in r["tasks"].items()) or "—"
+        lines.append(f"| {r['component']} | {r['verdict']} | {r['modules']} | {r['lines']} | {reached} | {mixed} | {tasks} |")
+    if rep["removed"]:
+        lines += ["", "消したモジュール：" + "・".join(rep["removed"])]
+    lines += ["", f"決まりに反するもの：{rep['problems'] or 'なし'}"]
+    return "\n".join(lines) + "\n"
 
 
 def _lines(path):
@@ -184,7 +315,12 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="今の構成の部品ごとの費用と成果")
     ap.add_argument("--since", default="2026-09-01")
     ap.add_argument("--write", help="Markdown の書き出し先")
+    ap.add_argument("--reach", action="store_true", help="部品ごとの判定と、入口から届くモジュールの数（W-136）")
     args = ap.parse_args(argv)
+    if args.reach:
+        vrep = verdicts_report()
+        print(render_verdicts(vrep), end="")
+        return 1 if vrep["problems"] else 0
     rep = measure(args.since)
     text = render(rep)
     if args.write:
