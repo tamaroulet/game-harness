@@ -4,8 +4,17 @@
 木の節とタスクを事前（子の節・タスクでねらいに届くか）と事後（届いたか）に定性で評価する。
 記録は config/hline.json の argon（out/hline/argon/）に JSONL で残す。
 総監督 47・48 本目（2026-10-25）に基づく実装。
+
+    python -m harness.argon_eval <pre|post> <対象> [--tools] [--with <ファイル>]
+
+**読み方（2026-10-28）**: 既定（inline）は写しの全ファイルの中身を 1 つの頼みに詰める。写しは約 890 万字あり
+（10-27 に数えた）、1 回の入力に入らない見込みで、本物の呼び出しは一度も無かった。--tools は中身を詰めず、
+写しの場所を教えて agy に道具で読ませる（作業場所を main の写しにし、枝の写しの置き場を --add-dir で足す。
+写しの根の外は作業場所に入れない）。事後で対象が PR のときは、その枝と main の違い（diff）を頼みに入れる。
+--with は、照らしてほしい仮説と予想（単位の札など）を頼みに足す。
 """
 import datetime
+import difflib
 import json
 from pathlib import Path
 import re
@@ -22,6 +31,10 @@ import proc
 import progress
 import yaml
 
+
+READ_MODES = ("inline", "tools")
+DIFF_LIMIT = 80_000   # tools のとき頼みに入れる diff の字の上限
+DIFF_CUT_NOTE = "（ここで切った）"
 
 VALID_DECISIONS = {"LOW", "MEDIUM", "HIGH"}
 FALLBACK_DECISION = "HIGH"
@@ -237,17 +250,46 @@ def parse_decision(response_text):
     return FALLBACK_DECISION, rationale
 
 
-def evaluate(kind, target, cfg=None, model_fn=None, root=ROOT):
+def _pr_number(target):
+    s = str(target).strip()
+    s = s[1:] if s.startswith("#") else s
+    return s if s.isdigit() else None
+
+
+def _pr_changes(copies, pr_num, limit=DIFF_LIMIT):
+    """枝の写しと main の写しの違い：{"changed": [{"path", "change"}], "diff": unified diff（limit 字まで）}。"""
+    main = copies.get("main") or {}
+    branch = copies.get(f"branches/{pr_num}") or {}
+    changed, chunks = [], []
+    for path in sorted(set(main) | set(branch)):
+        before, after = main.get(path), branch.get(path)
+        if before == after:
+            continue
+        change = "added" if before is None else ("deleted" if after is None else "modified")
+        changed.append({"path": path, "change": change})
+        chunks.append("".join(difflib.unified_diff((before or "").splitlines(keepends=True), (after or "").splitlines(keepends=True),
+                                                   fromfile=f"main/{path}", tofile=f"branches/{pr_num}/{path}")))
+    diff = "\n".join(c for c in chunks if c)
+    if len(diff) > limit:
+        diff = diff[:limit] + "\n" + DIFF_CUT_NOTE
+    return {"changed": changed, "diff": diff}
+
+
+def evaluate(kind, target, cfg=None, model_fn=None, root=ROOT, read_mode="inline", focus=None):
     """Argon の事前または事後評価を実行し、記録を残す。
     kind: 'pre' または 'post'
     target: 節 ID、タスク ID、または PR 番号
     model_fn: (prompt: str) -> (response_text: str, usage: dict)
+    read_mode: 'inline'（写しの中身を詰める）または 'tools'（写しの場所を教えて道具で読ませる）
+    focus: 照らしてほしい仮説と予想の文（頼みに足す）
     """
     if cfg is None:
         cfg = load_config()
 
     if kind not in ("pre", "post"):
         raise ArgonError(f"未対応の評価種別です: {kind}（pre または post を指定してください）")
+    if read_mode not in READ_MODES:
+        raise ArgonError(f"未対応の読み方です: {read_mode}（{' または '.join(READ_MODES)}）")
 
     # 1. すべての写し（main と branches）を読み取る（写し不備時は ArgonError）
     copies, shas = collect_copies(cfg)
@@ -257,15 +299,22 @@ def evaluate(kind, target, cfg=None, model_fn=None, root=ROOT):
         target_ctx = build_preflight_context(target, root=root)
     else:
         target_ctx = build_postimpl_context(target, root=root, copies=copies)
+        if read_mode == "tools" and target_ctx.get("target_type") == "pull_request":
+            target_ctx.pop("branch_files", None)   # 中身は詰めず、違いだけを入れる
+            target_ctx["changes"] = _pr_changes(copies, _pr_number(target))
 
-    # 3. プロンプト生成（全写しファイルと文脈を含む）
-    prompt = _build_prompt(kind, target, target_ctx, copies, shas)
+    # 3. プロンプト生成（inline は全写しファイル、tools は写しの場所と数）
+    roots = _copy_roots(cfg, copies) if read_mode == "tools" else None
+    prompt = _build_prompt(kind, target, target_ctx, copies, shas, roots=roots, focus=focus)
 
     # 4. モデル呼び出し（差し替え可能）
     start_time = time.time()
     if model_fn is None:
         # 本物のモデル呼び出し（総監督 48 本目 §3-1、呼べないときは落とす）
-        response_text, usage = _call_argon_model(prompt, cfg)
+        if read_mode == "tools":
+            response_text, usage = _call_argon_model(prompt, cfg, cwd=Path(cfg["mirror"]), add_dirs=(Path(cfg["branches"]),))
+        else:
+            response_text, usage = _call_argon_model(prompt, cfg)
     else:
         response_text, usage = model_fn(prompt)
     duration = time.time() - start_time
@@ -296,7 +345,11 @@ def evaluate(kind, target, cfg=None, model_fn=None, root=ROOT):
         "prompt_chars": len(prompt),
         "shas": shas,
         "recorded_at": datetime.datetime.now().isoformat(),
+        "read_mode": read_mode,
+        "focus_chars": len(focus or ""),
     }
+    if usage.get("tool_calls") is not None:
+        record["usage"]["tool_calls"] = usage["tool_calls"]
 
     with record_file.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -304,7 +357,14 @@ def evaluate(kind, target, cfg=None, model_fn=None, root=ROOT):
     return record
 
 
-def _build_prompt(kind, target, target_ctx, copies, shas):
+def _copy_roots(cfg, copies):
+    """{写しの名前: 根の場所}。main は cfg["mirror"]、枝は cfg["branches"] の下の番号。"""
+    return {name: str(Path(cfg["mirror"]) if name == "main" else Path(cfg["branches"]) / name.split("/", 1)[1])
+            for name in copies}
+
+
+def _build_prompt(kind, target, target_ctx, copies, shas, roots=None, focus=None):
+    """roots が無ければ（inline）写しの全ファイルの中身を詰める。roots があれば（tools）場所と数だけを書く。"""
     lines = [
         "あなたは独立した別系統の評価役 Argon です。",
         f"種別: {'事前評価 (Pre-flight)' if kind == 'pre' else '事後評価 (Post-implementation)'}",
@@ -317,11 +377,20 @@ def _build_prompt(kind, target, target_ctx, copies, shas):
         f"写しの SHA: {json.dumps(shas, ensure_ascii=False)}",
     ]
 
-    for copy_name, files in copies.items():
-        lines.append(f"\n### 写し: {copy_name} ({len(files)} ファイル)")
-        for file_path, content in files.items():
-            lines.append(f"\n--- [{copy_name}] {file_path} ---")
-            lines.append(content)
+    if roots is None:
+        for copy_name, files in copies.items():
+            lines.append(f"\n### 写し: {copy_name} ({len(files)} ファイル)")
+            for file_path, content in files.items():
+                lines.append(f"\n--- [{copy_name}] {file_path} ---")
+                lines.append(content)
+    else:
+        lines.append("写しの中身はこの頼みに入れていない。下の場所にあるファイルを、ファイルを読む道具と探す道具で、要るだけ自分で読んでよい。"
+                     "読むのは写しの根の中だけ。コマンド（端末）は使わない（許しが無く、使うと走りが止まって何も残らない）。")
+        for copy_name, files in copies.items():
+            lines.append(f"- {copy_name}: {roots[copy_name]}（{len(files)} ファイル、中身の合計 {sum(len(c) for c in files.values())} 字）")
+
+    if focus:
+        lines.extend(["", "## 照らしてほしい仮説と予想", focus])
 
     lines.extend([
         "",
@@ -337,11 +406,12 @@ def _build_prompt(kind, target, target_ctx, copies, shas):
     return "\n".join(lines)
 
 
-def _call_argon_model(prompt, cfg, run_fn=None):
+def _call_argon_model(prompt, cfg, run_fn=None, cwd=None, add_dirs=()):
     """config/hline.json の evaluator 設定に従い agy CLI 等で本物のモデルを呼ぶ。
     agy_pinned による指紋検査、model_pin によるモデル固定検査、agy_stream.args による引数構築、
     実行後の報告モデル照合を行い、違えば落として記録を書かない（総監督 50 本目 §3、51 本目 §3・§4）。
     プロンプトは標準入力で渡し、引数には載せない。
+    cwd は作業場所（既定は ROOT）、add_dirs は `--add-dir` で作業場所に足す場所（tools の読み方）。
     """
     if run_fn is None:
         run_fn = proc.run
@@ -369,11 +439,13 @@ def _call_argon_model(prompt, cfg, run_fn=None):
     cli_cmd = proc.resolve_cli(cli)
     ttl = int(evaluator.get("ttl_seconds", 600))
     cmd = agy_stream.args(evaluator, cli_cmd, prompt, ttl, auto_approve=False)
+    for d in add_dirs:
+        cmd += ["--add-dir", str(d)]
     stdin_data = agy_stream.stdin_for(evaluator, prompt)
 
     start_time = time.time()
     try:
-        code, out, err = run_fn(cmd, cwd=ROOT, ttl=ttl, label="argon_eval", input=stdin_data)
+        code, out, err = run_fn(cmd, cwd=cwd if cwd is not None else ROOT, ttl=ttl, label="argon_eval", input=stdin_data)
     except Exception as e:
         raise ArgonError(f"evaluator CLI の実行に失敗しました: {e}") from e
     duration = time.time() - start_time
@@ -416,27 +488,50 @@ def _call_argon_model(prompt, cfg, run_fn=None):
             "completion_tokens": None,
             "tokens_estimated": True,
         }
+    usage["tool_calls"] = len([s for s in parsed.get("steps") or [] if s.get("tool")])
 
     return response_text, usage
 
 
+USAGE = "使い方: python -m harness.argon_eval <pre|post> <target_id_or_pr> [--tools] [--with <ファイル>]"
+
+
+def _parse_args(argv):
+    """(kind, target, read_mode, focus_path)。形が違えば None。"""
+    if len(argv) < 2:
+        return None
+    kind, target, rest = argv[0].lower(), argv[1], list(argv[2:])
+    read_mode, focus_path = "inline", None
+    while rest:
+        flag = rest.pop(0)
+        if flag == "--tools":
+            read_mode = "tools"
+        elif flag == "--with" and rest:
+            focus_path = rest.pop(0)
+        else:
+            return None
+    return kind, target, read_mode, focus_path
+
+
 def main(argv=None, cfg=None):
-    """CLI 入口。引数がちょうど 2 つ（種類と対象）でないときは 1 で終了し記録を書かない。"""
+    """CLI 入口。形が違う（種類と対象が無い・知らない旗・--with の後にファイルが無い）ときは 1 で終了し記録を書かない。"""
     if argv is None:
         argv = sys.argv[1:]
 
-    if len(argv) != 2:
-        print("使い方: python -m harness.argon_eval <pre|post> <target_id_or_pr>", file=sys.stderr)
+    parsed = _parse_args(argv)
+    if parsed is None:
+        print(USAGE, file=sys.stderr)
         return 1
-
-    kind = argv[0].lower()
-    target = argv[1]
+    kind, target, read_mode, focus_path = parsed
 
     try:
-        record = evaluate(kind, target, cfg=cfg)
-        print(f"Argon 評価完了 [{record['kind']}: {record['target']}]")
-        print(f"判定: {record['decision']} / 判断点: {record['rationale']}")
-        print(f"費用: {record['usage']['seconds']}s (prompt chars: {record['prompt_chars']})")
+        focus = Path(focus_path).read_text(encoding="utf-8") if focus_path else None
+        record = evaluate(kind, target, cfg=cfg, read_mode=read_mode, focus=focus)
+        usage = record.get("usage") or {}
+        print(f"Argon 評価完了 [{record.get('kind', kind)}: {record.get('target', target)}]")
+        print(f"判定: {record.get('decision')} / 判断点: {record.get('rationale', '')}")
+        print(f"費用: {usage.get('seconds')}s (prompt chars: {record.get('prompt_chars')})")
+        print(f"読み方: {record.get('read_mode', read_mode)}・道具の使用 {usage.get('tool_calls', '記録なし')} 回")
         return 0
     except Exception as e:
         print(f"エラー: {e}", file=sys.stderr)
