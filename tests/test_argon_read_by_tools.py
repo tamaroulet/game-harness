@@ -337,7 +337,8 @@ class TestArgonReadByTools(unittest.TestCase):
 
         with patch.object(argon_eval, "agy_pinned", create=True) as mock_agy_pinned, \
              patch.object(argon_eval, "model_pin", create=True) as mock_model_pin, \
-             patch.object(argon_eval, "agy_stream", create=True) as mock_agy_stream:
+             patch.object(argon_eval, "agy_stream", create=True) as mock_agy_stream, \
+             patch.object(argon_eval.proc, "resolve_cli", return_value=["agy"]):
 
             mock_agy_pinned.require.return_value = None
             mock_model_pin.require_implementer.return_value = None
