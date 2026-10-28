@@ -20,7 +20,8 @@
   },
   "removed": {
     "declare.py": "2026-10-28 W-136（U1b）。昔の題材の仕様の宣言の道具（MS3）。どこからも import されず、名前で依る試験も無い。試験は自分の試験だけ、中身の最後の変更は 09-26",
-    "canary.py": "2026-10-29 W-136（U4）。昔の題材の単位を v2 に移す道具。どこからも import されない。出力の静けさの試験（test_quiet_output）の子の走行の一覧にあった tests.test_canary は、Quiet の mixin を使う残す部品の試験 tests.test_premises に差し替えた（差し替え先は Gemini 3.8 Flash High が選んだ）"
+    "canary.py": "2026-10-29 W-136（U4）。昔の題材の単位を v2 に移す道具。どこからも import されない。出力の静けさの試験（test_quiet_output）の子の走行の一覧にあった tests.test_canary は、Quiet の mixin を使う残す部品の試験 tests.test_premises に差し替えた（差し替え先は Gemini 3.8 Flash High が選んだ）",
+    "witness_selftest.py": "2026-10-29 W-136（U5）。証拠の状態の C# を仮のゲームで確かめる置き場を作る、操縦士が一度だけ使った道具（昔の題材）。どこからも import されない。自分だけを確かめる試験（test_witness の SelfTest 2 件）は一緒に消し、toolchain の試験は残る作り手（invrun）の分だけにした（書き換えは Gemini 3.8 Flash High が書いた）"
   },
   "components": {
     "director": {
@@ -211,7 +212,6 @@
         "oracle.py",
         "unit_schema.py",
         "witness.py",
-        "witness_selftest.py",
         "gdd_check.py",
         "spec.py",
         "playtest.py",
@@ -243,11 +243,6 @@
           "verdict": "remove_later",
           "decide_task": "W-136",
           "why": "昔の題材の遊びの試し。分解役の試験と一緒に書き換える"
-        },
-        "witness_selftest.py": {
-          "verdict": "remove_later",
-          "decide_task": "W-136",
-          "why": "操縦士が一度だけ確かめる道具（10-23 の記録）。toolchain・witness の試験が依っている"
         },
         "telemetry.py": {
           "verdict": "remove_later",

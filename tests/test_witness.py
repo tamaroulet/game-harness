@@ -136,7 +136,7 @@ class Generation(unittest.TestCase):
 
     def test_a_witnessed_property_does_not_search_for_its_given(self):
         """前提の探索（Directed）に希な前提を渡すと、無作為な開始状態では見つからず PROPERTY_UNSATISFIABLE で落ちる
-        （witness_selftest の実測、2026-09-27）。証拠のある性質は pre を渡さない。証拠の無い性質は今までどおり渡す。"""
+        （証拠の状態の自己検査の実測、2026-09-27）。証拠のある性質は pre を渡さない。証拠の無い性質は今までどおり渡す。"""
         cases = g.generate(decl_with(), tp.SPEC, tp.GDD, tp.INTERFACE, "tests")["tests/Properties/PropertiesT5Cases.cs"]
         self.assertNotIn("Checks.Pre_P_T5_02", cases)
         self.assertEqual(cases.count("null, default, witnesses: global::Game.Core.Tests.Properties.Checks.Witnesses_P_T5_02);"), 2)
@@ -197,24 +197,6 @@ class Faults(unittest.TestCase):
         self.assertEqual(driver.instrument_faults("PROPERTY_WITNESS_INVALID id=P-T5-02 rule=RL-50 witness=0", props),
                          ["WITNESS_INVALID P-T5-02"])
         self.assertEqual(driver.instrument_faults("PROPERTY_WITNESS_RESTORE id=P-T5-02 rule=RL-50 witness=0", props), [])
-
-
-class SelfTest(unittest.TestCase):
-    def test_the_selftest_project_is_deterministic_and_carries_the_witness(self):
-        import witness_selftest
-        a = witness_selftest.files()
-        self.assertEqual(a, witness_selftest.files())
-        self.assertEqual(sorted(k for k in a if not k.startswith("gen/")), ["Stub.cs", "W.csproj"])
-        self.assertIn("Witnesses_P_T5_02", a["gen/Properties/Checks.cs"])
-        self.assertIn('Include="NUnit" Version="3.14.0"', a["W.csproj"], "U1 の固定の版と同じ")
-
-    def test_the_selftest_refuses_a_non_empty_destination(self):
-        import tempfile
-        import witness_selftest
-        with tempfile.TemporaryDirectory() as d:
-            (Path(d) / "x").write_text("x", encoding="utf-8")
-            with unittest.mock.patch("builtins.print"):
-                self.assertEqual(witness_selftest.main([d]), 2)
 
 
 class LockedFiles(unittest.TestCase):

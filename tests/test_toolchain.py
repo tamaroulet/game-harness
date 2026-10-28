@@ -142,11 +142,9 @@ class Csproj(quiet.Quiet, unittest.TestCase):
                 self.assertEqual(toolchain.main(["lock", "--check"]), 0)
             self.assertEqual(lock.read_bytes(), toolchain.lock_text().encode("utf-8"))
 
-    def test_harness_built_csprojs_use_the_ledger(self):
+    def test_harness_built_csproj_uses_the_ledger(self):
         import invrun
-        import witness_selftest
         refs = toolchain.package_references()
-        self.assertIn(refs, witness_selftest.files()["W.csproj"])
         with tempfile.TemporaryDirectory() as d:
             sandbox, work = Path(d) / "sandbox", Path(d) / "work"
             sandbox.mkdir()

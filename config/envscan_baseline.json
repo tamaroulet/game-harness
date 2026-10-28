@@ -351,9 +351,6 @@
    "cli_name": 3,
    "encoding": 1
   },
-  "harness/witness_selftest.py": {
-   "encoding": 1
-  },
   "projects/falling-blocks/pipeline.json": {
    "cli_name": 4,
    "exe_suffix": 1,
