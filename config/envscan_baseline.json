@@ -150,11 +150,6 @@
   "harness/contractgen.py": {
    "encoding": 1
   },
-  "harness/declare.py": {
-   "os_specific": 2,
-   "encoding": 2,
-   "exe_suffix": 3
-  },
   "harness/decompose.py": {
    "cli_name": 5,
    "os_specific": 2,

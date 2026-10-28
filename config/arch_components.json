@@ -4,7 +4,9 @@
     "core": ["progress.py", "pilot_brief.py", "model_pin.py", "fastsuite.py"],
     "rebuild": ["tree.py", "hline_stopped.py", "research.py", "research_verify.py", "premises.py", "argon_eval.py", "main_mirror.py", "arch_inventory.py"]
   },
-  "removed": {},
+  "removed": {
+    "declare.py": "2026-10-28 W-136（U1b）。昔の題材の仕様の宣言の道具（MS3）。どこからも import されず、名前で依る試験も無い。試験は自分の試験だけ、中身の最後の変更は 09-26"
+  },
   "components": {
     "director": {
       "title": "総監督（週次の起動・受信箱・照合・probe・目的までの距離）",
@@ -78,7 +80,7 @@
     },
     "game_line": {
       "title": "ゲームのライン（MS3・MS4：スケジューラ・パイプライン・分解・契約と性質の道具・アダプタ）",
-      "modules": ["scheduler.py", "pipeline.py", "decompose.py", "declare.py", "contract.py", "contractgen.py",
+      "modules": ["scheduler.py", "pipeline.py", "decompose.py", "contract.py", "contractgen.py",
                   "prop*.py", "nlgen.py", "testgen.py", "invgen.py", "invrun.py", "oracle.py", "unit_schema.py", "witness.py",
                   "witness_selftest.py", "gdd_check.py", "spec.py", "playtest.py", "canary.py", "diagproj.py", "telemetry.py",
                   "project.py", "adapters/"],
@@ -91,8 +93,7 @@
         "spec.py": {"verdict": "remove_later", "decide_task": "W-136", "why": "昔の題材の構造化役。スケジューラの設定（config/scheduler.json）とモデルの固定の検査（config/spec.json）と、その試験が名指ししている"},
         "playtest.py": {"verdict": "remove_later", "decide_task": "W-136", "why": "昔の題材の遊びの試し。分解役の試験と一緒に書き換える"},
         "witness_selftest.py": {"verdict": "remove_later", "decide_task": "W-136", "why": "操縦士が一度だけ確かめる道具（10-23 の記録）。toolchain・witness の試験が依っている"},
-        "canary.py": {"verdict": "remove_later", "decide_task": "W-136", "why": "どこからも import されないが、出力の静けさの試験（test_quiet_output）が試験の名前 tests.test_canary を子の走行の一覧に持つ。U1（10-28）で消して落ち、決めておいたとおり戻した"},
-        "declare.py": {"verdict": "remove_later", "decide_task": "W-136", "why": "どこからも import されず、名前で依る試験も無い。U1 を戻したので、U1b（これだけを消す単位）で消す"}
+        "canary.py": {"verdict": "remove_later", "decide_task": "W-136", "why": "どこからも import されないが、出力の静けさの試験（test_quiet_output）が試験の名前 tests.test_canary を子の走行の一覧に持つ。U1（10-28）で消して落ち、決めておいたとおり戻した"}
       }
     },
     "experiments": {
