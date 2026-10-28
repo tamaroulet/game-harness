@@ -1,5 +1,5 @@
 {
-  "_comment": "今の構成の部品（段 A3、W-142）と判定（W-136）。harness/arch_inventory.py が部品ごとに費用と成果を数え、--reach で判定と入口から届くモジュールの数を出す。harness/ の .py はどれか 1 つの部品にだけ入る（tests/test_arch_inventory.py が確かめる）。名前は harness/ からの相対で、/ で終わるものはその下すべて、* は fnmatch の型。verdict は keep（残す）・remove_now（今捨てる）・remove_later（この後捨てる）・hypothesis（仮説として一回走らせる）。理由と外の実践との照らしは docs/design/harness_evaluation.md。判定の決まりは tests/test_arch_verdicts.py",
+  "_comment": "今の構成の部品（段 A3、W-142）と判定（W-136）。harness/arch_inventory.py が部品ごとに費用と成果を数え、--reach で判定と入口から届くモジュールの数を出す。harness/ の .py はどれか 1 つの部品にだけ入る（tests/test_arch_inventory.py が確かめる）。名前は harness/ からの相対で、/ で終わるものはその下すべて、* は fnmatch の型。verdict は keep（残す）・remove_now（今捨てる）・remove_later（この後捨てる）・hypothesis（仮説として一回走らせる）。外の実践との照らしと、部品でない層の判定は docs/design/harness_evaluation.md。判定の決まりは tests/test_arch_verdicts.py",
   "entrypoints": {
     "core": [
       "progress.py",
@@ -116,7 +116,7 @@
       "verdict": "remove_later",
       "decide_task": "W-156",
       "assumption": "1 つの長い会話では長い開発が続かない。タスクごとに新しい起動で実装させ、機械の関門で通す（外の実践の「新しい文脈で、進捗のファイルと git で引き継ぐ」に近い）",
-      "decide_when": "10-23 から止まっている。W-156 で作業の経路を決め、H ラインを使わないなら外す。外す前に、総監督が最初に読む report（hline_stopped が H ラインのモジュールを引き込む）と、受信箱の部屋の setup（hline.py の中）を H ラインの外へ移す。走行の記録（134 件・201 試行・約 1.26 億トークン）は out に残す。残すもの（keep）が依っている：ベンチ（bench_run）は H ラインの poll を子プロセスで回して凍結の課題を解かせ、hline_queue・hline_review・hline_usage・hline_quota を import する。調べもの（research）は hline_quota を、部品の数え上げ（arch_inventory）は hline_usage と weekly_report を import する。外す前に、その依り先を新しい経路へ移す（依る一覧は python -m harness.arch_inventory --reach の最後の行。Argon の事後の検め 10-28 の指摘）",
+      "decide_when": "形は外の実践に近いが、取り込み・積む・保留の枝・統合 PR・外側の統合を 1 本の常駐のループで抱えて重い。10-23 から止まっている。W-156 で作業の経路を決め、H ラインを使わないなら外す。外す前に、総監督が最初に読む report（hline_stopped が H ラインのモジュールを引き込む）と、受信箱の部屋の setup（hline.py の中）を H ラインの外へ移す。走行の記録（134 件・201 試行・約 1.26 億トークン）は out に残す。残すもの（keep）が依っている：ベンチ（bench_run）は H ラインの poll を子プロセスで回して凍結の課題を解かせ、hline_queue・hline_review・hline_usage・hline_quota を import する。調べもの（research）は hline_quota を、部品の数え上げ（arch_inventory）は hline_usage と weekly_report を import する。外す前に、その依り先を新しい経路へ移す（依る一覧は python -m harness.arch_inventory --reach の最後の行。Argon の事後の検め 10-28 の指摘）",
       "module_verdicts": {
         "hline_base.py": {
           "verdict": "keep",

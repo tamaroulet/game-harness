@@ -8,7 +8,7 @@
 手で書いた数字は入れない。走行の記録の無い PC（CI）では、走行の欄は「記録なし」になる。
 
 **判定（W-136）**: 部品ごとに、残す（keep）・今捨てる（remove_now）・この後捨てる（remove_later）・仮説として一回走らせる
-（hypothesis）のどれかと、補う弱さ・決める条件・決める台帳のタスクを config に持つ。理由は docs/design/harness_evaluation.md。
+（hypothesis）のどれかと、補う弱さ・決める条件・決める台帳のタスクを config に持つ。外の実践との照らしは docs/design/harness_evaluation.md。
 「使われていない」は、入口（config の entrypoints）から import の文で届かないことで数える。文字列の中の名前と、子プロセスで
 起こす命令は辿らないので、届かないことは「消してよい」の必要条件で、十分条件ではない（試験と、ほかの部品の試験が依っていないかも見る）。
 """
