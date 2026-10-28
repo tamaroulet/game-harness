@@ -131,8 +131,23 @@ def _imports(tree, cur, idx):
     return out
 
 
-def reach(roots, root=ROOT):
-    """roots（harness/ からの相対名）から import の文で辿って届く、harness/ の中のモジュールの相対名の集合。"""
+def _spawned(tree, cur, idx):
+    """子プロセスで起こすモジュール：リストかタプルの中で、"-m" の直後に "harness.x" の文字列が並ぶもの。"""
+    out = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.List, ast.Tuple)):
+            vals = [e.value if isinstance(e, ast.Constant) and isinstance(e.value, str) else None for e in node.elts]
+            for a, b in zip(vals, vals[1:]):
+                if a == "-m" and b and b.startswith("harness."):
+                    hit = _longest(b[len("harness."):], idx)
+                    if hit and hit != cur:
+                        out.add(hit)
+    return out
+
+
+def reach(roots, root=ROOT, follow_spawn=False):
+    """roots（harness/ からの相対名）から import の文で辿って届く、harness/ の中のモジュールの相対名の集合。
+    follow_spawn=True のときは、子プロセスで起こすモジュール（["-m", "harness.x"]）も辿る（文字列の中の名前はそれ以外は辿らない）。"""
     base = Path(root) / "harness"
     idx = _module_index(base)
     rel_to_name = {v: k for k, v in idx.items()}
@@ -147,6 +162,8 @@ def reach(roots, root=ROOT):
         except (OSError, SyntaxError, UnicodeDecodeError):
             continue
         stack.extend(_imports(tree, name, idx) - seen)
+        if follow_spawn:
+            stack.extend(_spawned(tree, name, idx) - seen)
     return {idx[n] for n in seen}
 
 
@@ -170,7 +187,12 @@ def verdicts_report(root=ROOT, ledger=None):
                      "by_verdict": {v: len([m for m in mine if per[m] == v]) for v in VERDICTS if any(per[m] == v for m in mine)},
                      "tasks": {t: status.get(t, "台帳に無い") for t in sorted(tasks)}})
         problems += [f"{m}（{name}）は core から届くのに判定が {per[m]}" for m in mine if m in reached.get("core", ()) and per[m] != "keep"]
-    return {"rows": rows, "problems": problems, "removed": cfg.get("removed") or {}}
+    # 残すものが依るもの（import と、子プロセスで起こすもの）。keep でないものは、捨てる前に依り先を移す要がある
+    kept = [m for m, o in owner.items() if verdict_of(comps[o], m) == "keep"]
+    needed = reach(kept, root, follow_spawn=True)
+    held = sorted(f"{m}（{owner[m]}・{verdict_of(comps[owner[m]], m)}）" for m in needed
+                  if m in owner and verdict_of(comps[owner[m]], m) != "keep")
+    return {"rows": rows, "problems": problems, "removed": cfg.get("removed") or {}, "held_by_keep": held}
 
 
 def render_verdicts(rep):
@@ -183,6 +205,9 @@ def render_verdicts(rep):
     if rep["removed"]:
         lines += ["", "消したモジュール：" + "・".join(rep["removed"])]
     lines += ["", f"決まりに反するもの：{rep['problems'] or 'なし'}"]
+    held = rep.get("held_by_keep") or []
+    lines += ["", f"残すもの（keep）が import か子プロセスで依るのに、keep でないもの（{len(held)}）："
+              + ("・".join(held) if held else "なし")]
     return "\n".join(lines) + "\n"
 
 
