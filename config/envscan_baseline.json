@@ -139,11 +139,6 @@
    "cli_name": 1,
    "encoding": 1
   },
-  "harness/canary.py": {
-   "cli_name": 7,
-   "encoding": 4,
-   "exe_suffix": 3
-  },
   "harness/contract.py": {
    "cli_name": 3
   },

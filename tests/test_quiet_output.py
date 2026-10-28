@@ -112,7 +112,7 @@ class RealSilence(unittest.TestCase):
     REPORT_LINE = re.compile(r"^([.sxFE]*|-+|Ran \d+ tests? .*|OK.*)$")
 
     def test_fixed_modules_are_silent_when_they_pass(self):
-        r = run_child(["tests.test_canary", "tests.test_gdd_check", "tests.test_exitcode_coverage"], ROOT)
+        r = run_child(["tests.test_premises", "tests.test_gdd_check", "tests.test_exitcode_coverage"], ROOT)
         self.assertEqual(r.returncode, 0, r.stderr[-4000:])
         self.assertEqual(r.stdout, "")
         stray = [line for line in r.stderr.splitlines() if not self.REPORT_LINE.match(line)]

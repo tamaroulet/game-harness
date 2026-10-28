@@ -19,7 +19,8 @@
     ]
   },
   "removed": {
-    "declare.py": "2026-10-28 W-136（U1b）。昔の題材の仕様の宣言の道具（MS3）。どこからも import されず、名前で依る試験も無い。試験は自分の試験だけ、中身の最後の変更は 09-26"
+    "declare.py": "2026-10-28 W-136（U1b）。昔の題材の仕様の宣言の道具（MS3）。どこからも import されず、名前で依る試験も無い。試験は自分の試験だけ、中身の最後の変更は 09-26",
+    "canary.py": "2026-10-29 W-136（U4）。昔の題材の単位を v2 に移す道具。どこからも import されない。出力の静けさの試験（test_quiet_output）の子の走行の一覧にあった tests.test_canary は、Quiet の mixin を使う残す部品の試験 tests.test_premises に差し替えた（差し替え先は Gemini 3.8 Flash High が選んだ）"
   },
   "components": {
     "director": {
@@ -214,7 +215,6 @@
         "gdd_check.py",
         "spec.py",
         "playtest.py",
-        "canary.py",
         "diagproj.py",
         "telemetry.py",
         "project.py",
@@ -248,11 +248,6 @@
           "verdict": "remove_later",
           "decide_task": "W-136",
           "why": "操縦士が一度だけ確かめる道具（10-23 の記録）。toolchain・witness の試験が依っている"
-        },
-        "canary.py": {
-          "verdict": "remove_later",
-          "decide_task": "W-136",
-          "why": "どこからも import されないが、出力の静けさの試験（test_quiet_output）が試験の名前 tests.test_canary を子の走行の一覧に持つ。U1（10-28）で消して落ち、決めておいたとおり戻した"
         },
         "telemetry.py": {
           "verdict": "remove_later",
