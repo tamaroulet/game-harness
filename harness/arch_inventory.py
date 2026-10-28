@@ -200,7 +200,7 @@ def render_verdicts(rep):
     for r in rep["rows"]:
         reached = "・".join(f"{k} {v}" for k, v in r["reached"].items())
         mixed = "・".join(f"{k} {v}" for k, v in r["by_verdict"].items())
-        tasks = "・".join(f"{t}（{s}）" for t, s in r["tasks"].items()) or "—"
+        tasks = "・".join(f"{t}（{s}）" for t, s in r["tasks"].items()) or "なし"
         lines.append(f"| {r['component']} | {r['verdict']} | {r['modules']} | {r['lines']} | {reached} | {mixed} | {tasks} |")
     if rep["removed"]:
         lines += ["", "消したモジュール：" + "・".join(rep["removed"])]
