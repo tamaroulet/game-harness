@@ -135,7 +135,7 @@
     ],
     "ttl_seconds": 600
   },
-  "_evaluator_note": "独立評価役 Argon（harness/argon_eval.py、W-172）。agy を --mode plan と --sandbox（道具不許可）で呼び、標準入力からプロンプトを渡す。認証は agy の既存権限を利用する",
+  "_evaluator_note": "独立評価役 Argon（harness/argon_eval.py、W-172）。agy を --mode plan で呼び、標準入力からプロンプトを渡す（--tools 指定時は写しを道具で探索）。認証は agy の既存権限を利用する",
   "planner": {
     "cli": "claude",
     "headless_flag": "-p",
