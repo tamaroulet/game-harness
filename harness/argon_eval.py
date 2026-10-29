@@ -258,8 +258,11 @@ def _pr_number(target):
 
 def _pr_changes(copies, pr_num, limit=DIFF_LIMIT):
     """枝の写しと main の写しの違い：{"changed": [{"path", "change"}], "diff": unified diff（limit 字まで）}。"""
+    branch_key = f"branches/{pr_num}"
+    if not copies or branch_key not in copies:
+        raise ArgonError(f"PR #{pr_num} の枝の写し ({branch_key}) が存在しません。先に枝を同期してください。")
     main = copies.get("main") or {}
-    branch = copies.get(f"branches/{pr_num}") or {}
+    branch = copies.get(branch_key) or {}
     changed, chunks = [], []
     for path in sorted(set(main) | set(branch)):
         before, after = main.get(path), branch.get(path)

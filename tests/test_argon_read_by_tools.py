@@ -482,6 +482,25 @@ class TestArgonReadByTools(unittest.TestCase):
                     f"不正な引数 {argv} で evals.jsonl に記録が書き込まれてしまっています",
                 )
 
+    def test_missing_branch_copy_raises_argon_error_and_does_not_call_model(self):
+        """枝の写しが存在しない PR に対して post 評価（tools モード）を実行した際、ArgonError が発生しモデルが呼ばれないこと。"""
+        fake_model = MagicMock()
+
+        # 存在しない枝 PR #999 を指定（self.cfg の branches には 12 のみ存在）
+        with self.assertRaises(argon_eval.ArgonError) as ctx:
+            argon_eval.evaluate(
+                "post",
+                "999",
+                cfg=self.cfg,
+                model_fn=fake_model,
+                root=ROOT,
+                read_mode="tools",
+            )
+
+        self.assertIn("branches/999", str(ctx.exception))
+        self.assertIn("同期", str(ctx.exception))
+        fake_model.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
