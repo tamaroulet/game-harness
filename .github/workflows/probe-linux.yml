@@ -44,3 +44,23 @@ jobs:
         with:
           name: suite-log
           path: suite.log
+
+  # 探り 2（2026-10-30、v3 の計画の線 2 の E1）：agy と Claude Code が Linux に入るかだけを見る。認証はしない
+  tools:
+    runs-on: ubuntu-latest
+    steps:
+      - name: install agy (official script)
+        run: |
+          curl -fsSL https://antigravity.google/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: install claude code (official script)
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: versions
+        run: |
+          agy --version || echo "agy_version_failed"
+          agy --help 2>&1 | head -40 || true
+          claude --version || echo "claude_version_failed"
+          python3 -c "import platform; print(platform.platform())"
+          ldd --version | head -1
