@@ -1,0 +1,46 @@
+name: probe-linux
+
+# 探り（2026-10-30、操縦士の許し）：ハーネスの全件の試験を Linux で 1 回流し、落ちる数を数える。
+# この枝にだけ置く。main には入れない。結果は suite.log を成果物に残す。
+
+on:
+  push:
+    branches: [probe/linux-ci]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: dependencies
+        run: python -m pip install -r requirements.lock
+
+      - name: nuget warm-up
+        shell: pwsh
+        run: |
+          $d = Join-Path $env:RUNNER_TEMP 'nuget-warmup'
+          python -m harness.toolchain warmup $d
+          dotnet restore (Join-Path $d 'Warmup.csproj')
+
+      - name: unittest
+        env:
+          HARNESS_SELFTEST_DIR: ${{ runner.temp }}/harness-selftest
+        run: |
+          set -o pipefail
+          python -m harness.fastsuite discover -s tests 2>&1 | tee suite.log
+
+      - name: keep log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-log
+          path: suite.log
