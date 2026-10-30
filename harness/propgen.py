@@ -1141,7 +1141,7 @@ def _tests(task, props, decl, rows=None, witnessed=frozenset()):
                     f"            PropertyRunner.Run(\"{p['id']}\", \"{p['rule']}\", {seeds}, Steps, {ns}.Checks.{name},",
                     # 証拠のある性質は、前提の探索（Directed）をしない。前提は証拠で成り立つことが生成の時点で決まっている。
                     # 探索に渡すと、希な前提（full_rows(...) == 1 など）を無作為な開始状態から探して見つからず、
-                    # PROPERTY_UNSATISFIABLE で落ちていた（witness_selftest の実測、2026-09-27）
+                    # PROPERTY_UNSATISFIABLE で落ちていた（証拠の状態の自己検査の実測、2026-09-27）
                     (f"                null, default{_sampling_args(p, rows)}, witnesses: {ns}.Checks.Witnesses_{name});"
                      if p["id"] in witnessed else
                      f"                {ns}.Checks.Pre_{name}, {ns}.Checks.First_{name}{_sampling_args(p, rows)});"),
