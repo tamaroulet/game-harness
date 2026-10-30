@@ -54,7 +54,7 @@
 | ID | 節 | 決まりの文 | 分類 | 根拠 | 扱い | 印 |
 |:--|:--|:--|:--|:--|:--|:--|
 | CL-01 | 進捗 | 「毎ターン、考え始める前に `python -m harness.progress anchor` を実行し」 | 効かない | hook の出口（`harness/progress.py:325-328`）はあるが、どの設定にも登録が無かった。守ったかを見る記録も無い | 機械に移す（この PC の `.claude/settings.local.json` の UserPromptSubmit の hook が `python -m harness.progress hook` で毎ターン anchor を文脈に足す。行は消した） | 操縦士 2026-10-23 |
-| CL-02 | 進捗 | 「チャット報告は、冒頭に `python -m harness.progress report` の出力をそのまま貼る」 | ぶつかる | 前の文の「その後ろに次の 2 つだけを足してよい」が、記憶 report-format-rules の 10-23 夜の指摘（ふつうの言葉の説明と次の一手を必ず書く）とぶつかっていた | 残す（書き直した：記憶の 2 点をここへ移し、記憶の側を消した。報告の形を作り直すのは W-154） | 操縦士 2026-10-23 |
+| CL-02 | 進捗 | 「チャット報告は、ふつうの言葉で、何が済んで何が変わったかと、次の一手（操縦士がすること・会話の席がすること）を書く」 | ぶつかる | 前の文の「その後ろに次の 2 つだけを足してよい」が、記憶 report-format-rules の 10-23 夜の指摘（ふつうの言葉の説明と次の一手を必ず書く）とぶつかっていた。10-30：冒頭に貼る `python -m harness.progress report` の進捗ツリーが形骸化し、操縦士が出力をやめさせた | 残す（書き直した：記憶の 2 点をここへ移し、記憶の側を消した。10-30 に冒頭の report の貼り付けを外した（docs/design/direction_and_plan_v3.md の 0-1）） | 操縦士 2026-10-30 |
 | CL-03 | 進捗 | 「PR を出して人間のレビューを待つときは `python -m harness.progress review <task_id> <PR の URL>` で状態に記録する」 | 効かない | 守ったかを見る仕組みは無い。10-23 に開いた game-harness#285 は記録していない（タスクの完了の後の続きの PR で、台帳のタスクが無い） | 残す（W-154 で人の手番の出し方を決めるまで） | 操縦士 2026-10-23 |
 | CL-04 | 進捗 | 「`docs/progress.yaml` を手で編集しない」 | 機械 | 正規の書式の試験（`tests/test_progress.py:58-60`）と `check`（`harness/progress.py:513-515`） | 残す | 操縦士 2026-10-23 |
 | CL-05 | 進捗 | 「検証コマンドを足したり変えたりするときは、main への PR で行う」 | 機械 | `complete` が origin/main の版と照合する（`harness/progress.py:436-441`） | 残す | 操縦士 2026-10-23 |
