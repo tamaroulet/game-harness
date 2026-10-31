@@ -163,6 +163,7 @@
     "factory": {
       "title": "工廠とベンチ（計画役・計画の監修・凍結の 10 本・採点・非劣性）",
       "modules": [
+        "bench_chain.py",
         "bench_freeze.py",
         "bench_guard.py",
         "bench_regress.py",
@@ -170,6 +171,7 @@
         "bench_score.py",
         "bench_start.py",
         "bench_verify.py",
+        "chain_score.py",
         "planner.py",
         "plan_check.py",
         "plan_loop.py",

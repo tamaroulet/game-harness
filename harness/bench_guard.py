@@ -57,8 +57,9 @@ def _norm(text):
 
 
 def canaries(oracles):
+    """凍結の課題（bench/<課題>/canary.txt）と、累積の筋書きの段（chains/<土台>/s<k>/canary.txt）の canary の文字列。"""
     out = []
-    for p in sorted(Path(oracles).glob("bench/*/canary.txt")):
+    for p in sorted([*Path(oracles).glob("bench/*/canary.txt"), *Path(oracles).glob("chains/*/s*/canary.txt")]):
         try:
             s = p.read_text(encoding="utf-8", errors="ignore").strip()
         except OSError:

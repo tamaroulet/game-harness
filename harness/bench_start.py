@@ -99,6 +99,11 @@ def build(repo, base, task, ledger):
     if blob is not None:
         sha = git(repo, ["hash-object", "-w", "--stdin"], data=blob).decode().strip()
         lines.append(f"100644 {sha}\t{LEDGER_PATH}\0")
+    return commit_lines(repo, lines, f"bench start: {task}"), []
+
+
+def commit_lines(repo, lines, message):
+    """ls-tree の形の行（"<mode> <sha>\\t<path>\\0"）の木の、親の無いコミットを作り、その SHA を返す（オブジェクトだけ）。"""
     with tempfile.TemporaryDirectory() as tmp:
         env = {**os.environ, "GIT_INDEX_FILE": str(Path(tmp) / "index"),
                "GIT_AUTHOR_NAME": "bench", "GIT_AUTHOR_EMAIL": "bench@localhost",
@@ -106,8 +111,7 @@ def build(repo, base, task, ledger):
         git(repo, ["update-index", "--add", "-z", "--index-info"], env=env,
             data="".join(lines).encode("utf-8", "surrogateescape"))
         tree = git(repo, ["write-tree"], env=env).decode().strip()
-        sha = git(repo, ["commit-tree", tree, "-m", f"bench start: {task}"], env=env).decode().strip()
-    return sha, []
+        return git(repo, ["commit-tree", tree, "-m", message], env=env).decode().strip()
 
 
 def main(argv=None):
