@@ -109,6 +109,9 @@
   "harness/agy_stream.py": {
    "os_specific": 1
   },
+  "harness/bench_chain.py": {
+   "encoding": 1
+  },
   "harness/bench_freeze.py": {
    "cli_name": 2,
    "exe_suffix": 2,
@@ -143,6 +146,9 @@
    "cli_name": 7,
    "encoding": 4,
    "exe_suffix": 3
+  },
+  "harness/chain_score.py": {
+   "encoding": 1
   },
   "harness/contract.py": {
    "cli_name": 3
