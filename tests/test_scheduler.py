@@ -633,11 +633,12 @@ class ProjectConfigTests(unittest.TestCase):
 
     def test_decompose_takes_repo_values_from_project(self):
         import decompose
+        import machine
         decompose.configure("unity-2d")
-        self.assertEqual(str(decompose.ROOT), r"C:\src\unity-2d")
+        self.assertEqual(decompose.ROOT, machine.path("src") / "unity-2d")   # project.json の repo_dir は ${src}/unity-2d（区切りは OS のもの）
         self.assertEqual(decompose.CFG["repo"], "tamaroulet/unity-2d")
         self.assertEqual(decompose.CFG["units_dir"], "tools/units")
-        self.assertIn(r"\harness\unity-2d\decompose\prompt.md", decompose.CFG["prompt_file"])
+        self.assertEqual(Path(decompose.CFG["prompt_file"]).parts[-4:], ("harness", "unity-2d", "decompose", "prompt.md"))
 
     def test_no_subprocess_call_without_timeout(self):
         """TTL の無い子プロセス呼び出しは、常駐時に沈黙したまま固まる原因になる。

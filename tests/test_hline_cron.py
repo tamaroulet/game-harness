@@ -21,18 +21,20 @@ import proc  # noqa: E402
 
 NS = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
 ROOT = HERE.parent
+# 実行ファイルの置き場は Path で組む（r"C:\Py\python.exe" を直に書くと、Linux では \ が区切りにならず 1 つの名前になる）
+PY, PYW = Path("Py") / "python.exe", Path("Py") / "pythonw.exe"
 
 
 class TaskXml(unittest.TestCase):
     def setUp(self):
-        self.doc = ET.fromstring(hline_cron.task_xml(r"C:\Py\python.exe").split("\n", 1)[1])
+        self.doc = ET.fromstring(hline_cron.task_xml(str(PY)).split("\n", 1)[1])
 
     def text(self, path):
         return self.doc.find(path, NS).text
 
     def test_it_runs_every_10_minutes_with_pythonw_in_this_repository(self):
         self.assertEqual(self.text("t:Triggers/t:TimeTrigger/t:Repetition/t:Interval"), "PT10M")
-        self.assertEqual(self.text("t:Actions/t:Exec/t:Command"), r"C:\Py\pythonw.exe")
+        self.assertEqual(self.text("t:Actions/t:Exec/t:Command"), str(PYW))
         self.assertEqual(self.text("t:Actions/t:Exec/t:Arguments"), f'"{ROOT / "harness" / "hline_cron.py"}" run')
         self.assertEqual(Path(self.text("t:Actions/t:Exec/t:WorkingDirectory")), ROOT)
 
@@ -42,8 +44,8 @@ class TaskXml(unittest.TestCase):
         self.assertIsNone(self.doc.find("t:Settings/t:ExecutionTimeLimit", NS))   # 走行時間の上限は既定のまま
 
     def test_pythonw_is_the_one_next_to_python(self):
-        self.assertEqual(hline_cron.pythonw(r"C:\a\python.exe"), Path(r"C:\a\pythonw.exe"))
-        self.assertEqual(hline_cron.pythonw(r"C:\a\pythonw.exe"), Path(r"C:\a\pythonw.exe"))
+        self.assertEqual(hline_cron.pythonw(str(PY)), PYW)
+        self.assertEqual(hline_cron.pythonw(str(PYW)), PYW)
 
 
 class Run(unittest.TestCase):
@@ -87,9 +89,9 @@ class Run(unittest.TestCase):
         self.assertIn("--- 終了コード 2", text)
 
     def test_children_are_started_with_the_console_python_under_pythonw(self):
-        sys.executable = r"C:\Py\pythonw.exe"
+        sys.executable = str(PYW)
         self.run_from(self.tmp, lambda: 0)
-        self.assertEqual(sys.executable, r"C:\Py\python.exe")
+        self.assertEqual(sys.executable, str(PY))
 
 
 class NoWindow(unittest.TestCase):

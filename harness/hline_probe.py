@@ -144,13 +144,19 @@ def duration_fetch(cfg, runner):
 
 
 def _check(rollup, workflow, job):
-    latest = hline_merge._runs(rollup, workflow)   # ワークフローごとに最新の走行だけ
+    latest = hline_merge._runs(rollup, workflow)   # ジョブごとに最新の走行だけ
     if not latest:
         return f"{workflow}: チェックなし"
-    c = latest[0]
+    c = next((x for x in latest if x.get("name") == job), latest[0])
     took = _elapsed(c) if str(c.get("status")).upper() == "COMPLETED" else None   # 未完了の completedAt は 0001-01-01 で入る
     return (f"{workflow}（{job}）: 状態 {c.get('status') or '不明'}／結論 {c.get('conclusion') or 'なし'}"
             f"／所要 {span(took) if took is not None else '-'}")
+
+
+def _jobs(rollup, workflow, first):
+    """点検の行に出すジョブの名前：first と、そのワークフローの名前の付いたほかのジョブ（test-linux など）。"""
+    names = {c.get("name") for c in hline_merge._runs(rollup, workflow)} - {None, workflow, first}
+    return [first, *sorted(names)]
 
 
 def pr_fetch(cfg, runner, url):
@@ -162,8 +168,8 @@ def pr_fetch(cfg, runner, url):
         data = json.loads(out)
         rollup, labels = data.get("statusCheckRollup") or [], data.get("labels") or []
         approved = any(isinstance(x, dict) and x.get("name") == APPROVED_LABEL for x in labels)
-        return "／".join([_check(rollup, "harness-tests", "test"), _check(rollup, "approval", "approval"),
-                          f"{APPROVED_LABEL} {'あり' if approved else 'なし'}"])
+        return "／".join([*(_check(rollup, "harness-tests", j) for j in _jobs(rollup, "harness-tests", "test")),
+                          _check(rollup, "approval", "approval"), f"{APPROVED_LABEL} {'あり' if approved else 'なし'}"])
     except Exception:   # noqa: BLE001
         return failure("gh の出力を読めない")
 

@@ -7,7 +7,6 @@
 import contextlib
 import io
 import json
-import re
 import sys
 import tempfile
 import unittest
@@ -24,6 +23,7 @@ import envscan  # noqa: E402
 import machine  # noqa: E402
 import quiet  # noqa: E402
 import toolchain  # noqa: E402
+import yaml  # noqa: E402
 
 WORKFLOW = ROOT / ".github" / "workflows" / "harness-tests.yml"
 RULES_OK = [{"type": "deletion"}, {"type": "pull_request", "parameters": {}},
@@ -57,12 +57,18 @@ class Ledger(unittest.TestCase):
 
     def test_ci_installs_and_warms_up_from_the_ledger(self):
         text = WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("pip install -r requirements.lock", text)
-        self.assertIn("python -m harness.toolchain warmup", text)
         self.assertNotRegex(text, r"==\d", "CI に pip の版を直に書かない")
         self.assertNotIn("Version=", text, "CI に NuGet の版を直に書かない")
         major_minor = ".".join(toolchain.load()["python"].split(".")[:2])
-        self.assertEqual(re.findall(r"python-version:\s*'([^']+)'", text), [major_minor])
+        jobs = yaml.safe_load(text)["jobs"]
+        self.assertLessEqual({"test", "test-linux"}, set(jobs), "test は必須チェックの名前（変えない）。test-linux は Linux の全件")
+        for name, job in jobs.items():   # Windows の test も Linux の test-linux も、同じ台帳から入れる
+            with self.subTest(job=name):
+                run = "\n".join(step.get("run", "") for step in job["steps"])
+                self.assertIn("pip install -r requirements.lock", run)
+                self.assertIn("python -m harness.toolchain warmup", run)
+                versions = [s["with"]["python-version"] for s in job["steps"] if str(s.get("uses", "")).startswith("actions/setup-python@")]
+                self.assertEqual(versions, [major_minor])
 
 
 class Machine(unittest.TestCase):

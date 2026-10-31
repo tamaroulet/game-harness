@@ -15,7 +15,7 @@ import json
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
 from unittest import mock
 
@@ -129,12 +129,15 @@ class OwnState(unittest.TestCase):
 
     def test_own_conversation_record_is_not_outside(self):
         wd = r"C:\Temp\harness-narrow\aaa"
-        own = agy_stream.AGY_BRAIN / "conv-1" / ".system_generated" / "logs" / "t.md"
-        other = agy_stream.AGY_BRAIN / "conv-2" / ".system_generated" / "logs" / "t.md"
+        # agy が Windows で出す絶対パス（C:\...）の形で確かめる。この PC のホームの形（Linux では /home/...）には頼らない
+        brain = PureWindowsPath(r"C:\Users\u\.gemini\antigravity-cli\brain")
+        own = brain / "conv-1" / ".system_generated" / "logs" / "t.md"
+        other = brain / "conv-2" / ".system_generated" / "logs" / "t.md"
         out = "\n".join([
             json.dumps({"event": "init", "conversation_id": "conv-1", "init": {"model": "m"}}),
             tool_step(1, AbsolutePath=str(own)), tool_step(2, AbsolutePath=str(other))])
-        steps = {s["index"]: s for s in agy_stream.parse(out, wd)["steps"]}
+        with mock.patch.object(agy_stream, "AGY_BRAIN", brain):
+            steps = {s["index"]: s for s in agy_stream.parse(out, wd)["steps"]}
         self.assertFalse(steps[1]["outside"])
         self.assertTrue(steps[2]["outside"])
 
