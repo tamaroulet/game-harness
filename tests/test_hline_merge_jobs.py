@@ -55,6 +55,16 @@ class Probe(unittest.TestCase):
         self.assertIn("状態 COMPLETED", line)
         self.assertIn("結論 FAILURE", line)
 
+    def test_pr_line_shows_both_jobs(self):
+        """統合 PR の CI の行は、test と test-linux の両方を出す（Linux だけが赤でも、なぜ止まったかが見える）。"""
+        import json
+        payload = json.dumps({"statusCheckRollup": [job("test"), job("test-linux", conclusion="FAILURE"),
+                                                    job("approval", workflow=hline_merge.APPROVAL)], "labels": []})
+        line = hline_probe.pr_fetch({"ttl_seconds": {"git": 5}}, lambda args, cwd, ttl, label: (0, payload, ""), "https://github.com/o/r/pull/7")
+        self.assertIn("harness-tests（test）: 状態 COMPLETED／結論 SUCCESS", line)
+        self.assertIn("harness-tests（test-linux）: 状態 COMPLETED／結論 FAILURE", line)
+        self.assertLess(line.index("（test）"), line.index("（test-linux）"))
+
 
 if __name__ == "__main__":
     unittest.main()

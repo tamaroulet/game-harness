@@ -153,6 +153,12 @@ def _check(rollup, workflow, job):
             f"／所要 {span(took) if took is not None else '-'}")
 
 
+def _jobs(rollup, workflow, first):
+    """点検の行に出すジョブの名前：first と、そのワークフローの名前の付いたほかのジョブ（test-linux など）。"""
+    names = {c.get("name") for c in hline_merge._runs(rollup, workflow)} - {None, workflow, first}
+    return [first, *sorted(names)]
+
+
 def pr_fetch(cfg, runner, url):
     """統合 PR の今の head の harness-tests・approval のチェックと、ms4:approved のラベルの有無。"""
     out, why = run(cfg, ["gh", "pr", "view", url, "--json", "statusCheckRollup,labels"], "gh pr view", runner)
@@ -162,8 +168,8 @@ def pr_fetch(cfg, runner, url):
         data = json.loads(out)
         rollup, labels = data.get("statusCheckRollup") or [], data.get("labels") or []
         approved = any(isinstance(x, dict) and x.get("name") == APPROVED_LABEL for x in labels)
-        return "／".join([_check(rollup, "harness-tests", "test"), _check(rollup, "approval", "approval"),
-                          f"{APPROVED_LABEL} {'あり' if approved else 'なし'}"])
+        return "／".join([*(_check(rollup, "harness-tests", j) for j in _jobs(rollup, "harness-tests", "test")),
+                          _check(rollup, "approval", "approval"), f"{APPROVED_LABEL} {'あり' if approved else 'なし'}"])
     except Exception:   # noqa: BLE001
         return failure("gh の出力を読めない")
 
