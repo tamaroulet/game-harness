@@ -180,8 +180,9 @@ def item_lines(d, item):
         lines += [f"- {g.name}：{head} — {exc}" for head, exc in gate_failures(read_text(g))]
     if (d / "last-failure.txt").is_file():
         lines.append("- 最後の落ち：" + " ".join(read_text(d / "last-failure.txt").split())[:600])
-    for log in sorted(d.glob("implementer-*.log")):
-        lines += ["", f"### {log.name} の最後の {TAIL} 手番", ""] + [f"- {step_line(s)}" for s in steps_of(log)[1][-TAIL:]]
+    for log in sorted(d.glob("implementer-*.log")):   # 文の無い応答（道具を呼ぶだけの手番。煙の試しでは半分）は数えない
+        said = [s for s in steps_of(log)[1] if s.get("tool") or (s.get("text") or "").strip()]
+        lines += ["", f"### {log.name} の最後の {TAIL} 手番（文の無い応答を除く）", ""] + [f"- {step_line(s)}" for s in said[-TAIL:]]
     return lines
 
 
