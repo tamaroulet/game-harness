@@ -296,7 +296,10 @@ class RoomSettings(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, True)
         cfg = json.loads(json.dumps(stopped.CFG))
         cfg.update(inbox=str(tmp / "inbox"), out=str(tmp / "out"), mirror=str(tmp / "main"), branches=str(tmp / "branches"))
-        with mock.patch.object(hline_room, "write_report"), contextlib.redirect_stdout(io.StringIO()):
+        src = tmp / "src"   # setup は machine の src の直下を読む。この PC に C:\src が無くても（Linux の CI）通るよう、一時の場所に替える
+        src.mkdir()
+        with mock.patch.object(hline_room.machine, "path", return_value=src), mock.patch.object(hline_room, "write_report"), \
+                contextlib.redirect_stdout(io.StringIO()):
             hline_room.setup(cfg)
         deny = json.loads((tmp / "inbox" / ".claude" / "settings.json").read_text(encoding="utf-8"))["permissions"]["deny"]
         rule = "//" + (tmp / "main").as_posix().replace(":", "", 1).lower() + "/**"

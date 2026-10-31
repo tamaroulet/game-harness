@@ -9,6 +9,7 @@ from unittest import mock
 HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE.parent / "harness")]
 import hline  # noqa: E402
+import machine  # noqa: E402
 import oracle_deny  # noqa: E402
 
 CFG = hline.load_config()
@@ -16,7 +17,8 @@ CFG = hline.load_config()
 
 class Rules(unittest.TestCase):
     def test_the_config_has_the_oracles_place(self):
-        self.assertEqual(CFG["oracles"], "C:\\src\\.local\\oracles")
+        # この PC の local の下の oracles。区切りは OS のもの（C:\... の文字列を直に書くと、Linux では ${local}/oracles の / と食い違う）
+        self.assertEqual(Path(CFG["oracles"]), machine.path("local") / "oracles")
 
     def test_windows_paths_become_double_slash_drive_rules(self):
         self.assertEqual(oracle_deny.rule_path("C:\\src\\.local\\inbox"), "//c/src/.local/inbox/**")
