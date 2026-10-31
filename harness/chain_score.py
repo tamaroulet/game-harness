@@ -26,6 +26,8 @@ from bench_start import BenchError, git  # noqa: E402
 GRADE_TTL = 600
 TAIL = 6                      # 索引に抜く、実装役の最後の手番の数
 NET_TOOL = re.compile(r"browser|_url|web", re.I)
+# このリポジトリの名（公開。過去のコミットに、段の中身を書いた版がある）。ネットの道具の引数がこれか段の名を含めば、その段を無効にする
+REPO_MARKS = ("tamaroulet", "game-harness", "game_harness")
 DRIVE_PATH = re.compile(r"[A-Za-z]:[\\/][^\s\"'<>|*?]*")
 REL_UP = re.compile(r"(?:^|[\\/])\.\.(?:[\\/]|$)")
 BUNDLE = Path("git/run.bundle")
@@ -140,6 +142,27 @@ def strays(logs, own, local):
     return found
 
 
+def audit(logs, own, local, marks):
+    """道の検めの全体：(当たり, 調べもの)。当たりは段を無効にする (ログ, 道具, 理由) の列、調べものは無効にしない
+    ネットの道具の手番 (ログ, 道具, 引数の文) の列。ネットの道具は、引数がこのリポジトリか段の名（marks）を含むか、
+    local の下で own の外を指すときだけ当たりにする（10-31 の L4：26 回の検索が、どれも MuJoCo の使い方の調べものだった。
+    調べものを要る段ほど記録から抜けると、測りが偏る）。"""
+    names = [m.lower() for m in (*REPO_MARKS, *marks) if m]
+    found = [f for f in strays(logs, own, local) if not NET_TOOL.search(f[1])]
+    web = []
+    for log in logs:
+        cwd, steps = steps_of(log)
+        for s in (x for x in steps if x.get("tool") and NET_TOOL.search(x["tool"])):
+            texts = list(strings(s.get("parameters")))
+            named = next((n for n in names if any(n in x.lower() for x in texts)), None)
+            near = [h for x in texts for h in paths_in(x, cwd) if under(h, local) and not under(h, own)]
+            if named or near:
+                found.append((log.name, s["tool"], f"ネットの道具が「{named}」を名指した" if named else near[0]))
+            else:
+                web.append((log.name, s["tool"], " ".join(texts)[:200]))
+    return found, web
+
+
 def paths_in(text, cwd):
     """引数の文字列が指すパス：中のドライブからのパス、/ で始まる文字列（Linux）、作業の場所からの .. を含む相対のパス。"""
     hits = [m.group(0) for m in DRIVE_PATH.finditer(text)] or ([text] if text.startswith("/") else [])
@@ -194,11 +217,12 @@ def what_task(path):
     return m.group(1) if m else None
 
 
-def index_text(base, k, run_id, rundir, results, found):
+def index_text(base, k, run_id, rundir, results, found, web=()):
     """索引（抜き書きだけ。言い換えの要約は作らない）：落ちた隠しテスト・道の検め・What の試行ごとの門と終わり方・最後の手番。"""
     lines = [f"# 索引：{base} 段 {k}（{run_id}）", "", "## 落ちた隠しテスト", ""]
     lines += [f"- 段 {stage_of(t, base)}：`{t.split('.')[-1]}` — {v}" for t, v in sorted(results.items()) if v != "ok"] or ["- 無し"]
     lines += ["", "## 道の検め", ""] + ([f"- {log}：{tool} — {hit}" for log, tool, hit in found] or ["- 無し"])
+    lines += ["", "## ネットの調べもの（無効にしない）", ""] + ([f"- {log}：{tool} — {text}" for log, tool, text in web] or ["- 無し"])
     items = bench_run.read_json(rundir / "factory" / "queue.json", {}).get("items") or {}
     for d in sorted(p for p in (rundir / "items").glob("*") if p.is_dir()):
         item = next((v for v in items.values() if isinstance(v, dict) and v.get("tid") == d.name), None)
@@ -278,8 +302,8 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
     rundir = bench_run.run_dir(out, base, st["run_id"])
     hits = bench_guard.leaks(cfg, [rundir])
     (rundir / "guard.txt").write_text("".join(f"漏れの跡: {f}:{n}\n" for f, n in hits), encoding="utf-8")
-    found = strays(sorted((rundir / "items").glob("*/implementer-*.log")), bench_run.work_dir(out, base, st["run_id"]),
-                   machine.path("local"))
+    found, web = audit(sorted((rundir / "items").glob("*/implementer-*.log")), bench_run.work_dir(out, base, st["run_id"]),
+                       machine.path("local"), (base, pkg, "docs/bench", "chain/s"))
     gone = replaced(chains, base, k)
     with tempfile.TemporaryDirectory(prefix="bench-chain-") as tmp:
         tree = tip_tree(rundir, tmp)
@@ -292,14 +316,14 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
     new = [t for t in res if stage_of(t, base) == k]
     old = [t for t in res if t not in new]
     row.update(new=rate(res, new), old=rate(res, old), kept=rate(res, [t for t in old if prev.get(t) == "ok"]),
-               violations=len(violations), leaks=len(hits), strays=len(found))
+               violations=len(violations), leaks=len(hits), strays=len(found), web=len(web))
     for key in ("new", "old", "kept") if violations else ():
         row[key][0] = 0   # 今の finish と同じく、境界の外を変えた段は 0 点
     if (why := invalid_reason(rundir, cfg, hits, found)):
         row["invalid"], row["reason"] = why
     hline_base.write_json(priv / f"s{k}.json", {"base": base, "k": k, "run_id": st["run_id"], "results": res, "replaced": sorted(gone),
-                                               "violations": violations, "strays": found, "leaks": hits})
-    (priv / f"s{k}.index.md").write_text(index_text(base, k, st["run_id"], rundir, res, found), encoding="utf-8")
+                                               "violations": violations, "strays": found, "web": web, "leaks": hits})
+    (priv / f"s{k}.index.md").write_text(index_text(base, k, st["run_id"], rundir, res, found, web), encoding="utf-8")
     hline_base.write_json(rundir / "manifest.json", bench_run.manifest(rundir))
     row["manifest_sha256"] = bench_run.sha256_file(rundir / "manifest.json")
     return res
