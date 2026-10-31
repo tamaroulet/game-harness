@@ -1,0 +1,94 @@
+{
+ "tag": "v0-r2",
+ "set": "dev",
+ "base": "B09",
+ "rev": "38d61e0fc3cacd8913fa66eb4946f98c152be6b7",
+ "stopped": null,
+ "s0": [
+  10,
+  10
+ ],
+ "stages": [
+  {
+   "k": 1,
+   "run_id": "v0-r2-s1",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 1117773,
+   "new": [
+    5,
+    5
+   ],
+   "old": [
+    9,
+    9
+   ],
+   "kept": [
+    9,
+    9
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "manifest_sha256": "a08a22e2ec44f8dec13fb15419de32793ea315335b98ed1d2d2995360df12c2b"
+  },
+  {
+   "k": 2,
+   "run_id": "v0-r2-s2",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 1901012,
+   "new": [
+    5,
+    5
+   ],
+   "old": [
+    13,
+    13
+   ],
+   "kept": [
+    13,
+    13
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "manifest_sha256": "ea5e29e314fc836add7ba59a93aeebb5c6200594074de5b3d059a92f6d76a863"
+  },
+  {
+   "k": 3,
+   "run_id": "v0-r2-s3",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 1342603,
+   "new": [
+    8,
+    8
+   ],
+   "old": [
+    16,
+    16
+   ],
+   "kept": [
+    16,
+    16
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "manifest_sha256": "22dcc355d8d05126b8a3f9300d7ee54b499f75d65453e76ac1a8471ec5c55b82"
+  }
+ ]
+}
