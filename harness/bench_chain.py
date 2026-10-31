@@ -173,7 +173,9 @@ def what_text(base, pkg, k, info, files):
 
 def ledger_rows(pkg, k, info, files):
     test = f"tests/test_{pkg}_s{k}"
-    return [{"id": WHAT, "title": info["title"], "depends_on": [], "acceptance": [t for _, t in info["reqs"]] or [info["title"]],
+    # purpose が無いと、実装役の頼みの台帳の節（hline_prompt.ledger_section）が黙って空になる（10-31 の煙の試し。Argon の事後の検め）
+    return [{"id": WHAT, "title": info["title"], "purpose": info.get("kind") or info["title"], "depends_on": [],
+             "acceptance": [t for _, t in info["reqs"]] or [info["title"]],
              "files": files, "oracle": [{"path": f"{test}.py", "from": "self"}],
              "verification": {"command": f"python -m unittest {test.replace('/', '.')}", "expected_exit_code": 0}}]
 
@@ -267,7 +269,9 @@ def fetch_tip(repo, rundir, ref):
 
 
 def run_step(a, repo, out, staged, entry, tip, k, rec):
-    """段 k を走らせる。無効・異常なら RETRIES 回まで走り直す。試すたびに rec に足し、済んだ走りの記録を返す（駄目なら None）。"""
+    """段 k を走らせる。無効・異常なら RETRIES 回まで走り直す。試すたびに rec に足し、済んだ走りの記録を返す（駄目なら None）。
+    走りのディレクトリが前の起動から残っていれば（中断の後の走らせ直し）、走らせずに、書き終えた記録（run.json）を使う。
+    run.json の無い残りは、中断した試しとして数え、次の試しへ進む。"""
     base, pkg = entry["base"], entry["package"]
     spec = staged / base / f"s{k}" / "spec.md"
     if bench_run.sha256_file(spec) != entry["spec_sha256"][f"s{k}"]:
@@ -277,14 +281,21 @@ def run_step(a, repo, out, staged, entry, tip, k, rec):
     start = start_commit(repo, tip, base, pkg, k, spec.read_bytes(), ledger_rows(pkg, k, info, files))
     for attempt in range(RETRIES + 1):
         run_id = f"{a.tag}-s{k}" + (f"-r{attempt}" if attempt else "")
-        plan = write_plan(out / "chains" / a.tag / base / run_id, base, pkg, k, info, files)
-        ns = argparse.Namespace(task=base, run_id=run_id, repo=str(repo), base=tip, out=str(out), sessions=a.sessions,
-                                plan=str(plan), implementer=a.implementer)
-        code = run_stage(ChainStage(ns, start, spec))
-        done = bench_run.read_json(bench_run.run_dir(out, base, run_id) / "factory" / "run.json", {})
-        st = {"k": k, "attempt": attempt, "run_id": run_id, "code": code, "base": tip, "start": start, "head": done.get("head"),
-              "invalid": done.get("invalid") or (None if code == 0 and done else "ABORT"), "reason": done.get("reason"),
-              "stop": done.get("stop"), "tries": done.get("tries"), "tokens": (done.get("tokens") or {}).get("total")}
+        rundir = bench_run.run_dir(out, base, run_id)
+        left = rundir.exists()
+        if left:
+            code = 0 if (rundir / "factory" / "run.json").is_file() else 2
+        else:
+            plan = write_plan(out / "chains" / a.tag / base / run_id, base, pkg, k, info, files)
+            ns = argparse.Namespace(task=base, run_id=run_id, repo=str(repo), base=tip, out=str(out), sessions=a.sessions,
+                                    plan=str(plan), implementer=a.implementer)
+            code = run_stage(ChainStage(ns, start, spec))
+        done = bench_run.read_json(rundir / "factory" / "run.json", {})
+        st = {"k": k, "attempt": attempt, "run_id": run_id, "code": code, "base": done.get("base") or tip,
+              "start": done.get("start") or start, "head": done.get("head"),
+              "invalid": done.get("invalid") or (None if code == 0 and done else "ABORT"),
+              "reason": done.get("reason") or ("前の起動の残り（run.json が無い。中断）" if left and not done else None),
+              "stop": done.get("stop"), "tries": done.get("tries"), "tokens": (done.get("tokens") or {}).get("total"), "resumed": left}
         rec["stages"].append(st)
         if not st["invalid"] and st["head"]:
             return st
