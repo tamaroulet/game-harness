@@ -28,7 +28,7 @@ import yaml  # noqa: E402
 WORKFLOW = ROOT / ".github" / "workflows" / "harness-tests.yml"
 RULES_OK = [{"type": "deletion"}, {"type": "pull_request", "parameters": {}},
             {"type": "required_status_checks",
-             "parameters": {"required_status_checks": [{"context": "test"}, {"context": "approval"}]}}]
+             "parameters": {"required_status_checks": [{"context": "test"}, {"context": "test-linux"}, {"context": "approval"}]}}]
 
 
 class Ledger(unittest.TestCase):
@@ -202,7 +202,7 @@ class GitHub(quiet.Quiet, unittest.TestCase):
         rules = [r for r in RULES_OK if r["type"] != "pull_request"]
         rules[-1] = {"type": "required_status_checks",
                      "parameters": {"required_status_checks": [{"context": "test"}]}}
-        self.assertEqual(envcheck.github(self.fake(rules)), ["PR の必須が掛かっていない", "必須チェックに approval が無い"])
+        self.assertEqual(envcheck.github(self.fake(rules)), ["PR の必須が掛かっていない", "必須チェックに test-linux・approval が無い"])
         with mock.patch.object(envcheck, "github", return_value=["PR の必須が掛かっていない"]):
             self.assertEqual(envcheck.main(["--github"]), 1)
         self.assertEqual(len(self.written().strip().splitlines()), 1)

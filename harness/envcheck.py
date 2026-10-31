@@ -1,7 +1,7 @@
 """実行環境の記録と照合（v2r、docs/design/v2r_protocol.md §5）。
 
     python -m harness.envcheck [--out env.json]      実測して固定値（config/toolchain.json）と照合する
-    python -m harness.envcheck --github              main に PR の必須と必須チェック（test・approval）が掛かっているか
+    python -m harness.envcheck --github              main に PR の必須と必須チェック（test・test-linux・approval）が掛かっているか
 
 実測するもの：OS、Python、Python の依存（requirements.lock の各パッケージ）、CLI（台帳の cli にあるもの）の版、
 .NET の道具（dotnet-stryker。§8 の変異の死滅率、U2）、ゲームのテストのプロジェクトの NuGet パッケージ（NUnit など。U1）。
@@ -31,8 +31,8 @@ ROOT = Path(__file__).resolve().parent.parent
 PINNED = toolchain.TOOLCHAIN
 LOCK = toolchain.LOCK
 FORGE_CLI = "gh"
-# main に掛かっていなければならない必須チェック（.github/workflows の harness-tests の test と、approval）
-REQUIRED_CHECKS = ("test", "approval")
+# main に掛かっていなければならない必須チェック（.github/workflows の harness-tests の test（Windows）と test-linux（Linux）、approval）
+REQUIRED_CHECKS = ("test", "test-linux", "approval")
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
 SAMPLING_NOTE = "temperature・top_p・seed：CLI で指定できない（提供側の既定。docs/design/v2r_protocol.md §6.2）"
 
