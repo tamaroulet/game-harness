@@ -19,11 +19,15 @@ PASSED = {"SUCCESS"}
 
 
 def _runs(checks, workflow):
-    """そのワークフローの走行のうち、startedAt が最も新しい 1 件（同じなら completedAt が新しいもの）。無ければ空。"""
-    found = [c for c in checks if isinstance(c, dict) and c.get("workflowName") == workflow]
-    if not found:
-        return []
-    return [max(found, key=lambda c: (str(c.get("startedAt") or ""), str(c.get("completedAt") or "")))]
+    """そのワークフローのジョブ（name）ごとに、startedAt が最も新しい走行（同じなら completedAt が新しいもの）。無ければ空。
+    ジョブが 2 つ（test と test-linux）のとき、ワークフローで 1 件だけを選ぶと、もう一方が走っている途中でも赤でもマージしうる。"""
+    latest = {}
+    for c in checks:
+        if isinstance(c, dict) and c.get("workflowName") == workflow:
+            key = (str(c.get("startedAt") or ""), str(c.get("completedAt") or ""))
+            if c.get("name") not in latest or key > latest[c.get("name")][0]:
+                latest[c.get("name")] = (key, c)
+    return [c for _, c in latest.values()]
 
 
 def _done(run):

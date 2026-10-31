@@ -144,10 +144,10 @@ def duration_fetch(cfg, runner):
 
 
 def _check(rollup, workflow, job):
-    latest = hline_merge._runs(rollup, workflow)   # ワークフローごとに最新の走行だけ
+    latest = hline_merge._runs(rollup, workflow)   # ジョブごとに最新の走行だけ
     if not latest:
         return f"{workflow}: チェックなし"
-    c = latest[0]
+    c = next((x for x in latest if x.get("name") == job), latest[0])
     took = _elapsed(c) if str(c.get("status")).upper() == "COMPLETED" else None   # 未完了の completedAt は 0001-01-01 で入る
     return (f"{workflow}（{job}）: 状態 {c.get('status') or '不明'}／結論 {c.get('conclusion') or 'なし'}"
             f"／所要 {span(took) if took is not None else '-'}")
