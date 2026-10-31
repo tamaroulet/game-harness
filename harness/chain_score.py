@@ -6,6 +6,7 @@
 （抜き書きだけ。言い換えの要約は作らない）は、開発の組は H ラインの out の chains/<tag>/<土台>/（提案役が読める）、ほかの組は
 oracles の chains/runs/<tag>/<土台>/ に置き、集計の数だけを <clone>/bench/records/chains/<tag>/<土台>.json に書く。
 """
+import ast
 import json
 import os
 import re
@@ -29,6 +30,7 @@ DRIVE_PATH = re.compile(r"[A-Za-z]:[\\/][^\s\"'<>|*?]*")
 REL_UP = re.compile(r"(?:^|[\\/])\.\.(?:[\\/]|$)")
 BUNDLE = Path("git/run.bundle")
 MARK = "CHAIN_RESULT "
+FAILED_IMPORT = "unittest.loader._FailedTest."   # 読み込みで落ちたファイルの、unittest の疑似の試験の id の頭
 
 # 採点：<tree> と <tests> を import の道の先頭に置き、<tests> の試験を走らせ、試験ごとに "ok" か理由の 1 行を出す。
 # subTest の 1 つの失敗は親の失敗（件数を水増ししない）。読めた試験で結果の無いもの（読み込みの誤りを含む）は MISSING
@@ -186,6 +188,12 @@ def item_lines(d, item):
     return lines
 
 
+def what_task(path):
+    """What の見出しの「タスク: <id>」。読めなければ None。"""
+    m = re.search(r"^タスク:\s*(\S+)", read_text(path), re.M) if Path(path).is_file() else None
+    return m.group(1) if m else None
+
+
 def index_text(base, k, run_id, rundir, results, found):
     """索引（抜き書きだけ。言い換えの要約は作らない）：落ちた隠しテスト・道の検め・What の試行ごとの門と終わり方・最後の手番。"""
     lines = [f"# 索引：{base} 段 {k}（{run_id}）", "", "## 落ちた隠しテスト", ""]
@@ -193,7 +201,8 @@ def index_text(base, k, run_id, rundir, results, found):
     lines += ["", "## 道の検め", ""] + ([f"- {log}：{tool} — {hit}" for log, tool, hit in found] or ["- 無し"])
     items = bench_run.read_json(rundir / "factory" / "queue.json", {}).get("items") or {}
     for d in sorted(p for p in (rundir / "items").glob("*") if p.is_dir()):
-        lines += item_lines(d, next((v for v in items.values() if isinstance(v, dict) and v.get("tid") == d.name), {}))
+        item = next((v for v in items.values() if isinstance(v, dict) and v.get("tid") == d.name), None)
+        lines += item_lines(d, item or {"task": what_task(d / "what.md"), "status": "queue.json に無い（延長の前の What など）"})
     return "\n".join(lines) + "\n"
 
 
@@ -228,7 +237,25 @@ def grade(tree, files, gone):
     line = next((x for x in out.splitlines() if x.startswith(MARK)), None)
     if line is None:
         raise BenchError(f"採点が結果を出しませんでした（終了コード {code}）: {(out + err).strip()[-400:]}")
-    return {t: v for t, v in json.loads(line[len(MARK):]).items() if t.split(".")[-1] not in gone}
+    stems, res = {Path(f).stem: f for f in files}, {}
+    for t, v in json.loads(line[len(MARK):]).items():
+        mod = t[len(FAILED_IMPORT):] if t.startswith(FAILED_IMPORT) else None
+        res.update(dict.fromkeys(declared(stems[mod]), v) if mod in stems else {t: v})
+    return {t: v for t, v in res.items() if t.split(".")[-1] not in gone}
+
+
+def declared(path):
+    """読み込みで落ちた試験のファイルを、宣言した試験（<モジュール>.<クラス>.<test…>）の数だけの落ちに開く。
+    1 件の疑似の試験のままだと、段の分け方（モジュールの名前で決める）と分母が狂う（Argon の事後の検め）。
+    構文の誤りで宣言を読めなければ、そのモジュールの 1 件として数える（段の分け方は保つ）。"""
+    mod = Path(path).stem
+    try:
+        body = ast.parse(read_text(path)).body
+    except SyntaxError:
+        return [f"{mod}.<読み込みの誤り>"]
+    tests = [f"{mod}.{c.name}.{f.name}" for c in body if isinstance(c, ast.ClassDef)
+             for f in c.body if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)) and f.name.startswith("test")]
+    return tests or [f"{mod}.<読み込みの誤り>"]
 
 
 def rate(results, ids):
@@ -268,16 +295,34 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
                violations=len(violations), leaks=len(hits), strays=len(found))
     for key in ("new", "old", "kept") if violations else ():
         row[key][0] = 0   # 今の finish と同じく、境界の外を変えた段は 0 点
-    if hits:
-        row["invalid"], row["reason"] = "REQ-11", "漏れの跡があります（guard.txt）"
-    elif found:
-        row["invalid"], row["reason"] = "stray", "実装役が作業の場所の外の置き場かネットに触れました（索引の道の検め）"
+    if (why := invalid_reason(rundir, cfg, hits, found)):
+        row["invalid"], row["reason"] = why
     hline_base.write_json(priv / f"s{k}.json", {"base": base, "k": k, "run_id": st["run_id"], "results": res, "replaced": sorted(gone),
                                                "violations": violations, "strays": found, "leaks": hits})
     (priv / f"s{k}.index.md").write_text(index_text(base, k, st["run_id"], rundir, res, found), encoding="utf-8")
     hline_base.write_json(rundir / "manifest.json", bench_run.manifest(rundir))
     row["manifest_sha256"] = bench_run.sha256_file(rundir / "manifest.json")
     return res
+
+
+def invalid_reason(rundir, cfg, hits, found):
+    """段の走りを無効にする理由 (印, 文)。凍結の finish と同じ順（漏れ・呼び出しの記録・モデル）の後に、道の検め。無ければ None。"""
+    if hits:
+        return "REQ-11", "漏れの跡があります（guard.txt）"
+    if not list((Path(rundir) / "calls").glob("*/result.json")):
+        return "REQ-22", "呼び出しの記録がありません"
+    if (bad := bench_run.model_problem(Path(rundir), cfg)):
+        return "REQ-02", f"許されないモデルが使われました: {', '.join(bad)}"
+    if found:
+        return "stray", "実装役が作業の場所の外の置き場かネットに触れました（索引の道の検め）"
+    return None
+
+
+def taint(row, tainted):
+    """前の段（tainted）が無効なら、この段の理由より先に「前の段が無効」とし、この段の理由は文に添える。"""
+    if tainted:
+        own = f"。この段も {row['invalid']}：{row['reason']}" if row.get("invalid") else ""
+        row["invalid"], row["reason"] = "tainted", f"前の段（{tainted}）が無効{own}"
 
 
 def finish_chain(rec, out, chains, cfg, priv):
@@ -297,8 +342,7 @@ def finish_chain(rec, out, chains, cfg, priv):
         if row["invalid"] or not st.get("head"):
             break
         prev = finish_stage(rec, st, row, out, chains, cfg, priv, prev)
-        if tainted and not row["invalid"]:
-            row["invalid"], row["reason"] = "tainted", f"前の段（{tainted}）が無効"
+        taint(row, tainted)
         tainted = tainted or (f"s{st['k']}" if row["invalid"] else None)
     return public
 
