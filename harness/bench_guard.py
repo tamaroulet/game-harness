@@ -10,6 +10,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import exitcode  # noqa: E402  python -m harness.bench_guard でも python harness/bench_guard.py でも読めるように
@@ -27,7 +28,7 @@ def places(cfg):
     missing = [k for k in PLACES if not isinstance(cfg.get(k), str) or not cfg[k].strip()]
     if missing:
         raise ConfigError(f"config/hline.json に {', '.join(missing)} がありません")
-    return {k: Path(cfg[k]) for k in PLACES}
+    return {k: Path(cfg[k].strip()) for k in PLACES}   # 値の前後の空白・改行は落とす
 
 
 def openable(cfg):
@@ -61,7 +62,7 @@ def canaries(oracles):
     out = []
     for p in sorted([*Path(oracles).glob("bench/*/canary.txt"), *Path(oracles).glob("chains/*/s*/canary.txt")]):
         try:
-            s = p.read_text(encoding="utf-8", errors="ignore").strip()
+            s = p.read_text(encoding="utf-8-sig", errors="ignore").strip()   # BOM 付き（Windows の道具）も読む
         except OSError:
             continue
         if s:
@@ -82,7 +83,7 @@ def leaks(cfg, dirs):
             except OSError:
                 continue
             for n, line in enumerate(text.splitlines(), 1):
-                if needle in _norm(line) or any(m in line for m in marks):
+                if needle in _norm(line) or needle in _norm(unquote(line)) or any(m in line for m in marks):   # file の URI の %20・%3A も
                     hits.append((str(p), n))
     return hits
 

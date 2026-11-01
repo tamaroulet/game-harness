@@ -10,6 +10,7 @@ oracles の chains/runs/<tag>/<土台>/ に置き、集計の数だけを <clone
 import ast
 import json
 import os
+import posixpath
 import re
 import shutil
 import sys
@@ -27,7 +28,7 @@ from bench_start import BenchError, git  # noqa: E402
 
 GRADE_TTL = 600
 TAIL = 6                      # 索引に抜く、実装役の最後の手番の数
-NET_TOOL = re.compile(r"browser|_url|web", re.I)
+NET_TOOL = re.compile(r"browser|_url|web|fetch|http|curl|wget", re.I)
 # このリポジトリの名（公開。過去のコミットに、段の中身を書いた版がある）。ネットの道具の引数がこれか段の名を含めば、その段を無効にする
 REPO_MARKS = ("tamaroulet", "game-harness", "game_harness")
 DRIVE_PATH = re.compile(r"[A-Za-z]:[\\/][^\s\"'<>|*?]*")
@@ -241,10 +242,11 @@ def audit(logs, own, local, marks, subs=()):
 
 def paths_in(text, cwd):
     """引数の文字列が指すパス。語（空白・引用符・=・( で区切る）ごとに、ドライブからのパス・/ で始まるパス・作業の場所からの .. を含む
-    相対のパスを全部拾う。:// を含む語（URL）はパスにしない。"""
+    相対のパスを全部拾う。file: の URI はその指すパスにし、ほかの :// を含む語（URL）はパスにしない。.. を含む絶対のパスは畳む。"""
     hits = []
-    for word in (w for w in WORD.findall(text) if "://" not in w):
+    for word in (w for w in map(uri_path, WORD.findall(text)) if "://" not in w):
         found = [m.group(0) for m in DRIVE_PATH.finditer(word)] or ([word] if word.startswith("/") else [])
+        found = [posixpath.normpath(h.replace("\\", "/")) if REL_UP.search(h) else h for h in found]
         hits += found or ([os.path.normpath(os.path.join(cwd, word))] if cwd and REL_UP.search(word) else [])
     return hits
 
