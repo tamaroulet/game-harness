@@ -32,6 +32,7 @@ NET_TOOL = re.compile(r"browser|_url|web", re.I)
 REPO_MARKS = ("tamaroulet", "game-harness", "game_harness")
 DRIVE_PATH = re.compile(r"[A-Za-z]:[\\/][^\s\"'<>|*?]*")
 REL_UP = re.compile(r"(?:^|[\\/])\.\.(?:[\\/]|$)")
+WORD = re.compile(r"[^\s\"'=(]+")   # paths_in の語（空白・引用符・=・( で区切る）
 BUNDLE = Path("git/run.bundle")
 MARK = "CHAIN_RESULT "
 SUB_TOOL = "invoke_subagent"
@@ -239,9 +240,13 @@ def audit(logs, own, local, marks, subs=()):
 
 
 def paths_in(text, cwd):
-    """引数の文字列が指すパス：中のドライブからのパス、/ で始まる文字列（Linux）、作業の場所からの .. を含む相対のパス。"""
-    hits = [m.group(0) for m in DRIVE_PATH.finditer(text)] or ([text] if text.startswith("/") else [])
-    return hits or ([os.path.normpath(os.path.join(cwd, text))] if cwd and REL_UP.search(text) else [])
+    """引数の文字列が指すパス。語（空白・引用符・=・( で区切る）ごとに、ドライブからのパス・/ で始まるパス・作業の場所からの .. を含む
+    相対のパスを全部拾う。:// を含む語（URL）はパスにしない。"""
+    hits = []
+    for word in (w for w in WORD.findall(text) if "://" not in w):
+        found = [m.group(0) for m in DRIVE_PATH.finditer(word)] or ([word] if word.startswith("/") else [])
+        hits += found or ([os.path.normpath(os.path.join(cwd, word))] if cwd and REL_UP.search(word) else [])
+    return hits
 
 
 def gate_failures(text):
