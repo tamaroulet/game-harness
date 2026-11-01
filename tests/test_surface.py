@@ -111,6 +111,21 @@ class OnlyTheChainStage(Temp):
         got = f.effective(CFG)
         self.assertEqual((got["implementer"]["cli"], got["implementer"]["budget"]), ("agy", {"max_turns": 20, "resume_max_turns": 10}))
 
+    def test_the_poll_config_gets_the_setting_with_and_without_the_implementer_override(self):
+        """setup_clone が作る line_cfg（H ラインの poll が読む設定）に値が届く。effective だけでは届かなかった。"""
+        self.setting(GOOD, surface.SETTING)
+        for impl in (None, {"cli": "agy", "budget": {"max_turns": 9}}):
+            f = self.stage()
+            f.impl = impl
+            seen = {}
+
+            def fake(this, plan_inbox, cfg, seen=seen):
+                seen["line"] = bench_run.line_config(cfg, self.tmp, self.tmp / "inbox", "s", "b", this.impl)
+            with patch.object(bench_run.Factory, "setup_clone", fake):
+                f.setup_clone(self.tmp / "plan", CFG)
+            line = seen["line"]
+            self.assertEqual((line["implementer"]["budget"]["max_turns"], line["max_attempts"]), (20, 3))
+
     def test_a_plain_factory_run_ignores_the_setting(self):
         self.setting(GOOD, surface.SETTING)
         f = bench_run.Factory(self.ns())

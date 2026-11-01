@@ -222,6 +222,14 @@ class ChainStage(bench_run.Factory):
         self.run["surface"] = {"values": values, "sha256": sha}
         return surface.put(super().effective(cfg), values)
 
+    def setup_clone(self, plan_inbox, cfg):
+        """H ラインの poll が読む設定（line_cfg）にも面のつまみを当てる。Factory.setup_clone は effective を通らず、
+        元の設定と実装役の設定（self.impl）から line_cfg を作るので、effective だけでは poll に届かない。"""
+        values, _ = surface.load(self.repo / surface.SETTING)
+        if self.impl is not None:
+            self.impl = surface.put({"implementer": self.impl}, values)["implementer"]
+        super().setup_clone(plan_inbox, surface.put(cfg, values))
+
     def keep_plan(self, plan_inbox, spec):
         super().keep_plan(plan_inbox, self.spec)
 
