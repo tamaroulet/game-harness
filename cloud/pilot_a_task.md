@@ -8,6 +8,7 @@
 
 1. 次を 1 回の Bash で走らせ、出力をそのまま控える。
    `date -u +%Y-%m-%dT%H:%M:%SZ; echo "session=${CLAUDE_CODE_REMOTE_SESSION_ID:-unset} effort_now=${CLAUDE_EFFORT:-unset} effort_env=${CLAUDE_CODE_EFFORT_LEVEL:-unset}"; python3 --version; git log --oneline -1`
+1a. 1 を走らせたら、2・3 の判定の前に必ず、作業の枝 `claude/chain-score-at-start-subagents` を main から切り、`git commit --allow-empty` で空のコミットを作って、すぐその枝に push する（開始の印。会話の席が GitHub で読む）。メッセージは 1 行目を `開始の印`、本文に 1 の出力をそのままと、あなたのモデルの ID を書く。最後の行は 5 の Co-Authored-By。
 2. `effort_now` が `unset` でなく、`high` でもなければ終える（`unset` なら進め、報告にそう書く）。`effort_env` は記録だけ。
 3. あなたのモデルが Sonnet 5.5（claude-sonnet-5-5）でなければ終える。
 4. 下請けのエージェント（Agent の道具）と、ネットの検索・取得の道具は使わない。
@@ -72,7 +73,7 @@ chain_score.py は「鎖」の段ごとの採点（finish）をする。段の�
 ## 5. 枝とコミット
 
 - 枝：`claude/chain-score-at-start-subagents`（main から）。main にも、ほかの既存の枝にも push しない。
-- コミットは 1〜3 個。メッセージは日本語で、最後の行に `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`。
+- コミットは、0 の開始の印のほかに 1〜3 個。メッセージは日本語で、最後の行に `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`。
 
 ## 6. 最後の報告（この順で）
 
