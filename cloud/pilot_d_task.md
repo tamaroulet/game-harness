@@ -8,7 +8,6 @@
 
 1. 次を 1 回の Bash で走らせ、出力をそのまま控える。
    `date -u +%Y-%m-%dT%H:%M:%SZ; echo "session=${CLAUDE_CODE_REMOTE_SESSION_ID:-unset} effort_now=${CLAUDE_EFFORT:-unset} effort_env=${CLAUDE_CODE_EFFORT_LEVEL:-unset}"; python3 --version; git log --oneline -1`
-1a. 1 を走らせたら、2・3 の判定の前に必ず、作業の枝 `claude/proposer-launch` を main から切り、`git commit --allow-empty` で空のコミットを作って、すぐその枝に push する（開始の印。会話の席が GitHub で読む）。メッセージは 1 行目を `開始の印`、本文に 1 の出力をそのままと、あなたのモデルの ID を書く。最後の行は 5 の Co-Authored-By。
 2. `effort_now` が `unset` でなく、`high` でもなければ終える（`unset` なら進め、報告にそう書く）。`effort_env` は記録だけ。
 3. あなたのモデルが Sonnet 5.5（claude-sonnet-5-5）でなければ終える。
 4. 下請けのエージェント（Agent の道具）と、ネットの検索・取得の道具は使わない。この箱で `claude` の CLI を起こさない（試験は偽の出力だけで書く）。
@@ -26,9 +25,9 @@
 
 ## 2. 作るもの
 
-### (1) 設定：config/hline.json に `proposer` の項を足す
+### (1) 設定：config/proposer.json（新しいファイル）
 
-director と同じ形で、値は次のとおり。
+config/hline.json の director と同じ形で、値は次のとおり（config/hline.json は高リスクの区分なので触らない。out と oracles は config/hline.json から読むだけ）。
 
 - `cli` "claude"、`headless_flag` "-p"、`model_flag` "--model"、`model` "claude-sonnet-5-5"、`auxiliary_models` ["claude-haiku-"]
 - `extra_flags`：`--allowedTools` "Read,Grep,Glob" と、`--disallowedTools` "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent,Task"。`--permission-mode` は付けない（-p では、許していない道具は断られる）。
@@ -38,11 +37,11 @@ director と同じ形で、値は次のとおり。
 
 ### (2) モデルの固定の検査に入れる
 
-- harness/model_pin.py の agent_configs に、config/hline.json の proposer を（あれば）足す。`python -m harness.model_pin` が proposer も検めること。ほかの項の扱いは変えない。
+- harness/model_pin.py の agent_configs で、config/decompose.json・config/spec.json と同じ並びに config/proposer.json を足す。`python -m harness.model_pin` が proposer も検めること。ほかの項の扱いは変えない。
 
 ### (3) 起こし方：harness/proposer_launch.py（新しいモジュール）
 
-`python -m harness.proposer_launch --tag <tag> [--root <dir>]... [--config <hline.json>]`
+`python -m harness.proposer_launch --tag <tag> [--root <dir>]... [--config <hline.json>]`（提案役の設定は ROOT の config/proposer.json）
 
 1. 関所（どれかに当たれば起こさず、記録に理由を書いて終了コード 1）：
    - model_pin.require と auxiliary_prefixes（director と同じ。設定の誤りは止める）
@@ -70,9 +69,10 @@ stream-json の行の形（値は例。ほかの形の行もある。決め打�
 
 ## 3. 守ること
 
-- 変えてよいのは、harness/proposer_launch.py（新）、config/hline.json の `proposer` の項（足すだけ）、harness/model_pin.py の agent_configs（proposer を足す数行）、tests/ の下の新しい試験のファイルだけ。harness/chain_score.py は別のセッションが直しているので触らない。既存の試験・docs/・bench/・.github/・.claude/ と、config/hline.json のほかの項は変えない。頼みに無い直し（ついでの整理・名前の変更）はしない。決めかねたら推して決めず、6 の 6 に書く。
+- 変えてよいのは、harness/proposer_launch.py（新）、config/proposer.json（新）、harness/model_pin.py の agent_configs（proposer を足す所だけ）、新しいモジュールを登録するための config/arch_components.json と config/envscan_baseline.json（test_arch_inventory・test_envscan_ratchet が求める分だけ。ほかの値は変えない）、tests/ の下の新しい試験のファイルだけ。harness/chain_score.py は触らない。既存の試験・docs/・bench/・.github/・.claude/・config/hline.json は変えない。頼みに無い直し（ついでの整理・名前の変更）はしない。決めかねたら推して決めず、6 の 6 に書く。
 - 規模：harness/ の追加は 300 行まで（試験は数えない）、モジュールは 500 行まで、関数の循環的複雑度は 15 まで（config/size_limits.json）。
 - 書き方は周りに合わせる（日本語の docstring とコメント、短い関数、標準ライブラリだけ）。director_launch.py と同じ部品（proc・hline_budget・model_pin・hline_base）を使い回し、同じことを書き直さない。
+- 試験は Windows でも通る形で書く（手元は Windows。パスは文字列でなく Path で比べ、区切りの / と \ の違いで落ちないように）。
 - 試験は一時ディレクトリの偽の設定・記録・指示と、proc.run と resolve_cli の差し替え（tests/test_director_launch.py の形）だけで書く。課題の名前や中身を推して書かない。
 
 足す試験（少なくとも）：
@@ -93,7 +93,7 @@ stream-json の行の形（値は例。ほかの形の行もある。決め打�
 ## 5. 枝とコミット
 
 - 枝：`claude/proposer-launch`（main から）。main にも、ほかの既存の枝にも push しない。
-- コミットは、0 の開始の印のほかに 1〜3 個。メッセージは日本語で、最後の行に `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`。
+- コミットは 1〜3 個。メッセージは日本語で、最後の行に `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`。
 
 ## 6. 最後の報告（この順で）
 
