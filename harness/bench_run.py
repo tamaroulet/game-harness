@@ -97,7 +97,7 @@ def read_json(path, default):
 def line_config(base_cfg, work, inbox, base, branch, implementer=None):
     """clone の config/hline.json の 8 つの欄を走行用に上書きしたもの。implementer があれば実装役の設定もそれに替える。"""
     cfg = {**base_cfg, "inbox": str(inbox), "out": str(work / "out"), "worktrees": str(work / "wt"), "base": base,
-           "integration_branch": branch, "milestones": [GROUP], "open_pr": False, "gate_always_modules": []}
+           "integration_branch": branch, "milestones": [GROUP], "open_pr": False, "open_issue": False, "gate_always_modules": []}
     return {**cfg, "implementer": implementer} if implementer is not None else cfg
 
 
