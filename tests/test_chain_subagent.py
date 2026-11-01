@@ -82,7 +82,7 @@ class Subagents(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name)
         self.local, self.own = self.root / "local", self.root / "local" / "own"
-        self.other, self.work = self.local / "other", self.local / "wt"
+        self.other, self.work = self.local / "other", self.own / "wt"
         self.item = self.own / "items" / "w1"
         for d in (self.other, self.work, self.item):
             d.mkdir(parents=True)
@@ -123,7 +123,7 @@ class Subagents(unittest.TestCase):
         log = self.log([("sub-1", bad, self.work)])
         subs, found, web = self.check(log)
         copy = self.item / "subagent-sub-1.jsonl"
-        self.assertEqual(subs, [(copy, str(self.work))])
+        self.assertEqual([(c, Path(w)) for c, w in subs], [(copy, self.work)])   # 区切りは OS で違う
         self.assertEqual(copy.read_bytes(), bad.read_bytes())
         self.assertEqual((found, web), ([("subagent-sub-1.jsonl", "view_file", str(self.other / "b.py"))], []))
         mtime = copy.stat().st_mtime_ns
@@ -131,13 +131,16 @@ class Subagents(unittest.TestCase):
         self.assertEqual(copy.stat().st_mtime_ns, mtime)
 
     def test_network_tool_and_inside_only(self):
-        """下請けのネットの道具は実装役と同じ決まり（名指しは当たり、調べものは残る）。作業の場所の中だけなら当たり無し。"""
+        """下請けのネットの道具は実装役と同じ決まり（名指しは当たり、調べものは残る）。作業の場所の中だけなら当たり無し。
+        下請けの作業の場所が段の作業の場所の外なら、その中を読んでも当たり。"""
         net = self.transcript("sub-2", ("search_web", {"query": "game-harness chain"}), ("search_web", {"query": "mujoco condim"}))
         _, found, web = self.check(self.log([("sub-2", net, self.work)]))
         self.assertEqual([f[:2] for f in found], [("subagent-sub-2.jsonl", "search_web")])
         self.assertEqual(web, [("subagent-sub-2.jsonl", "search_web", "mujoco condim")])
         ok = self.transcript("sub-3", ("view_file", {"AbsolutePath": str(self.work / "a.py")}))
         self.assertEqual(self.check(self.log([("sub-3", ok, self.work)]))[1:], ([], []))
+        far = self.transcript("sub-6", ("view_file", {"AbsolutePath": str(self.other / "c.py")}))
+        self.assertEqual([f[2] for f in self.check(self.log([("sub-6", far, self.other)]))[1]], [str(self.other / "c.py")])
 
     def test_missing_transcript_is_a_hit(self):
         """記録を読めない（ファイルが無い・log_uri が無い）起動は、検められない当たりにする。"""

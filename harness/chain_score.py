@@ -160,7 +160,7 @@ def launches(steps):
 
 def adopt(log, steps, own):
     """下請けの記録を log と同じ What のディレクトリに subagent-<id>.jsonl として写す（同じ中身が既にあれば写し直さない）。
-    (検める記録 [(写し, 作業の場所)], 見つからない記録の当たり [(ログ, 道具, 理由)])。作業の場所は workspace_uris の最初、無ければ own。"""
+    (検める記録 [(写し, 作業の場所)], 見つからない記録の当たり [(ログ, 道具, 理由)])。作業の場所（相対パスの起点）は workspace_uris の最初、無ければ own。"""
     subs, missing = [], []
     for sub in launches(steps):
         dest = Path(log).parent / f"subagent-{re.sub(r'[^A-Za-z0-9._-]', '_', sub['id'])}.jsonl"
@@ -192,13 +192,14 @@ def calls_of(path):
 
 def tool_calls(logs, own, subs=()):
     """道の検めの対象：(ログ, 作業の場所, cwd, 道具, 引数, 読んでよいパス) の列。実装役の生ログの道具の手番と、写した下請けの記録
-    subs [(写し, 作業の場所)] の呼び出し。実装役が同じログで起こした下請けの記録のパス（正規化したもの）は、実装役の呼び出しでは読んでよい。"""
+    subs [(写し, 作業の場所)] の呼び出し。実装役が同じログで起こした下請けの記録のパス（正規化したもの）は、実装役の呼び出しでは読んでよい。
+    下請けの境界も own（下請けの作業の場所は相対パスの起点にだけ使う。own の外を作業の場所にした下請けを素通りさせない）。"""
     for log in logs:
         cwd, steps = steps_of(log)
         mine = {norm(x["path"]) for x in launches(steps) if x["path"]}
         yield from ((log.name, own, cwd, s["tool"], s.get("parameters"), mine) for s in steps if s.get("tool"))
     for path, work in subs:
-        yield from ((path.name, work, work, tool, args, frozenset()) for tool, args in calls_of(path))
+        yield from ((path.name, own, work, tool, args, frozenset()) for tool, args in calls_of(path))
 
 
 def outside(texts, cwd, own, local, skip=()):
