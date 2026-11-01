@@ -1,0 +1,6 @@
+{
+  "_comment": "最適化の面の 2 つ目（v3 §7-8）。config/hline.json のつまみの値を写したもの。鎖の段の走り（harness/bench_chain.py の ChainStage）でだけ当てる。つまみの名前・場所・範囲は harness/surface.py の KNOBS にあり、周期からは変えられない。範囲を広げるのは高リスクの変更",
+  "implementer_max_turns": 15,
+  "implementer_resume_max_turns": 8,
+  "max_attempts": 2
+}
