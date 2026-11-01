@@ -37,6 +37,7 @@ import exitcode  # noqa: E402
 import hline_base  # noqa: E402
 import machine  # noqa: E402
 import progress  # noqa: E402
+import surface  # noqa: E402
 from bench_start import BenchError, git  # noqa: E402
 
 CONFIG = bench_run.ROOT / "config" / "hline.json"
@@ -214,6 +215,12 @@ class ChainStage(bench_run.Factory):
         self.run["base"] = git(self.repo, ["rev-parse", "--verify", "-q", f"{self.rev}^{{commit}}"]).decode().strip()
         if (self.rundir / "factory" / "run.json").exists():
             raise BenchError(f"走行のディレクトリがすでにあります: {self.rundir}")
+
+    def effective(self, cfg):
+        """面の設定（config/surface.json）のつまみを当てる。鎖の段の走りにだけ効く。誤りは BenchError（run_stage が ABORT にする）。"""
+        values, sha = surface.load(self.repo / surface.SETTING)
+        self.run["surface"] = {"values": values, "sha256": sha}
+        return surface.put(super().effective(cfg), values)
 
     def keep_plan(self, plan_inbox, spec):
         super().keep_plan(plan_inbox, self.spec)

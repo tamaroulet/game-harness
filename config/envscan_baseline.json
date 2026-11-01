@@ -356,6 +356,9 @@
    "cli_name": 2,
    "model_id": 2
   },
+  "harness/surface.py": {
+   "encoding": 1
+  },
   "harness/symbolmap.py": {
    "encoding": 3
   },
