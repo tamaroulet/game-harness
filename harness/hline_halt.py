@@ -1,6 +1,7 @@
 """H ライン（harness/hline.py）の停止の通知：poll が環境の異常か予期しない例外で終わったら、report.md の先頭に停止の節を書く。
 
 同じ理由の停止が 2 回続いたら GitHub に issue を 1 件開く（題に理由を入れ、同じ題の開いた issue があれば開かない）。
+設定の open_issue が false なら開かない（ベンチの走り）。題と本文の、ドライブからのパスとホームの下のパスは <path> に伏せる（公開のリポジトリのため）。
 続いた回数は <out>/halt.json に置き、0 か 1 で終わった走行で消す。ここの失敗（report.md の書き込み・gh）は握りつぶし、poll の終了コードを変えない。
 """
 import datetime
@@ -14,6 +15,7 @@ from hline_base import ROOT
 HEADING = "## 停止"
 SECTION = re.compile(r"\A## 停止\n\n[^\n]*\n\n?")
 MARK = "H ラインの停止: "
+LOCAL_PATH = re.compile(r"[A-Za-z]:[\\/][^\s\"'<>|*?]*|/(?:home|Users)/[^\s\"'<>|*?/]+[^\s\"'<>|*?]*")
 
 
 def reason_of(e):
@@ -53,7 +55,13 @@ def _count(cfg, reason):
     return n
 
 
+def masked(text):
+    """ドライブからのパス（C:\\...・C:/...）とホームの下のパス（/home/<名>/...・/Users/<名>/...）を <path> に伏せたもの。"""
+    return LOCAL_PATH.sub("<path>", text)
+
+
 def _open_issue(cfg, reason):
+    reason = masked(reason)
     title = MARK + reason
     ttl = cfg.get("ttl_seconds", {}).get("gh", 60)
     gh = proc.resolve_cli("gh")
@@ -73,7 +81,7 @@ def stopped(cfg, reason, now=None):
     except Exception as e:   # noqa: BLE001
         print(f"停止の節を書けません: {e}")
     try:
-        if _count(cfg, reason) >= 2:
+        if _count(cfg, reason) >= 2 and cfg.get("open_issue") is not False:
             _open_issue(cfg, reason)
     except Exception as e:   # noqa: BLE001
         print(f"停止の通知を出せません: {e}")

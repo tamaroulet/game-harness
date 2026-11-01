@@ -35,6 +35,7 @@ import yaml
 READ_MODES = ("inline", "tools")
 DIFF_LIMIT = 80_000   # tools のとき頼みに入れる diff の字の上限
 DIFF_CUT_NOTE = "（ここで切った）"
+INLINE_MAX_CHARS = 1_000_000   # 組んだ頼みの字の上限（読み方と --with を問わない。超えたらモデルを呼ばずに止める）
 
 VALID_DECISIONS = {"LOW", "MEDIUM", "HIGH"}
 FALLBACK_DECISION = "HIGH"
@@ -309,6 +310,8 @@ def evaluate(kind, target, cfg=None, model_fn=None, root=ROOT, read_mode="inline
     # 3. プロンプト生成（inline は全写しファイル、tools は写しの場所と数）
     roots = _copy_roots(cfg, copies) if read_mode == "tools" else None
     prompt = _build_prompt(kind, target, target_ctx, copies, shas, roots=roots, focus=focus)
+    if len(prompt) > INLINE_MAX_CHARS:
+        raise ArgonError(f"頼みが {len(prompt)} 字で、上限の {INLINE_MAX_CHARS} 字を超えます。--with で材料を絞るか、--tools の読み方にしてください")
 
     # 4. モデル呼び出し（差し替え可能）
     start_time = time.time()
@@ -517,9 +520,16 @@ def _parse_args(argv):
 
 
 def main(argv=None, cfg=None):
-    """CLI 入口。形が違う（種類と対象が無い・知らない旗・--with の後にファイルが無い）ときは 1 で終了し記録を書かない。"""
+    """CLI 入口。形が違う（種類と対象が無い・知らない旗・--with の後にファイルが無い）ときは 1 で終了し記録を書かない。
+    -h・--help がどこかにあれば使い方を出して 0、対象が - で始まれば（旗の打ち違い）評価を呼ばずに使い方を出して 2。"""
     if argv is None:
         argv = sys.argv[1:]
+    if any(a in ("-h", "--help") for a in argv):
+        print(USAGE)
+        return 0
+    if len(argv) >= 2 and argv[1].startswith("-"):
+        print(USAGE, file=sys.stderr)
+        return 2
 
     parsed = _parse_args(argv)
     if parsed is None:
