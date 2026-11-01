@@ -1,0 +1,22 @@
+{
+  "_comment": "提案役の起こし方（harness/proposer_launch.py）。外側の周期の最初の手で、開発の組の走りの記録とハーネスのコードを読み、直す失敗の型を 1 つ選んで決まった見出しの提案を書く。形は config/hline.json の director に合わせる。out と oracles は config/hline.json から読む",
+
+  "cli": "claude",
+  "headless_flag": "-p",
+  "model_flag": "--model",
+  "model": "claude-sonnet-5-5",
+  "auxiliary_models": ["claude-haiku-"],
+
+  "_flags_note": "読むだけの道具に限る。--permission-mode は付けない（-p では、許していない道具は断られる）。道具の呼び出しは走った後に stream-json から拾い、allowed_tools と読む根で検める",
+  "extra_flags": ["--allowedTools", "Read,Grep,Glob",
+                  "--disallowedTools", "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent,Task"],
+  "output_format_args": ["--output-format", "stream-json", "--verbose"],
+  "allowed_tools": ["Read", "Grep", "Glob"],
+
+  "_budget_note": "max_turns は --max-turns、ttl_seconds は proc.run の時間の上限。max_tokens は CLI に指定が無いので、走った後に利用量を照らし、超えたら記録に「超過」と残す",
+  "proposer_budget": {
+    "max_turns": 60,
+    "ttl_seconds": 3600,
+    "max_tokens": 5000000
+  }
+}
