@@ -34,6 +34,10 @@
    "leaks": 0,
    "strays": 0,
    "web": 3,
+   "new_at_start": [
+    1,
+    5
+   ],
    "manifest_sha256": "1c6195d64998ee03e00c4a591a45d642f4df64b549b475407916526ebdb369fa"
   },
   {
@@ -61,6 +65,10 @@
    "leaks": 0,
    "strays": 0,
    "web": 0,
+   "new_at_start": [
+    0,
+    5
+   ],
    "manifest_sha256": "e244653ed9416c40ccbf259dc0ca239636509a024bf54c79b4d237ec197d1111"
   },
   {
@@ -88,6 +96,10 @@
    "leaks": 0,
    "strays": 0,
    "web": 0,
+   "new_at_start": [
+    3,
+    8
+   ],
    "manifest_sha256": "a59e851460d4507959011ec04ae0ed29740ee3661475c9529368161d277c37cf"
   },
   {
@@ -115,6 +127,10 @@
    "leaks": 0,
    "strays": 0,
    "web": 0,
+   "new_at_start": [
+    0,
+    11
+   ],
    "manifest_sha256": "e5f66a0f921259998ca5779f8b9025e9ea394bf0614fac39bd7f72cab4cf785e"
   },
   {
@@ -142,6 +158,10 @@
    "leaks": 0,
    "strays": 0,
    "web": 0,
+   "new_at_start": [
+    2,
+    4
+   ],
    "manifest_sha256": "494ed2556dacc1061c218082d6fc18aaeaad8b7437b337bf533a24aed979321d"
   },
   {
@@ -169,6 +189,10 @@
    "leaks": 0,
    "strays": 0,
    "web": 0,
+   "new_at_start": [
+    3,
+    6
+   ],
    "manifest_sha256": "6313a2e6ae31050158407594a75b70b81f79e983f8856f9ee16a161032e2a994"
   }
  ]

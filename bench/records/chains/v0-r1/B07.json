@@ -34,6 +34,10 @@
    "leaks": 0,
    "strays": 0,
    "web": 0,
+   "new_at_start": [
+    0,
+    8
+   ],
    "manifest_sha256": "1137c95a1376386ff52d3930a79371d8f82ba9037fcda59bf2e4fd49be3042ee"
   },
   {
@@ -61,6 +65,10 @@
    "leaks": 0,
    "strays": 0,
    "web": 0,
+   "new_at_start": [
+    1,
+    12
+   ],
    "manifest_sha256": "78588e5fe30bc0e5bf33a14b29afe5f34d5468624af4387035be3852e5e0d36d"
   },
   {
@@ -88,6 +96,10 @@
    "leaks": 0,
    "strays": 0,
    "web": 0,
+   "new_at_start": [
+    0,
+    2
+   ],
    "manifest_sha256": "31e54339a8b43563c01c679a6fa1c9a1c7e6f11564455cc1b8c01baadb1fa9e6"
   },
   {
@@ -115,6 +127,10 @@
    "leaks": 0,
    "strays": 0,
    "web": 0,
+   "new_at_start": [
+    3,
+    6
+   ],
    "manifest_sha256": "bf66cf92f46350476a109db7a430ca0409afe98d88013c624a44dd3b4350cdd3"
   },
   {
@@ -142,14 +158,18 @@
    "leaks": 0,
    "strays": 0,
    "web": 0,
+   "new_at_start": [
+    4,
+    4
+   ],
    "manifest_sha256": "112e01999c5a1610ea27edfeff1c6e223871a4c6c2fa6128e28f4db1e35933e3"
   },
   {
    "k": 6,
    "run_id": "v0-r1-s6",
    "attempts": 1,
-   "invalid": "stray",
-   "reason": "実装役が作業の場所の外の置き場かネットに触れました（索引の道の検め）",
+   "invalid": false,
+   "reason": null,
    "stop": "done",
    "tries": 2,
    "tokens": 4814411,
@@ -167,9 +187,13 @@
    ],
    "violations": 0,
    "leaks": 0,
-   "strays": 1,
+   "strays": 0,
    "web": 0,
-   "manifest_sha256": "679625c7e1b1dec75a978164c079bc3563adf90a64d646ec2f8c638dd20cd8c7"
+   "new_at_start": [
+    0,
+    10
+   ],
+   "manifest_sha256": "a5e4ed4821ea600d5c5f7990ac78e7a4ee31ea9c32497c1a259640038f32fb30"
   }
  ]
 }
