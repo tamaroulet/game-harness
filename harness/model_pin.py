@@ -113,7 +113,7 @@ def require_implementer(imp, where):
 def agent_configs(root=ROOT):
     """ハーネスが呼ぶエージェントの設定。[(場所, 設定の表, モデルのキー)]。"""
     out = []
-    for name in ("decompose", "spec"):
+    for name in ("decompose", "spec", "proposer"):
         p = Path(root) / "config" / f"{name}.json"
         if p.exists():
             out.append((f"config/{name}.json", json.loads(p.read_text(encoding="utf-8")), "model"))
