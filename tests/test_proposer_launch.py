@@ -215,6 +215,10 @@ class PathAudit(Base):
         got = self.hits([("Glob", {"pattern": str(self.oracles) + "/**/*.json"})])
         self.assertEqual([h["name"] for h in got], ["Glob"])
 
+    def test_a_relative_glob_escaping_with_dotdot_is_a_hit_and_grep_regex_is_not_a_path(self):
+        got = self.hits([("Glob", {"pattern": "../oracles/**/*.json"}), ("Grep", {"pattern": "/chains/"})])
+        self.assertEqual([h["name"] for h in got], ["Glob"])
+
     def test_a_tool_outside_allowed_tools_is_a_hit(self):
         got = self.hits([("Bash", {"command": "ls"})])
         self.assertIn("許していない道具: Bash", got[0]["why"])

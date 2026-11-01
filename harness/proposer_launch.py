@@ -130,14 +130,16 @@ def tool_uses(out):
 
 
 def stray(use, allowed, roots, cwd):
-    """道具の呼び出し 1 つの当たりの理由の列。path が無い呼び出しは作業ディレクトリ（cwd）を見たとする。"""
+    """道具の呼び出し 1 つの当たりの理由の列。path が無い呼び出しは作業ディレクトリ（cwd）を見たとする。
+    pattern をパスとして見るのは Glob だけ（Grep の pattern は検索の正規表現）。絶対の形か .. を含むときに照らす。"""
     name, inp = use.get("name"), use.get("input")
     if name not in allowed:
         return [f"許していない道具: {name}"]
     inp = inp if isinstance(inp, dict) else {}
     targets = [inp[k] for k in PATH_KEYS if isinstance(inp.get(k), str)]
-    if isinstance(inp.get("pattern"), str) and is_abs(inp["pattern"]):
-        targets.append(inp["pattern"])
+    pat = inp.get("pattern") if name == "Glob" else None
+    if isinstance(pat, str) and (is_abs(pat) or ".." in pat.replace("\\", "/").split("/")):
+        targets.append(pat)
     rs = [norm(r) for r in roots]
     return [f"読む根の外: {t}" for t in targets if not any(under(norm(t, cwd), r) for r in rs)]
 
