@@ -152,7 +152,10 @@ class Check(Temp):
         git(self.repo, "init", "-q")
         git(self.repo, "config", "user.name", "Tester")
         git(self.repo, "config", "user.email", "tester@example.com")
-        write(self.repo / "harness" / "hline_prompt.py", "".join(f"line_{i} = {i}\n" for i in range(20)) + "OLD = 'test_secret_alpha'\n")
+        # 面の関数（build_prompt）の中で終わる偽の指示のコード。append はこの関数の中に足す（頂に足すと関数の単位の検査に当たる）
+        write(self.repo / "harness" / "hline_prompt.py", "def ledger_section(wt, what):\n    return ''\n\n\n"
+              "def build_prompt(what, feedback=None, symbol_map=None):\n"
+              + "".join(f"    line_{i} = {i}\n" for i in range(15)) + "    OLD = 'test_secret_alpha'\n")
         write(self.repo / "harness" / "surface.py", "FRAME = ()\n")
         write(self.repo / "notes" / "other.py", "".join(f"other_{i} = {i}\n" for i in range(20)))
         write(self.repo / surface.SETTING, json.dumps(GOOD))
@@ -171,6 +174,8 @@ class Check(Temp):
 
     def append(self, rel, text):
         path = self.repo / rel
+        if rel == "harness/hline_prompt.py":   # 面の関数の中に足す
+            text = "".join("    " + line for line in text.splitlines(True))
         write(path, path.read_text(encoding="utf-8") + text)
 
     # ---- 面の外
