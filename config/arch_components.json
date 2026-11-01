@@ -176,7 +176,8 @@
         "planner.py",
         "plan_check.py",
         "plan_loop.py",
-        "reqcov.py"
+        "reqcov.py",
+        "surface.py"
       ],
       "verdict": "keep",
       "assumption": "AI は自分で書いた試験で合格を宣言しがちで、試験をすり抜けもする（前提の台帳 P-016、METR 2025-06、ImpossibleBench 2025-10）。凍結した課題と、書き手から見えない判定で採点する",
