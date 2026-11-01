@@ -166,6 +166,7 @@
         "bench_chain.py",
         "bench_freeze.py",
         "bench_guard.py",
+        "bench_pair.py",
         "bench_regress.py",
         "bench_run.py",
         "bench_score.py",
