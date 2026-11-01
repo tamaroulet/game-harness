@@ -2,10 +2,13 @@
 
     python -m harness.surface check --repo <clone> --old <rev> --new <rev> [--chains <dir> --bases <B,...>]
 
-面は 2 つ：実装役への指示を組むコード（harness/hline_prompt.py）と、面の設定のファイル 1 つ（config/surface.json）。
+面は 2 つ：実装役への指示を組む 2 つの関数（harness/hline_prompt.py の build_prompt と ledger_section だけ。同じファイルの
+implement() と import などほかの頂の文は面の外）と、面の設定のファイル 1 つ（config/surface.json）。
 面の設定は、高リスクの設定（config/hline.json）のつまみの値を、範囲つきで写したもの。鎖の段の走り（bench_chain.ChainStage）でだけ当てる。
 check は、<old>..<new> の差分の、面の外のパス（改名は元と先の両方・面の設定を消すのも当たり）・<new> の面の設定の誤り・
-隠しテストの関数の名やクラスの名・package の名・土台の名の漏れ（足した行に出るもの）を見る。漏れは文字列を出さず、ファイルと行だけを出す。
+hline_prompt.py の関数の単位の違反（2 つの関数の外の頂の文の違い・2 つの関数の欠けと名と引数と decorator・関数の中の import と
+書き込みや外への呼び出しと属性への代入）・隠しテストの関数の名やクラスの名・package の名・土台の名の漏れ（足した行に出るもの）を見る。
+漏れは文字列を出さず、ファイルと行だけを出す。関数の単位の当たりは、規則と関数の名（か「頂の文」）と行だけを出す。
 終了コード：当たりが無ければ 0、あれば 1、引数や git の誤りは 2。
 """
 import argparse
@@ -28,7 +31,14 @@ KNOBS = {   # つまみの名前 → (config/hline.json の中の場所, 型, �
     "implementer_resume_max_turns": (("implementer", "budget", "resume_max_turns"), int, 3, 30),
     "max_attempts": (("max_attempts",), int, 1, 4),
 }
-MIN_CLASS = 6   # これより短いクラスの名（T など）は、ふつうの語と重なるので集めない
+PROMPT_FILE = FRAME[0]
+FACES = ("build_prompt", "ledger_section")   # PROMPT_FILE のうち面の中の関数。ほかの頂の文（implement()・import など）は面の外
+BANNED_NODES = (ast.Import, ast.ImportFrom, ast.Global, ast.Nonlocal)
+BANNED_CALLS = frozenset(("exec", "eval", "compile", "open", "__import__", "setattr", "delattr", "getattr", "globals",
+                          "locals", "vars", "breakpoint"))
+BANNED_ATTRS = frozenset(("write_text", "write_bytes", "open", "unlink", "rename", "mkdir", "rmdir", "touch", "chmod",
+                          "system", "popen", "run", "call", "Popen", "check_output", "sleep"))
+MIN_CLASS = 6  # これより短いクラスの名（T など）は、ふつうの語と重なるので集めない
 WORD = "A-Za-z0-9_"
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
@@ -129,6 +139,98 @@ def setting(repo, new):
     return []
 
 
+# ============================================================ check：hline_prompt.py の関数の単位
+
+def unit_hit(rule, where, line=None):
+    """関数の単位の当たりの文。規則と、関数の名か「頂の文」と、行の番号だけを出す（中身は出さない）。"""
+    return f"関数の単位: {rule}: {where}" + ("" if line is None else f" {line} 行")
+
+
+def blob(repo, rev, path):
+    """<rev> の path の中身（bytes）。無ければ None。"""
+    try:
+        return git(repo, ["cat-file", "blob", f"{rev}:{path}"])
+    except BenchError:
+        return None
+
+
+def parse_blob(data):
+    """ast の木。無い・読めなければ None。"""
+    try:
+        return None if data is None else ast.parse(data.decode("utf-8"))
+    except (SyntaxError, ValueError):   # UnicodeDecodeError と NUL の混じりは ValueError
+        return None
+
+
+def split_top(tree):
+    """(面の関数の {名: ノード}, 面の外の頂の文の列)。同じ名の 2 つ目の def と async def は面の外に数える。"""
+    faces, rest = {}, []
+    for node in tree.body if tree is not None else ():
+        if isinstance(node, ast.FunctionDef) and node.name in FACES and node.name not in faces:
+            faces[node.name] = node
+        else:
+            rest.append(node)
+    return faces, rest
+
+
+def top_hits(old, new):
+    """面の外の頂の文が、並びも含めて 1 つでも違えば、最初に違う所の当たり 1 つ（行の番号は比べない）。"""
+    a, b = [ast.dump(n) for n in old], [ast.dump(n) for n in new]
+    if a == b:
+        return []
+    i = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
+    line = new[i].lineno if i < len(new) else (new[-1].end_lineno if new else None)
+    return [unit_hit("面の外の頂の文が違います", "頂の文", line)]
+
+
+def signature_hits(old, new):
+    """2 つの関数の欠け・名か引数の違い・decorator。"""
+    hits = []
+    for name in FACES:
+        o, n = old.get(name), new.get(name)
+        if n is None:
+            hits.append(unit_hit("関数がありません", name))
+            continue
+        if o is None or ast.dump(o.args) != ast.dump(n.args):
+            hits.append(unit_hit("名か引数が違います", name, n.lineno))
+        if n.decorator_list:
+            hits.append(unit_hit("decorator が付いています", name, n.lineno))
+    return hits
+
+
+def body_reason(node):
+    """面の関数の中のノード 1 つが当たる規則の文。当たらなければ None。"""
+    if isinstance(node, BANNED_NODES):
+        return f"{type(node).__name__} があります"
+    if isinstance(node, ast.Call):
+        f = node.func
+        if isinstance(f, ast.Name) and f.id in BANNED_CALLS:
+            return "禁じた名の呼び出しがあります"
+        if isinstance(f, ast.Attribute) and f.attr in BANNED_ATTRS:
+            return "禁じた属性の呼び出しがあります"
+    if isinstance(node, ast.Attribute) and isinstance(node.ctx, (ast.Store, ast.Del)):
+        return "属性への代入か del があります"
+    return None
+
+
+def body_hits(faces):
+    """面の関数の中（引数の既定値・注釈を含む）の当たり。"""
+    return [unit_hit(why, name, getattr(node, "lineno", fn.lineno))
+            for name, fn in faces.items() for node in ast.walk(fn) if (why := body_reason(node))]
+
+
+def unit_check(repo, old, new):
+    """<old>..<new> で PROMPT_FILE が変わっていれば、関数の単位で照らした当たり（変わっていなければ空）。"""
+    before, after = blob(repo, old, PROMPT_FILE), blob(repo, new, PROMPT_FILE)
+    if before == after:
+        return []
+    tree = parse_blob(after)
+    if tree is None:
+        return [unit_hit(f"<new> の {PROMPT_FILE} が無いか、ast で読めません", "頂の文")]
+    (of, orest), (nf, nrest) = split_top(parse_blob(before)), split_top(tree)
+    return top_hits(orest, nrest) + signature_hits(of, nf) + body_hits(nf)
+
+
 # ============================================================ check：漏れ
 
 def package_of(chains, base):
@@ -199,7 +301,7 @@ def check(a):
         return 2
     try:
         old, new = (git(repo, ["rev-parse", "--verify", "-q", f"{r}^{{commit}}"]).decode().strip() for r in (a.old, a.new))
-        hits = outside(name_status(repo, old, new)) + setting(repo, new)
+        hits = outside(name_status(repo, old, new)) + setting(repo, new) + unit_check(repo, old, new)
         if a.chains:
             hits += leaks(added_lines(repo, old, new), secrets_of(a.chains, [b for b in a.bases.split(",") if b]))
         else:

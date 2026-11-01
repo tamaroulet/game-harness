@@ -5,7 +5,7 @@
 前の試験（段 0〜k−1 の必須）・保ち（段 k−1 の先端で通っていた前の必須のうち、段 k でも通る）を分ける。段の開始の木での段 k の試験の通過（new_at_start）も測る。
 実装役の下請けの記録は What のディレクトリに写して、同じ道の検めを掛ける。試験ごとの結果と索引
 （抜き書きだけ。言い換えの要約は作らない）は、開発の組は H ラインの out の chains/<tag>/<土台>/（提案役が読める）、ほかの組は
-oracles の chains/runs/<tag>/<土台>/ に置き、集計の数だけを <clone>/bench/records/chains/<tag>/<土台>.json に書く。
+oracles の chains/runs/<tag>/<土台>/ に置き、集計の数だけを <clone>/bench/records/chains/<tag>/<土台>.json に書く（dev でない組は合計だけ）。
 """
 import ast
 import json
@@ -476,6 +476,7 @@ def finish_chain(rec, out, chains, cfg, priv):
 
 
 def finish(a):
+    import bench_pair  # bench_pair が chain_score を読むので、ここで読む（公開の集計の書き方は bench_pair.publish）
     repo = Path(a.repo)
     out = Path(a.out) if a.out else repo / ".bench"
     try:
@@ -490,7 +491,7 @@ def finish(a):
             priv = (Path(cfg["out"]) / "chains" if rec.get("set") == "dev" else chains / "runs") / a.tag / rec["base"]
             dest = repo / "bench" / "records" / "chains" / a.tag / f"{rec['base']}.json"
             dest.parent.mkdir(parents=True, exist_ok=True)
-            hline_base.write_json(dest, finish_chain(rec, out, chains, cfg, priv))
+            bench_pair.publish(dest, finish_chain(rec, out, chains, cfg, priv), priv)
     except (BenchError, OSError, KeyError, ValueError) as e:
         print(f"ABORT: {e}", file=sys.stderr)
         return 2

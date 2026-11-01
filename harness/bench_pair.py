@@ -24,6 +24,7 @@ import machine  # noqa: E402
 from bench_start import BenchError, git  # noqa: E402
 
 FIELDS = ("new", "old", "kept", "new_at_start", "invalid", "reason", "tokens", "tries")
+SUMMARY = ("tag", "set", "base", "rev", "stopped")   # dev でない組の公開の集計に残す欄（ほかは合計だけ）
 
 
 # ============================================================ run（bench のアカウント）
@@ -190,6 +191,22 @@ def finish_pairs(rec, out, chains, cfg, priv):
     return public
 
 
+def totals(rows):
+    """段ごとの行の合計：採点に掛けた段（行）の数・通った段の数・無効の段の数・トークンの合計（数でない値は足さない）。"""
+    tokens = [r.get("tokens") for r in rows]
+    return {"stages": len(rows), "passed": sum(map(passed, rows)), "invalid": sum(1 for r in rows if r.get("invalid")),
+            "tokens": sum(t for t in tokens if isinstance(t, int) and not isinstance(t, bool))}
+
+
+def publish(dest, public, priv, keys=SUMMARY):
+    """公開の集計を dest に書く。set が dev でない組（保留・予備・不明）は、段ごとの点で提案役が合わせ込めないように合計だけにし、
+    段ごとの行を含む今までの形は、非公開の置き場 priv（oracles の下）の public_full.json に書く。dev は今までの形のまま。"""
+    if public.get("set") != "dev":
+        hline_base.write_json(Path(priv) / "public_full.json", public)
+        public = {**{k: public.get(k) for k in keys}, "totals": totals(public.get("stages") or [])}
+    hline_base.write_json(dest, public)
+
+
 def finish(a):
     repo = Path(a.repo)
     out = Path(a.out) if a.out else repo / ".bench"
@@ -204,7 +221,7 @@ def finish(a):
             priv = (Path(cfg["out"]) / "chains" if rec.get("set") == "dev" else chains / "runs") / a.tag / rec["base"]
             dest = repo / "bench" / "records" / "chains" / a.tag / f"{rec['base']}.json"
             dest.parent.mkdir(parents=True, exist_ok=True)
-            hline_base.write_json(dest, finish_pairs(rec, out, chains, cfg, priv))
+            publish(dest, finish_pairs(rec, out, chains, cfg, priv), priv, (*SUMMARY[:4], "from", "stopped"))
     except (BenchError, OSError, KeyError, ValueError) as e:
         print(f"ABORT: {e}", file=sys.stderr)
         return 2
@@ -228,7 +245,8 @@ def full(rate):
 
 
 def passed(row):
-    """版の 1 つが組を通ったか：無効でなく、new が全部通り、kept が全部通る（kept の無い行は通らない）。"""
+    """版の 1 つが組を通ったか：無効でなく、new が全部通り、kept が全部通る（kept の無い行は通らない）。
+    この決まりはここだけに置き、compare と、dev でない組の公開の合計（totals。chain_score.finish からも使う）の両方で使う。"""
     return not row.get("invalid") and full(row.get("new")) and full(row.get("kept"))
 
 
