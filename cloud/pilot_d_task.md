@@ -1,6 +1,6 @@
 # 頼み：提案役の起こし方（harness/proposer_launch.py）（クラウドの 2 本目）
 
-このセッションの設定：モデル Sonnet 5.5（claude-sonnet-5-5）、effort high。どちらも起動の旗（--model claude-sonnet-5-5 --effort high）で固めた。
+このセッションの設定：モデル Opus 5.5（claude-opus-5-5）、effort xhigh。どちらも起動の旗（--model claude-opus-5-5 --effort xhigh）で固めた。
 
 あなたは公開のリポジトリ tamaroulet/game-harness の写しの中で、新しい枝 1 本に変更を入れて push するところまでを行う。PR は作らない（手元の会話の席が中身を確かめてから作る）。返事は日本語。
 
@@ -8,8 +8,8 @@
 
 1. 次を 1 回の Bash で走らせ、出力をそのまま控える。
    `date -u +%Y-%m-%dT%H:%M:%SZ; echo "session=${CLAUDE_CODE_REMOTE_SESSION_ID:-unset} effort_now=${CLAUDE_EFFORT:-unset} effort_env=${CLAUDE_CODE_EFFORT_LEVEL:-unset}"; python3 --version; git log --oneline -1`
-2. `effort_now` が `unset` でなく、`high` でもなければ終える（`unset` なら進め、報告にそう書く）。`effort_env` は記録だけ。
-3. あなたのモデルが Sonnet 5.5（claude-sonnet-5-5）でなければ終える。
+2. `effort_now` が `unset` でなく、`xhigh` でもなければ終える（`unset` なら進め、報告にそう書く）。`effort_env` は記録だけ。
+3. あなたのモデルが Opus 5.5（claude-opus-5-5）でなければ終える。
 4. 下請けのエージェント（Agent の道具）と、ネットの検索・取得の道具は使わない。この箱で `claude` の CLI を起こさない（試験は偽の出力だけで書く）。
 5. 開始から 2 時間を過ぎたら、その時点の変更を 5 の枝に push し、6 の報告をして終える。
 
@@ -93,7 +93,7 @@ stream-json の行の形（値は例。ほかの形の行もある。決め打�
 ## 5. 枝とコミット
 
 - 枝：`claude/proposer-launch`（main から）。main にも、ほかの既存の枝にも push しない。
-- コミットは 1〜3 個。メッセージは日本語で、最後の行に `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`。
+- コミットは 1〜3 個。メッセージは日本語で、最後の行に `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
 
 ## 6. 最後の報告（この順で）
 
