@@ -111,9 +111,13 @@ class Args(Base):
         self.assertEqual(args[args.index("--max-turns") + 1], str(REAL["proposer_budget"]["max_turns"]))
         self.assertEqual(args[args.index("--model") + 1], MODEL)
         self.assertEqual(args[args.index("--allowedTools") + 1], "Read,Grep,Glob")
-        self.assertIn("Bash", args[args.index("--disallowedTools") + 1].split(","))
+        self.assertEqual(args[args.index("--tools") + 1], "Read,Grep,Glob")   # 使える道具そのものを 3 つに絞る
+        self.assertIn("--restricted", args)   # 人の設定（既定の許しの方式 auto）を受け継がず、読む道具を作業の場所に閉じる
+        self.assertIn("--strict-mcp-config", args)
+        self.assertTrue({"Bash", "PowerShell"} <= set(args[args.index("--disallowedTools") + 1].split(",")))
         self.assertEqual(args[args.index("--output-format") + 1], "stream-json")
         self.assertNotIn("--permission-mode", args)
+        self.assertNotIn("--dangerously-skip-permissions", args)
         dirs = [Path(args[i + 1]) for i, a in enumerate(args) if a == "--add-dir"]
         self.assertEqual(dirs, [self.chains, extra])
         self.assertEqual([Path(r) for r in rec["roots"]], [self.root, self.chains, extra])
