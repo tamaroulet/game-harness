@@ -60,7 +60,7 @@ class TwoTags(Base):
     def test_a_stage_in_only_one_of_the_records_passes_the_shape_check(self):
         text = GOOD.replace("- B01 s2\n", "- B01 s2\n- B02 s3\n")
         self.assertEqual(pl.shape_errors(text, [self.chains, self.chains2]), [])
-        rec, _ = self.launch2(result=(0, stream(text=text), ""))
+        rec, _ = self.launch2(result=(0, stream(text=text, uses=self.reads()), ""))
         self.assertEqual(rec["shape_errors"], [])
         self.assertTrue(pl.ok(rec))
 
@@ -88,7 +88,7 @@ class MainTags(Base):
         argv = [x for t in tags for x in ("--tag", t)] + ["--config", str(path)]
         with mock.patch.object(pl, "AGENT", agent), mock.patch.object(pl, "ROOT", self.root), \
                 mock.patch.object(pl.proc, "resolve_cli", return_value=["claude"]), \
-                mock.patch.object(pl.proc, "run", return_value=(0, stream(), "")) as run, \
+                mock.patch.object(pl.proc, "run", return_value=(0, stream(uses=self.reads()), "")) as run, \
                 mock.patch("builtins.print"), contextlib.redirect_stderr(io.StringIO()):
             code = pl.main(argv)
         return code, run

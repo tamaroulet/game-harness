@@ -1,4 +1,4 @@
-"""提案役の起こし方（harness/proposer_launch.py）：関所・起こす引数・出力の読み取り・道の検め・提案の形・モデルの固定の検査。
+"""提案役の起こし方（harness/proposer_launch.py）：関所・起こす引数・出力の読み取り・道の検め・索引の読み残し・提案の形・モデルの固定の検査。
 
 本物の CLI・記録は使わない。一時ディレクトリの偽の設定・記録・指示と、proc.run・resolve_cli の差し替えだけで書く。
 """
@@ -56,8 +56,12 @@ class Base(unittest.TestCase):
         self.cfg = {"out": str(self.out), "oracles": str(self.oracles)}
         self.agent = json.loads(json.dumps(REAL))
 
+    def reads(self):
+        """材料のすべての索引を Read で開いた呼び出しの列（読み残しの検めを通す、ふつうの起動の形）。"""
+        return [("Read", {"file_path": str(p)}) for p in sorted((self.out / "chains").glob("*/*/*.index.md"))]
+
     def launch(self, result=None, tag="v1", extra=(), at=NOW):
-        result = result if result is not None else (0, stream(), "")
+        result = result if result is not None else (0, stream(uses=self.reads()), "")
         with mock.patch.object(pl.proc, "resolve_cli", return_value=["claude"]), \
                 mock.patch.object(pl.proc, "run", return_value=result) as run:
             rec = pl.launch(self.cfg, self.agent, tag, extra, now=at, root=self.root)
@@ -96,7 +100,7 @@ class Gates(Base):
         self.assertFalse(self.saved()["launched"])
 
     def test_a_model_in_auxiliary_models_stops(self):
-        self.agent["auxiliary_models"] = ["claude-sonnet-"]
+        self.agent["auxiliary_models"] = [MODEL]
         with self.assertRaises(model_pin.ModelPinError):
             self.launch()
 
@@ -110,6 +114,7 @@ class Args(Base):
         self.assertEqual(ttl, REAL["proposer_budget"]["ttl_seconds"])
         self.assertEqual(args[args.index("--max-turns") + 1], str(REAL["proposer_budget"]["max_turns"]))
         self.assertEqual(args[args.index("--model") + 1], MODEL)
+        self.assertEqual(args[args.index("--effort") + 1], "high")   # 思考の深さは CLI の既定に頼らない
         self.assertEqual(args[args.index("--allowedTools") + 1], "Read,Grep,Glob")
         self.assertEqual(args[args.index("--tools") + 1], "Read,Grep,Glob")   # 使える道具そのものを 3 つに絞る
         self.assertIn("--restricted", args)   # 人の設定（既定の許しの方式 auto）を受け継がず、読む道具を作業の場所に閉じる
@@ -164,7 +169,7 @@ class Output(Base):
         self.assertIn("result の行", self.assert_cli_error(stream(result=False))["error"])
 
     def test_a_different_model_stops_as_a_cli_error(self):
-        self.assert_cli_error(stream(models=["claude-opus-5-5"]))
+        self.assert_cli_error(stream(models=["other-" + MODEL]))
 
     def test_a_turn_cutoff_is_recorded_as_such(self):
         rec, _ = self.launch(result=(1, stream(turns=60, subtype="error_max_turns", models=[]), ""))
@@ -258,11 +263,48 @@ class Shape(Base):
         self.assertEqual(sum("行の形が違います" in e for e in errs), 2)
 
     def test_a_bad_shape_discards_the_proposal_and_is_recorded(self):
-        rec, _ = self.launch(result=(0, stream(text=GOOD.replace("## 外す条件\n条件の説明\n", "")), ""))
+        rec, _ = self.launch(result=(0, stream(text=GOOD.replace("## 外す条件\n条件の説明\n", ""), uses=self.reads()), ""))
         self.assertEqual(rec["end"], "正常")
         self.assertIn("見出し ## 外す条件 が 0 回あります（各 1 回）", self.saved()["shape_errors"])
         self.assertIsNone(rec["proposal"])
         self.assertFalse(list((self.out / "proposer").glob("*.proposal.md")))
+
+
+class ReadCoverage(Base):
+    def setUp(self):
+        super().setUp()
+        (self.chains / "B01" / "s3.json").write_text("{}", encoding="utf-8")
+        self.s2, self.s3 = self.chains / "B01" / "s2.index.md", self.chains / "B01" / "s3.index.md"
+        self.s3.write_text("索引\n", encoding="utf-8")
+
+    def test_every_index_opened_in_any_path_form_keeps_the_proposal(self):
+        uses = [("Read", {"file_path": str(self.s2).replace("/", "\\").upper()}),
+                ("Read", {"file_path": str(self.s3).replace("\\", "/"), "offset": 10, "limit": 5})]
+        rec, _ = self.launch(result=(0, stream(uses=uses), ""))
+        self.assertEqual(rec["unread_indexes"], [])
+        self.assertTrue(Path(rec["proposal"]).is_file())
+        self.assertTrue(pl.ok(rec))
+
+    def test_an_index_never_opened_with_read_discards_the_proposal_and_is_recorded(self):
+        uses = [("Read", {"file_path": str(self.s2)}),
+                ("Grep", {"pattern": "試行", "path": str(self.chains)}),   # 拾うだけでは開いたことにならない
+                ("Glob", {"pattern": "**/*.index.md", "path": str(self.chains)}),
+                ("Read", {"file_path": str(self.chains / "B01" / "s3.json")})]
+        rec, _ = self.launch(result=(0, stream(uses=uses), ""))
+        self.assertEqual(rec["end"], "正常")
+        self.assertEqual(rec["unread_indexes"], [str(self.s3)])
+        self.assertEqual(self.saved()["unread_indexes"], [str(self.s3)])
+        self.assertIsNone(rec["proposal"])
+        self.assertFalse(list((self.out / "proposer").glob("*.proposal.md")))
+        self.assertFalse(pl.ok(rec))
+        self.assertIn("開かなかった索引 1 件（提案は捨てた）", pl.line_of(rec))
+
+    def test_the_checked_indexes_are_the_ones_listed_in_the_material(self):
+        _, run = self.launch()
+        material = run.call_args.kwargs["input"].split("## 材料", 1)[1]
+        listed = [ln.strip()[2:] for ln in material.splitlines() if ln.strip().endswith(".index.md")]
+        self.assertEqual(listed, [str(p) for p in pl.indexes([self.chains])])
+        self.assertEqual(listed, [str(self.s2), str(self.s3)])
 
 
 class Main(Base):
@@ -274,7 +316,7 @@ class Main(Base):
         agent.write_text(json.dumps(self.agent), encoding="utf-8")
         with mock.patch.object(pl, "AGENT", agent), mock.patch.object(pl, "ROOT", self.root), \
                 mock.patch.object(pl.proc, "resolve_cli", return_value=["claude"]), \
-                mock.patch.object(pl.proc, "run", return_value=(0, stream(), "")) as run, \
+                mock.patch.object(pl.proc, "run", return_value=(0, stream(uses=self.reads()), "")) as run, \
                 mock.patch("builtins.print") as out:
             code = pl.main(["--tag", tag, "--config", str(path)])
         return code, run, out
