@@ -18,9 +18,9 @@
   "output_format_args": ["--output-format", "stream-json", "--verbose"],
   "allowed_tools": ["Read", "Grep", "Glob"],
 
-  "_budget_note": "max_turns は --max-turns、ttl_seconds は proc.run の時間の上限。max_tokens は CLI に指定が無いので、走った後に利用量を照らし、超えたら記録に「超過」と残す",
+  "_budget_note": "max_turns は --max-turns、ttl_seconds は proc.run の時間の上限。max_tokens は CLI に指定が無いので、走った後に利用量を照らし、超えたら記録に「超過」と残す。打ち切りかは CLI の result の行で判じる（11-05 の 3 回目は --max-turns 60 で止まらず、68 ターンで正常に終わった）。max_turns は、索引 36 を 1 つずつ開いて 68 ターン要った実測から 120",
   "proposer_budget": {
-    "max_turns": 60,
+    "max_turns": 120,
     "ttl_seconds": 3600,
     "max_tokens": 5000000
   }

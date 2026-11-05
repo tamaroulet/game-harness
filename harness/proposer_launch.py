@@ -6,7 +6,9 @@
 tag ごとの開発の組の走りの記録（<out>/chains/<tag>/。chain_score の finish が土台ごとに s<k>.json と索引を置く）を読み、
 直す失敗の型を 1 つ選んで、決まった見出しの提案を書く。--tag は 2 回以上渡せる（同じ tag の重なりは、何もせずに終了コード 2）。
 - 関所：モデルの固定・指示のファイル（docs/prompts/proposer.md。保護パス）・tag ごとの記録の有無・読む根が oracles と重ならないこと
-- 上限：--max-turns と ttl_seconds。トークンは走った後に照らして「超過」と残す（director_launch と同じ）
+- 上限：--max-turns と ttl_seconds。トークンは走った後に照らして「超過」と残す（director_launch と同じ）。
+  ターンの上限での打ち切りは、CLI が result の行で言ったときだけとする（claude 2.1.318 は --max-turns 60 で止まらず、
+  68 ターンで正常に終わった。ターン数が上限以上かでは判じない）。上限を越えたことは turns_over_cap に残す
 - 道の検め：stream-json の tool_use が allowed_tools の内で、パスが読む根の下にあること。当たりがあれば提案は捨てる
 - 索引の読み残しの検め：材料に並べた索引を、すべて Read で開いたこと（Grep・Glob は数えない）。1 つでも残れば提案は捨てる
 - 提案の形の検め：見出しの並び・中身・出た段の記録の有無（どれかの tag の記録にあれば合う）。合えば <stamp>.proposal.md に書く
@@ -25,7 +27,6 @@ import hline_budget  # noqa: E402
 import machine  # noqa: E402
 import model_pin  # noqa: E402
 import proc  # noqa: E402
-from director_launch import end_reason  # noqa: E402
 from hline_base import CONFIG, ROOT, Infra, load_config, pinned_models, save_prompt, write_json  # noqa: E402
 
 AGENT = ROOT / "config" / "proposer.json"
@@ -237,6 +238,23 @@ def judge(rec, result, chains, path):
         rec["proposal"] = str(dest)
 
 
+def end_of(code, result):
+    """終わり方（正常・ターンの上限・TTL・CLI の誤り）。ターンの上限は、CLI が result の行の subtype で打ち切りと言ったときだけ。
+    director_launch.end_reason の「ターン数が上限以上なら打ち切り」は、上限を越えても正常に終わった提案を捨てるので使わない
+    （11-05 の提案役の 3 回目は、68 ターンで正常に終わり、6 つの見出しのそろった提案を、その判じ方で捨てた）。"""
+    if code == 124:
+        return "TTL"
+    try:
+        doc = json.loads(result) if result else {}
+    except ValueError:
+        doc = {}
+    doc = doc if isinstance(doc, dict) else {}
+    sub = doc.get("subtype")
+    if sub == "error_max_turns" or (doc.get("is_error") and isinstance(sub, str) and "max_turns" in sub):
+        return "ターンの上限"
+    return "CLI の誤り" if code != 0 else "正常"
+
+
 def run(rec, agent, budget, roots, path):
     chains = roots[1:1 + len(rec["tags"])]   # 読む根の 2 つ目から、tag ごとの記録の置き場
     prompt = Path(PROMPT).read_text(encoding="utf-8") + material(rec["tags"], roots, chains)
@@ -250,12 +268,13 @@ def run(rec, agent, budget, roots, path):
     log.write_text(out + "\n--- stderr ---\n" + err, encoding="utf-8")
     save_prompt(log, prompt)
     result = result_line(out)
-    rec["end"] = end_reason(code, result or "", cap)
+    rec["end"] = end_of(code, result)
     if rec["end"] == "正常":
         check_model(rec, agent, result)
     rec["usage"] = hline_budget.usage(result or "")
-    used = (rec["usage"] or {}).get("total_tokens")
+    used, turns = ((rec["usage"] or {}).get(k) for k in ("total_tokens", "num_turns"))
     rec["token_excess"] = isinstance(used, int) and not isinstance(used, bool) and used > budget["max_tokens"]
+    rec["turns_over_cap"] = isinstance(turns, int) and not isinstance(turns, bool) and turns > cap
     rec["path_hits"] = audit(out, agent["allowed_tools"], roots, roots[0])
     rec["unread_indexes"] = unread(out, indexes(chains), roots[0])
     if rec["end"] == "正常":
@@ -270,8 +289,8 @@ def launch(cfg, agent, tags, extra=(), now=None, root=None):
     roots = [Path(root or ROOT).absolute(), *(chains_dir(cfg, t).absolute() for t in tags), *(Path(r).absolute() for r in extra)]
     rec = {"at": now.isoformat(timespec="seconds"), "tags": tags, "roots": [str(r) for r in roots],
            "launched": False, "skipped_reason": None, "end": None, "usage": None,
-           "token_limit": budget["max_tokens"], "token_excess": False, "path_hits": [], "unread_indexes": [],
-           "shape_errors": [], "proposal": None}
+           "token_limit": budget["max_tokens"], "token_excess": False, "turn_limit": budget["max_turns"], "turns_over_cap": False,
+           "path_hits": [], "unread_indexes": [], "shape_errors": [], "proposal": None}
     store_dir(cfg).mkdir(parents=True, exist_ok=True)
     path = store_dir(cfg) / f"{now.strftime('%Y%m%d-%H%M%S-%f')}.json"
     try:
@@ -300,6 +319,7 @@ def line_of(rec):
     used = (rec.get("usage") or {}).get("total_tokens")
     bits = [rec["at"], f"終了: {rec['end']}", f"使ったトークン: {'不明' if used is None else used}"]
     bits += [t for on, t in ((rec["token_excess"], f"トークンの上限 {rec['token_limit']} を超過"),
+                             (rec.get("turns_over_cap"), f"ターン数が上限 {rec.get('turn_limit')} を越えた（CLI は止めなかった）"),
                              (rec["path_hits"], f"道の当たり {len(rec['path_hits'])} 件（提案は捨てた）"),
                              (rec["unread_indexes"], f"開かなかった索引 {len(rec['unread_indexes'])} 件（提案は捨てた）"),
                              (rec["shape_errors"], f"提案の形の誤り {len(rec['shape_errors'])} 件"),
