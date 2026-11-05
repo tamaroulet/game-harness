@@ -7,9 +7,12 @@
   "model": "claude-sonnet-5-5",
   "auxiliary_models": ["claude-haiku-"],
 
-  "_flags_note": "読むだけの道具に限る。--permission-mode は付けない（-p では、許していない道具は断られる）。道具の呼び出しは走った後に stream-json から拾い、allowed_tools と読む根で検める",
-  "extra_flags": ["--allowedTools", "Read,Grep,Glob",
-                  "--disallowedTools", "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent,Task"],
+  "_flags_note": "読むだけの道具に限る。--tools で使える道具を Read・Grep・Glob だけにする（allowedTools は許すだけで、ほかの道具は残る）。--restricted で人の設定（既定の許しの方式 auto・許しの規則・フック）を読まず、読む道具を作業の場所（cwd と --add-dir）の中に閉じる。--strict-mcp-config で MCP の連携を持たない。--permission-mode は付けない（--restricted の下では default）。道具の呼び出しは走った後に stream-json から拾い、allowed_tools と読む根で検める。11-05 の 1 回目の起動は、これが無く、人の既定の auto を受け継いで PowerShell を 2 回呼び、道の検めで提案を捨てた",
+  "extra_flags": ["--tools", "Read,Grep,Glob",
+                  "--restricted",
+                  "--strict-mcp-config",
+                  "--allowedTools", "Read,Grep,Glob",
+                  "--disallowedTools", "Bash,PowerShell,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent,Task"],
   "output_format_args": ["--output-format", "stream-json", "--verbose"],
   "allowed_tools": ["Read", "Grep", "Glob"],
 
