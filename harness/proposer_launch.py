@@ -8,6 +8,7 @@ tag ごとの開発の組の走りの記録（<out>/chains/<tag>/。chain_score 
 - 関所：モデルの固定・指示のファイル（docs/prompts/proposer.md。保護パス）・tag ごとの記録の有無・読む根が oracles と重ならないこと
 - 上限：--max-turns と ttl_seconds。トークンは走った後に照らして「超過」と残す（director_launch と同じ）
 - 道の検め：stream-json の tool_use が allowed_tools の内で、パスが読む根の下にあること。当たりがあれば提案は捨てる
+- 索引の読み残しの検め：材料に並べた索引を、すべて Read で開いたこと（Grep・Glob は数えない）。1 つでも残れば提案は捨てる
 - 提案の形の検め：見出しの並び・中身・出た段の記録の有無（どれかの tag の記録にあれば合う）。合えば <stamp>.proposal.md に書く
 記録は <out>/proposer/<stamp>.json に起動ごとに 1 つ。起こす前にも一度書く（CLI が返らなくても起こした時刻が残る）。
 """
@@ -100,9 +101,14 @@ def gate(cfg, tags, roots):
     return None
 
 
+def indexes(chains):
+    """材料に並べる索引のパス。tag の並びの順に、どの tag の記録のものも全部。"""
+    return [p for c in chains for p in sorted(Path(c).glob("*/*.index.md"))]
+
+
 def material(tags, roots, chains):
     """指示の全文の後に足す節「## 材料」。索引は、tag の並びの順に、どの tag の記録のものも全部並べる。"""
-    index = [f"  - {p}" for c in chains for p in sorted(c.glob("*/*.index.md"))] or ["  - （無い）"]
+    index = [f"  - {p}" for p in indexes(chains)] or ["  - （無い）"]
     return "\n".join(["", "## 材料", "", f"- tag: {', '.join(tags)}", "- 読む根:", *(f"  - {r}" for r in roots),
                       "- 開発の組の記録の中の索引:", *index,
                       f"- 提案の見出し（この並びで各 1 回、中身を空にしない。{STAGE_HEAD} の各行は `- <土台> s<k>`）:",
@@ -154,6 +160,14 @@ def audit(out, allowed, roots, cwd):
     """道の当たり [{id, name, why}]。"""
     return [{"id": u.get("id"), "name": u.get("name"), "why": why}
             for u in tool_uses(out) for why in stray(u, allowed, roots, cwd)]
+
+
+def unread(out, paths, cwd):
+    """paths のうち、Read で一度も開かなかったもの（文字の列）。一部だけ（offset・limit）の Read も開いたと数える。"""
+    opened = {norm(u["input"]["file_path"], cwd) for u in tool_uses(out)
+              if u.get("name") == "Read" and isinstance(u.get("input"), dict)
+              and isinstance(u["input"].get("file_path"), str)}
+    return [str(p) for p in paths if norm(p, cwd) not in opened]
 
 
 # ============================================================ 提案の形
@@ -217,7 +231,7 @@ def judge(rec, result, chains, path):
     doc = json.loads(result)
     text = doc.get("result") if isinstance(doc.get("result"), str) else ""
     rec["shape_errors"] = shape_errors(text, chains)
-    if not rec["path_hits"] and not rec["shape_errors"]:
+    if not rec["path_hits"] and not rec["shape_errors"] and not rec["unread_indexes"]:
         dest = path.with_name(path.stem + ".proposal.md")
         dest.write_text(proposal_text(text), encoding="utf-8")
         rec["proposal"] = str(dest)
@@ -243,6 +257,7 @@ def run(rec, agent, budget, roots, path):
     used = (rec["usage"] or {}).get("total_tokens")
     rec["token_excess"] = isinstance(used, int) and not isinstance(used, bool) and used > budget["max_tokens"]
     rec["path_hits"] = audit(out, agent["allowed_tools"], roots, roots[0])
+    rec["unread_indexes"] = unread(out, indexes(chains), roots[0])
     if rec["end"] == "正常":
         judge(rec, result, chains, path)
 
@@ -255,7 +270,8 @@ def launch(cfg, agent, tags, extra=(), now=None, root=None):
     roots = [Path(root or ROOT).absolute(), *(chains_dir(cfg, t).absolute() for t in tags), *(Path(r).absolute() for r in extra)]
     rec = {"at": now.isoformat(timespec="seconds"), "tags": tags, "roots": [str(r) for r in roots],
            "launched": False, "skipped_reason": None, "end": None, "usage": None,
-           "token_limit": budget["max_tokens"], "token_excess": False, "path_hits": [], "shape_errors": [], "proposal": None}
+           "token_limit": budget["max_tokens"], "token_excess": False, "path_hits": [], "unread_indexes": [],
+           "shape_errors": [], "proposal": None}
     store_dir(cfg).mkdir(parents=True, exist_ok=True)
     path = store_dir(cfg) / f"{now.strftime('%Y%m%d-%H%M%S-%f')}.json"
     try:
@@ -273,7 +289,8 @@ def launch(cfg, agent, tags, extra=(), now=None, root=None):
 
 
 def ok(rec):
-    return bool(rec["launched"] and rec["end"] == "正常" and not rec["path_hits"] and not rec["shape_errors"] and rec["proposal"])
+    return bool(rec["launched"] and rec["end"] == "正常" and not rec["path_hits"] and not rec["unread_indexes"]
+                and not rec["shape_errors"] and rec["proposal"])
 
 
 def line_of(rec):
@@ -284,6 +301,7 @@ def line_of(rec):
     bits = [rec["at"], f"終了: {rec['end']}", f"使ったトークン: {'不明' if used is None else used}"]
     bits += [t for on, t in ((rec["token_excess"], f"トークンの上限 {rec['token_limit']} を超過"),
                              (rec["path_hits"], f"道の当たり {len(rec['path_hits'])} 件（提案は捨てた）"),
+                             (rec["unread_indexes"], f"開かなかった索引 {len(rec['unread_indexes'])} 件（提案は捨てた）"),
                              (rec["shape_errors"], f"提案の形の誤り {len(rec['shape_errors'])} 件"),
                              (rec["proposal"], f"提案: {rec['proposal']}")) if on]
     return "- 提案役の起動: 起こした（" + "、".join(bits) + "）"
