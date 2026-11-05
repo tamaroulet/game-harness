@@ -189,6 +189,29 @@ class Output(Base):
         self.assertEqual(rec["end"], "正常")
         self.assertIn("超過", pl.line_of(rec))
 
+    def test_a_normal_end_past_the_turn_cap_keeps_the_proposal_and_is_marked(self):
+        """CLI が上限を越えても正常に終えたら、打ち切りとしない（11-05 の 3 回目は、68 ターンで正常に終わった提案を捨てた）。"""
+        self.agent["proposer_budget"]["max_turns"] = 60
+        rec, _ = self.launch(result=(0, stream(turns=68, uses=self.reads()), ""))
+        self.assertEqual(rec["end"], "正常")
+        self.assertTrue(rec["turns_over_cap"])
+        self.assertEqual(rec["turn_limit"], 60)
+        self.assertTrue(Path(rec["proposal"]).is_file())
+        self.assertTrue(pl.ok(rec))
+        self.assertIn("ターン数が上限 60 を越えた（CLI は止めなかった）", pl.line_of(rec))
+
+    def test_turns_within_the_cap_are_not_marked(self):
+        rec, _ = self.launch()
+        self.assertFalse(rec["turns_over_cap"])
+        self.assertNotIn("ターン数が上限", pl.line_of(rec))
+
+    def test_a_cutoff_named_by_the_cli_is_a_cutoff_whatever_the_count(self):
+        for turns in (5, 60, 200):
+            with self.subTest(turns=turns):
+                rec, _ = self.launch(result=(1, stream(turns=turns, subtype="error_max_turns", models=[]), ""))
+                self.assertEqual(rec["end"], "ターンの上限")
+                self.assertIsNone(rec["proposal"])
+
 
 class PathAudit(Base):
     def hits(self, uses):
