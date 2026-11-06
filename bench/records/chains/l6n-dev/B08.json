@@ -1,0 +1,199 @@
+{
+ "tag": "l6n-dev",
+ "set": "dev",
+ "base": "B08",
+ "rev": "4057eb67572f3ee48ff1a2ab880542f6d53cec9e",
+ "stopped": null,
+ "s0": [
+  11,
+  11
+ ],
+ "stages": [
+  {
+   "k": 1,
+   "run_id": "l6n-dev-s1",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 714418,
+   "new": [
+    2,
+    2
+   ],
+   "old": [
+    10,
+    10
+   ],
+   "kept": [
+    10,
+    10
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    2
+   ],
+   "manifest_sha256": "4190b4c4494bc7b9d5e19bcd7611c4b2348eaac976e5c49f9e64366414e6b116"
+  },
+  {
+   "k": 2,
+   "run_id": "l6n-dev-s2",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 719214,
+   "new": [
+    7,
+    7
+   ],
+   "old": [
+    9,
+    9
+   ],
+   "kept": [
+    9,
+    9
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    3,
+    7
+   ],
+   "manifest_sha256": "fec99bfb1b30a59a89351299e6790186777079c2fae2092099d1c7ec8f980caa"
+  },
+  {
+   "k": 3,
+   "run_id": "l6n-dev-s3",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 790324,
+   "new": [
+    8,
+    8
+   ],
+   "old": [
+    16,
+    16
+   ],
+   "kept": [
+    16,
+    16
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    8
+   ],
+   "manifest_sha256": "a031fa422076c383c24cc33c8908d613f61fcc49d8cc98b343b2519b9cd320f7"
+  },
+  {
+   "k": 4,
+   "run_id": "l6n-dev-s4",
+   "attempts": 1,
+   "invalid": "stray",
+   "reason": "実装役が作業の場所の外の置き場かネットに触れました（索引の道の検め）",
+   "stop": "done",
+   "tries": 2,
+   "tokens": 1764706,
+   "new": [
+    2,
+    2
+   ],
+   "old": [
+    24,
+    24
+   ],
+   "kept": [
+    24,
+    24
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 1,
+   "web": 0,
+   "new_at_start": [
+    0,
+    2
+   ],
+   "manifest_sha256": "9f23d72d33999afd1c9010681b994f00c1277d5da0383353e020392f289cd623"
+  },
+  {
+   "k": 5,
+   "run_id": "l6n-dev-s5",
+   "attempts": 1,
+   "invalid": "tainted",
+   "reason": "前の段（s4）が無効",
+   "stop": "done",
+   "tries": 1,
+   "tokens": 1828959,
+   "new": [
+    16,
+    16
+   ],
+   "old": [
+    26,
+    26
+   ],
+   "kept": [
+    26,
+    26
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    1,
+    16
+   ],
+   "manifest_sha256": "1f83120d27771f5ddd3cde9a93574fc34eee6fee4083491208e6979c8cc5ad78"
+  },
+  {
+   "k": 6,
+   "run_id": "l6n-dev-s6",
+   "attempts": 1,
+   "invalid": "tainted",
+   "reason": "前の段（s4）が無効",
+   "stop": "done",
+   "tries": 1,
+   "tokens": 963471,
+   "new": [
+    8,
+    8
+   ],
+   "old": [
+    42,
+    42
+   ],
+   "kept": [
+    42,
+    42
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    8
+   ],
+   "manifest_sha256": "1161dd0283bcb9e737ded23c01d7f8554f0d9625222f9a353a091617abb9710d"
+  }
+ ]
+}
