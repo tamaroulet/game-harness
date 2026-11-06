@@ -6,6 +6,8 @@
 実装役の下請けの記録は What のディレクトリに写して、同じ道の検めを掛ける。試験ごとの結果と索引
 （抜き書きだけ。言い換えの要約は作らない）は、開発の組は H ラインの out の chains/<tag>/<土台>/（提案役が読める）、ほかの組は
 oracles の chains/runs/<tag>/<土台>/ に置き、集計の数だけを <clone>/bench/records/chains/<tag>/<土台>.json に書く（dev でない組は合計だけ）。
+段の走りの items/（What ごとの実装役とゲートの生ログ・実装役への入力・What）は、索引と同じ置き場の s<k>/ に写し、索引の
+「生ログ」の節に並べる（開発の組では提案役の読む根の下に入る。v3 §15 の 11-05 その 5）。
 
 外の中身に触れていないので段を無効にも 0 点にもしないもの（v3 §15 の 11-06 の L6 で出た 3 つ。操縦士の承認 11-06）は、非公開の記録と
 索引にだけ別の欄で残す（無いときは欄を書かない）：
@@ -378,9 +380,24 @@ def excused_lines(excused):
     return lines
 
 
-def index_text(base, k, run_id, rundir, results, found, web=(), at_start=None, excused=None):
+def copy_logs(rundir, dest):
+    """段の走りの items/ を dest（索引と同じ置き場の s<k>/）に写す。前の写しは消してから写すので、items/ と同じ中身になる。
+    items/ が無ければ空の dest を作る。写したファイルの、dest の親（索引の置き場）からの相対パスの列を返す。"""
+    dest = Path(dest)
+    if dest.is_dir():
+        shutil.rmtree(dest)
+    src = Path(rundir) / "items"
+    if src.is_dir():
+        shutil.copytree(src, dest)
+    else:
+        dest.mkdir(parents=True)
+    return sorted(p.relative_to(dest.parent).as_posix() for p in dest.rglob("*") if p.is_file())
+
+
+def index_text(base, k, run_id, rundir, results, found, web=(), at_start=None, excused=None, logs=None):
     """索引（抜き書きだけ。言い換えの要約は作らない）：落ちた隠しテスト・開始の木で通っていた新しい試験（at_start。取り出せなければ None）・
-    道の検め・当たりにしなかったもの（excused。あるときだけ）・What の試行ごとの門と終わり方・最後の手番。"""
+    道の検め・当たりにしなかったもの（excused。あるときだけ）・What の試行ごとの門と終わり方・最後の手番・生ログの写し（logs。
+    copy_logs の返す列。None なら節を書かない）。"""
     lines = [f"# 索引：{base} 段 {k}（{run_id}）", "", "## 落ちた隠しテスト", ""]
     lines += [f"- 段 {stage_of(t, base)}：`{t.split('.')[-1]}` — {v}" for t, v in sorted(results.items()) if v != "ok"] or ["- 無し"]
     lines += ["", "## 開始の木で通っていた新しい試験", ""]
@@ -393,6 +410,8 @@ def index_text(base, k, run_id, rundir, results, found, web=(), at_start=None, e
     for d in sorted(p for p in (rundir / "items").glob("*") if p.is_dir()):
         item = next((v for v in items.values() if isinstance(v, dict) and v.get("tid") == d.name), None)
         lines += item_lines(d, item or {"task": what_task(d / "what.md"), "status": "queue.json に無い（延長の前の What など）"})
+    if logs is not None:
+        lines += ["", "## 生ログ（この索引の置き場からの相対パス）", ""] + ([f"- {p}" for p in logs] or ["- 無し"])
     return "\n".join(lines) + "\n"
 
 
@@ -508,7 +527,8 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
     hline_base.write_json(priv / f"s{k}.json", {"base": base, "k": k, "run_id": st["run_id"], "results": res, "replaced": sorted(gone),
                                                "violations": violations, "strays": found, "web": web, "leaks": hits,
                                                "at_start": at_start, **excused})   # 当たりにしなかったものは、あるときだけ欄を足す
-    (priv / f"s{k}.index.md").write_text(index_text(base, k, st["run_id"], rundir, res, found, web, at_start, excused),
+    logs = copy_logs(rundir, priv / f"s{k}")   # 下請けの記録を What のディレクトリに写した（adopt）後に写す
+    (priv / f"s{k}.index.md").write_text(index_text(base, k, st["run_id"], rundir, res, found, web, at_start, excused, logs),
                                          encoding="utf-8")
     hline_base.write_json(rundir / "manifest.json", bench_run.manifest(rundir))
     row["manifest_sha256"] = bench_run.sha256_file(rundir / "manifest.json")

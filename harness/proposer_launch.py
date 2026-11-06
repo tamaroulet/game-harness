@@ -3,9 +3,11 @@
     python -m harness.proposer_launch --tag <tag> [--tag <tag>]... [--root <dir>]... [--config <hline.json>]
 
 提案役は別の起動の Claude Code（config/proposer.json）で、読むだけの道具で、ハーネスの木（ROOT。作業ディレクトリ）と
-tag ごとの開発の組の走りの記録（<out>/chains/<tag>/。chain_score の finish が土台ごとに s<k>.json と索引を置く）を読み、
-直す失敗の型を 1 つ選んで、決まった見出しの提案を書く。--tag は 2 回以上渡せる（同じ tag の重なりは、何もせずに終了コード 2）。
-- 関所：モデルの固定・指示のファイル（docs/prompts/proposer.md。保護パス）・tag ごとの記録の有無・読む根が oracles と重ならないこと
+tag ごとの開発の組の走りの記録（<out>/chains/<tag>/。chain_score の finish が土台ごとに s<k>.json と索引と、段の生ログの
+写し s<k>/ を置く）を読み、直す失敗の型を 1 つ選んで、決まった見出しの提案を書く。--tag は 2 回以上渡せる（同じ tag の重なりは、
+何もせずに終了コード 2）。
+- 関所：モデルの固定・指示のファイル（docs/prompts/proposer.md。保護パス）・tag ごとの記録の有無・索引ごとの生ログの写しの有無
+  （生ログを写す前の finish の記録なら、今の chain_score で finish をやり直す）・読む根が oracles と重ならないこと
 - 上限：--max-turns と ttl_seconds。トークンは走った後に照らして「超過」と残す（director_launch と同じ）。
   ターンの上限での打ち切りは、CLI が result の行で言ったときだけとする（claude 2.1.318 は --max-turns 60 で止まらず、
   68 ターンで正常に終わった。ターン数が上限以上かでは判じない）。上限を越えたことは turns_over_cap に残す
@@ -96,6 +98,10 @@ def gate(cfg, tags, roots):
     for tag in tags:
         if not chains_dir(cfg, tag).is_dir():
             return f"開発の組の記録がありません: {chains_dir(cfg, tag)}"
+    missing = [str(raw_logs(p)) for p in indexes(chains_dir(cfg, t) for t in tags) if not raw_logs(p).is_dir()]
+    if missing:
+        return (f"生ログの写しが無い段が {len(missing)} あります（今の chain_score で finish をやり直す）: "
+                + "、".join(missing[:3]) + ("、…" if len(missing) > 3 else ""))
     bad = overlap(roots, Path(cfg["oracles"]).absolute())
     if bad:
         return "読む根が oracles と重なります（保留の組と隠しテストは読ませません）: " + "、".join(bad)
@@ -107,11 +113,19 @@ def indexes(chains):
     return [p for c in chains for p in sorted(Path(c).glob("*/*.index.md"))]
 
 
+def raw_logs(index):
+    """索引 <土台>/s<k>.index.md の段の生ログの写しの置き場 <土台>/s<k>/（chain_score の finish が段の items/ を写す）。"""
+    index = Path(index)
+    return index.with_name(index.name[:-len(".index.md")])
+
+
 def material(tags, roots, chains):
     """指示の全文の後に足す節「## 材料」。索引は、tag の並びの順に、どの tag の記録のものも全部並べる。"""
     index = [f"  - {p}" for p in indexes(chains)] or ["  - （無い）"]
     return "\n".join(["", "## 材料", "", f"- tag: {', '.join(tags)}", "- 読む根:", *(f"  - {r}" for r in roots),
                       "- 開発の組の記録の中の索引:", *index,
+                      "- 生ログ（What ごとの実装役の stream-json とその入力・門の出力・What）: 索引と同じ置き場の s<k>/ の下。"
+                      "ファイルの並びは、各索引の「## 生ログ」の節にある",
                       f"- 提案の見出し（この並びで各 1 回、中身を空にしない。{STAGE_HEAD} の各行は `- <土台> s<k>`）:",
                       *(f"  - {h}" for h in HEADINGS), ""])
 

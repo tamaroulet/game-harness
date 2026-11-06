@@ -48,6 +48,7 @@ class Base(unittest.TestCase):
             d.mkdir(parents=True)
         (self.chains / "B01" / "s2.json").write_text("{}", encoding="utf-8")
         (self.chains / "B01" / "s2.index.md").write_text("索引\n", encoding="utf-8")
+        (self.chains / "B01" / "s2").mkdir()   # 段の生ログの写し（chain_score の finish が items/ を写す）
         self.prompt = self.tmp / "proposer.md"
         self.prompt.write_text("提案を書いてください。\n", encoding="utf-8")
         patch = mock.patch.object(pl, "PROMPT", self.prompt)
@@ -299,6 +300,7 @@ class ReadCoverage(Base):
         (self.chains / "B01" / "s3.json").write_text("{}", encoding="utf-8")
         self.s2, self.s3 = self.chains / "B01" / "s2.index.md", self.chains / "B01" / "s3.index.md"
         self.s3.write_text("索引\n", encoding="utf-8")
+        (self.chains / "B01" / "s3").mkdir()
 
     def test_every_index_opened_in_any_path_form_keeps_the_proposal(self):
         uses = [("Read", {"file_path": str(self.s2).replace("/", "\\").upper()}),

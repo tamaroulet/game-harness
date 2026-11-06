@@ -24,6 +24,7 @@ class TwoTags(Base):
         (self.chains2 / "B02").mkdir(parents=True)
         (self.chains2 / "B02" / "s3.json").write_text("{}", encoding="utf-8")
         (self.chains2 / "B02" / "s3.index.md").write_text("索引\n", encoding="utf-8")
+        (self.chains2 / "B02" / "s3").mkdir()
 
     def launch2(self, result=None, tags=("v1", "v2"), extra=()):
         return self.launch(result=result, tag=list(tags), extra=extra, at=NOW)
