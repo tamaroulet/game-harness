@@ -9,8 +9,13 @@
   "model": "claude-opus-5",
   "auxiliary_models": ["claude-haiku-"],
 
-  "_flags_note": "読み取りだけを許す。書き込み系を渡さないので、分解役はファイルを直接作れない。JSON を返させ、書き出しは decompose.py が検査を通してから行う。plan モードは対話的な計画提示に寄るため使わない",
-  "extra_flags": ["--allowedTools", "Read,Grep,Glob"],
+  "_flags_note": "読み取りだけを許す。書き込み系を渡さないので、分解役はファイルを直接作れない。JSON を返させ、書き出しは decompose.py が検査を通してから行う。plan モードは対話的な計画提示に寄るため使わない。形は提案役（config/proposer.json）と同じ（v3 §15 の 11-05 その 2）：--tools で使える道具そのものを Read・Grep・Glob だけにし（allowedTools は許すだけで、ほかの道具は残る）、--restricted で人の設定（既定の許しの方式 auto・許しの規則・フック）を読まず、読む道具を作業の場所（cwd のリポジトリと --add-dir）の中に閉じ、--strict-mcp-config で MCP の連携を持たない。プロンプトのファイルの置き場（リポジトリの外）は decompose.py が --add-dir で足す。--restricted の下では人の設定の思考の深さも読まないので、--effort でモデルの既定（Opus 5 は high）を固める",
+  "extra_flags": ["--effort", "high",
+                  "--tools", "Read,Grep,Glob",
+                  "--restricted",
+                  "--strict-mcp-config",
+                  "--allowedTools", "Read,Grep,Glob",
+                  "--disallowedTools", "Bash,PowerShell,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent,Task"],
 
   "_usage_note": "テレメトリ用（判定には使わない）。JSON で受け取り、本文は response_key から取り出す。形は harness/telemetry.py の USAGE_FORMATS に実測で書いてある",
   "output_format_args": ["--output-format", "json"],

@@ -204,6 +204,8 @@ def call_claude(prompt):
     args = [resolve_cli(CFG["cli"]), CFG["headless_flag"],
             CFG["prompt_arg_template"].format(prompt_file=pf),
             CFG["model_flag"], CFG["model"]] + CFG["extra_flags"]
+    # プロンプトのファイルの置き場は cwd（リポジトリ）の外。--restricted の下では、読む道具は cwd と --add-dir の中だけ
+    args += ["--add-dir", str(pf.parent)]
     # 利用量を取るため JSON で受け取り、本文だけを取り出す（テレメトリ。判定には使わない）。
     args += CFG.get("output_format_args", [])
     t0 = time.monotonic()

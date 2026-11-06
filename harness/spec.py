@@ -137,9 +137,10 @@ def check_models(cfg, used, why=None):
 
 def call_cli(cfg, prompt_path):
     """(本文, 利用量, 使われたモデル, その理由)。CLI の異常は Env。"""
+    # プロンプトのファイルの置き場は cwd（ハーネスのリポジトリ）の外。--restricted の下では、読む道具は cwd と --add-dir の中だけ
     args = (resolve_cli(cfg["cli"]) + [cfg["headless_flag"], cfg["prompt_arg_template"].format(prompt_file=prompt_path),
                                        cfg["model_flag"], cfg["model"]]
-            + cfg["extra_flags"] + cfg["output_format_args"])
+            + cfg["extra_flags"] + ["--add-dir", str(Path(prompt_path).parent)] + cfg["output_format_args"])
     rc, out, err = run(args, project.ROOT, cfg["ttl_seconds"]["claude"], "claude (spec)")
     # 生の応答をまず残す。ここから先で止まっても、誰が何を書いたかを後から追えるようにする
     # （モデルの判定で ABORT したとき、modelUsage が残っていなくて原因を追えなかった実例がある）
