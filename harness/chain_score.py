@@ -6,6 +6,14 @@
 実装役の下請けの記録は What のディレクトリに写して、同じ道の検めを掛ける。試験ごとの結果と索引
 （抜き書きだけ。言い換えの要約は作らない）は、開発の組は H ラインの out の chains/<tag>/<土台>/（提案役が読める）、ほかの組は
 oracles の chains/runs/<tag>/<土台>/ に置き、集計の数だけを <clone>/bench/records/chains/<tag>/<土台>.json に書く（dev でない組は合計だけ）。
+
+外の中身に触れていないので段を無効にも 0 点にもしないもの（v3 §15 の 11-06 の L6 で出た 3 つ。操縦士の承認 11-06）は、非公開の記録と
+索引にだけ別の欄で残す（無いときは欄を書かない）：
+- 開けなかった道（unopened）：作業の場所の外を指したが、道具が「見つからない」で失敗し、中身を返さなかった手番。
+- 自分の会話の記録（own_records）：agy のその会話自身の記録の置き場（.gemini/antigravity-cli/brain/<会話の ID>/）の下。
+  agy_stream.own_state と同じ決まりで、ほかの会話の記録はほかの走りの中身を含みうるので、今のまま当たり。
+- 道具の書き出し（artifacts）：作業ツリーの根の TOOL_ARTIFACTS（MuJoCo が警告のときに cwd に書く記録。ゲートの試験の走りで書かれ、
+  H ラインのコミットに入る）。境界の違反に数えない。
 """
 import ast
 import json
@@ -39,6 +47,12 @@ MARK = "CHAIN_RESULT "
 SUB_TOOL = "invoke_subagent"
 SUB_MISSING = "下請けの記録が見つからない（検められない）"
 FAILED_IMPORT = "unittest.loader._FailedTest."   # 読み込みで落ちたファイルの、unittest の疑似の試験の id の頭
+# 当たりにしないもの（上の docstring）。OWN_RECORD は norm したパスの中の並びで判じ、採点のアカウントの home に依らない
+OWN_RECORD = re.compile(r"/\.gemini/antigravity-cli/brain/([^/]+)(?:/|$)")
+NOT_FOUND = re.compile(r"cannot find the (?:file|path)|no such file|does not exist", re.I)
+TOOL_ARTIFACTS = ("MUJOCO_LOG.TXT",)
+EXCUSED = (("unopened", "開けなかった道（無効にしない）"), ("own_records", "自分の会話の記録（無効にしない）"),
+           ("artifacts", "道具の書き出し（範囲の外の変更に数えない）"))
 
 # 採点：<tree> と <tests> を import の道の先頭に置き、<tests> の試験を走らせ、試験ごとに "ok" か理由の 1 行を出す。
 # subTest の 1 つの失敗は親の失敗（件数を水増ししない）。読めた試験で結果の無いもの（読み込みの誤りを含む）は MISSING
@@ -192,16 +206,47 @@ def calls_of(path):
     return out
 
 
+def conversations_of(log):
+    """実装役の生ログの会話の ID（頂・init・step_update・result の conversation_id。小文字）の集合。"""
+    parts = read_text(log).split(bench_run.LOG_SPLIT)
+    ids = set()
+    for line in (parts[1] if len(parts) > 1 else "").splitlines():
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        for d in ((e, e.get("init"), e.get("step_update"), e.get("result")) if isinstance(e, dict) else ()):
+            if isinstance(d, dict) and isinstance(d.get("conversation_id"), str) and d["conversation_id"]:
+                ids.add(d["conversation_id"].lower())
+    return frozenset(ids)
+
+
+def own_record(path, convs):
+    """パスが、会話 convs のどれかの自分の記録の置き場（.gemini/antigravity-cli/brain/<会話の ID>/ の下）か。"""
+    m = OWN_RECORD.search(norm(path))
+    return bool(m) and m.group(1) in convs
+
+
+def unopened(step):
+    """道具の手番が「見つからない」で失敗し、中身を返さなかったか（agy の state が ERROR・output が無い・エラーの文が見つからない）。
+    写した下請けの記録の呼び出し（step が None）と、ほかの理由の失敗は当てはまらない。"""
+    if not isinstance(step, dict) or step.get("state") != "ERROR" or step.get("output") is not None:
+        return False
+    err = step.get("error")
+    return bool(NOT_FOUND.search(str(err.get("message", "") if isinstance(err, dict) else err or "")))
+
+
 def tool_calls(logs, own, subs=()):
-    """道の検めの対象：(ログ, 作業の場所, cwd, 道具, 引数, 読んでよいパス) の列。実装役の生ログの道具の手番と、写した下請けの記録
+    """道の検めの対象：(ログ, 作業の場所, cwd, 道具, 引数, 読んでよいパス, 会話の ID, 手番) の列。実装役の生ログの道具の手番と、写した下請けの記録
     subs [(写し, 作業の場所)] の呼び出し。実装役が同じログで起こした下請けの記録のパス（正規化したもの）は、実装役の呼び出しでは読んでよい。
+    会話の ID はそのログの会話（自分の記録の置き場を外に数えない）、手番は steps_of の手番（下請けの記録の呼び出しは会話の ID が空・手番が None）。
     下請けの境界も own（下請けの作業の場所は相対パスの起点にだけ使う。own の外を作業の場所にした下請けを素通りさせない）。"""
     for log in logs:
         cwd, steps = steps_of(log)
-        mine = {norm(x["path"]) for x in launches(steps) if x["path"]}
-        yield from ((log.name, own, cwd, s["tool"], s.get("parameters"), mine) for s in steps if s.get("tool"))
+        mine, convs = {norm(x["path"]) for x in launches(steps) if x["path"]}, conversations_of(log)
+        yield from ((log.name, own, cwd, s["tool"], s.get("parameters"), mine, convs, s) for s in steps if s.get("tool"))
     for path, work in subs:
-        yield from ((path.name, own, work, tool, args, frozenset()) for tool, args in calls_of(path))
+        yield from ((path.name, own, work, tool, args, frozenset(), frozenset(), None) for tool, args in calls_of(path))
 
 
 def outside(texts, cwd, own, local, skip=()):
@@ -209,35 +254,59 @@ def outside(texts, cwd, own, local, skip=()):
     return [h for x in texts for h in paths_in(x, cwd) if under(h, local) and not under(h, own) and norm(h) not in skip]
 
 
-def strays(logs, own, local, subs=()):
-    """道の検め：(ログ, 道具, 当たり) の列。ネットを見る道具と、local の下で own（その段の作業の場所）の外を指すパス
-    （引数のすべての文字列の、ドライブからのパスと、作業の場所からの .. を含むパス）。subs は写した下請けの記録。"""
-    found = []
-    for name, work, cwd, tool, params, skip in tool_calls(logs, own, subs):
+def sort_calls(logs, own, local, subs=()):
+    """道の検めの振り分け：{"found": 当たり（ネットを見る道具の手番は理由「ネットを見る道具」で入れる）, "unopened": 開けなかった道,
+    "own_records": 自分の会話の記録}。どれも (ログ, 道具, パスか理由) の列。local の下で own（その段の作業の場所）の外を指すパス
+    （引数のすべての文字列の、ドライブからのパスと、作業の場所からの .. を含むパス）を、自分の会話の記録・開けなかった手番・当たりに分ける。"""
+    out = {"found": [], "unopened": [], "own_records": []}
+    for name, work, cwd, tool, params, skip, convs, step in tool_calls(logs, own, subs):
         if NET_TOOL.search(tool):
-            found.append((name, tool, "ネットを見る道具"))
-        else:
-            found += [(name, tool, h) for h in outside(strings(params), cwd, work, local, skip)]
-    return found
+            out["found"].append((name, tool, "ネットを見る道具"))
+            continue
+        hits = outside(strings(params), cwd, work, local, skip)
+        out["own_records"] += [(name, tool, h) for h in hits if own_record(h, convs)]
+        rest = [(name, tool, h) for h in hits if not own_record(h, convs)]
+        out["unopened" if unopened(step) else "found"] += rest
+    return out
 
 
-def audit(logs, own, local, marks, subs=()):
-    """道の検めの全体：(当たり, 調べもの)。当たりは段を無効にする (ログ, 道具, 理由) の列、調べものは無効にしない
-    ネットの道具の手番 (ログ, 道具, 引数の文) の列。ネットの道具は、引数がこのリポジトリか段の名（marks）を含むか、
-    local の下で own の外を指すときだけ当たりにする（10-31 の L4：26 回の検索が、どれも MuJoCo の使い方の調べものだった。
-    調べものを要る段ほど記録から抜けると、測りが偏る）。"""
+def strays(logs, own, local, subs=()):
+    """道の検め：(ログ, 道具, 当たり) の列。ネットを見る道具と、local の下で own の外を指すパス（自分の会話の記録と、開けなかった
+    手番を除く。sort_calls）。subs は写した下請けの記録。"""
+    return sort_calls(logs, own, local, subs)["found"]
+
+
+def audit_all(logs, own, local, marks, subs=()):
+    """道の検めの全体：(当たり, 調べもの, 開けなかった道, 自分の会話の記録)。当たりは段を無効にする (ログ, 道具, 理由) の列、調べものは無効にしない
+    ネットの道具の手番 (ログ, 道具, 引数の文) の列、残りの 2 つは無効にしない (ログ, 道具, パス) の列。ネットの道具は、引数がこのリポジトリか
+    段の名（marks）を含むか、local の下で own の外（自分の会話の記録を除く）を指すときだけ当たりにする（10-31 の L4：26 回の検索が、
+    どれも MuJoCo の使い方の調べものだった。調べものを要る段ほど記録から抜けると、測りが偏る）。"""
     names = [m.lower() for m in (*REPO_MARKS, *marks) if m]
-    found = [f for f in strays(logs, own, local, subs) if not NET_TOOL.search(f[1])]
+    sorted_calls = sort_calls(logs, own, local, subs)
+    found = [f for f in sorted_calls["found"] if not NET_TOOL.search(f[1])]
     web = []
-    for name, work, cwd, tool, params, skip in (c for c in tool_calls(logs, own, subs) if NET_TOOL.search(c[3])):
+    for name, work, cwd, tool, params, skip, convs, _ in (c for c in tool_calls(logs, own, subs) if NET_TOOL.search(c[3])):
         texts = list(strings(params))
         named = next((n for n in names if any(n in x.lower() for x in texts)), None)
-        near = outside(texts, cwd, work, local, skip)
+        near = [h for h in outside(texts, cwd, work, local, skip) if not own_record(h, convs)]
         if named or near:
             found.append((name, tool, f"ネットの道具が「{named}」を名指した" if named else near[0]))
         else:
             web.append((name, tool, " ".join(texts)[:200]))
-    return found, web
+    return found, web, sorted_calls["unopened"], sorted_calls["own_records"]
+
+
+def audit(logs, own, local, marks, subs=()):
+    """道の検めの当たりと調べもの（audit_all の初めの 2 つ）。"""
+    return audit_all(logs, own, local, marks, subs)[:2]
+
+
+def boundary(names, package):
+    """境界の検め：(違反, 道具の書き出し)。段の開始と先端の差分のパス names のうち、許されたパスの外のものが違反。
+    作業ツリーの根の TOOL_ARTIFACTS は違反に数えず、道具の書き出しとして別に返す（bench_run.allowed_path は変えない）。"""
+    names = [n for n in names if n]
+    artifacts = [n for n in names if n in TOOL_ARTIFACTS]
+    return [n for n in names if n not in TOOL_ARTIFACTS and not bench_run.allowed_path(n, package)], artifacts
 
 
 def paths_in(text, cwd):
@@ -299,9 +368,19 @@ def what_task(path):
     return m.group(1) if m else None
 
 
-def index_text(base, k, run_id, rundir, results, found, web=(), at_start=None):
+def excused_lines(excused):
+    """当たりにしなかったもの（EXCUSED の欄。無い欄は書かない）の索引の行。"""
+    lines = []
+    for key, title in EXCUSED:
+        rows = (excused or {}).get(key) or []
+        if rows:
+            lines += ["", f"## {title}", ""] + [f"- {r[0]}：{r[1]} — {r[2]}" if isinstance(r, (list, tuple)) else f"- {r}" for r in rows]
+    return lines
+
+
+def index_text(base, k, run_id, rundir, results, found, web=(), at_start=None, excused=None):
     """索引（抜き書きだけ。言い換えの要約は作らない）：落ちた隠しテスト・開始の木で通っていた新しい試験（at_start。取り出せなければ None）・
-    道の検め・What の試行ごとの門と終わり方・最後の手番。"""
+    道の検め・当たりにしなかったもの（excused。あるときだけ）・What の試行ごとの門と終わり方・最後の手番。"""
     lines = [f"# 索引：{base} 段 {k}（{run_id}）", "", "## 落ちた隠しテスト", ""]
     lines += [f"- 段 {stage_of(t, base)}：`{t.split('.')[-1]}` — {v}" for t, v in sorted(results.items()) if v != "ok"] or ["- 無し"]
     lines += ["", "## 開始の木で通っていた新しい試験", ""]
@@ -309,6 +388,7 @@ def index_text(base, k, run_id, rundir, results, found, web=(), at_start=None):
         "- %d/%d" % tuple(rate(at_start, at_start)), *[f"- `{t.split('.')[-1]}`" for t, v in sorted(at_start.items()) if v == "ok"]]
     lines += ["", "## 道の検め", ""] + ([f"- {log}：{tool} — {hit}" for log, tool, hit in found] or ["- 無し"])
     lines += ["", "## ネットの調べもの（無効にしない）", ""] + ([f"- {log}：{tool} — {text}" for log, tool, text in web] or ["- 無し"])
+    lines += excused_lines(excused)
     items = bench_run.read_json(rundir / "factory" / "queue.json", {}).get("items") or {}
     for d in sorted(p for p in (rundir / "items").glob("*") if p.is_dir()):
         item = next((v for v in items.values() if isinstance(v, dict) and v.get("tid") == d.name), None)
@@ -403,7 +483,7 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
     for log in logs:   # 下請けの記録を What のディレクトリに写し、実装役と同じ道の検めを掛ける。写せない記録は当たり
         got = adopt(log, steps_of(log)[1], own)
         subs, missing = subs + got[0], missing + got[1]
-    found, web = audit(logs, own, machine.path("local"), (base, pkg, "docs/bench", "chain/s"), subs)
+    found, web, unopened_, own_records = audit_all(logs, own, machine.path("local"), (base, pkg, "docs/bench", "chain/s"), subs)
     found += missing
     gone = replaced(chains, base, k)
     with tempfile.TemporaryDirectory(prefix="bench-chain-") as tmp:
@@ -414,7 +494,8 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
             names = ["<開始のコミットが走りの記録の先端の祖先にありません>"]
         res = grade(tree, hidden_files(chains, base, k), gone)
         at_start = start_results(rundir, tmp, st, hidden_files(chains, base, k), gone)
-    violations = [n for n in names if n and not bench_run.allowed_path(n, pkg)]
+    violations, artifacts = boundary(names, pkg)
+    excused = {key: v for key, v in (("unopened", unopened_), ("own_records", own_records), ("artifacts", artifacts)) if v}
     new = [t for t in res if stage_of(t, base) == k]
     old = [t for t in res if t not in new]
     row.update(new=rate(res, new), old=rate(res, old), kept=rate(res, [t for t in old if prev.get(t) == "ok"]),
@@ -426,8 +507,9 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
         row["invalid"], row["reason"] = why
     hline_base.write_json(priv / f"s{k}.json", {"base": base, "k": k, "run_id": st["run_id"], "results": res, "replaced": sorted(gone),
                                                "violations": violations, "strays": found, "web": web, "leaks": hits,
-                                               "at_start": at_start})
-    (priv / f"s{k}.index.md").write_text(index_text(base, k, st["run_id"], rundir, res, found, web, at_start), encoding="utf-8")
+                                               "at_start": at_start, **excused})   # 当たりにしなかったものは、あるときだけ欄を足す
+    (priv / f"s{k}.index.md").write_text(index_text(base, k, st["run_id"], rundir, res, found, web, at_start, excused),
+                                         encoding="utf-8")
     hline_base.write_json(rundir / "manifest.json", bench_run.manifest(rundir))
     row["manifest_sha256"] = bench_run.sha256_file(rundir / "manifest.json")
     return res
