@@ -34,12 +34,14 @@ def init_repo(d, files):
     return git(d, "rev-parse", "HEAD")
 
 
-def bundle_run(repo, out, run_id, start, files, base="B07"):
-    """start の上に files を足したコミットを先端にした走りの束を、run_dir(out, base, run_id) に作る。(開始, 先端)。"""
+def bundle_run(repo, out, run_id, start, files, base="B07", drop=()):
+    """start の上に files を足し drop を消したコミットを先端にした走りの束を、run_dir(out, base, run_id) に作る。(開始, 先端)。"""
     git(repo, "checkout", "-q", "--detach", start)
     for rel, text in files.items():
         (repo / rel).parent.mkdir(parents=True, exist_ok=True)
         (repo / rel).write_text(text, encoding="utf-8")
+    for rel in drop:
+        (repo / rel).unlink()
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "--allow-empty", "-m", f"tip {run_id}")
     tip = git(repo, "rev-parse", "HEAD")
@@ -83,15 +85,32 @@ class TestRun(Base):
         super().setUp()
         self.tips, self.calls = {}, []
 
-    def ref_record(self, stages):
+    def ref_record(self, stages, rev=None):
         path = self.out / "chains" / "ref1" / "B07.json"
         path.parent.mkdir(parents=True, exist_ok=True)
-        hline_base.write_json(path, {"tag": "ref1", "set": "dev", "base": "B07", "package": "pkg", "rev": self.rev,
+        hline_base.write_json(path, {"tag": "ref1", "set": "dev", "base": "B07", "package": "pkg", "rev": rev or self.rev,
                                      "s0": "x", "stages": stages, "stopped": None})
 
-    def ref_stage(self, k, run_id, marker, invalid=None):
-        _, tip = bundle_run(self.repo, self.out, run_id, self.rev, {"marker.txt": marker})
+    def ref_stage(self, k, run_id, marker, invalid=None, start=None, files=None, drop=()):
+        """基準の段 k の試し。先端は、基準の版（start、既定は self.rev）に marker.txt と files（鎖の変更の代わり）を足したもの。"""
+        _, tip = bundle_run(self.repo, self.out, run_id, start or self.rev, {"marker.txt": marker, **(files or {})}, drop=drop)
         return {"k": k, "attempt": 0, "run_id": run_id, "code": 0, "head": tip, "invalid": invalid}
+
+    def version(self, files):
+        """self.rev に files を足したコミット（基準の版・その側の版の代わり）。"""
+        git(self.repo, "checkout", "-q", "--detach", self.rev)
+        for rel, text in files.items():
+            (self.repo / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.repo / rel).write_text(text, encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "version")
+        return git(self.repo, "rev-parse", "HEAD")
+
+    def tree(self, sha, path=None):
+        return git(self.repo, "rev-parse", f"{sha}:{path}" if path else f"{sha}^{{tree}}")
+
+    def show(self, sha, path):
+        return git(self.repo, "show", f"{sha}:{path}")
 
     def fake_step(self, a, repo, out, staged, entry, tip, k, rec):
         self.calls.append(k)
@@ -100,8 +119,8 @@ class TestRun(Base):
         rec["stages"].append(st)
         return st
 
-    def run_cli(self, stages, ref="ref1", step=None):
-        argv = ["run", "--tag", "p-new", "--repo", str(self.repo), "--base", self.rev, "--staged", str(self.staged),
+    def run_cli(self, stages, ref="ref1", step=None, base=None):
+        argv = ["run", "--tag", "p-new", "--repo", str(self.repo), "--base", base or self.rev, "--staged", str(self.staged),
                 "--from", ref, "--stages", stages, "--out", str(self.out)]
         with patch.object(bench_pair.bench_chain, "run_step", side_effect=step or self.fake_step), \
              patch.object(bench_pair.bench_run, "version_problem", return_value=None), quiet():
@@ -133,7 +152,7 @@ class TestRun(Base):
         bad = self.ref_stage(1, "ref1-s1-r1", "bad", invalid="REQ-22")
         self.ref_record([good, dict(bad, attempt=1)])
         self.assertEqual(self.run_cli("B07:2"), 0)
-        self.assertEqual(self.tips[2], good["head"])
+        self.assertEqual(self.tree(self.tips[2]), self.tree(good["head"]))   # その側の版が基準の版と同じなら、木は基準の先端と同じ
         self.assertEqual(self.marker(self.tips[2]), "good")
 
     def test_stage_one_starts_from_the_stage_zero_tip(self):
@@ -150,11 +169,52 @@ class TestRun(Base):
         self.ref_record([s1, s2, s3])
         self.assertEqual(self.run_cli("B07:2,B07:4"), 0)
         self.assertEqual(self.calls, [2, 4])
-        self.assertEqual(self.tips[2], s1["head"])
-        self.assertEqual(self.tips[4], s3["head"])   # 段 2 の結果（f…f）にはつながない
+        self.assertEqual(self.tree(self.tips[2]), self.tree(s1["head"]))
+        self.assertEqual(self.tree(self.tips[4]), self.tree(s3["head"]))   # 段 2 の結果（f…f）にはつながない
         rec = self.record()
         self.assertEqual((rec["from"], rec["set"], rec["pairs"], rec["tag"]), ("ref1", "dev", [2, 4], "p-new"))
         self.assertEqual([st["k"] for st in rec["stages"]], [2, 4])
+
+    def test_each_stage_starts_from_its_own_version_with_the_reference_chain(self):
+        """H ラインは開始の木の harness/ で走る。開始は段 1 も段 k も、その側の版の harness/ と、鎖の中身（段 0 の木・基準の段 k−1 の
+        先端までの変更）を持つ（11-06、L6 の 1 本目は基準の先端そのものから走り、旧版・新版とも基準の版の H ラインで走った）。"""
+        ref_rev = self.version({"harness/m.py": "A = 1\n"})
+        side = self.version({"harness/m.py": "A = 2\n", "harness/added.py": "B = 1\n"})
+        self.ref_record([self.ref_stage(1, "ref1-s1", "ref s1", start=ref_rev, files={"pkg/mod.py": "val = 1\n"})], rev=ref_rev)
+        self.assertEqual(self.run_cli("B07:1,B07:2", base=side), 0)
+        for k in (1, 2):
+            with self.subTest(k=k):
+                self.assertEqual(self.tree(self.tips[k], "harness"), self.tree(side, "harness"))
+                self.assertEqual(self.show(self.tips[k], "base.txt"), "base")
+                self.assertEqual(git(self.repo, "rev-list", "--count", self.tips[k]), "1")   # 親の無いコミット
+        self.assertEqual(self.show(self.tips[1], "pkg/mod.py"), "val = 0")   # 段 0 の木
+        self.assertEqual(self.show(self.tips[2], "pkg/mod.py"), "val = 1")   # 基準の段 1 の先端の鎖の中身
+        self.assertEqual(self.marker(self.tips[2]), "ref s1")
+
+    def test_a_chain_change_the_side_also_made_or_one_in_harness_skips_the_stage(self):
+        ref_rev = self.version({"harness/m.py": "A = 1\n"})
+        side = self.version({"harness/m.py": "A = 2\n", "base.txt": "side\n"})
+        self.ref_record([self.ref_stage(1, "ref1-s1", "s1", start=ref_rev, files={"base.txt": "chain\n"}),        # その側の版も変えた
+                         self.ref_stage(2, "ref1-s2", "s2", start=ref_rev, files={"harness/m.py": "A = 9\n"}),   # 鎖が harness/ を変えた
+                         self.ref_stage(3, "ref1-s3", "s3", start=ref_rev, files={"pkg/mod.py": "val = 3\n"})], rev=ref_rev)
+        self.assertEqual(self.run_cli("B07:2,B07:3,B07:4", base=side), 0)
+        self.assertEqual(self.calls, [4])
+        reasons = {s["k"]: s["reason"] for s in self.record()["skipped"]}
+        self.assertEqual(sorted(reasons), [2, 3])
+        self.assertIn("base.txt", reasons[2])
+        self.assertIn("harness/m.py", reasons[3])
+        self.assertEqual(self.show(self.tips[4], "base.txt"), "side")
+
+    def test_the_ledger_and_its_archive_follow_the_chain(self):
+        """段の開始ごとに走らせ役が替える台帳と消す控えは、その側の版が基準の版と違っていても、鎖の側を取る。"""
+        ref_rev = self.version({"docs/progress.yaml": "ref\n", "docs/progress_archive.yaml": "ref archive\n"})
+        side = self.version({"docs/progress.yaml": "side\n", "docs/progress_archive.yaml": "side archive\n"})
+        self.ref_record([self.ref_stage(1, "ref1-s1", "s1", start=ref_rev, files={"docs/progress.yaml": "chain ledger\n"},
+                                        drop=("docs/progress_archive.yaml",))], rev=ref_rev)
+        self.assertEqual(self.run_cli("B07:2", base=side), 0)
+        self.assertEqual(self.calls, [2])
+        self.assertEqual(self.show(self.tips[2], "docs/progress.yaml"), "chain ledger")
+        self.assertNotIn("docs/progress_archive.yaml", git(self.repo, "ls-tree", "-r", "--name-only", self.tips[2]).splitlines())
 
     def test_stage_without_usable_reference_is_skipped_and_others_run(self):
         bad = self.ref_stage(2, "ref1-s2", "bad", invalid="REQ-11")
