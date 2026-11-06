@@ -332,6 +332,9 @@
   "harness/propgen.py": {
    "encoding": 1
   },
+  "harness/proposer_stage.py": {
+   "exe_suffix": 2
+  },
   "harness/provenance.py": {
    "cli_name": 1,
    "encoding": 1
