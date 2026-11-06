@@ -204,8 +204,14 @@ def start_commit(repo, tip, base, pkg, k, spec, rows):
 
 # ============================================================ run（bench のアカウント）
 
+def runner_harness():
+    """走らせ役自身の harness/ の木（run の version_problem が、--base の harness/ の木と同じことを確かめている）。試験が差し替える。"""
+    return git(bench_run.ROOT, ["rev-parse", "HEAD:harness"]).decode().strip()
+
+
 class ChainStage(bench_run.Factory):
-    """鎖の段の 1 回の走り。開始のコミットと仕様を外から受け取り、HEAD を確かめず、段の上限で止め、What ごとの生ログを写す。"""
+    """鎖の段の 1 回の走り。開始のコミットと仕様を外から受け取り、HEAD を確かめず、段の上限で止め、What ごとの生ログを写す。
+    H ラインは clone の先端の harness/ で走るので、その木が走らせ役の木と違えば、poll の前に無効にして止める。"""
 
     def __init__(self, a, start, spec):
         super().__init__(a)
@@ -238,9 +244,19 @@ class ChainStage(bench_run.Factory):
         return True
 
     def stop_reason(self):
+        """loop が poll の前と後に聞く。H ラインの木の違い（段の開始が別の版の木か、積んだ変更が harness/ を変えた）は無効にして止め、
+        ほかは段の上限（トークン・時間）。"""
+        if (why := self.harness_problem()):
+            self.invalid("harness", why)
+            return "harness"
         if self.tokens()["total"] >= STAGE_TOKENS:
             return "tokens"
         return "time" if self.timer.elapsed() >= STAGE_SECONDS else None
+
+    def harness_problem(self):
+        tip = self.tip()
+        mine, used = runner_harness(), git(self.clone, ["rev-parse", f"{tip}:harness"]).decode().strip()
+        return None if used == mine else f"H ラインが走る木（{tip[:12]}）の harness/ {used[:12]} が、走らせ役の harness/ {mine[:12]} と違います"
 
     def finalize(self):
         super().finalize()

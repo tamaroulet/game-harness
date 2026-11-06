@@ -7,6 +7,8 @@
 
 run と pair は bench のアカウント、finish は操縦士のアカウント。版ごとのクローンで、その版のコードを子のプロセスとして起こす
 （走らせ役と --base の harness/ の木が同じでなければ走りは止まるので、1 つのプロセスで 2 つの版は走らせられない）。
+段の開始の木は、その側の版（--base）の木に、基準の鎖が段 k−1 の先端までに変えたものを重ねる（onto）。H ラインは開始の木の
+harness/ で走るので、基準の先端そのものから走らせると、どちらの側も基準の版の H ラインで走る（11-06、L6 の 1 本目）。
 """
 import argparse
 import subprocess
@@ -17,14 +19,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_chain  # noqa: E402
 import bench_run  # noqa: E402
+import bench_start  # noqa: E402
 import chain_score  # noqa: E402
 import exitcode  # noqa: E402
 import hline_base  # noqa: E402
 import machine  # noqa: E402
+import progress  # noqa: E402
 from bench_start import BenchError, git  # noqa: E402
 
 FIELDS = ("new", "old", "kept", "new_at_start", "invalid", "reason", "tokens", "tries")
 SUMMARY = ("tag", "set", "base", "rev", "stopped")   # dev でない組の公開の集計に残す欄（ほかは合計だけ）
+REWRITTEN = (bench_start.LEDGER_PATH, progress.ARCHIVE_REL_PATH)   # 段の開始ごとに走らせ役が替える・消すもの（start_commit）
 
 
 # ============================================================ run（bench のアカウント）
@@ -59,17 +64,40 @@ def ref_attempt(ref, k):
     return ok[-1] if ok else None
 
 
-def start_tip(a, repo, out, staged, entry, ref, k):
-    """段 k の起点 (コミット, None)。基準の段 k−1 の先端、段 1 は基準の版（記録の rev）の木からの段 0 の先端。
-    基準の記録が無い・段 k−1 に使える試しが無ければ (None, 理由)。"""
+def entries(repo, rev, keep=lambda p: True):
+    """rev の木の {パス: ls-tree の行}（keep に当たるパスだけ）。"""
+    return {line.split("\t", 1)[1][:-1]: line for line in bench_chain.tree_lines(repo, rev, keep)}
+
+
+def onto(repo, rev, ref_rev, ref_tip, pkg, message):
+    """その側の版 rev の木（段 0 と同じく、凍結の課題の <package>/ と試験を除く）に、基準の鎖が変えたもの（基準の版 ref_rev の
+    同じ木から ref_tip への足し・替え・消し）を重ねた、親の無いコミット。鎖が変えたパスを、その側の版も基準の版から変えていれば
+    （段の開始ごとに走らせ役が替える台帳とその控えを除く）どちらを取っても比べにならず、鎖が harness/ を変えていれば
+    走るコードがその側の版でなくなるので、どちらも BenchError。"""
+    keep = lambda p: not bench_start.excluded(p, pkg)  # noqa: E731
+    base, ours, theirs = entries(repo, ref_rev, keep), entries(repo, rev, keep), entries(repo, ref_tip)
+    changed = {p for p in base.keys() | theirs.keys() if base.get(p) != theirs.get(p)}
+    if clash := sorted(p for p in changed if p.startswith("harness/") or (p not in REWRITTEN and ours.get(p) != base.get(p))):
+        raise BenchError(f"基準の鎖が変えたファイルを、その側の版も変えているか、鎖が harness/ を変えています: {', '.join(clash[:5])}")
+    tree = {**{p: line for p, line in ours.items() if p not in changed}, **{p: theirs[p] for p in changed if p in theirs}}
+    return bench_start.commit_lines(repo, [tree[p] for p in sorted(tree)], message)
+
+
+def start_tip(a, repo, out, staged, entry, ref, k, rev):
+    """段 k の起点 (コミット, None)。どれもその側の版 rev の木で、段 1 は rev からの段 0 の先端、段 k は rev の木に
+    基準の段 k−1 の先端までの鎖の変更を重ねたもの（onto）。基準の記録が無い・段 k−1 に使える試しが無い・重ねられなければ (None, 理由)。"""
     base = entry["base"]
     if not ref:
         return None, f"基準の記録がありません: {Path(out) / 'chains' / a.ref / f'{base}.json'}"
     if k == 1:
-        return bench_chain.s0_commit(repo, ref["rev"], base, entry["package"], staged / base / "s0" / "tree"), None
+        return bench_chain.s0_commit(repo, rev, base, entry["package"], staged / base / "s0" / "tree"), None
     if (st := ref_attempt(ref, k - 1)) is None:
         return None, f"基準の段 {k - 1} に使える試し（無効でなく head のあるもの）がありません"
-    return bench_chain.fetch_tip(repo, bench_run.run_dir(out, base, st["run_id"]), f"refs/pairs/{a.tag}/{base}/s{k - 1}"), None
+    tip = bench_chain.fetch_tip(repo, bench_run.run_dir(out, base, st["run_id"]), f"refs/pairs/{a.tag}/{base}/s{k - 1}")
+    try:
+        return onto(repo, rev, ref["rev"], tip, entry["package"], f"bench pair start: {base} s{k - 1} of {a.ref} on {rev[:12]}"), None
+    except BenchError as e:
+        return None, str(e)
 
 
 def load_rec(path, a, entry, ref, rev, ks):
@@ -83,7 +111,7 @@ def load_rec(path, a, entry, ref, rev, ks):
 
 
 def run_base(a, repo, out, staged, rev, entry, ks):
-    """土台 1 つの頼まれた段を、どれも基準の先端から走らせ、段が終わるたびに記録を書く。
+    """土台 1 つの頼まれた段を、どれも基準の先端の鎖をその側の版に重ねた木から走らせ、段が終わるたびに記録を書く。
     記録に試しのある段は走らせ直さない（中断の後の残りは run_step が扱う）。飛ばした段は、次の起動で試し直す。"""
     path = out / "chains" / a.tag / f"{entry['base']}.json"
     ref = bench_run.read_json(out / "chains" / a.ref / f"{entry['base']}.json", {})
@@ -91,7 +119,7 @@ def run_base(a, repo, out, staged, rev, entry, ks):
     done = {st["k"] for st in rec["stages"]}
     for k in (k for k in ks if k not in done):
         rec["skipped"] = [s for s in rec["skipped"] if s["k"] != k]
-        tip, why = start_tip(a, repo, out, staged, entry, ref, k)
+        tip, why = start_tip(a, repo, out, staged, entry, ref, k, rev)
         if tip is None:
             rec["skipped"].append({"k": k, "reason": why})
             print(f"{entry['base']} 段 {k} を飛ばします: {why}", file=sys.stderr)
