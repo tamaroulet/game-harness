@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 import bench_run  # noqa: E402
 import chain_score  # noqa: E402
 
-MARKS = ("B08", "springchain", "docs/bench", "chain/s")
+MARKS = ("B08", "examplechain", "docs/bench", "chain/s")
 CONV = "0f1e2d3c-4b5a-4968-8776-655443322110"
 OTHER = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
 WIN_NOT_FOUND = "failed to read file: GetFileAttributesEx {p}: The system cannot find the file specified."
@@ -98,12 +98,12 @@ class Audit(unittest.TestCase):
     def test_own_record_ignores_case_and_separators_and_needs_the_brain_segment(self):
         convs = frozenset({CONV})
         self.assertTrue(chain_score.own_record(
-            "C:\\src\\.local\\bench\\.gemini\\antigravity-cli\\brain\\" + CONV.upper() + "\\.system_generated\\steps\\44\\content.md", convs))
+            "D:\\work\\bench\\.gemini\\antigravity-cli\\brain\\" + CONV.upper() + "\\.system_generated\\steps\\44\\content.md", convs))
         self.assertTrue(chain_score.own_record(f"/home/bench/.gemini/antigravity-cli/brain/{CONV}", convs))
-        self.assertFalse(chain_score.own_record(f"C:/src/.local/bench/.gemini/antigravity-cli/brain/{OTHER}/x.md", convs))
-        self.assertFalse(chain_score.own_record("C:/src/.local/bench/.gemini/antigravity-cli/brain", convs))
-        self.assertFalse(chain_score.own_record(f"C:/src/.local/oracles/chains/B08/{CONV}/x.md", convs))
-        self.assertFalse(chain_score.own_record(f"C:/x/.gemini/antigravity-cli/brain/{CONV}/y", frozenset()))
+        self.assertFalse(chain_score.own_record(f"D:/work/bench/.gemini/antigravity-cli/brain/{OTHER}/x.md", convs))
+        self.assertFalse(chain_score.own_record("D:/work/bench/.gemini/antigravity-cli/brain", convs))
+        self.assertFalse(chain_score.own_record(f"D:/work/oracles/chains/B08/{CONV}/x.md", convs))
+        self.assertFalse(chain_score.own_record(f"D:/x/.gemini/antigravity-cli/brain/{CONV}/y", frozenset()))
 
     def test_net_tool_pointing_at_own_record_is_a_lookup(self):
         """ネットの道具が自分の会話の記録を指しても、名指しが無ければ調べもの（無効にしない）。ほかの会話の記録を指せば当たり。"""
@@ -112,7 +112,7 @@ class Audit(unittest.TestCase):
         for url, hits, lookups in ((mine, 0, 1), (other, 1, 0)):
             with self.subTest(url=url[-40:]):
                 log = write_log(self.own / "implementer-0-8.log", self.own, [("read_url_content", {"Url": url}, "DONE", "ok", None)])
-                found, web, _, _ = chain_score.audit_all([log], self.own, self.local, ("springchain",))   # 一時の名に当たりうる土台の名は外す
+                found, web, _, _ = chain_score.audit_all([log], self.own, self.local, ("examplechain",))   # 一時の名に当たりうる土台の名は外す
                 self.assertEqual((len(found), len(web)), (hits, lookups))
 
     def test_strays_and_audit_keep_their_shapes(self):
