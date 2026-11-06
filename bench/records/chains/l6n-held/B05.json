@@ -6,8 +6,8 @@
  "stopped": null,
  "totals": {
   "stages": 6,
-  "passed": 2,
-  "invalid": 4,
+  "passed": 5,
+  "invalid": 0,
   "tokens": 12234013
  }
 }
