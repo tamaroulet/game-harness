@@ -1,0 +1,42 @@
+{
+ "tag": "l6p2-r1-old",
+ "set": "dev",
+ "base": "B08",
+ "rev": "74c1d0520e87027085a995da60cc748db926fd36",
+ "from": "v0-r1",
+ "stopped": null,
+ "skipped": [],
+ "stages": [
+  {
+   "k": 4,
+   "run_id": "l6p2-r1-old-s4",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 2,
+   "tokens": 1781887,
+   "new": [
+    0,
+    2
+   ],
+   "old": [
+    24,
+    24
+   ],
+   "kept": [
+    24,
+    24
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    2
+   ],
+   "manifest_sha256": "dd44f265514dfb624bbdcaea71dfbcfe592527d9c8e582dd0afd7f65c6cdff34"
+  }
+ ]
+}
