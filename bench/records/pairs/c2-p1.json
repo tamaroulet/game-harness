@@ -1,0 +1,57 @@
+{
+ "tag": "c2-p1",
+ "fixed": 0,
+ "broke": 0,
+ "missing": 0,
+ "pairs": [
+  {
+   "base": "B09",
+   "k": 6,
+   "verdict": "同じ",
+   "old": {
+    "new": [
+     5,
+     6
+    ],
+    "old": [
+     32,
+     34
+    ],
+    "kept": [
+     32,
+     32
+    ],
+    "new_at_start": [
+     3,
+     6
+    ],
+    "invalid": false,
+    "reason": null,
+    "tokens": 1659024,
+    "tries": 1
+   },
+   "new": {
+    "new": [
+     5,
+     6
+    ],
+    "old": [
+     32,
+     34
+    ],
+    "kept": [
+     32,
+     32
+    ],
+    "new_at_start": [
+     3,
+     6
+    ],
+    "invalid": false,
+    "reason": null,
+    "tokens": 1606214,
+    "tries": 2
+   }
+  }
+ ]
+}
