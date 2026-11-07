@@ -254,16 +254,31 @@ def submit(job_id, cwd, cmds, now=None):
     state, _ = task_state()
     if state in RUNNING:
         raise JobError(f"走っているジョブがあります（タスクの状態 {state}）")
+    plain_place()
     d.mkdir(parents=True)
     at = (now or datetime.datetime.now)().astimezone().isoformat(timespec="seconds")
     write_json(d / META, {"id": job_id, "cwd": str(cwd), "cmds": list(cmds), "at": at, "epoch": time.time()})
-    tmp = home() / (BATCH + ".tmp")
-    tmp.write_bytes(batch_text(job_id, cwd, cmds).encode("ascii"))
-    os.replace(tmp, home() / BATCH)
+    replace_batch(batch_text(job_id, cwd, cmds).encode("ascii"))
     code, out = schtasks("/Run", "/TN", TASK)
     if code:
         raise JobError(f"タスクを起こせません: {out}")
     return d
+
+
+def plain_place():
+    """置き場（bench も書ける）がリンクやジャンクションに差し替えられていれば JobError。bench は管理者でなくてもジャンクションを作れるので、
+    差し替えられたまま書くと、操縦士の権限でほかの場所に書くことになる。"""
+    for path in (home(), home() / JOBS):
+        if os.path.islink(path) or os.path.isjunction(path):
+            raise JobError(f"置き場がリンクかジャンクションになっています: {path}")
+
+
+def replace_batch(data):
+    """バッチを差し替える。一時のファイルは毎回新しい名で作る（前からある名に書くと、bench が置いたリンクの先に書きうる）。"""
+    fd, tmp = tempfile.mkstemp(dir=home(), suffix=".tmp")
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+    os.replace(tmp, home() / BATCH)
 
 
 def read_meta(d):
