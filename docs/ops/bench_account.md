@@ -59,3 +59,16 @@ runas /user:bench "cmd /k cd /d C:\src\.local\bench && python -m harness.bench_g
 ```
 
 終了コードが 0 なら準備は済み。1 なら、出たパスの拒否が効いていないので、段 2 をやり直す。走行の後は、操縦士のアカウントで `python -m harness.bench_guard scan <dir>...` を走らせ、漏れの跡のある走行を無効にする。
+
+### 5a. 予定のタスクの登録（v3 §7-9、L7）
+
+毎回 `runas` で密語を入れる代わりに、bench で走る予定のタスクを 1 回だけ登録する。管理者のコンソールで打つ。
+
+```powershell
+cd C:\src\game-harness; python -m harness.bench_job register
+```
+
+- 密語は `schtasks` が端末で聞く。コードは密語を受け取らない。
+- 同じ命令が、bench にバッチ ログオンの権利（`SeBatchLogonRight`）を足し、タスクの権限に今のアカウントを足す。権利が無いと、`schtasks /Run` は成功を返すのにタスクは始まらない（`schtasks /Create` は警告だけを出す）。
+- 以後は、権限を上げていない操縦士のアカウントから起こす・見る・止める（`python -m harness.bench_job run`・`status`・`stop`）。タスクにはトリガーが無く、起こさなければ走らない。
+- 密語を変えたら、登録をやり直す。戻すときは、管理者のコンソールで `python -m harness.bench_job unregister`（タスクを消し、権利を外す）。
