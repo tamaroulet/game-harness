@@ -3,6 +3,7 @@ harness.hline を import しない（循環を作らない）。依存は第 1 �
 import os
 
 import base_whitelist
+import box_run
 import hline_boundary
 import hline_symbols
 
@@ -58,5 +59,8 @@ def canary(host, cfg, wt):
     cmd = base_whitelist.unittest_command(cfg["gate_command"], cfg["canary_modules"])
     if cmd is None:
         return True, "影響テストもカナリアも走らせるものがありません"
-    code, out, err = host.proc.run(cmd, wt, cfg["ttl_seconds"]["gate"], "Gate 1", env=dict(os.environ, PYTHONUTF8="1"))
+    if cfg.get("box"):
+        code, out, err = box_run.gate(cmd, wt, cfg["ttl_seconds"]["gate"])
+    else:
+        code, out, err = host.proc.run(cmd, wt, cfg["ttl_seconds"]["gate"], "Gate 1", env=dict(os.environ, PYTHONUTF8="1"))
     return code == 0, host.gate_order.report(" ".join(cmd), code, out, err, cfg["gate_tail_chars"])

@@ -11,6 +11,8 @@ from pathlib import Path
 
 from hline_base import ROOT, Fatal, Infra, must
 
+import box_run  # noqa: E402
+import exitcode  # noqa: E402
 import infra_retry  # noqa: E402
 import proc  # noqa: E402
 import progress  # noqa: E402
@@ -129,13 +131,34 @@ def changed_paths(wt, cfg):
 def record(cfg, wt, task):
     """タスクを宣言した What の進捗の記録（harness.progress complete）を作業ツリーで行う。(終了コード, 出力)。
     Gate 1 の最後の段で、積む前に呼ぶ。落ちたときは docs/progress.yaml を元に戻す（保護されたパスで、次の試行の門に当たるため）。"""
+    if cfg.get("box"):
+        return record_boxed(cfg, wt, task)
     ref = ["--ref", cfg["base"]] if "base" in cfg else []
     code, out, err = proc.run([sys.executable, "-m", "harness.progress", "complete", task, *ref], wt,
                               cfg["ttl_seconds"]["gate"],
                               "harness.progress complete", env={**os.environ, progress.ORDER_FREE_ENV: "1"})
     if code != 0:
-        proc.run(["git", "checkout", "-q", "--", "docs/progress.yaml"], wt, cfg["ttl_seconds"]["git"], "git checkout")
+        restore_ledger(cfg, wt)
     return code, out + err
+
+
+def restore_ledger(cfg, wt):
+    proc.run(["git", "checkout", "-q", "--", "docs/progress.yaml"], wt, cfg["ttl_seconds"]["git"], "git checkout")
+
+
+def record_boxed(cfg, wt, task):
+    """箱の走りの進捗の記録：検証の命令は門の箱で走らせ、台帳を書くのはここ（H ラインのプロセスの中）。作業ツリーの Python を起こさない。
+    終了コードの意味は harness.progress complete と同じ（状態の不備は exitcode.ABORT）。"""
+    lines = []
+    ref = {"ref": cfg["base"]} if "base" in cfg else {}
+    try:
+        code = progress.complete(task, repo_root=wt, out=lines.append, require_active=False, verify=box_run.verifier(wt, cfg["ttl_seconds"]["gate"]), **ref)
+    except progress.ProgressError as e:
+        code = exitcode.ABORT
+        lines.append(f"ABORT: {e}")
+    if code != 0:
+        restore_ledger(cfg, wt)
+    return code, "\n".join(lines)
 
 
 def record_refused(task, code, text):

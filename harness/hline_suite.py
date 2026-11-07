@@ -6,6 +6,7 @@ Gate 1 の影響テストの網の外で壊れた変更を積まないための�
 import time
 from pathlib import Path
 
+import box_run
 import fastsuite
 
 NOT_PACKAGE = ("harness", "tests")
@@ -48,14 +49,18 @@ def select(wt, paths):
     return tuple(f"tests.{s}" for s in sorted(chosen))
 
 
-def run(wt, paths, timeout=None):
-    """None（走らせるものが無い）か (通ったか, 実装役に返す出力, 試行の記録に残す {"modules", "seconds"})。"""
+def run(wt, paths, timeout=None, boxed=False):
+    """None（走らせるものが無い）か (通ったか, 実装役に返す出力, 試行の記録に残す {"modules", "seconds"})。boxed は門の箱で走らせる。"""
     modules = select(wt, paths)
     if not modules:
         return None
     started = time.monotonic()
-    results, flaky = fastsuite.recheck(fastsuite.run(modules, None, wt, timeout), wt, timeout)
-    seconds = time.monotonic() - started
-    code, body = fastsuite.report(results, seconds, flaky)
+    if boxed:
+        code, body = box_run.suite(modules, wt, timeout)
+        seconds = time.monotonic() - started
+    else:
+        results, flaky = fastsuite.recheck(fastsuite.run(modules, None, wt, timeout), wt, timeout)
+        seconds = time.monotonic() - started
+        code, body = fastsuite.report(results, seconds, flaky)
     head = "変えたパッケージの全件テスト: " + ", ".join(modules)
     return code == 0, f"{head}\n{body}", {"modules": list(modules), "seconds": round(seconds, 1)}

@@ -502,9 +502,21 @@ def advance_active(state):
     return state["active_task_id"]
 
 
-def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, now=None, *, require_active=True):
+def run_verification(command, repo_root):
+    """検証の命令を repo_root で走らせる。(終了コード, 出力)。"""
+    try:
+        r = subprocess.run(command, shell=True, cwd=repo_root, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=VERIFY_TTL,
+                           creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
+    except subprocess.TimeoutExpired:
+        return -1, f"{VERIFY_TTL} 秒で打ち切りました"
+
+
+def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, now=None, *, require_active=True, verify=None):
     """0 = 完了にした、1 = 拒絶（REJECT）、2 = 検証コマンドが環境異常で終わった（ABORT）。
-    require_active=False は、現在のタスクでなくても（検証の照合と実行は同じに通して）完了にする。"""
+    require_active=False は、現在のタスクでなくても（検証の照合と実行は同じに通して）完了にする。
+    verify は検証の命令の走らせ方（命令 → (終了コード, 出力)）。箱の走りが渡す（実装役のコードを箱の外で走らせない）。無ければ手元で走らせる。"""
     path = Path(repo_root) / REL_PATH
     state = load(path)
     problems = validate(state)
@@ -529,13 +541,7 @@ def complete(task_id, repo_root=ROOT, ref="origin/main", fetch=True, out=print, 
         raise ProgressError(f"{task_id} の検証が {ref} の版と違います。手元での書き換えは受け付けません")
 
     out(f"検証: {v['command']}")
-    try:
-        r = subprocess.run(v["command"], shell=True, cwd=repo_root, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=VERIFY_TTL,
-                           creationflags=_NO_WINDOW, startupinfo=_STARTUPINFO)
-        rc, log = r.returncode, (r.stdout or "") + (r.stderr or "")
-    except subprocess.TimeoutExpired:
-        rc, log = -1, f"{VERIFY_TTL} 秒で打ち切りました"
+    rc, log = verify(v["command"]) if verify is not None else run_verification(v["command"], repo_root)
     at = (now or datetime.datetime.now)().isoformat(timespec="seconds")
     state["last_verification"] = {"task": task_id, "exit_code": rc, "at": at}
     if rc != v["expected_exit_code"]:

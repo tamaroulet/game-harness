@@ -38,6 +38,8 @@ DOCKER_FAILED = (125, 126, 127)   # docker 自身の失敗と、箱の中の命�
 USER_ID = "1000"
 HOME, WORK = "/home/bench", "/work"
 WORK_NAME = "work"
+RUNNER_NAME = "runner.py"
+PYTHON = "python"
 TOKEN_IN = "/in/token"
 NO_PROXY = "localhost,127.0.0.1"
 GIT_ID = "box"
@@ -283,6 +285,14 @@ def tests(cfg, argv, tree, ttl, extra=None):
     return code, proc.decoded(out), err
 
 
+def grade(cfg, runner, tree, files, ttl):
+    """採点の箱で隠しテストを走らせる（chain_score の RUNNER）。(終了コード, 標準出力, 標準エラー)。段の木と隠しテストは別の根に置く。"""
+    extra = {RUNNER_NAME: runner.encode("utf-8"),
+             **{f"tree/{rel}": (Path(tree) / rel).read_bytes() for rel in box_tree.walk(tree)},
+             **{f"tests/{Path(f).name}": Path(f).read_bytes() for f in files}}
+    return tests(cfg, [PYTHON, "-I", f"{WORK}/{RUNNER_NAME}", f"{WORK}/tree", f"{WORK}/tests"], None, ttl, extra)
+
+
 # ============================================================ 確かめ
 
 def probe_problems(doc, networked):
@@ -324,7 +334,7 @@ def check(cfg):
     ensure_net(cfg)
     problems = []
     for networked, opts in ((True, agent_opts(cfg)), (False, tests_opts(cfg))):
-        code, out, err = _call([*docker_cmd(cfg), "run", "--rm", *opts, cfg["image"], "python", "-"], PROBE.encode(), TTL)
+        code, out, err = _call([*docker_cmd(cfg), "run", "--rm", *opts, cfg["image"], PYTHON, "-"], PROBE.encode(), TTL)
         try:
             problems += probe_problems(json.loads(proc.decoded(out)), networked)
         except ValueError:

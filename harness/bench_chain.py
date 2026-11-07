@@ -1,6 +1,6 @@
 """累積の筋書き（鎖）の走らせ役（v3 の L3）：段 0 の木から、段ごとに決まった型の What 1 件で工廠を回し、段ごとに採点する。
 
-    python -m harness.bench_chain stage  --tag <t> --set <dev|held|reserve> --bases B07,B08,B09 [--stages <K>] [--chains <dir>] [--staged <dir>]
+    python -m harness.bench_chain stage  --tag <t> --set <dev|held|reserve> --bases B07,B08,B09 [--stages <K>] [--chains <dir>] [--staged <dir>] [--box]
     python -m harness.bench_chain run    --tag <t> --repo <clone> --base <rev> --staged <dir> [--out <dir>] [--implementer <json>]
     python -m harness.bench_chain finish --tag <t> --repo <clone> [--chains <dir>] [--out <dir>]
 
@@ -12,6 +12,7 @@ run（bench のアカウント。<clone> は走らせ役自身のクローン）
 と段 k の台帳を足した開始のコミットから、What 1 件の工廠（計画役も監修役も無い v0）で走らせる。試験が落ちても巻き戻さない。
 走りが無効か異常なら、その段を RETRIES 回まで走り直し、それでも駄目ならその土台の鎖を止める。記録は <out>/chains/<tag>/<土台>.json
 （済んだ土台は飛ばす）。What ごとの生ログ（実装役の stream-json を含む）は、走りの記録の items/ に写す。
+stage の --box は chain.json に印を置き、run と finish はその印に従って、実装役・門・採点を箱で走らせる（harness/box.py。v3 §8 の E4）。
 finish（操縦士のアカウント）は、段ごとに漏れの走査（bench_guard）・道の検め（作業の場所の外の ${local} の下のパスか、ネットを
 見る道具）・境界の検め（段の開始と先端の差分）・採点（段 0〜k の隠しテストから、段 1〜k の replaced.json の名前を除いた組）をする。
 孤立（段 k の新しい試験）・前の試験（段 0〜k−1 の必須）・保ち（段 k−1 の先端で通っていた前の必須のうち、段 k でも通る）を分け、
@@ -19,6 +20,7 @@ finish（操縦士のアカウント）は、段ごとに漏れの走査（bench
 chains/runs/<tag>/<土台>/ に置き、集計の数だけを <clone>/bench/records/chains/<tag>/<土台>.json に書く。
 """
 import argparse
+import contextlib
 import datetime
 import re
 import secrets
@@ -30,6 +32,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_guard  # noqa: E402
+import box  # noqa: E402
 import bench_run  # noqa: E402
 import bench_start  # noqa: E402
 import chain_score  # noqa: E402
@@ -93,7 +96,7 @@ def stage(a):
         print(f"canary があるので写しません: {', '.join(bad)}", file=sys.stderr)
         return 1
     dest = root / f"{a.tag}-{secrets.token_hex(8)}"
-    doc = {"tag": a.tag, "set": a.set, "staged_at": now(), "bases": []}
+    doc = {"tag": a.tag, "set": a.set, "staged_at": now(), "bases": [], **({"box": True} if getattr(a, "box", False) else {})}
     for base, pkg, count, files in plan:
         for src, rel in files:
             (dest / base / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -213,9 +216,32 @@ class ChainStage(bench_run.Factory):
     """鎖の段の 1 回の走り。開始のコミットと仕様を外から受け取り、HEAD を確かめず、段の上限で止め、What ごとの生ログを写す。
     H ラインは clone の先端の harness/ で走るので、その木が走らせ役の木と違えば、poll の前に無効にして止める。"""
 
-    def __init__(self, a, start, spec):
+    def __init__(self, a, start, spec, boxed=None):
         super().__init__(a)
-        self.start_sha, self.spec = start, Path(spec)
+        self.start_sha, self.spec, self.boxed = start, Path(spec), boxed   # boxed は課題のパッケージの名（箱の走りのときだけ）
+
+    def box_mark(self, cfg):
+        """H ラインの設定に箱の印を置く（hline_agy・門・全件・進捗の記録がこれを見る）。"""
+        return {**cfg, "box": {"package": self.boxed}} if self.boxed else cfg
+
+    def guard(self, cfg):
+        """箱の走りでは、箱の確かめに替える（bench_guard は bench のアカウントの権限を見る。CLI の版は Windows の実物を見る）。"""
+        if not self.boxed:
+            return super().guard(cfg)
+        try:
+            settings = box.settings()
+            self.run["box_image"] = box.require(settings)
+            problems = box.check(settings)
+        except box.BoxError as e:
+            problems = [str(e)]
+        if problems:
+            self.invalid("REQ-10", f"箱の確かめ: {' / '.join(problems)[:400]}")
+            return False
+        self.effective(cfg)
+        return True
+
+    def cli_version(self, role="planner"):
+        return box.agy_version() if self.boxed and role == "implementer" else super().cli_version(role)
 
     def check_head(self):
         self.run["base"] = git(self.repo, ["rev-parse", "--verify", "-q", f"{self.rev}^{{commit}}"]).decode().strip()
@@ -226,7 +252,7 @@ class ChainStage(bench_run.Factory):
         """面の設定（config/surface.json）のつまみを当てる。鎖の段の走りにだけ効く。誤りは BenchError（run_stage が ABORT にする）。"""
         values, sha = surface.load(self.repo / surface.SETTING)
         self.run["surface"] = {"values": values, "sha256": sha}
-        return surface.put(super().effective(cfg), values)
+        return self.box_mark(surface.put(super().effective(cfg), values))
 
     def setup_clone(self, plan_inbox, cfg):
         """H ラインの poll が読む設定（line_cfg）にも面のつまみを当てる。Factory.setup_clone は effective を通らず、
@@ -234,7 +260,9 @@ class ChainStage(bench_run.Factory):
         values, _ = surface.load(self.repo / surface.SETTING)
         if self.impl is not None:
             self.impl = surface.put({"implementer": self.impl}, values)["implementer"]
-        super().setup_clone(plan_inbox, surface.put(cfg, values))
+        super().setup_clone(plan_inbox, self.box_mark(surface.put(cfg, values)))
+        if self.boxed:   # 作業ツリーを改行のまま出す（Windows の CRLF を箱に持ち込むと、触ったファイルだけ LF になる）
+            git(self.clone, ["config", "core.autocrlf", "false"])
 
     def keep_plan(self, plan_inbox, spec):
         super().keep_plan(plan_inbox, self.spec)
@@ -299,11 +327,22 @@ def fetch_tip(repo, rundir, ref):
     return git(repo, ["rev-parse", "--verify", "-q", f"{ref}^{{commit}}"]).decode().strip()
 
 
+def no_sessions(out):
+    """箱の走りの Claude Code の記録の置き場：空のディレクトリ。箱の走りは操縦士のアカウントで回るので、既定の置き場だと会話の席の記録を
+    呼び出しに数え、トークンの水増しとモデルの検査で段が無効になる（Argon の事前の評価。実装役の呼び出しは生ログから数える）。"""
+    path = Path(out) / "box-no-sessions"
+    path.mkdir(parents=True, exist_ok=True)
+    return str(path)
+
+
 def run_step(a, repo, out, staged, entry, tip, k, rec):
     """段 k を走らせる。無効・異常なら RETRIES 回まで走り直す。試すたびに rec に足し、済んだ走りの記録を返す（駄目なら None）。
     走りのディレクトリが前の起動から残っていれば（中断の後の走らせ直し）、走らせずに、書き終えた記録（run.json）を使う。
     run.json の無い残りは、中断した試しとして数え、次の試しへ進む。"""
     base, pkg = entry["base"], entry["package"]
+    boxed = pkg if bench_run.read_json(staged / "chain.json", {}).get("box") else None
+    if boxed:
+        rec["box"] = True
     spec = staged / base / f"s{k}" / "spec.md"
     if bench_run.sha256_file(spec) != entry["spec_sha256"][f"s{k}"]:
         raise BenchError(f"{spec} の指紋が chain.json と違います")
@@ -318,9 +357,9 @@ def run_step(a, repo, out, staged, entry, tip, k, rec):
             code = 0 if (rundir / "factory" / "run.json").is_file() else 2
         else:
             plan = write_plan(out / "chains" / a.tag / base / run_id, base, pkg, k, info, files)
-            ns = argparse.Namespace(task=base, run_id=run_id, repo=str(repo), base=tip, out=str(out), sessions=a.sessions,
+            ns = argparse.Namespace(task=base, run_id=run_id, repo=str(repo), base=tip, out=str(out), sessions=no_sessions(out) if boxed else a.sessions,
                                     plan=str(plan), implementer=a.implementer)
-            code = run_stage(ChainStage(ns, start, spec))
+            code = run_stage(ChainStage(ns, start, spec, boxed))
         done = bench_run.read_json(rundir / "factory" / "run.json", {})
         st = {"k": k, "attempt": attempt, "run_id": run_id, "code": code, "base": done.get("base") or tip,
               "start": done.get("start") or start, "head": done.get("head"),
@@ -358,7 +397,7 @@ def run(a):
         return 2
     try:
         rev = git(repo, ["rev-parse", "--verify", "-q", f"{a.base}^{{commit}}"]).decode().strip()
-        with bench_run.KeepAwake():
+        with bench_run.KeepAwake(), box.Keep(box.settings()) if doc.get("box") else contextlib.nullcontext():
             for entry in doc["bases"]:
                 path = out / "chains" / a.tag / f"{entry['base']}.json"
                 if not path.exists():
@@ -388,6 +427,7 @@ def main(argv=None):
     sub.choices["stage"].add_argument("--bases", required=True)
     sub.choices["stage"].add_argument("--stages", type=int)
     sub.choices["stage"].add_argument("--staged")
+    sub.choices["stage"].add_argument("--box", action="store_true")
     for name in ("stage", "finish"):
         sub.choices[name].add_argument("--chains")
     for name in ("run", "finish"):

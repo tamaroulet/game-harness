@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 FALLBACK = datetime.timedelta(minutes=60)   # リセットの時刻が読めないときの待ち
 HIT = re.compile(r"hit your (?:\w+ )?limit", re.I)
-AGY_HIT = re.compile(r"RESOURCE_EXHAUSTED|quota exceeded|Rate limit exceeded", re.I)
+AGY_HIT = re.compile(r"RESOURCE_EXHAUSTED|quota exceeded|Rate limit exceeded|AI credits balance", re.I)
 AGY_429 = re.compile(r"(?<![0-9A-Za-z])429(?![0-9A-Za-z])")
 RESET = re.compile(r"resets\s+(?:([A-Za-z]{3})\s+(\d{1,2}),?\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b(?:\s*\(([^)]+)\))?", re.I)
 MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
