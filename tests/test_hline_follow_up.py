@@ -5,6 +5,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE.parent / "harness")]
+import box_tree  # noqa: E402
 import gate_order  # noqa: E402
 import hline_followup as hf  # noqa: E402
 import test_hline_turn_cap as cap_tests  # noqa: E402
@@ -88,6 +89,18 @@ class Narrow(unittest.TestCase):
         """見出しの 1 行（生の出力では最初の区切り線、Gate 1 の出力では検証コマンドの行）の後は、同じ落ちが同じ順に並ぶ。"""
         raw = distinct(*PAIRS)
         self.assertEqual(hf.narrow(raw, 4000).splitlines()[1:], hf.narrow(gate_report(raw), 4000).splitlines()[1:])
+
+    def test_the_note_of_files_not_received_stays_after_narrowing(self):
+        note = box_tree.dropped_note([["scratch.py", "外"]])
+        got = hf.narrow(f"{gate_report(distinct(*PAIRS))}\n\n{note}", 4000)
+        self.assertIn("FAIL: test_a", got)
+        self.assertTrue(got.endswith(note))
+
+    def test_the_note_is_not_cut_by_the_limit(self):
+        note = box_tree.dropped_note([["scratch.py", "外"]])
+        got = hf.narrow("構文の誤り\n" * 100 + f"\n\n{note}", 50)
+        self.assertLessEqual(len(got), 50 + len(note) + 2)
+        self.assertTrue(got.endswith(note))
 
 
 class Caps(cap_tests.Flow):

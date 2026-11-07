@@ -2,6 +2,8 @@
 最初の試行に渡す出力は変えない。"""
 import re
 
+import box_tree
+
 HEAD_LINES = 5   # 落ちた試験の前に残す見出しの行数の上限
 
 # 落ちた試験の名前の行（FAIL:・ERROR:）と、トレースバックの塊。gate_order._FAILURE と同じ形に、
@@ -14,10 +16,17 @@ _BLOCK = re.compile(r"^(?:FAIL|ERROR): [^\n]*"
 
 
 def narrow(feedback, limit):
+    """失敗の出力を絞る（_failures）。受け取らなかったファイルの知らせ（箱の走りで run_task が後ろに足す。長さは box_tree.dropped_note が抑える）は
+    絞らずに残す。消えると、実装役には無いファイルの理由が分からない（11-08 の空走りで、2 回目の入力に届いていないのが分かった）。"""
+    text, head, note = (feedback or "").partition(box_tree.DROPPED_HEAD)
+    body = _failures(text, limit)
+    return f"{body.rstrip()}\n\n{head}{note}" if head else body
+
+
+def _failures(text, limit):
     """落ちた試験ごとの名前とトレースバックだけにする。通った試験の行は入れず、同じトレースバックは最初の 1 つだけ残し、全体は limit 字以内。
     受けるのは、unittest の生の出力（区切り線あり）と、Gate 1 の出力（区切り線の無い digest）のどちらでもよい。
     落ちた試験の行もトレースバックも見つからない出力（構文の誤り・時間切れなど）は、そのまま limit 字に切る。"""
-    text = feedback or ""
     found = list(_BLOCK.finditer(text))
     if not found:
         return text[:limit]

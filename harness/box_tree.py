@@ -19,6 +19,8 @@ FILE_MODE, DIR_MODE = 0o644, 0o755
 BENCH_UID = 1000
 BAD_CHARS = re.compile(r'[<>:"|?*\\\x00-\x1f]')
 RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
+DROPPED_HEAD = "前の試行で、次のファイルはハーネスが受け取らなかったので、作業ツリーにありません。"   # hline_followup.narrow がこの文で知らせを見分ける
+DROPPED_SHOWN = 20   # 知らせに書く名の上限（箱の中で仮想環境などを作ると、受け取らないファイルが数千になりうる）
 
 
 class TreeError(Exception):
@@ -144,9 +146,10 @@ def receive(data, dest, allowed=None, strip=None):
 
 def dropped_note(dropped):
     """受け取らなかったファイルを実装役に知らせる文（次の試行の入力に足す）。知らせないと、実装役は何が起きたか分からず、試行を無駄にする。"""
-    rows = [f"- {name}：{why}" for name, why in dropped]
-    return "\n".join(["前の試行で、次のファイルはハーネスが受け取らなかったので、作業ツリーにありません。要るものは、課題のパッケージの中か、"
-                      "tests/test_<パッケージ名>*.py の中に置いてください。", *rows])
+    rows = [f"- {name}：{why}" for name, why in dropped[:DROPPED_SHOWN]]
+    rest = len(dropped) - DROPPED_SHOWN
+    return "\n".join([f"{DROPPED_HEAD}要るものは、課題のパッケージの中か、tests/test_<パッケージ名>*.py の中に置いてください。",
+                      *rows, *([f"- ほか {rest} 件"] if rest > 0 else [])])
 
 
 def _prune(dest, rel):
