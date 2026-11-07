@@ -25,9 +25,10 @@ import exitcode  # noqa: E402
 import hline_base  # noqa: E402
 import machine  # noqa: E402
 import progress  # noqa: E402
+import surface  # noqa: E402
 from bench_start import BenchError, git  # noqa: E402
 
-FIELDS = ("new", "old", "kept", "new_at_start", "invalid", "reason", "tokens", "tries")
+FIELDS =("new", "old", "kept", "new_at_start", "invalid", "reason", "tokens", "tries")
 SUMMARY = ("tag", "set", "base", "rev", "stopped")   # dev でない組の公開の集計に残す欄（ほかは合計だけ）
 REWRITTEN = (bench_start.LEDGER_PATH, progress.ARCHIVE_REL_PATH)   # 段の開始ごとに走らせ役が替える・消すもの（start_commit）
 
@@ -169,16 +170,22 @@ def child_cmd(a, side, base, k):
     return Path(clone), cmd
 
 
+def same_version(old, old_rev, new, new_rev):
+    """走りに効く 2 つ（harness/ の木と面の設定）が同じか。つまみだけの変更は harness/ の木が同じだが、違う版として比べる。"""
+    return (git(old, ["rev-parse", f"{old_rev}:harness"]) == git(new, ["rev-parse", f"{new_rev}:harness"])
+            and surface.blob(old, old_rev, surface.SETTING) == surface.blob(new, new_rev, surface.SETTING))
+
+
 def pair(a):
     path = Path(a.out) / "pairs" / f"{a.tag}.json"
     try:
         _, pairs = plan(a.staged, a.ref, a.stages)
-        same = git(Path(a.old), ["rev-parse", f"{a.old_rev}:harness"]) == git(Path(a.new), ["rev-parse", f"{a.new_rev}:harness"])
+        same = same_version(Path(a.old), a.old_rev, Path(a.new), a.new_rev)
     except BenchError as e:
         print(f"ABORT: {e}", file=sys.stderr)
         return 2
     if same and not a.allow_same:
-        print("ABORT: 旧版と新版の harness/ の木が同じです（揺れの測りなら --allow-same）", file=sys.stderr)
+        print("ABORT: 旧版と新版の harness/ の木と面の設定が同じです（揺れの測りなら --allow-same）", file=sys.stderr)
         return 2
     log = {"tag": a.tag, "from": a.ref, "old": {"repo": a.old, "rev": a.old_rev}, "new": {"repo": a.new, "rev": a.new_rev},
            "same": same, "pairs": [f"{b}:{k}" for b, k in pairs], "runs": []}

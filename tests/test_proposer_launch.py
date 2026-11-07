@@ -20,7 +20,8 @@ import proposer_launch as pl  # noqa: E402
 REAL = json.loads((HERE.parent / "config" / "proposer.json").read_text(encoding="utf-8"))
 MODEL = REAL["model"]
 NOW = datetime.datetime(2026, 10, 19, 3, 0, 0)
-GOOD = ("前置きの文\n\n## 狙う失敗の型\n型の説明\n## 出た段\n- B01 s2\n## 直し\n直しの説明\n## 予想\n予想の説明\n"
+DIFF = '## 差分\n```json\n{"max_attempts": 3}\n```\n'
+GOOD = ("前置きの文\n\n## 狙う失敗の型\n型の説明\n## 出た段\n- B01 s2\n## 直し\n直しの説明\n" + DIFF + "## 予想\n予想の説明\n"
         "## 補う弱さ\n弱さの説明\n## 外す条件\n条件の説明\n")
 
 
@@ -280,6 +281,14 @@ class Shape(Base):
 
     def test_an_empty_section(self):
         self.assertIn("見出し ## 補う弱さ の中身が空です", self.errors(GOOD.replace("弱さの説明\n", "  \n")))
+
+    def test_the_diff_section_needs_a_block_the_machine_can_read(self):
+        self.assertEqual(self.errors(GOOD), [])
+        self.assertIn("見出し ## 差分 が 0 回あります（各 1 回）", self.errors(GOOD.replace(DIFF, "")))
+        self.assertTrue(any("ブロックがありません" in e for e in self.errors(GOOD.replace(DIFF, "## 差分\n文だけ\n"))))
+        self.assertTrue(any("知らないつまみ" in e for e in self.errors(GOOD.replace('"max_attempts": 3', '"other": 3'))))
+        bad = GOOD.replace(DIFF, "## 差分\n```python\nimport os\n```\n")
+        self.assertTrue(any("面の関数" in e for e in self.errors(bad)))
 
     def test_a_stage_without_its_record_or_in_a_wrong_form(self):
         errs = self.errors(GOOD.replace("- B01 s2\n", "- B01 s5\n- B01 stage2\n- .. s2\n"))
