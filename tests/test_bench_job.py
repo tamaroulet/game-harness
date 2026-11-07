@@ -203,11 +203,99 @@ class Status(Base):
             self.status()
 
 
+class FakeLsa:
+    """LSA の API の偽物。呼ばれた名前と、渡された権利の名を覚える。"""
+
+    def __init__(self, open_status=0, change_status=0):
+        self.calls, self.rights, self.open_status, self.change_status = [], [], open_status, change_status
+
+    def LookupAccountNameW(self, system, name, *rest):
+        self.calls.append(("lookup", name))
+        return 1
+
+    def LsaOpenPolicy(self, *args):
+        self.calls.append(("open",))
+        return self.open_status
+
+    def right(self, ref):
+        self.rights.append(ref._obj.Buffer)
+        return self.change_status
+
+    def LsaAddAccountRights(self, handle, sid, right, count):
+        self.calls.append(("add", count))
+        return self.right(right)
+
+    def LsaRemoveAccountRights(self, handle, sid, remove_all, right, count):
+        self.calls.append(("remove", remove_all, count))
+        return self.right(right)
+
+    def LsaNtStatusToWinError(self, status):
+        return status
+
+    def LsaClose(self, handle):
+        self.calls.append(("close",))
+        return 0
+
+
+class BatchRight(Base):
+    def setUp(self):
+        super().setUp()
+        self.lsa = FakeLsa()
+        self.patch(bench_job, "advapi", side_effect=lambda: self.lsa)
+        self.patch(bench_job, "print", create=True)
+
+    def test_it_adds_only_the_batch_right_to_bench_and_closes_the_handle(self):
+        self.patch(bench_job, "is_admin", return_value=True)
+        self.assertEqual(bench_job.allow_batch(), 0)
+        self.assertEqual(self.lsa.calls, [("lookup", "bench"), ("open",), ("add", 1), ("close",)])
+        self.assertEqual(self.lsa.rights, ["SeBatchLogonRight"])
+
+    def test_it_refuses_without_admin_and_touches_nothing(self):
+        self.patch(bench_job, "is_admin", return_value=False)
+        self.assertEqual(bench_job.allow_batch(), 2)
+        self.assertEqual(self.lsa.calls, [])
+
+    def test_a_refused_change_is_an_error_and_still_closes(self):
+        self.lsa.change_status = 5
+        with self.assertRaisesRegex(bench_job.JobError, "変えられません"):
+            bench_job.batch_right()
+        self.assertEqual(self.lsa.calls[-1], ("close",))
+
+    def test_a_refused_open_is_an_error(self):
+        self.lsa.open_status = 5
+        with self.assertRaisesRegex(bench_job.JobError, "開けません"):
+            bench_job.batch_right()
+
+    def test_removing_keeps_the_other_rights_and_a_missing_right_is_fine(self):
+        self.lsa.change_status = bench_job.ERROR_FILE_NOT_FOUND
+        bench_job.batch_right(add=False)
+        self.assertEqual(self.lsa.calls[2], ("remove", False, 1))   # AllRights は False
+        self.assertEqual(self.lsa.rights, ["SeBatchLogonRight"])
+
+    def test_unregister_needs_admin_and_removes_the_right_too(self):
+        self.patch(bench_job, "is_admin", return_value=False)
+        self.assertEqual(bench_job.unregister(), 2)
+        self.assertEqual(self.ran("schtasks"), [])
+        bench_job.is_admin.return_value = True
+        self.assertEqual(bench_job.unregister(), 0)
+        self.assertEqual(self.ran("schtasks"), [["schtasks", "/Delete", "/TN", "game-harness-bench", "/F"]])
+        self.assertIn(("remove", False, 1), self.lsa.calls)
+
+
 class Register(Base):
     def setUp(self):
         super().setUp()
         self.sub = self.patch(bench_job.subprocess, "run", return_value=mock.Mock(returncode=0))
         self.patch(bench_job, "print", create=True)
+        self.lsa = FakeLsa()
+        self.patch(bench_job, "advapi", side_effect=lambda: self.lsa)
+
+    def test_it_gives_the_batch_right_before_it_registers(self):
+        self.patch(bench_job, "is_admin", return_value=True)
+        order = []
+        self.sub.side_effect = lambda *a, **k: order.append(list(self.lsa.rights)) or mock.Mock(returncode=0)
+        self.assertEqual(bench_job.register(), 0)
+        self.assertEqual(order, [["SeBatchLogonRight"]])
 
     def test_it_refuses_without_admin_and_asks_nothing(self):
         self.patch(bench_job, "is_admin", return_value=False)
@@ -245,12 +333,9 @@ class Register(Base):
         self.assertIn("(A;;FA;;;S-1-5-21-1-2-3-1001)", script)
         self.assertIn("-notmatch 'S-1-5-21-1-2-3-1001'", script)
 
-    def test_stop_and_unregister_name_the_task(self):
-        with mock.patch("builtins.print"):
-            self.assertEqual(bench_job.stop(), 0)
-            self.assertEqual(bench_job.unregister(), 0)
-        self.assertEqual(self.ran("schtasks"), [["schtasks", "/End", "/TN", "game-harness-bench"],
-                                                ["schtasks", "/Delete", "/TN", "game-harness-bench", "/F"]])
+    def test_stop_names_the_task(self):
+        self.assertEqual(bench_job.stop(), 0)
+        self.assertEqual(self.ran("schtasks"), [["schtasks", "/End", "/TN", "game-harness-bench"]])
 
 
 class Main(Base):

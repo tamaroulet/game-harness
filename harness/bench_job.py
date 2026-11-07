@@ -2,8 +2,9 @@
 
     python -m harness.bench_job xml               登録する内容（タスクの XML）を表示する。登録はしない
     python -m harness.bench_job register          管理者のコンソールで 1 回だけ。bench の密語は schtasks が聞く（このコードは見ない）
+    python -m harness.bench_job allow-batch       管理者のコンソールで、bench にバッチ ログオンの権利を足す（register がする。やり直すときだけ）
     python -m harness.bench_job grant             操縦士のアカウントにタスクの権限を足す（register がする。やり直すときだけ）
-    python -m harness.bench_job unregister        管理者のコンソールで、登録を解く
+    python -m harness.bench_job unregister        管理者のコンソールで、登録を解き、バッチ ログオンの権利を外す
     python -m harness.bench_job run --id <id> --cwd <dir> --cmd <行> [--cmd <行>]...
     python -m harness.bench_job status --id <id>  ジョブの状態を 1 行で出す
     python -m harness.bench_job stop              走っているジョブを止める
@@ -44,6 +45,9 @@ EXIT = re.compile(r"exit=(-?\d+)")
 RUNNING = ("Running", "Queued")
 GRACE_SECONDS = 120      # 起こした直後は、タスクの状態がまだ Ready でも見失ったとしない
 TTL = 60
+BATCH_RIGHT = "SeBatchLogonRight"
+POLICY_ACCESS = 0x0800 | 0x0010   # POLICY_LOOKUP_NAMES | POLICY_CREATE_ACCOUNT
+ERROR_FILE_NOT_FOUND = 2
 
 STATE_SCRIPT = ("$t = Get-ScheduledTask -TaskName '{task}' -ErrorAction Stop; $i = $t | Get-ScheduledTaskInfo; "
                 "Write-Output \"$($t.State) $($i.LastTaskResult)\"")
@@ -118,6 +122,56 @@ def my_sid():
     return m.group(0)
 
 
+class LsaString(ctypes.Structure):
+    _fields_ = [("Length", ctypes.c_ushort), ("MaximumLength", ctypes.c_ushort), ("Buffer", ctypes.c_wchar_p)]
+
+
+class LsaAttributes(ctypes.Structure):
+    _fields_ = [("Length", ctypes.c_ulong), ("RootDirectory", ctypes.c_void_p), ("ObjectName", ctypes.c_void_p),
+                ("Attributes", ctypes.c_ulong), ("SecurityDescriptor", ctypes.c_void_p), ("SecurityQualityOfService", ctypes.c_void_p)]
+
+
+def advapi():
+    return ctypes.WinDLL("advapi32")
+
+
+def account_sid(api, name):
+    """アカウントの SID（のバッファ）。読めなければ JobError。"""
+    sid, size, domain, chars, kind = ctypes.create_string_buffer(256), ctypes.c_ulong(256), ctypes.create_unicode_buffer(256), ctypes.c_ulong(256), ctypes.c_ulong()
+    if not api.LookupAccountNameW(None, name, sid, ctypes.byref(size), domain, ctypes.byref(chars), ctypes.byref(kind)):
+        raise JobError(f"アカウント {name} の SID を読めません")
+    return sid
+
+
+def batch_right(add=True):
+    """bench のバッチ ログオンの権利（SeBatchLogonRight。パスワードで登録したタスクの起動に要る）を足す・外す。この権利だけを変える。
+    schtasks /Create は足さず（警告だけ出す）、足していないタスクは /Run が成功を返しても始まらない（11-07 に確かめた）。
+    Windows Home には secpol.msc が無いので、LSA の API で変える。"""
+    api = advapi()
+    sid, handle = account_sid(api, ACCOUNT), ctypes.c_void_p()
+    attrs = LsaAttributes(ctypes.sizeof(LsaAttributes))
+    status = api.LsaOpenPolicy(None, ctypes.byref(attrs), POLICY_ACCESS, ctypes.byref(handle))
+    if status:
+        raise JobError(f"LSA を開けません（Windows のエラー {api.LsaNtStatusToWinError(status)}）")
+    try:
+        right = LsaString(2 * len(BATCH_RIGHT), 2 * (len(BATCH_RIGHT) + 1), BATCH_RIGHT)
+        status = (api.LsaAddAccountRights(handle, sid, ctypes.byref(right), 1) if add
+                  else api.LsaRemoveAccountRights(handle, sid, False, ctypes.byref(right), 1))
+        if status and (add or api.LsaNtStatusToWinError(status) != ERROR_FILE_NOT_FOUND):   # 外すときの「もう無い」は誤りではない
+            raise JobError(f"{ACCOUNT} の {BATCH_RIGHT} を変えられません（Windows のエラー {api.LsaNtStatusToWinError(status)}）")
+    finally:
+        api.LsaClose(handle)
+
+
+def allow_batch():
+    if not is_admin():
+        print("管理者のコンソールで走らせてください（アカウントの権利の変更には、管理者の権限が要ります）", file=sys.stderr)
+        return 2
+    batch_right()
+    print(f"- {ACCOUNT} に {BATCH_RIGHT} を足した（外すのは unregister）")
+    return 0
+
+
 def grant():
     """今のアカウントが、権限を上げずにタスクを起こす・見る・止めることができるように、タスクの権限に足す（足してあれば何もしない）。"""
     code, out, err = powershell(GRANT_SCRIPT.format(task=TASK, sid=my_sid()), "grant")
@@ -137,6 +191,7 @@ def register():
     batch = home() / BATCH
     if not batch.exists():
         batch.write_bytes(b"@echo off\r\nrem No job yet. harness.bench_job replaces this file.\r\nexit /b 0\r\n")
+    batch_right()
     with tempfile.TemporaryDirectory() as d:
         xml = Path(d) / "task.xml"
         xml.write_text(task_xml(), encoding="utf-16")   # schtasks /XML は UTF-16 を読む
@@ -146,8 +201,13 @@ def register():
 
 
 def unregister():
+    if not is_admin():
+        print("管理者のコンソールで走らせてください", file=sys.stderr)
+        return 2
     code, out = schtasks("/Delete", "/TN", TASK, "/F")
     print(out)
+    batch_right(add=False)
+    print(f"- {ACCOUNT} から {BATCH_RIGHT} を外した")
     return code
 
 
@@ -251,7 +311,7 @@ def stop():
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="harness.bench_job", description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="command", required=True)
-    for name in ("xml", "register", "grant", "unregister", "stop"):
+    for name in ("xml", "register", "allow-batch", "grant", "unregister", "stop"):
         sub.add_parser(name)
     r = sub.add_parser("run")
     r.add_argument("--id", required=True)
@@ -269,7 +329,7 @@ def main(argv=None):
         if a.command == "status":
             print(status(a.id))
             return 0
-        return {"register": register, "grant": grant, "unregister": unregister, "stop": stop}[a.command]()
+        return {"register": register, "allow-batch": allow_batch, "grant": grant, "unregister": unregister, "stop": stop}[a.command]()
     except JobError as e:
         print(f"止めた: {e}", file=sys.stderr)
         return 2

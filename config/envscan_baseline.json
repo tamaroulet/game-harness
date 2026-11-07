@@ -129,7 +129,7 @@
    "cli_name": 4,
    "encoding": 1,
    "exe_suffix": 7,
-   "os_specific": 12
+   "os_specific": 16
   },
   "harness/bench_pair.py": {
    "encoding": 1
