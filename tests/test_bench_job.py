@@ -151,6 +151,20 @@ class Submit(Base):
             bench_job.submit("j2", "C:/w", ["日本語"])
         self.assertEqual(self.calls, [])
 
+    def test_it_refuses_a_place_replaced_by_a_link_and_writes_nothing(self):
+        for name in ("islink", "isjunction"):
+            with mock.patch.object(bench_job.os.path, name, side_effect=lambda p: Path(p).name == "jobs"):
+                with self.assertRaisesRegex(bench_job.JobError, "ジャンクション"):
+                    bench_job.submit("j1", "C:/w", ["python -m a"])
+            self.assertFalse((self.home / "jobs").exists())
+        self.assertEqual(self.ran("schtasks"), [])
+
+    def test_the_batch_is_written_through_a_new_temporary_file(self):
+        (self.home / "job.bat.tmp").write_bytes(b"left by someone else")
+        bench_job.submit("j1", "C:/w", ["python -m a"])
+        self.assertEqual((self.home / "job.bat.tmp").read_bytes(), b"left by someone else")   # 前からある名には書かない
+        self.assertEqual(sorted(p.name for p in self.home.glob("*.tmp")), ["job.bat.tmp"])
+
     def test_a_refused_start_is_an_error(self):
         self.run_code = 1
         with self.assertRaisesRegex(bench_job.JobError, "起こせません"):
