@@ -169,8 +169,24 @@
   "harness/contractgen.py": {
    "encoding": 1
   },
+  "harness/cycle.py": {
+   "encoding": 1
+  },
+  "harness/cycle_base.py": {
+   "cli_name": 1,
+   "exe_suffix": 1
+  },
+  "harness/cycle_cron.py": {
+   "cli_name": 7,
+   "encoding": 1,
+   "exe_suffix": 7,
+   "os_specific": 8
+  },
   "harness/cycle_judge.py": {
    "encoding": 1
+  },
+  "harness/cycle_steps.py": {
+   "cli_name": 7
   },
   "harness/decompose.py": {
    "cli_name": 5,
