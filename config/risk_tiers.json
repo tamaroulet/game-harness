@@ -7,7 +7,12 @@
       ],
       "合否を決めるスクリプト": [
         ".github/scripts/ms4_approval_gate.py",
-        "harness/fastsuite.py"
+        "harness/fastsuite.py",
+        "harness/cycle_judge.py",
+        "harness/cycle_pr.py",
+        "harness/surface.py",
+        "harness/surface_apply.py",
+        "config/cycle.json"
       ],
       "常駐ワーカー": [
         "harness/hline_cron.py",

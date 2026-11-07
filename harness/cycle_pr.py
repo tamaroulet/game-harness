@@ -6,7 +6,13 @@
 Argon の判定と判断点は、Argon が合計だけを材料に、公開の写しを読んで書いたものなので、本文に載せる。
 """
 import re
+import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import surface  # noqa: E402
+
+LOCAL_PATH = re.compile(r"[A-Za-z]:[\\/]|\$\{local\}|[\\/]\.local[\\/]")
 SHA = re.compile(r"[0-9a-f]{7,40}")
 TAG = re.compile(r"[A-Za-z0-9._-]+")
 STAGE = re.compile(r"[A-Za-z0-9_-]+:[0-9]+")
@@ -19,6 +25,15 @@ ARGON_ASK = ("1. 差分が最適化の面の中の、どの課題にも効く一
 
 class TemplateError(Exception):
     """数でない値か、形の違う名が欄に来た。本文を作らない（自由な文が公開に出る道を塞ぐ）。"""
+
+
+def public_problems(name, text, words=(), loose=()):
+    """公開に出す文 1 つ（PR の本文か集計のファイル）の当たりの文の列。中身は出さず、名と行だけ。
+    words は隠しテストの名、loose は package の名（surface.leaks の決まり）。土台の名は公開の集計に入るので見ない。
+    集計の reason の欄には、基盤の失敗の出力（ローカルのパスや名）が入りうる（Argon の事前の評価の指摘）。"""
+    lines = list(enumerate(text.splitlines(), 1))
+    hits = [f"ローカルのパス: {name}:{n}" for n, line in lines if LOCAL_PATH.search(line)]
+    return hits + surface.leaks([(name, n, line) for n, line in lines], words, loose)
 
 
 def count(value, name):

@@ -282,6 +282,10 @@ class Shape(Base):
     def test_an_empty_section(self):
         self.assertIn("見出し ## 補う弱さ の中身が空です", self.errors(GOOD.replace("弱さの説明\n", "  \n")))
 
+    def test_a_heading_like_line_in_a_code_block_is_not_a_heading(self):
+        fn = 'def build_prompt(what, feedback=None, symbol_map=None):\n    return """\n## 見出しの形の行\n"""'
+        self.assertEqual(self.errors(GOOD.replace(DIFF, f"## 差分\n```python\n{fn}\n```\n")), [])
+
     def test_the_diff_section_needs_a_block_the_machine_can_read(self):
         self.assertEqual(self.errors(GOOD), [])
         self.assertIn("見出し ## 差分 が 0 回あります（各 1 回）", self.errors(GOOD.replace(DIFF, "")))

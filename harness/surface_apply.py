@@ -35,14 +35,16 @@ class Change:
 
 
 def section(text):
-    """提案の全文の「## 差分」の節の本文（次の見出しまで）。無ければ None。"""
-    lines, found, body = text.splitlines(), False, []
-    for line in lines:
-        if line.rstrip() == HEADING:
-            found = True
-        elif found and line.startswith("## "):
+    """提案の全文の「## 差分」の節の本文（次の見出しまで）。無ければ None。コードのブロックの中の '## ' は見出しにしない。"""
+    found, fenced, body = False, False, []
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        if not found:
+            found = line.rstrip() == HEADING and not fenced
+        elif line.startswith("## ") and not fenced:
             break
-        elif found:
+        else:
             body.append(line)
     return "\n".join(body) + "\n" if found else None
 

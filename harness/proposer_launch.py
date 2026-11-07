@@ -189,10 +189,13 @@ def unread(out, paths, cwd):
 # ============================================================ 提案の形
 
 def sections(text):
-    """'## ' の行で区切った [(見出し, 中身の行の列)]。最初の見出しより前は捨てる。"""
-    got = []
+    """'## ' の行で区切った [(見出し, 中身の行の列)]。最初の見出しより前は捨てる。コードのブロックの中の '## ' は見出しにしない
+    （実装役への指示を組む関数は、文字列の中に Markdown の見出しを書く）。"""
+    got, fenced = [], False
     for line in text.splitlines():
-        if line.startswith("## "):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        if line.startswith("## ") and not fenced:
             got.append((line.rstrip(), []))
         elif got:
             got[-1][1].append(line)

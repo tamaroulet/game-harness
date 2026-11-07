@@ -21,6 +21,28 @@ REC = {"id": "c1", "rev": "4ac2ed3", "head": "abc1234", "dev": run(), "dev_base"
        "pair": {"stages": ["B08:4", "B09:6"], "fixed": 1, "broke": 0, "same": 1, "skipped": 0}}
 
 
+class PublicProblems(unittest.TestCase):
+    def test_a_clean_text_has_none(self):
+        self.assertEqual(cp.public_problems("a.json", '{"base": "B07", "reason": "前の段（s3）が無効"}', {"test_secret"}, {"secretpkg"}), [])
+
+    def test_local_paths_are_found_with_the_line_only(self):
+        for line in ("C:\\src\\.local\\x", "c:/users/bench/y", "${local}/z", "/home/u/.local/bin"):
+            got = cp.public_problems("a.json", f"ok\n{line}\n")
+            self.assertEqual(got, ["ローカルのパス: a.json:2"], line)
+
+    def test_hidden_names_and_packages_are_found_without_showing_them(self):
+        got = cp.public_problems("a.json", "x test_secret y\nSecretPkg_step\nsecretpkg\n", {"test_secret"}, {"secretpkg"})
+        self.assertEqual(got, ["漏れ: a.json:1", "漏れ: a.json:2", "漏れ: a.json:3"])
+
+    def test_the_real_public_records_are_clean_of_paths(self):
+        """L6 までの公開の集計に当てて、当たりにならないことを見る（当たるなら、機械が記録の PR を止めてしまう）。"""
+        root = HERE.parent / "bench" / "records"
+        files = [*root.glob("chains/*/*.json"), *root.glob("pairs/*.json")]
+        self.assertTrue(files)
+        hits = [h for p in files for h in cp.public_problems(p.name, p.read_text(encoding="utf-8"))]
+        self.assertEqual(hits, [])
+
+
 class Body(unittest.TestCase):
     def test_the_numbers_are_in_the_body(self):
         body = cp.surface_body(REC)

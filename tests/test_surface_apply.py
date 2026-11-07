@@ -60,6 +60,31 @@ class Parse(unittest.TestCase):
         self.assertTrue(self.errs(("json", "not json")))
 
 
+class Fence(unittest.TestCase):
+    def test_a_heading_like_line_inside_the_block_is_not_a_heading(self):
+        fn = 'def build_prompt(what, feedback=None, symbol_map=None):\n    return """\n## 見出しの形の行\n本文\n"""'
+        change, errs = sa.parse(proposal(("python", fn)))
+        self.assertEqual(errs, [])
+        self.assertEqual(change.functions["build_prompt"], fn)
+
+    def test_the_section_ends_at_the_next_real_heading(self):
+        text = proposal(("json", '{"max_attempts": 3}'))
+        self.assertEqual(sa.section(text), '```json\n{"max_attempts": 3}\n```\n')
+
+
+class Leaks(unittest.TestCase):
+    LINES = [("p", 1, "ふつうの文"), ("p", 2, "SecretPkg を使う"), ("p", 3, "secretpkg_step"), ("p", 4, "test_hidden_a を通す"), ("p", 5, "test_hidden_ab")]
+
+    def test_words_need_word_boundaries_and_packages_do_not(self):
+        got = surface.leaks(self.LINES, {"test_hidden_a"}, {"secretpkg"})
+        self.assertEqual(got, ["漏れ: p:2", "漏れ: p:3", "漏れ: p:4"])
+
+    def test_either_list_may_be_empty(self):
+        self.assertEqual(surface.leaks(self.LINES, set()), [])
+        self.assertEqual(surface.leaks(self.LINES, {"test_hidden_a"}), ["漏れ: p:4"])
+        self.assertEqual(surface.leaks(self.LINES, set(), {"secretpkg"}), ["漏れ: p:2", "漏れ: p:3"])
+
+
 class Replace(unittest.TestCase):
     def test_other_lines_stay_exactly_the_same(self):
         new = sa.replace_functions(PROMPT, {"build_prompt": NEW_FN})

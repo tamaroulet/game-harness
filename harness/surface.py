@@ -257,16 +257,25 @@ def hidden_names(path):
     return names
 
 
-def secrets_of(chains, bases):
-    """漏れを見る文字列の組：隠しテストの関数とクラスの名・package の名・土台の名。"""
+def test_names_of(chains, bases):
+    """隠しテストの関数とクラスの名の組。公開の集計（土台の名は入ってよい）を見るときは、これと package の名を使う。"""
     words = set()
     for base in bases:
         if not (Path(chains) / base).is_dir():
             raise BenchError(f"鎖の置き場に {base} がありません")
-        words |= {base, package_of(chains, base)}
         for path in sorted(Path(chains, base).glob("s*/hidden/*.py")):
             words |= hidden_names(path)
     return words
+
+
+def packages_of(chains, bases):
+    """package の名の組。"""
+    return {package_of(chains, base) for base in bases}
+
+
+def secrets_of(chains, bases):
+    """漏れを見る文字列の組：隠しテストの関数とクラスの名・package の名・土台の名。"""
+    return test_names_of(chains, bases) | packages_of(chains, bases) | set(bases)
 
 
 def added_lines(repo, old, new):
@@ -284,12 +293,17 @@ def added_lines(repo, old, new):
     return out
 
 
-def leaks(lines, words):
-    """足した行のうち、words のどれかが語の境で出てくるものの "漏れ: <パス>:<行>"（文字列は出さない）。"""
-    if not words:
-        return []
-    pattern = re.compile(rf"(?<![{WORD}])(?:{'|'.join(map(re.escape, sorted(words, key=len, reverse=True)))})(?![{WORD}])")
-    return [f"漏れ: {path}:{n}" for path, n, text in lines if pattern.search(text)]
+def leaks(lines, words, loose=()):
+    """足した行のうち、words のどれかが語の境で出てくるか、loose（package の名）のどれかが大文字小文字を問わず語の一部にでも出てくるものの
+    "漏れ: <パス>:<行>"（文字列は出さない）。package の名は、先頭を大文字にした形や別の語につないだ形でも漏れなので、語の境を見ない。"""
+    def alternatives(items):
+        return "|".join(map(re.escape, sorted(items, key=len, reverse=True)))
+    patterns = []
+    if words:
+        patterns.append(re.compile(rf"(?<![{WORD}])(?:{alternatives(words)})(?![{WORD}])"))
+    if loose:
+        patterns.append(re.compile(alternatives(loose), re.I))
+    return [f"漏れ: {path}:{n}" for path, n, text in lines if any(p.search(text) for p in patterns)]
 
 
 # ============================================================ 命令
@@ -303,7 +317,8 @@ def check(a):
         old, new = (git(repo, ["rev-parse", "--verify", "-q", f"{r}^{{commit}}"]).decode().strip() for r in (a.old, a.new))
         hits = outside(name_status(repo, old, new)) + setting(repo, new) + unit_check(repo, old, new)
         if a.chains:
-            hits += leaks(added_lines(repo, old, new), secrets_of(a.chains, [b for b in a.bases.split(",") if b]))
+            bases = [b for b in a.bases.split(",") if b]
+            hits += leaks(added_lines(repo, old, new), secrets_of(a.chains, bases), packages_of(a.chains, bases))
         else:
             print("--chains が無いので、漏れの検めを飛ばします")
     except BenchError as e:
