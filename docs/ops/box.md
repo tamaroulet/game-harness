@@ -58,3 +58,18 @@ python -m harness.box check
 - 実装役のコードは採点の箱の中で隠しテストと同じプロセスで走るので、結果の行を偽れます。敵対的な実装役は想定していません。
 - 実装役は箱の中で自分の agy の認証を読めます。出せる宛先は中継で絞っています。
 - WSL2 の root は、Windows のドライブをマウントできます（`automount` を切っても、root なら戻せる）。箱は権限を落としているので届きません。Docker の操作は root だけです。
+
+## 走りの通し方
+
+`stage --box` の印があるタグは、run・finish・bench_pair が印に従って箱で走ります。今の Windows の基準のタグは、印が無いのでそのまま採点し直せます。
+
+```
+python -m harness.bench_chain stage --tag <t> --set dev --bases B07,B08,B09 --box
+python -m harness.bench_chain run --tag <t> --repo <クローン> --base <rev> --staged <stage が出した置き場> --out <置き場> --implementer config/bench_implementer_agy.json
+python -m harness.bench_chain finish --tag <t> --repo <クローン> --out <置き場>
+```
+
+- 走りは操縦士のアカウントで回します。実装役が書いたコードは箱の外で走りません（実装役・門・積む前の全件・進捗の記録の検証・採点の 5 か所）。
+- 実装役はコマンドを使えます（`--sandbox` は付けません。1.5.3 の `--sandbox` はコマンドを止めないので、コマンド無しの走りは作りません）。
+- 新しく作ったファイルのうち、課題のパッケージと `tests/test_<パッケージ>*` の外のものは受け取りません。受け取らなかった名は試行の記録（`box_dropped`）に残り、門に落ちたときは次の試行の入力で実装役に知らせます。
+- agy の `--print-timeout` は、stream-json の入力では終了コード 0 のまま、標準エラーの `AGY_ERROR` の `reason` が `print_timeout` になります。時間切れとして扱います。

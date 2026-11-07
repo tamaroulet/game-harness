@@ -46,7 +46,7 @@ GIT_ID = "box"
 GIT_MAIL = "box@example.invalid"
 # 実装役の箱の始まり：認証をホームへ写し、開始の木を 1 コミットにしてから（実装役が git diff などを使える。外の .git は見せない）実装役を起こす
 START = (f'mkdir -p "$HOME/.gemini/antigravity-cli" && install -m 600 {TOKEN_IN} "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" '
-         f'&& git init -q --template= && git add -A && git commit -q --no-gpg-sign -m start && exec "$@"')
+         f'&& git init -q --template= && git -c core.safecrlf=false add -A && git commit -q --no-gpg-sign -m start && exec "$@"')
 UNPACK_AND_RUN = f'tar -x -C {WORK} && cd {WORK} && exec "$@"'
 PROBE = r'''
 import json, os, socket

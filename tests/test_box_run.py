@@ -302,19 +302,11 @@ class Grade(Base):
         self.assertEqual(argv, ["python", "-I", f"{box.WORK}/runner.py", f"{box.WORK}/tree", f"{box.WORK}/tests"])
         self.assertEqual(extra, {"runner.py": b"RUNNER", "tree/pkg/a.py": b"A", "tests/test_h.py": b"H"})
 
-    def test_tip_tree_keeps_line_endings_only_for_the_box(self):
-        calls = []
-        with mock.patch.object(chain_score, "git", lambda tree, args: calls.append(args)):
-            chain_score.tip_tree(self.tmp, self.tmp, name="a")
-            self.assertFalse([c for c in calls if "core.autocrlf" in c])
-            chain_score.tip_tree(self.tmp, self.tmp, name="b", boxed=True)
-        self.assertEqual([c for c in calls if "core.autocrlf" in c], [["config", "core.autocrlf", "false"]])
-
     def test_pair_start_uses_the_box_mark(self):
         with mock.patch.object(chain_score, "tip_tree", return_value=self.tmp) as tip, mock.patch.object(chain_score, "grade", return_value={}) as grade, \
                 mock.patch.object(chain_score, "hidden_files", return_value=[]), mock.patch.object(chain_score, "replaced", return_value=set()):
             bench_pair.start_prev({"base": "B", "box": True}, {"k": 2, "run_id": "r", "start": "s"}, self.tmp, self.tmp)
-        self.assertTrue(tip.call_args.args[-1])
+        self.assertTrue(tip.called)
         self.assertTrue(grade.call_args.args[-1])
 
 

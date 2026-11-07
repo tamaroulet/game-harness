@@ -261,8 +261,6 @@ class ChainStage(bench_run.Factory):
         if self.impl is not None:
             self.impl = surface.put({"implementer": self.impl}, values)["implementer"]
         super().setup_clone(plan_inbox, self.box_mark(surface.put(cfg, values)))
-        if self.boxed:   # 作業ツリーを改行のまま出す（Windows の CRLF を箱に持ち込むと、触ったファイルだけ LF になる）
-            git(self.clone, ["config", "core.autocrlf", "false"])
 
     def keep_plan(self, plan_inbox, spec):
         super().keep_plan(plan_inbox, self.spec)

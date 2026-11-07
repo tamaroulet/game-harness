@@ -497,13 +497,11 @@ def rate(results, ids):
     return [sum(1 for t in ids if results.get(t) == "ok"), len(ids)]
 
 
-def tip_tree(rundir, tmp, rev="tip", name="tree", boxed=False):
-    """走りの束を取り込み、rev（既定は先端）の木を tmp/name に出す。boxed は改行を変えずに出す（箱は LF の木を見る）。"""
+def tip_tree(rundir, tmp, rev="tip", name="tree"):
+    """走りの束を取り込み、rev（既定は先端）の木を tmp/name に出す。"""
     tree = Path(tmp) / name
     tree.mkdir()
     git(tree, ["init", "-q"])
-    if boxed:
-        git(tree, ["config", "core.autocrlf", "false"])
     git(tree, ["fetch", "-q", str(Path(rundir) / BUNDLE), "refs/heads/tip:refs/heads/tip"])
     git(tree, ["checkout", "-q", rev])
     return tree
@@ -512,7 +510,7 @@ def tip_tree(rundir, tmp, rev="tip", name="tree", boxed=False):
 def start_results(rundir, tmp, st, files, gone, boxed=False):
     """段の開始のコミットの木での、段 k の隠しテストのファイル（files の最後）だけの採点。開始のコミットを取り出せなければ None。"""
     try:
-        tree = tip_tree(rundir, tmp, st["start"], "start", boxed)
+        tree = tip_tree(rundir, tmp, st["start"], "start")
     except (BenchError, KeyError):
         return None
     return grade(tree, files[-1:], gone, boxed)
@@ -535,7 +533,7 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
     found += missing + [(Path(p).name, LINK_TOOL, LINK_HIT) for p in links]
     gone = replaced(chains, base, k)
     with tempfile.TemporaryDirectory(prefix="bench-chain-") as tmp:
-        tree = tip_tree(rundir, tmp, boxed=boxed)
+        tree = tip_tree(rundir, tmp)
         try:
             names = git(tree, ["diff", "--name-only", "-z", st["start"], "tip"]).decode("utf-8", "replace").split("\0")
         except BenchError:   # 先端が開始のコミットから伸びていない（H ラインの枝なら起きない）。境界の違反として 0 点にする
