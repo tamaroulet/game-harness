@@ -1,0 +1,21 @@
+{
+  "_comment": "箱の設定（harness/box.py、v3 §8 の E4）。実装役・門・採点の箱の像と網と上限。変えるのは高リスクの PR。像の指紋にこのファイルと box/ の中身が入るので、変えたら python -m harness.box build で造り直す。",
+  "distro": "Ubuntu",
+  "image": "gh-box:1",
+  "proxy_image": "gh-box-proxy:1",
+  "network": "box-int",
+  "proxy_name": "box-proxy",
+  "proxy_port": 8888,
+  "_agy_note": "配布の URL と SHA-512。版は config/toolchain.json の box",
+  "agy": {
+    "url": "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.5.3-6604829099950080/linux-x64/cli_linux_x64.tar.gz",
+    "sha512": "e363e1b17daaac2589f18e6973429c039fd5a5e5c15e9c0852fa349836f3992b10fe84732bc8d8c8208e149f0304f15aba9dec696d12efeed03917492c0580eb"
+  },
+  "_token_note": "WSL2 の bench 利用者が agy にログインしてできる認証のファイル。中身は読まない。実装役の箱の使い捨てのホームへ、箱の中の cp で写す",
+  "token": "/home/bench/.gemini/antigravity-cli/antigravity-oauth-token",
+  "limits": {
+    "memory": "8g",
+    "pids": 1024,
+    "tmp": "1g"
+  }
+}
