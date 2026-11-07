@@ -235,6 +235,9 @@
   "harness/hline_abort.py": {
    "cli_name": 2
   },
+  "harness/hline_agy.py": {
+   "cli_name": 1
+  },
   "harness/hline_base.py": {
    "os_specific": 2,
    "encoding": 1

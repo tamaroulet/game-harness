@@ -31,6 +31,7 @@ from urllib.parse import unquote, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_guard  # noqa: E402
 import bench_run  # noqa: E402
+import box  # noqa: E402
 import hline_base  # noqa: E402
 import machine  # noqa: E402
 import proc  # noqa: E402
@@ -448,15 +449,25 @@ def stage_of(test_id, base):
     return int(m.group(1)) if m else None
 
 
-def grade(tree, files, gone):
-    """{試験の id: "ok" か理由の 1 行}（名前が gone にある試験は除く）。"""
+def run_grade(tree, files, boxed):
+    """採点を走らせる。(終了コード, 標準出力, 標準エラー)。boxed は採点の箱で（実装役が書いたコードを箱の外で走らせない。v3 §8 の E4）。"""
+    if boxed:
+        try:
+            return box.grade(box.settings(), RUNNER, tree, files, GRADE_TTL)
+        except box.BoxError as e:
+            raise BenchError(str(e)) from e
     with tempfile.TemporaryDirectory(prefix="bench-chain-") as tmp:
         tests = Path(tmp) / "tests"
         tests.mkdir()
         for f in files:
             shutil.copy2(f, tests / Path(f).name)
-        code, out, err = proc.run([bench_run.PY, "-I", "-c", RUNNER, str(tree), str(tests)], tmp, GRADE_TTL, "chain grade",
-                                  env=bench_run.child_env())
+        return proc.run([bench_run.PY, "-I", "-c", RUNNER, str(tree), str(tests)], tmp, GRADE_TTL, "chain grade",
+                        env=bench_run.child_env())
+
+
+def grade(tree, files, gone, boxed=False):
+    """{試験の id: "ok" か理由の 1 行}（名前が gone にある試験は除く）。"""
+    code, out, err = run_grade(tree, files, boxed)
     line = next((x for x in out.splitlines() if x.startswith(MARK)), None)
     if line is None:
         raise BenchError(f"採点が結果を出しませんでした（終了コード {code}）: {(out + err).strip()[-400:]}")
@@ -496,13 +507,13 @@ def tip_tree(rundir, tmp, rev="tip", name="tree"):
     return tree
 
 
-def start_results(rundir, tmp, st, files, gone):
+def start_results(rundir, tmp, st, files, gone, boxed=False):
     """段の開始のコミットの木での、段 k の隠しテストのファイル（files の最後）だけの採点。開始のコミットを取り出せなければ None。"""
     try:
         tree = tip_tree(rundir, tmp, st["start"], "start")
     except (BenchError, KeyError):
         return None
-    return grade(tree, files[-1:], gone)
+    return grade(tree, files[-1:], gone, boxed)
 
 
 def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
@@ -514,8 +525,8 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
     links = bench_guard.links_in(rundir)   # bench の書いた置き場のリンクを操縦士のアカウントで辿らない。見つかれば、辿らずにその段を無効にする
     logs = [] if links else sorted((rundir / "items").glob("*/implementer-*.log"))
     own = bench_run.work_dir(out, base, st["run_id"])
-    subs, missing = [], []
-    for log in logs:   # 下請けの記録を What のディレクトリに写し、実装役と同じ道の検めを掛ける。写せない記録は当たり
+    subs, missing, boxed = [], [], bool(rec.get("box"))
+    for log in [] if boxed else logs:   # 下請けの記録を What のディレクトリに写し、実装役と同じ道の検めを掛ける。写せない記録は当たり（箱の走りはホームを捨てるので探さない）
         got = adopt(log, steps_of(log)[1], own)
         subs, missing = subs + got[0], missing + got[1]
     found, web, unopened_, own_records = audit_all(logs, own, machine.path("local"), (base, pkg, "docs/bench", "chain/s"), subs)
@@ -527,8 +538,8 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
             names = git(tree, ["diff", "--name-only", "-z", st["start"], "tip"]).decode("utf-8", "replace").split("\0")
         except BenchError:   # 先端が開始のコミットから伸びていない（H ラインの枝なら起きない）。境界の違反として 0 点にする
             names = ["<開始のコミットが走りの記録の先端の祖先にありません>"]
-        res = grade(tree, hidden_files(chains, base, k), gone)
-        at_start = start_results(rundir, tmp, st, hidden_files(chains, base, k), gone)
+        res = grade(tree, hidden_files(chains, base, k), gone, boxed)
+        at_start = start_results(rundir, tmp, st, hidden_files(chains, base, k), gone, boxed)
     violations, artifacts = boundary(names, pkg)
     excused = {key: v for key, v in (("unopened", unopened_), ("own_records", own_records), ("artifacts", artifacts)) if v}
     new = [t for t in res if stage_of(t, base) == k]
@@ -575,7 +586,7 @@ def finish_chain(rec, out, chains, cfg, priv):
     """土台 1 本の公開の集計。段 0 の参照の結果を保ちの起点にし、無効の段の後は「前の段が無効」とする。"""
     base = rec["base"]
     priv.mkdir(parents=True, exist_ok=True)
-    prev = grade(chains / base / "s0" / "tree", hidden_files(chains, base, 0), set())
+    prev = grade(chains / base / "s0" / "tree", hidden_files(chains, base, 0), set(), bool(rec.get("box")))
     public = {"tag": rec["tag"], "set": rec.get("set"), "base": base, "rev": rec["rev"], "stopped": rec.get("stopped"),
               "s0": rate(prev, prev), "stages": []}
     last, tainted = {}, None

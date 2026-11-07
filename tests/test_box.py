@@ -106,7 +106,7 @@ class Guards(unittest.TestCase):
             self.assertEqual(box.docker_cmd(CFG), ["docker"])
 
     def test_the_start_script_copies_the_token_and_commits_before_the_agent(self):
-        at = [box.START.index(word) for word in ("install -m 600", "git init", "git add -A", "git commit", 'exec "$@"')]
+        at = [box.START.index(word) for word in ("install -m 600", "git init", "add -A", "git commit", 'exec "$@"')]
         self.assertEqual(at, sorted(at))
 
     def test_new_files_rule_is_the_same_as_the_boundary_check(self):

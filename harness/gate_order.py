@@ -7,6 +7,7 @@ import os
 import re
 from pathlib import Path
 
+import box_run
 import impacted
 import proc
 from hline_spec import verification_of
@@ -72,5 +73,8 @@ def focused(cfg, wt, paths, task, spec=None, warnings=None, verify=None):
         return None
     text, cmd, expected = stage
     label = f"検証 {task}" if task else "検証 What" if verify else "Gate 1 個別"
-    code, out, err = proc.run(cmd, wt, cfg["ttl_seconds"]["gate"], label, env=dict(os.environ, PYTHONUTF8="1"))
+    if cfg.get("box"):
+        code, out, err = box_run.gate(cmd, wt, cfg["ttl_seconds"]["gate"])
+    else:
+        code, out, err = proc.run(cmd, wt, cfg["ttl_seconds"]["gate"], label, env=dict(os.environ, PYTHONUTF8="1"))
     return code == expected, report(text, code, out, err, cfg["gate_tail_chars"], expected)

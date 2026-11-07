@@ -144,4 +144,4 @@ def stage_command(gate_command, modules, verification=None):
 
 
 def prompt_note():
-    return "- テストは走らせない。ハーネスが試行の後に影響テストを走らせ、結果を次の試行に渡す"
+    return "- ハーネスが試行の後に影響テストを走らせ、結果を次の試行に渡す"

@@ -142,6 +142,13 @@ def receive(data, dest, allowed=None, strip=None):
     return {"written": sorted(written), "removed": removed, "dropped": dropped}
 
 
+def dropped_note(dropped):
+    """受け取らなかったファイルを実装役に知らせる文（次の試行の入力に足す）。知らせないと、実装役は何が起きたか分からず、試行を無駄にする。"""
+    rows = [f"- {name}：{why}" for name, why in dropped]
+    return "\n".join(["前の試行で、次のファイルはハーネスが受け取らなかったので、作業ツリーにありません。要るものは、課題のパッケージの中か、"
+                      "tests/test_<パッケージ名>*.py の中に置いてください。", *rows])
+
+
 def _prune(dest, rel):
     """消したファイルの親のディレクトリが空なら消す（根までたどる）。"""
     while rel.parts:

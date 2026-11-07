@@ -193,11 +193,12 @@ class GateOrder(unittest.TestCase):
 
 class Prompt(unittest.TestCase):
     def test_the_instructions_name_the_focused_verification_and_never_the_full_suite_command(self):
-        """実装役にはテストを走らせないことだけを伝える（C4）。全件テストの命令は入力に現れない。"""
+        """全件テストの命令は入力に現れない（C4）。テストを走らせることを禁じない（E4 の箱の走りはコマンドあり。無ければ道具が無いだけ）。"""
         prompt = hline.build_prompt("# 題")
         instructions = prompt.split("---\n", 1)[0]
         self.assertNotIn("discover", instructions)
-        self.assertIn("テストは走らせない", instructions)
+        self.assertNotIn("テストは走らせない", instructions)
+        self.assertNotIn("git の操作はしない", instructions)
         self.assertIn("ハーネスが試行の後に影響テストを走らせ", instructions)
 
     def test_hline_stays_within_300_lines_and_the_old_verification_is_gone(self):

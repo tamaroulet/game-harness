@@ -28,6 +28,7 @@
         "box/",
         "config/box.json",
         "harness/box.py",
+        "harness/box_run.py",
         "harness/box_tree.py",
         "config/hline.json",
         "config/protected_paths.json",

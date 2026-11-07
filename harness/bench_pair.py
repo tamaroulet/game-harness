@@ -205,10 +205,10 @@ def pair(a):
 def start_prev(rec, st, out, chains):
     """保ちの起点：段の開始のコミットの木を、基準の finish が段 k−1 で使った組（段 0〜k−1 の隠しテストから、
     段 1〜k−1 の replaced.json の名前を除く。段 1 なら段 0 の組）で採点した結果。"""
-    base, k = rec["base"], st["k"]
+    base, k, boxed = rec["base"], st["k"], bool(rec.get("box"))
     with tempfile.TemporaryDirectory(prefix="bench-pair-") as tmp:
         tree = chain_score.tip_tree(bench_run.run_dir(out, base, st["run_id"]), tmp, st["start"], "start")
-        return chain_score.grade(tree, chain_score.hidden_files(chains, base, k - 1), chain_score.replaced(chains, base, k - 1))
+        return chain_score.grade(tree, chain_score.hidden_files(chains, base, k - 1), chain_score.replaced(chains, base, k - 1), boxed)
 
 
 def finish_pairs(rec, out, chains, cfg, priv):
