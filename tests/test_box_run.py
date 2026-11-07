@@ -218,7 +218,7 @@ class Record(Base):
             code, text = hline_git.record(self.CFG, self.tmp, "P-01")
         self.assertEqual(code, 0)
         self.assertIn("検証 0 OK", text)
-        self.assertEqual(gate.call_args.args[0], ["python", "-m", "unittest", "tests.test_pkg_s1"])
+        self.assertEqual(gate.call_args.args[0], ["bash", "-c", "python -m unittest tests.test_pkg_s1"])
         self.assertEqual((seen["repo_root"], seen["ref"], seen["require_active"]), (self.tmp, "abc", False))
 
     def test_a_refused_record_restores_the_ledger(self):
@@ -232,6 +232,13 @@ class Record(Base):
             code, text = hline_git.record(self.CFG, self.tmp, "P-01")
         self.assertEqual(code, exitcode.ABORT)
         self.assertIn("壊れた", text)
+
+    def test_the_verifier_hands_the_command_to_the_shell_in_the_box(self):
+        command = "python -m unittest t && python -m unittest u"
+        with mock.patch.object(box, "settings", return_value={}), mock.patch.object(box, "tests", return_value=(3, "出力", "エラー")) as tests:
+            got = box_run.verifier(self.tmp, 300)(command)
+        self.assertEqual(got, (3, "出力エラー"))
+        self.assertEqual(tests.call_args.args[1:], (["bash", "-c", command], self.tmp, 300))
 
     def test_complete_uses_the_given_verifier_instead_of_a_shell(self):
         state = {"tasks": [{"id": "T1", "status": "pending", "verification": {"command": "python -m unittest t", "expected_exit_code": 0}}], "active_task_id": "T1"}

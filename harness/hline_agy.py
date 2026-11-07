@@ -11,7 +11,6 @@ from pathlib import Path
 import agy_pinned
 import agy_stream
 import box
-import box_tree  # noqa: F401  （受け取りの記録の形は box_tree.receive）
 import hline_quota
 import infra_retry
 import model_pin
@@ -125,7 +124,7 @@ def implement(host, cfg, wt, prompt, log):
     if code == TIMEOUT_EXIT or (failed or {}).get("reason") == PRINT_TIMEOUT:
         if boxed:   # 途中までの利用量と手番の数を残す（時間切れの試行の費用を消さない）
             return (TIMEOUT_EXIT, [parsed["model"]] if parsed["model"] else [], usage_record(parsed), None, len(parsed["steps"]))
-        return (code, [], None, None, None)
+        return (TIMEOUT_EXIT, [], None, None, None)
     if failed:   # モデルや API の失敗で手番が切れた（枠切れは上で見た）。実装役の失敗に数えない
         raise Infra(f"実装役の API の失敗（終了コード {code}）: {str(failed.get('short_error') or failed)[:300]}")
     if code in infra_retry.INFRA_EXIT_CODES:

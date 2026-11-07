@@ -32,9 +32,9 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_guard  # noqa: E402
-import box  # noqa: E402
 import bench_run  # noqa: E402
 import bench_start  # noqa: E402
+import box  # noqa: E402
 import chain_score  # noqa: E402
 import exitcode  # noqa: E402
 import hline_base  # noqa: E402

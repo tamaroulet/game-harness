@@ -29,9 +29,9 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import box
 import bench_guard  # noqa: E402
 import bench_run  # noqa: E402
+import box  # noqa: E402
 import hline_base  # noqa: E402
 import machine  # noqa: E402
 import proc  # noqa: E402

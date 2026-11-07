@@ -3,8 +3,6 @@
 実装役が書いたコード（試験を含む）を箱の外で走らせないための口。実装役の呼び出しは hline_agy.in_box、採点は chain_score.run_grade。
 箱そのものの失敗は Infra にする（H ラインが環境の異常として呼び直す。実装役の失敗に数えない）。
 """
-import shlex
-
 import box
 from hline_base import Infra
 
@@ -26,8 +24,8 @@ def suite(modules, wt, timeout=None):
 
 
 def verifier(wt, ttl):
-    """progress.complete の verify：検証の命令を箱で走らせる（命令 → (終了コード, 出力)）。"""
+    """progress.complete の verify：検証の命令を箱で走らせる（命令 → (終了コード, 出力)）。命令はシェルの文なので、手元の shell=True と同じくシェルに渡す。"""
     def run(command):
-        code, out, err = gate(shlex.split(command), wt, ttl)
+        code, out, err = gate(["bash", "-c", command], wt, ttl)
         return code, out + err
     return run
