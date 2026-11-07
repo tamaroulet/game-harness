@@ -679,5 +679,14 @@ class JobIds(unittest.TestCase):
         self.assertIn("同じ id", Path(bench_job.__file__).read_text(encoding="utf-8"))
 
 
+class Notify(unittest.TestCase):
+    def test_it_names_the_registered_powershell(self):
+        """登録していない名の通知を、Windows は黙って捨てる（呼び出しは成功を返すので、ほかでは気づけない）。"""
+        with mock.patch.object(base.proc, "run", return_value=(0, "", "")) as run, mock.patch.object(base, "home", return_value=ROOT):
+            base.notify("x")
+        script = run.call_args.args[0][-1]
+        self.assertIn(r"CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe')", script)
+
+
 if __name__ == "__main__":
     unittest.main()

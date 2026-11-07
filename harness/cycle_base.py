@@ -17,7 +17,7 @@ WAIT, OK, FAILED = "wait", "ok", "failed"
 ID = re.compile(r"[a-z][a-z0-9]*")
 ACTIVE, STATE = "active.json", "state.json"
 MAX_TRIES = 3
-TOAST_APP = "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe"   # 登録していない名の通知は Windows が黙って捨てる
+TOAST_APP = r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe"   # 登録していない名の通知は Windows が黙って捨てる
 
 
 class Stop(Exception):
