@@ -15,6 +15,9 @@
    "cli_name": 2,
    "model_id": 2
   },
+  "config/box.json": {
+   "cli_name": 1
+  },
   "config/decompose.json": {
    "cli_name": 4,
    "os_specific": 1,
@@ -154,6 +157,12 @@
   "harness/bench_verify.py": {
    "cli_name": 1,
    "encoding": 1
+  },
+  "harness/box.py": {
+   "cli_name": 6,
+   "os_specific": 5,
+   "encoding": 1,
+   "exe_suffix": 6
   },
   "harness/canary.py": {
    "cli_name": 7,

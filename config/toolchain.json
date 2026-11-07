@@ -15,6 +15,10 @@
     "gh": "2.100.0",
     "git": "2.55.0"
   },
+  "_box_note": "箱（harness/box.py、v3 §8 の E4）の像に入れる agy の版。公式の配布は最新の版だけなので、配布の URL と SHA-512 を config/box.json に持つ。Windows の cli の agy とは別",
+  "box": {
+    "agy": "1.5.3"
+  },
   "_tools_note": "§8 の変異の死滅率（U2）。5.0.0 は NuGet のパッケージの不備（DotnetToolSettings.xml が無い）で導入できなかったので、1 つ前の安定版 4.16.0 を人間が導入した（2026-09-26、dotnet tool list -g で確認）。照合は dotnet tool list -g の表で行う",
   "tools": {
     "dotnet-stryker": "4.16.0"

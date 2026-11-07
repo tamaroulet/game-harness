@@ -173,6 +173,8 @@
         "bench_score.py",
         "bench_start.py",
         "bench_verify.py",
+        "box.py",
+        "box_tree.py",
         "chain_score.py",
         "cycle.py",
         "cycle_base.py",

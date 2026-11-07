@@ -1,0 +1,5 @@
+(^|\.)pypi\.org$
+(^|\.)files\.pythonhosted\.org$
+^daily-cloudcode-pa\.googleapis\.com$
+^www\.googleapis\.com$
+^oauth2\.googleapis\.com$

@@ -25,6 +25,10 @@
       ],
       "権限": [
         ".claude/",
+        "box/",
+        "config/box.json",
+        "harness/box.py",
+        "harness/box_tree.py",
         "config/hline.json",
         "config/protected_paths.json",
         "harness/hline_room.py",
