@@ -169,6 +169,9 @@
   "harness/contractgen.py": {
    "encoding": 1
   },
+  "harness/cycle_judge.py": {
+   "encoding": 1
+  },
   "harness/decompose.py": {
    "cli_name": 5,
    "os_specific": 2,
@@ -366,6 +369,10 @@
    "model_id": 2
   },
   "harness/surface.py": {
+   "encoding": 1
+  },
+  "harness/surface_apply.py": {
+   "cli_name": 3,
    "encoding": 1
   },
   "harness/symbolmap.py": {

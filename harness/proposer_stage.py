@@ -26,6 +26,7 @@ import tarfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import bench_guard  # noqa: E402
 import exitcode  # noqa: E402
 import machine  # noqa: E402
 import proposer_launch as pl  # noqa: E402
@@ -125,6 +126,8 @@ def checked(dest):
 def collect(config, dest):
     """提案役の記録を H ラインの out の proposer/ に写し、写しの置き場を消す。取り込んだ記録の列を返す。"""
     dest = checked(dest)
+    if (links := bench_guard.links_in(dest)):   # 操縦士のアカウントで辿って写すと、bench の読めない所の中身を運ぶことになる
+        raise StageError(f"写しの置き場にリンクかジャンクションが {len(links)} 個あります（取り込みません）。消すなら discard")
     done = dest / DONE
     if not done.is_file() or b"exit=" not in done.read_bytes():
         raise StageError(f"bench の起動が終わっていません（{DONE} に exit= がありません）。起こさずにやめるなら discard")

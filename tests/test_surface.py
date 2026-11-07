@@ -57,9 +57,10 @@ class Apply(Temp):
         self.assertEqual(CFG, before)
         self.assertIsNot(got["implementer"], CFG["implementer"])
 
-    def test_the_shipped_setting_keeps_the_current_values(self):
-        cfg = json.loads((ROOT / "config" / "hline.json").read_text(encoding="utf-8"))
-        self.assertEqual(surface.apply(cfg, ROOT / surface.SETTING), cfg)
+    def test_the_shipped_setting_has_every_knob_inside_the_frame(self):
+        """面の設定は改善ループが変えるので、値は config/hline.json と違ってよい（v3 §7-8）。名と範囲だけを見る。"""
+        values, _ = surface.load(ROOT / surface.SETTING)
+        self.assertEqual(set(values), set(surface.KNOBS))
 
     def test_comment_keys_are_skipped(self):
         got = surface.apply(CFG, self.setting({"_comment": "a", "_note": [1], "max_attempts": 1}))

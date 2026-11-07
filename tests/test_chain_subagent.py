@@ -28,7 +28,7 @@ class AtStart(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.root = Path(tmp.name)
+        self.root = Path(tmp.name).resolve()
         self.chains, self.out, self.priv = (self.root / n for n in ("chains", "out", "priv"))
         self.priv.mkdir()
         hidden(self.chains / "B07" / "s0" / "hidden" / "test_hidden_B07.py", "    def test_s0(self):\n        self.assertGreaterEqual(f(), 1)\n")
@@ -80,13 +80,14 @@ class Subagents(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.root = Path(tmp.name)
+        self.root = Path(tmp.name).resolve()
         self.local, self.own = self.root / "local", self.root / "local" / "own"
         self.other, self.work = self.local / "other", self.own / "wt"
         self.item = self.own / "items" / "w1"
         for d in (self.other, self.work, self.item):
             d.mkdir(parents=True)
-        self.brain = self.root / "brain"
+        self.home = self.root / "home"
+        self.brain = self.home / ".gemini" / "antigravity-cli" / "brain"
 
     def transcript(self, cid, *calls):
         p = self.brain / cid / "transcript.jsonl"
@@ -111,7 +112,7 @@ class Subagents(unittest.TestCase):
         return p
 
     def check(self, log):
-        subs, missing = chain_score.adopt(log, chain_score.steps_of(log)[1], self.own)
+        subs, missing = chain_score.adopt(log, chain_score.steps_of(log)[1], self.own, self.home)
         found, web = chain_score.audit([log], self.own, self.local, MARKS, subs)
         return subs, found + missing, web
 

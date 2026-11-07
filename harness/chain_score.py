@@ -48,6 +48,8 @@ BUNDLE = Path("git/run.bundle")
 MARK = "CHAIN_RESULT "
 SUB_TOOL = "invoke_subagent"
 SUB_MISSING = "下請けの記録が見つからない（検められない）"
+LINK_TOOL = "link"
+LINK_HIT = "走りの記録の中にリンクかジャンクションがある（辿らない）"
 FAILED_IMPORT = "unittest.loader._FailedTest."   # 読み込みで落ちたファイルの、unittest の疑似の試験の id の頭
 # 当たりにしないもの（上の docstring）。OWN_RECORD は norm したパスの中の並びで判じ、採点のアカウントの home に依らない
 OWN_RECORD = re.compile(r"/\.gemini/antigravity-cli/brain/([^/]+)(?:/|$)")
@@ -176,14 +178,26 @@ def launches(steps):
     return list(found.values())
 
 
-def adopt(log, steps, own):
+def record_path(path, home):
+    """下請けの記録として読んでよいパスか：解決した先が home（bench の置き場）の下の agy の会話の記録の置き場にある。
+    パスは bench が書いたログから来る。操縦士のアカウントでそのまま読むと、隠しテストや操縦士のファイルを bench の読める置き場へ写せてしまう。"""
+    try:
+        real, root = Path(path).resolve(), Path(home).resolve()
+    except OSError:
+        return False
+    return under(real, root) and bool(OWN_RECORD.search(norm(real)))
+
+
+def adopt(log, steps, own, home=None):
     """下請けの記録を log と同じ What のディレクトリに subagent-<id>.jsonl として写す（同じ中身が既にあれば写し直さない）。
-    (検める記録 [(写し, 作業の場所)], 見つからない記録の当たり [(ログ, 道具, 理由)])。作業の場所（相対パスの起点）は workspace_uris の最初、無ければ own。"""
+    (検める記録 [(写し, 作業の場所)], 見つからない記録の当たり [(ログ, 道具, 理由)])。作業の場所（相対パスの起点）は workspace_uris の最初、無ければ own。
+    home は記録を読んでよい根（既定は bench の置き場）。その外を指す記録は読まず、見つからないものとして当たりにする。"""
     subs, missing = [], []
+    home = home or machine.path("local") / "bench"
     for sub in launches(steps):
         dest = Path(log).parent / f"subagent-{re.sub(r'[^A-Za-z0-9._-]', '_', sub['id'])}.jsonl"
         try:
-            data = Path(sub["path"]).read_bytes() if sub["path"] else None
+            data = Path(sub["path"]).read_bytes() if sub["path"] and record_path(sub["path"], home) else None
         except OSError:
             data = None
         if data is not None and not (dest.is_file() and dest.read_bytes() == data):
@@ -380,14 +394,14 @@ def excused_lines(excused):
     return lines
 
 
-def copy_logs(rundir, dest):
+def copy_logs(rundir, dest, skip=False):
     """段の走りの items/ を dest（索引と同じ置き場の s<k>/）に写す。前の写しは消してから写すので、items/ と同じ中身になる。
-    items/ が無ければ空の dest を作る。写したファイルの、dest の親（索引の置き場）からの相対パスの列を返す。"""
+    items/ が無いか、skip（リンクが見つかった走り）なら空の dest を作る。写したファイルの、dest の親（索引の置き場）からの相対パスの列を返す。"""
     dest = Path(dest)
     if dest.is_dir():
         shutil.rmtree(dest)
     src = Path(rundir) / "items"
-    if src.is_dir():
+    if src.is_dir() and not skip:
         shutil.copytree(src, dest)
     else:
         dest.mkdir(parents=True)
@@ -497,13 +511,15 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
     rundir = bench_run.run_dir(out, base, st["run_id"])
     hits = bench_guard.leaks(cfg, [rundir])
     (rundir / "guard.txt").write_text("".join(f"漏れの跡: {f}:{n}\n" for f, n in hits), encoding="utf-8")
-    logs, own = sorted((rundir / "items").glob("*/implementer-*.log")), bench_run.work_dir(out, base, st["run_id"])
+    links = bench_guard.links_in(rundir)   # bench の書いた置き場のリンクを操縦士のアカウントで辿らない。見つかれば、辿らずにその段を無効にする
+    logs = [] if links else sorted((rundir / "items").glob("*/implementer-*.log"))
+    own = bench_run.work_dir(out, base, st["run_id"])
     subs, missing = [], []
     for log in logs:   # 下請けの記録を What のディレクトリに写し、実装役と同じ道の検めを掛ける。写せない記録は当たり
         got = adopt(log, steps_of(log)[1], own)
         subs, missing = subs + got[0], missing + got[1]
     found, web, unopened_, own_records = audit_all(logs, own, machine.path("local"), (base, pkg, "docs/bench", "chain/s"), subs)
-    found += missing
+    found += missing + [(Path(p).name, LINK_TOOL, LINK_HIT) for p in links]
     gone = replaced(chains, base, k)
     with tempfile.TemporaryDirectory(prefix="bench-chain-") as tmp:
         tree = tip_tree(rundir, tmp)
@@ -527,7 +543,7 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
     hline_base.write_json(priv / f"s{k}.json", {"base": base, "k": k, "run_id": st["run_id"], "results": res, "replaced": sorted(gone),
                                                "violations": violations, "strays": found, "web": web, "leaks": hits,
                                                "at_start": at_start, **excused})   # 当たりにしなかったものは、あるときだけ欄を足す
-    logs = copy_logs(rundir, priv / f"s{k}")   # 下請けの記録を What のディレクトリに写した（adopt）後に写す
+    logs = copy_logs(rundir, priv / f"s{k}", skip=bool(links))   # 下請けの記録を What のディレクトリに写した（adopt）後に写す
     (priv / f"s{k}.index.md").write_text(index_text(base, k, st["run_id"], rundir, res, found, web, at_start, excused, logs),
                                          encoding="utf-8")
     hline_base.write_json(rundir / "manifest.json", bench_run.manifest(rundir))

@@ -13,7 +13,7 @@ tag ごとの開発の組の走りの記録（<out>/chains/<tag>/。chain_score 
   68 ターンで正常に終わった。ターン数が上限以上かでは判じない）。上限を越えたことは turns_over_cap に残す
 - 道の検め：stream-json の tool_use が allowed_tools の内で、パスが読む根の下にあること。当たりがあれば提案は捨てる
 - 索引の読み残しの検め：材料に並べた索引を、すべて Read で開いたこと（Grep・Glob は数えない）。1 つでも残れば提案は捨てる
-- 提案の形の検め：見出しの並び・中身・出た段の記録の有無（どれかの tag の記録にあれば合う）。合えば <stamp>.proposal.md に書く
+- 提案の形の検め：見出しの並び・中身・出た段の記録の有無（どれかの tag の記録にあれば合う）・差分のブロックの形（surface_apply）。合えば <stamp>.proposal.md に書く
 記録は <out>/proposer/<stamp>.json に起動ごとに 1 つ。起こす前にも一度書く（CLI が返らなくても起こした時刻が残る）。
 """
 import argparse
@@ -29,12 +29,13 @@ import hline_budget  # noqa: E402
 import machine  # noqa: E402
 import model_pin  # noqa: E402
 import proc  # noqa: E402
+import surface_apply  # noqa: E402
 from hline_base import CONFIG, ROOT, Infra, load_config, pinned_models, save_prompt, write_json  # noqa: E402
 
 AGENT = ROOT / "config" / "proposer.json"
 PROMPT = ROOT / "docs" / "prompts" / "proposer.md"
 WHERE = "config/proposer.json"
-HEADINGS = ("## 狙う失敗の型", "## 出た段", "## 直し", "## 予想", "## 補う弱さ", "## 外す条件")
+HEADINGS = ("## 狙う失敗の型", "## 出た段", "## 直し", surface_apply.HEADING, "## 予想", "## 補う弱さ", "## 外す条件")
 STAGE_HEAD = HEADINGS[1]
 STAGE = re.compile(r"^- (?P<base>[^\s/\\]+) s(?P<k>\d+)\s*$")
 DRIVE = re.compile(r"^[A-Za-z]:/")
@@ -188,10 +189,13 @@ def unread(out, paths, cwd):
 # ============================================================ 提案の形
 
 def sections(text):
-    """'## ' の行で区切った [(見出し, 中身の行の列)]。最初の見出しより前は捨てる。"""
-    got = []
+    """'## ' の行で区切った [(見出し, 中身の行の列)]。最初の見出しより前は捨てる。コードのブロックの中の '## ' は見出しにしない
+    （実装役への指示を組む関数は、文字列の中に Markdown の見出しを書く）。"""
+    got, fenced = [], False
     for line in text.splitlines():
-        if line.startswith("## "):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        if line.startswith("## ") and not fenced:
             got.append((line.rstrip(), []))
         elif got:
             got[-1][1].append(line)
@@ -219,6 +223,8 @@ def shape_errors(text, chains):
     if not errs and tuple(names) != HEADINGS:
         errs.append("見出しの並びが違います: " + " → ".join(names))
     errs += [f"見出し {h} の中身が空です" for h, body in secs if h in HEADINGS and not "".join(body).strip()]
+    if names.count(surface_apply.HEADING) == 1:
+        errs += surface_apply.parse(text)[1]
     stage = [body for h, body in secs if h == STAGE_HEAD]
     return errs + (stage_errors(stage[0], chains) if len(stage) == 1 else [])
 

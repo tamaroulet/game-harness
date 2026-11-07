@@ -313,6 +313,13 @@ class TestPair(Base):
         self.assertEqual(len(self.calls), 2)
         self.assertTrue(bench_run.read_json(self.out / "pairs" / "p.json", {})["same"])
 
+    def test_a_knob_only_change_is_a_different_version(self):
+        twin = self.root / "twin"
+        twin_rev = init_repo(twin, {"harness/m.py": "A = 1\n", "config/surface.json": '{"max_attempts": 3}\n'})   # harness/ の木は旧版と同じ
+        self.assertEqual(self.pair("B07:1", twin, twin_rev), 0)
+        self.assertEqual(len(self.calls), 2)
+        self.assertFalse(bench_run.read_json(self.out / "pairs" / "p.json", {})["same"])
+
     def test_a_failed_child_does_not_stop_the_rest(self):
         self.codes = {1: 2}
         self.assertEqual(self.pair(), 1)

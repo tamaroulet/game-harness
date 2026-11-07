@@ -7,6 +7,7 @@
 """
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -22,6 +23,24 @@ PLACES = ("oracles", "inbox", "out")
 
 class ConfigError(Exception):
     pass
+
+
+def links_in(root):
+    """root とその下のシンボリックリンクとジャンクションのパスの列（中へは入らない）。root が無ければ空。
+    bench は管理者でなくてもジャンクションを作れる。bench の書いた置き場を操縦士のアカウントで辿って写すと、bench の読めない所の中身を
+    bench の読める所へ運ぶことになるので、辿る前にこれで見る。"""
+    root = str(root)
+    if os.path.islink(root) or os.path.isjunction(root):
+        return [root]
+    found, stack = [], [root] if os.path.isdir(root) else []
+    while stack:
+        with os.scandir(stack.pop()) as entries:
+            for entry in entries:
+                if entry.is_symlink() or entry.is_junction():
+                    found.append(entry.path)
+                elif entry.is_dir(follow_symlinks=False):
+                    stack.append(entry.path)
+    return found
 
 
 def places(cfg):
