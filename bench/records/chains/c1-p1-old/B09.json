@@ -1,0 +1,73 @@
+{
+ "tag": "c1-p1-old",
+ "set": "dev",
+ "base": "B09",
+ "rev": "f7facb742dc4ec906143d232584d655fe2c86f29",
+ "from": "l6n-dev",
+ "stopped": null,
+ "skipped": [],
+ "stages": [
+  {
+   "k": 4,
+   "run_id": "c1-p1-old-s4",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 708417,
+   "new": [
+    11,
+    11
+   ],
+   "old": [
+    24,
+    24
+   ],
+   "kept": [
+    24,
+    24
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    11
+   ],
+   "manifest_sha256": "cde07b6edf3bbee0ce78f681a774869f63fafb17dca27a507075f09f4f70bff6"
+  },
+  {
+   "k": 6,
+   "run_id": "c1-p1-old-s6",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 2,
+   "tokens": 2402503,
+   "new": [
+    5,
+    6
+   ],
+   "old": [
+    33,
+    34
+   ],
+   "kept": [
+    32,
+    32
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    3,
+    6
+   ],
+   "manifest_sha256": "c5acb6b37e2398f04d67a464d5d700f156aebafbade685e298b8a6579ad6f542"
+  }
+ ]
+}

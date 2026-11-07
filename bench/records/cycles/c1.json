@@ -1,0 +1,33 @@
+{
+ "id": "c1",
+ "rev": "f7facb742dc4ec906143d232584d655fe2c86f29",
+ "head": "08c5e8e21096bf5a7e5cf21fa510bbd57b744a3c",
+ "outcome": "取り込まない：回帰の守り：開発用",
+ "ended": "2026-11-07T21:15:02+09:00",
+ "pair": {
+  "stages": [
+   "B07:4",
+   "B08:4",
+   "B09:4",
+   "B09:6"
+  ],
+  "fixed": 1,
+  "broke": 0,
+  "same": 2
+ },
+ "dev": {
+  "stages": 18,
+  "passed": 14,
+  "new": [
+   99,
+   124
+  ],
+  "kept": [
+   358,
+   358
+  ],
+  "invalid": 1,
+  "tokens": 28820942
+ },
+ "held": null
+}
