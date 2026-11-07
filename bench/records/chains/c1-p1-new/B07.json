@@ -1,0 +1,42 @@
+{
+ "tag": "c1-p1-new",
+ "set": "dev",
+ "base": "B07",
+ "rev": "08c5e8e21096bf5a7e5cf21fa510bbd57b744a3c",
+ "from": "l6n-dev",
+ "stopped": null,
+ "skipped": [],
+ "stages": [
+  {
+   "k": 4,
+   "run_id": "c1-p1-new-s4",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 867425,
+   "new": [
+    6,
+    6
+   ],
+   "old": [
+    27,
+    27
+   ],
+   "kept": [
+    27,
+    27
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    3,
+    6
+   ],
+   "manifest_sha256": "2e349baea17b7344490ddacf397bddb0b88dbe6762af9c7a41f5e055d1033266"
+  }
+ ]
+}
