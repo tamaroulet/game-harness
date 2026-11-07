@@ -91,6 +91,7 @@ class PairCounts(unittest.TestCase):
     def test_fixed_needs_baseline_fail_old_fail_new_pass(self):
         got = self.counts(cj.FAIL, NG, OK)
         self.assertEqual((got["fixed"], got["broke"], got["ok"]), (1, 0, True))
+        self.assertEqual(got["fixed_at"], [["B01", 1, 0]])
 
     def test_broke_needs_baseline_pass_old_pass_new_fail(self):
         got = self.counts(cj.PASS, OK, NG)
@@ -119,6 +120,37 @@ class PairCounts(unittest.TestCase):
         self.assertFalse(cj.pair_counts([KEY, k2], classes, [pair])["ok"])   # 1 対 1 は進まない
         self.assertTrue(cj.pair_counts([KEY], classes, [pair, pair])["ok"])
         self.assertEqual(cj.pair_counts([KEY], classes, [pair, pair])["fixed"], 2)   # 2 回ずつ走らせたら 2 回数える
+
+
+class Repro(unittest.TestCase):
+    K2 = ("B02", 3)
+
+    def test_each_fix_is_repeated_from_the_pair_that_fixed_it(self):
+        self.assertEqual(cj.to_repeat([[*KEY, 0], [*self.K2, 0]]), [(0, [KEY, self.K2])])
+        self.assertEqual(cj.to_repeat([[*KEY, 1]]), [(1, [KEY])])
+        self.assertEqual(cj.to_repeat([]), [])
+
+    def test_two_fixes_of_one_stage_need_no_repeat(self):
+        self.assertEqual(cj.to_repeat([[*KEY, 0], [*KEY, 1]]), [])
+        self.assertEqual(cj.repro_counts([[*KEY, 0], [*KEY, 1]], 0, {}), {"reproduced": 1, "ok": True})
+
+    def test_reproduced_needs_the_new_side_to_pass_again(self):
+        self.assertEqual(cj.repro_counts([[*KEY, 0]], 0, {KEY: OK}), {"reproduced": 1, "ok": True})
+        self.assertEqual(cj.repro_counts([[*KEY, 0]], 0, {KEY: NG}), {"reproduced": 0, "ok": False})
+
+    def test_a_missing_or_invalid_row_is_not_reproduced(self):
+        for rows in ({}, {KEY: row(invalid="stray")}):
+            self.assertEqual(cj.repro_counts([[*KEY, 0]], 0, rows), {"reproduced": 0, "ok": False})
+
+    def test_reproduced_must_outnumber_broke(self):
+        fixed = [[*KEY, 0], [*self.K2, 0]]
+        self.assertFalse(cj.repro_counts(fixed, 1, {KEY: OK, self.K2: NG})["ok"])   # 1 対 1 は進まない
+        self.assertTrue(cj.repro_counts(fixed, 1, {KEY: OK, self.K2: OK})["ok"])
+
+    def test_the_stored_form_is_what_json_gives_back(self):
+        """状態のファイルを読み直した形（リスト）でも同じに動く。"""
+        fixed = json.loads(json.dumps(cj.pair_counts([KEY], {KEY: cj.FAIL}, [({KEY: NG}, {KEY: OK})])["fixed_at"]))
+        self.assertEqual(cj.to_repeat(fixed), [(0, [KEY])])
 
 
 class Guard(unittest.TestCase):

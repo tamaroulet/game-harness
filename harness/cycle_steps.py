@@ -1,4 +1,4 @@
-"""改善ループの段階（v3 §7-7・§7-9、L7）：propose → diff → pair → dev → held → pr → records。1 つの関数が 1 つの段階で、進んだら True、待つなら False を返す。"""
+"""改善ループの段階（v3 §7-7・§7-9、L7）：propose → diff → pair → repro → dev → held → pr → records。1 つの関数が 1 つの段階で、進んだら True、待つなら False を返す。"""
 import json
 import re
 import shutil
@@ -18,10 +18,12 @@ import proposer_stage as ps  # noqa: E402
 import surface  # noqa: E402
 import surface_apply as sa  # noqa: E402
 from bench_start import BenchError, git  # noqa: E402
-from cycle_base import (DONE, FAILED, OK, WAIT, Reject, Stop, active, bench_place, branch, chains_dir, home, job_done, job_step,  # noqa: E402, F401
+from cycle_base import (DONE, FAILED, OK, STATE, WAIT, Reject, Stop, active, bench_place, branch, chains_dir, home, job_done, job_step,  # noqa: E402, F401
                         notify, now_text, py, runner, save, set_active, settings, sh)
 
 PROPOSE_TRIES, RETRY_AFTER = 2, 3600
+PAST_CYCLES = 3   # 提案役に読ませる前の周の数
+NUMBERS_ONLY = ("対の実行", "回帰の守り", "費用の線")   # 取り込まない理由の文が、機械の数だけでできている種類（ほかは出力の文が混ざりうる）
 GIT_TTL, FINISH_TTL, SUITE_TTL, ARGON_TTL = 300, 7200, 900, 1800
 IMPLEMENTER = "config/bench_implementer_agy.json"
 PINNED = "python -m harness.agy_pinned"
@@ -38,12 +40,28 @@ def collect_once(dest):
     return [r for r in recs if (r.get("staged") or {}).get("dest") == str(dest)]
 
 
+def past_result(other):
+    """提案役に渡す、前の周の結果：公開の 1 周の記録に、線を割った理由を足したもの（どれも機械の数と決まった語）。"""
+    reject = other.get("reject") or {}
+    return {**summary(other), "ended": other.get("ended"), "why": reject.get("detail") if reject.get("kind", "").startswith(NUMBERS_ONLY) else None}
+
+
+def past_cycles(st):
+    """提案役に渡す前の周の材料 [{id, proposal, result, tags}]（§7-7 の 1）。提案まで進んで終わった周の、新しい PAST_CYCLES 個を古い順に。
+    tags はその周の走りの記録で、H ラインの out の chains の下にあるのは開発の組だけ（held-out の記録は oracles の下）。"""
+    found = [json.loads(p.read_text(encoding="utf-8")) for p in home().glob(f"*/{STATE}")]
+    done = [o for o in found if o["id"] != st["id"] and o["status"] == DONE and o.get("proposal") and Path(o["proposal"]).is_file()]
+    done.sort(key=lambda o: o.get("ended") or "")
+    return [{"id": o["id"], "proposal": o["proposal"], "result": past_result(o),
+             "tags": sorted(p.name for p in (home().parent / "chains").glob(f"{o['id']}-*") if p.is_dir())} for o in done[-PAST_CYCLES:]]
+
+
 def step_propose(st):
     p = st["propose"]
     if time.time() < p.get("not_before", 0):
         return False
     if not p.get("dest"):
-        p["dest"] = str(ps.prepare(hline_base.CONFIG, st["baseline"]["dev"], root=runner()))
+        p["dest"] = str(ps.prepare(hline_base.CONFIG, st["baseline"]["dev"], root=runner(), history=past_cycles(st)))
         save(st)
     dest = Path(p["dest"])
     result = job_step(st, f"propose{p['attempt']}", dest, [f"call {dest / ps.BATCH}"])
@@ -168,6 +186,32 @@ def step_pair(st):
     st["pair"].update(counts)
     if not counts["ok"]:
         raise Reject("対の実行", f"直した {counts['fixed']}・壊した {counts['broke']}")
+    st["phase"] = "repro"
+    return True
+
+
+def repro_runs(st):
+    """(タグ, 基準のタグ, 「土台:段」の列) の列。直した回と同じ開始の木から、新版でもう 1 回（§7-7 の 3）。"""
+    refs = [ref for _, ref in pair_runs(st)]
+    return [(f"{st['id']}-r{i + 1}-new", refs[i], [f"{base}:{k}" for base, k in stages]) for i, stages in cj.to_repeat(st["pair"]["fixed_at"])]
+
+
+def step_repro(st):
+    """対の実行の「直した」が、もう 1 回でも出るかを確かめる。出なければ、開発用のランの費用を使わずに取り込まない（c1 の教訓。§15 の 11-07 その 3）。"""
+    pair, runs = st["pair"], repro_runs(st)
+    if runs:
+        new, out = clones(st)[1], Path(st["baseline"]["out"])
+        cmds = [PINNED, *(f"python -m harness.bench_pair run --tag {tag} --repo {new.as_posix()} --base {st['head']} --staged {staged_of(ref)} "
+                          f"--from {ref} --stages {','.join(stages)} --out {out.as_posix()} --implementer {IMPLEMENTER}" for tag, ref, stages in runs)]
+        watch = {"out": str(out), "tags": [tag for tag, _, _ in runs], "line": sum(len(s) for _, _, s in runs) * settings()["guard"]["pair_run_tokens"]}
+        if not job_done(st, "repro", new, cmds, watch):
+            return False
+        for tag, _, _ in runs:
+            sh(py("harness.bench_pair", "finish", "--tag", tag, "--repo", runner(), "--out", out), FINISH_TTL, f"再現の採点 {tag}")
+    counts = cj.repro_counts(pair["fixed_at"], pair["broke"], {key: row for tag, _, _ in runs for key, row in cj.public_rows(runner(), tag).items()})
+    pair.update(counts)
+    if not counts["ok"]:
+        raise Reject("対の実行の再現", f"直した {pair['fixed']}・再現した {counts['reproduced']}・壊した {pair['broke']}")
     st["phase"] = "dev"
     return True
 
@@ -245,7 +289,8 @@ def record(st):
     pair = st["pair"]
     return {"id": st["id"], "rev": st["rev"], "head": st["head"], "dev": st["dev"]["totals"], "dev_base": base_totals(st, "dev"),
             "held": st["held"]["totals"], "held_base": base_totals(st, "held"),
-            "pair": {"stages": pair["stages"], "fixed": pair["fixed"], "broke": pair["broke"], "same": pair["same"], "skipped": len(pair["skipped"])}}
+            "pair": {"stages": pair["stages"], "fixed": pair["fixed"], "reproduced": pair["reproduced"], "broke": pair["broke"], "same": pair["same"],
+                     "skipped": len(pair["skipped"])}}
 
 
 def argon_verdict(number):
@@ -286,7 +331,7 @@ def summary(st):
     """公開の 1 周の記録（数と決まった語だけ）。"""
     pair = st.get("pair") or {}
     return {"id": st["id"], "rev": st["rev"], "head": st.get("head"), "outcome": st.get("outcome"), "ended": now_text(),
-            "pair": {k: pair.get(k) for k in ("stages", "fixed", "broke", "same")} if pair else None,
+            "pair": {k: pair.get(k) for k in ("stages", "fixed", "reproduced", "broke", "same")} if pair else None,
             "dev": (st.get("dev") or {}).get("totals"), "held": (st.get("held") or {}).get("totals")}
 
 
@@ -317,6 +362,6 @@ def step_records(st):
     return False
 
 
-STEPS = {"propose": step_propose, "diff": step_diff, "pair": step_pair, "dev": lambda st: step_guard(st, "dev"),
+STEPS = {"propose": step_propose, "diff": step_diff, "pair": step_pair, "repro": step_repro, "dev": lambda st: step_guard(st, "dev"),
          "held": lambda st: step_guard(st, "held"), "pr": step_pr, "records": step_records}
 KNOWN = (Stop, BenchError, bench_job.JobError, ps.StageError, cp.TemplateError, OSError, ValueError, KeyError)

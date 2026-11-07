@@ -63,8 +63,19 @@ class Base(unittest.TestCase):
         self.addCleanup(patch.stop)
         self.dest = self.local / "bench" / "proposer" / "20261107-030000"
 
-    def prepare(self, tags=("v1",)):
-        return ps.prepare(self.config, list(tags), now=NOW, root=self.repo)
+    def prepare(self, tags=("v1",), history=()):
+        return ps.prepare(self.config, list(tags), now=NOW, root=self.repo, history=history)
+
+    def past(self):
+        """前の周の材料（周の見回りの past_cycles が作る形）。"""
+        records = self.out / "chains" / "c1-dev" / "B01"
+        (records / "s2").mkdir(parents=True)
+        (records / "s2.index.md").write_text("前の周の索引\n", encoding="utf-8")
+        (records / "s2" / "gate-0-1.log").write_text("log\n", encoding="utf-8")
+        proposal = self.out / "proposer" / "x.proposal.md"
+        proposal.parent.mkdir(parents=True)
+        proposal.write_text("前の周の提案\n", encoding="utf-8")
+        return {"id": "c1", "proposal": str(proposal), "result": {"outcome": "取り込まない：回帰の守り：開発用", "why": "線を下回る"}, "tags": ["c1-dev"]}
 
     def launch_on_copy(self, uses=None):
         dest = self.prepare()
@@ -99,6 +110,17 @@ class Prepare(Base):
         self.assertIn(f"cd /d {dest / 'repo'}\r\n", text)
         self.assertIn(f"python -m harness.proposer_launch --tag v1 --config {dest / 'hline.json'} > {dest / 'launch.out'} 2>&1\r\n", text)
         self.assertIn(f"echo exit=%ERRORLEVEL% >> {dest / 'launch.out'}\r\n", text)
+
+    def test_the_past_cycles_go_under_out_history_and_into_the_batch(self):
+        past = self.past()
+        dest = self.prepare(history=[past])
+        place = dest / "out" / "history" / "c1"
+        self.assertEqual((place / "proposal.md").read_text(encoding="utf-8"), "前の周の提案\n")
+        self.assertEqual(json.loads((place / "result.json").read_text(encoding="utf-8")), past["result"])
+        self.assertEqual(tree(place / "chains" / "c1-dev"), tree(self.out / "chains" / "c1-dev"))
+        text = (dest / "launch.bat").read_bytes().decode("ascii")
+        self.assertIn(f"python -m harness.proposer_launch --tag v1 --history {dest / 'out' / 'history'} --config {dest / 'hline.json'} > ", text)
+        self.assertEqual(json.loads((dest / "stage.json").read_text(encoding="utf-8"))["history"], ["c1"])
 
     def test_gates_stop_before_anything_is_written(self):
         shutil.rmtree(self.chains / "B01" / "s2")
@@ -145,6 +167,39 @@ class LaunchOnTheCopy(Base):
         _, rec, _ = self.launch_on_copy(uses)
         self.assertEqual(len(rec["path_hits"]), 1)
         self.assertIsNone(rec["proposal"])
+
+    def launch_with_past(self, extra_reads):
+        dest = self.prepare(history=[self.past()])
+        history = dest / "out" / "history"
+        uses = [("Read", {"file_path": str(dest / "out" / "chains" / "v1" / "B01" / "s2.index.md")}),
+                *(("Read", {"file_path": str(history / "c1" / name)}) for name in extra_reads)]
+        with mock.patch.object(pl.proc, "resolve_cli", return_value=["claude"]), \
+                mock.patch.object(pl.proc, "run", return_value=(0, stream(uses=uses), "")) as run:
+            rec = pl.launch(hline_base.load_config(dest / "hline.json"), json.loads(json.dumps(AGENT)), ["v1"],
+                            now=NOW, root=dest / "repo", history=history)
+        return history, rec, run
+
+    def test_the_past_cycles_are_a_root_and_listed_in_the_material(self):
+        history, rec, run = self.launch_with_past(["proposal.md", "result.json", "chains/c1-dev/B01/s2.index.md"])
+        args = run.call_args.args[0]
+        self.assertIn(str(history), [args[i + 1] for i, a in enumerate(args) if a == "--add-dir"])
+        self.assertEqual((rec["path_hits"], rec["unread_indexes"], rec["history"]), ([], [], str(history)))
+        self.assertTrue(pl.ok(rec))
+        material = run.call_args.kwargs["input"].split("## 材料", 1)[1]
+        for name in ("proposal.md", "result.json"):
+            self.assertIn(str(history / "c1" / name), material)
+        self.assertNotIn(str(history / "c1" / "chains" / "c1-dev" / "B01" / "s2.index.md"), material)   # 走りの記録は開かなくてもよい
+
+    def test_a_proposal_that_did_not_open_the_past_cycle_is_thrown_away(self):
+        history, rec, _ = self.launch_with_past(["proposal.md"])
+        self.assertEqual(rec["unread_indexes"], [str(history / "c1" / "result.json")])
+        self.assertIsNone(rec["proposal"])
+        self.assertFalse(pl.ok(rec))
+
+    def test_without_past_cycles_the_material_says_nothing_about_them(self):
+        _, rec, run = self.launch_on_copy()
+        self.assertIsNone(rec["history"])
+        self.assertNotIn("前の周", run.call_args.kwargs["input"].split("## 材料", 1)[1])
 
 
 class Collect(Base):

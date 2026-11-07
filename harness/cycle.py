@@ -6,7 +6,7 @@
     python -m harness.cycle resume                            止まった周を、同じ段階から続ける
     python -m harness.cycle abort                             今の周をやめる（走っているジョブは止める）
 
-段階：propose → diff → pair → dev → held → pr → records → done。ジョブを待つ段階は、見回りのたびに状態を見て戻る。
+段階：propose → diff → pair → repro → dev → held → pr → records → done。ジョブを待つ段階は、見回りのたびに状態を見て戻る。
 - 止まる（Stop）：人が見る。理由を状態に残して通知する。直して resume すれば、同じ段階から続く（済んだステージは走り直さない）。
 - 取り込まない（Reject）：機械の判定。集計の記録の PR を出して周を終える。公開に出すのは決まった語だけで、詳しい理由は状態に残す。
 状態と専用のクローンは H ラインの out の下に置く（bench は読めも書けもしない）。bench の置き場のものはデータとして読むだけで、

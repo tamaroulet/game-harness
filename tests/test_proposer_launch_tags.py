@@ -58,6 +58,12 @@ class TwoTags(Base):
         run.assert_not_called()
         self.assertIn("oracles と重なります", rec["skipped_reason"])
 
+    def test_a_history_overlapping_oracles_is_refused(self):
+        with mock.patch.object(pl.proc, "run") as run:
+            rec = pl.launch(self.cfg, self.agent, ["v1"], now=NOW, root=self.root, history=self.oracles / "chains")
+        run.assert_not_called()
+        self.assertIn("oracles と重なります", rec["skipped_reason"])
+
     def test_a_stage_in_only_one_of_the_records_passes_the_shape_check(self):
         text = GOOD.replace("- B01 s2\n", "- B01 s2\n- B02 s3\n")
         self.assertEqual(pl.shape_errors(text, [self.chains, self.chains2]), [])
@@ -80,13 +86,13 @@ class TwoTags(Base):
 
 
 class MainTags(Base):
-    def run_main(self, *tags):
+    def run_main(self, *tags, more=()):
         path = self.tmp / "hline.json"
         base = json.loads(hline_base.CONFIG.read_text(encoding="utf-8"))
         path.write_text(json.dumps({**base, **self.cfg}), encoding="utf-8")
         agent = self.tmp / "proposer.json"
         agent.write_text(json.dumps(self.agent), encoding="utf-8")
-        argv = [x for t in tags for x in ("--tag", t)] + ["--config", str(path)]
+        argv = [x for t in tags for x in ("--tag", t)] + [*more, "--config", str(path)]
         with mock.patch.object(pl, "AGENT", agent), mock.patch.object(pl, "ROOT", self.root), \
                 mock.patch.object(pl.proc, "resolve_cli", return_value=["claude"]), \
                 mock.patch.object(pl.proc, "run", return_value=(0, stream(uses=self.reads()), "")) as run, \
@@ -101,6 +107,14 @@ class MainTags(Base):
         args = run.call_args.args[0]
         self.assertEqual([Path(args[i + 1]) for i, a in enumerate(args) if a == "--add-dir"],
                          [self.chains, self.out / "chains" / "v2"])
+
+    def test_the_history_from_the_command_line_is_a_root(self):
+        history = self.tmp / "history"
+        history.mkdir()
+        code, run = self.run_main("v1", more=("--history", str(history)))
+        self.assertEqual(code, 0)   # 前の周がまだ無い置き場なら、開くものも無い
+        args = run.call_args.args[0]
+        self.assertEqual([Path(args[i + 1]) for i, a in enumerate(args) if a == "--add-dir"], [self.chains, history])
 
     def test_a_repeated_tag_does_nothing_and_returns_2(self):
         code, run = self.run_main("v1", "v1")
