@@ -26,6 +26,7 @@ DEV_BASES, HELD_BASES = ("B07", "B08", "B09"), ("B05", "B06", "B10")
 PROMPT = 'def build_prompt(what, feedback=None, symbol_map=None):\n    return "古い指示"\n\n\ndef ledger_section(wt, what):\n    return ""\n'
 PROPOSAL = '## 狙う失敗の型\n型\n## 出た段\n- B08 s4\n- B09 s6\n## 直し\n直し\n## 差分\n```json\n{"max_attempts": 3}\n```\n## 予想\nx\n## 補う弱さ\nx\n## 外す条件\nx\n'
 ONE_STAGE = PROPOSAL.replace("- B09 s6\n", "")
+TWO_STAGES = PROPOSAL.replace("- B09 s6\n", "- B07 s1\n")   # 2 回とも落ちた B08 s4 と、2 回とも通った B07 s1
 
 
 def row(k, ok=True, tokens=1_000_000):
@@ -52,6 +53,7 @@ class Base(unittest.TestCase):
         self.surface_code, self.suite_code, self.argon = 0, 0, "LOW"
         self.dev_ok, self.held_ok, self.dev_tokens = 16, 14, 1_000_000
         self.pair = {"old": False, "new": True}
+        self.tag_ok, self.history = {}, []
         self.proposal_text = PROPOSAL
         self.patch(base.proc, "run", side_effect=self.fake_run)
         self.patch(base.bench_job, "status", side_effect=self.job_status)
@@ -150,10 +152,11 @@ class Base(unittest.TestCase):
             if job["state"] == "running":
                 job.update(state="done", exit=exit_code)
 
-    def prepare(self, config, tags, now=None, root=None):
+    def prepare(self, config, tags, now=None, root=None, history=()):
         d = self.local / "bench" / "proposer" / f"s{len(self.prepared)}"
         d.mkdir(parents=True)
         self.prepared.append((list(tags), d))
+        self.history.append(list(history))
         return d
 
     def collect(self, config, dest):
@@ -228,7 +231,7 @@ class Base(unittest.TestCase):
         rows = {}
         for s in stages:
             b, k = s.split(":")
-            rows.setdefault(b, []).append(row(int(k), ok=self.pair[side]))
+            rows.setdefault(b, []).append(row(int(k), ok=self.tag_ok.get(tag, self.pair[side])))
         for b, stage_rows in rows.items():
             (d / f"{b}.json").write_text(json.dumps({"tag": tag, "base": b, "stages": stage_rows}), encoding="utf-8")
         return 0, "", ""
@@ -499,6 +502,134 @@ class Rejected(Base):
         self.assertIn("面の検査", doc)
         self.assertNotIn("当たり 0 件", doc)
         self.assertIn("当たり 0 件", st["reject"]["detail"])
+
+
+class Repro(Base):
+    """対の実行の「直した」を、開発用へ進む前に新版でもう 1 回走らせて確かめる（v3 §7-7 の 3）。"""
+
+    def setUp(self):
+        super().setUp()
+        self.proposal_text = TWO_STAGES
+
+    def records(self, st):
+        names = git(self.run_dir, "show", "--name-only", "--format=", st["records_head"]).split()
+        return names, json.loads(git(self.run_dir, "show", f"{st['records_head']}:bench/records/cycles/c1.json"))
+
+    def test_a_fix_runs_once_more_on_the_new_side_before_dev(self):
+        self.start()
+        st = self.walk(stop_at="repro")
+        self.assertEqual((st["pair"]["fixed"], st["pair"]["fixed_at"]), (1, [["B08", 4, 0]]))
+        new = self.local / "bench" / "cycle" / "c1" / "new"
+        job = self.jobs["c1-repro-1"]
+        self.assertEqual(job["cwd"], str(new))
+        self.assertEqual(job["cmds"][0], steps.PINNED)
+        for text in ("harness.bench_pair run --tag c1-r1-new ", f"--repo {new.as_posix()} ", f"--base {st['head']} ", "--from l6n-dev ", "--stages B08:4 "):
+            self.assertIn(text, job["cmds"][1])
+        self.assertNotIn("--old", job["cmds"][1])   # 旧版は走らせない
+        self.assertNotIn("c1-dev-1", self.jobs)
+        self.finish_jobs()
+        self.tick()
+        st = self.state()
+        self.assertEqual((st["phase"], st["pair"]["reproduced"], st["pair"]["ok"]), ("dev", 1, True))
+        finish = self.ran("harness.bench_pair", "finish", "c1-r1-new")
+        self.assertEqual(finish[0][finish[0].index("--repo") + 1], str(self.run_dir))
+
+    def test_a_fix_that_does_not_come_back_stops_before_dev(self):
+        self.tag_ok["c1-r1-new"] = False
+        self.start()
+        st = self.walk()
+        self.assertEqual((st["status"], st["outcome"], st["pair"]["ok"]), (base.DONE, "取り込まない：対の実行の再現", False))
+        self.assertIn("再現した 0", st["reject"]["detail"])
+        self.assertEqual(self.ran("harness.bench_chain", "stage"), [])   # 回帰の守りを走らせない
+        self.assertEqual(sorted(self.prs), ["cycle/c1-records"])
+        names, doc = self.records(st)
+        self.assertIn("bench/records/chains/c1-r1-new/B08.json", names)
+        self.assertEqual(doc["pair"]["reproduced"], 0)
+
+    def test_the_repeat_uses_the_start_of_the_pair_that_fixed_it(self):
+        self.proposal_text = ONE_STAGE
+        self.tag_ok["c1-p1-new"] = False   # 1 回目の対は変わらず、2 回目の対で直った
+        self.start()
+        st = self.walk(stop_at="repro")
+        self.assertEqual((st["pair"]["fixed"], st["pair"]["same"], st["pair"]["fixed_at"]), (1, 1, [["B08", 4, 1]]))
+        cmd = self.jobs["c1-repro-1"]["cmds"][1]
+        self.assertIn("--tag c1-r2-new ", cmd)
+        self.assertIn("--from l6n-dev2 ", cmd)
+
+    def test_two_fixes_out_of_two_pairs_need_no_more_run(self):
+        self.proposal_text = ONE_STAGE
+        self.start()
+        st = self.walk(stop_at="dev")
+        self.assertEqual((st["pair"]["fixed"], st["pair"]["reproduced"]), (2, 1))
+        self.assertNotIn("c1-repro-1", self.jobs)
+
+    def test_the_cost_line_watches_the_repeat(self):
+        self.start()
+        self.walk(stop_at="repro")
+        record = self.out / "runs" / "B08" / "factory-c1-r1-new-s4" / "factory" / "run.json"
+        record.parent.mkdir(parents=True)
+        record.write_text(json.dumps({"tokens": {"total": 5_000_001}}), encoding="utf-8")   # 1 ステージの線は 500 万
+        self.tick()
+        self.assertEqual((self.stopped, self.state()["outcome"]), (1, "取り込まない：費用の線"))
+
+    def test_the_count_reaches_the_public_record_and_argon(self):
+        self.start()
+        st = self.walk()
+        self.assertEqual(st["outcome"], "取り込みの候補")
+        self.assertEqual(self.records(st)[1]["pair"]["reproduced"], 1)
+        self.assertIn("再現した 1", (self.cycle_home / "c1" / "argon_focus.md").read_text(encoding="utf-8"))
+
+
+class History(Base):
+    """提案役に、前の周の提案と結果を読ませる（v3 §7-7 の 1）。"""
+
+    def next_cycle(self):
+        self.start("c2")
+        self.tick()
+        return self.history[-1]
+
+    def test_the_first_cycle_has_no_history(self):
+        self.start()
+        self.tick()
+        self.assertEqual(self.history, [[]])
+
+    def test_the_next_cycle_gets_the_proposal_the_result_and_the_dev_records(self):
+        self.dev_ok = 10
+        self.start()
+        st = self.walk()
+        records = self.cycle_home.parent / "chains"
+        for tag in ("c1-dev", "c1-p1-new", "c10-dev"):
+            (records / tag).mkdir(parents=True)
+        past = self.next_cycle()
+        self.assertEqual(len(past), 1)
+        self.assertEqual((past[0]["id"], past[0]["proposal"]), ("c1", st["proposal"]))
+        self.assertEqual(past[0]["tags"], ["c1-dev", "c1-p1-new"])   # c10 の記録を混ぜない
+        result = past[0]["result"]
+        self.assertEqual((result["outcome"], result["dev"]["passed"], result["ended"]), ("取り込まない：回帰の守り：開発用", 10, st["ended"]))
+        self.assertIn("線", result["why"])
+
+    def test_a_reason_made_of_output_text_is_not_passed_on(self):
+        self.surface_code = 1
+        self.start()
+        self.assertIn("当たり 0 件", self.walk()["reject"]["detail"])
+        past = self.next_cycle()
+        self.assertEqual((past[0]["result"]["outcome"], past[0]["result"]["why"]), ("取り込まない：面の検査", None))
+
+    def test_a_cycle_that_did_not_finish_is_not_history(self):
+        self.start()
+        self.tick()
+        with mock.patch("builtins.print"):
+            cycle.abort()
+        self.assertEqual(self.next_cycle(), [])
+
+    def test_only_the_newest_three_go_in_oldest_first(self):
+        proposal = self.cycle_home / "x.proposal.md"
+        proposal.parent.mkdir(parents=True, exist_ok=True)
+        proposal.write_text("提案\n", encoding="utf-8")
+        for i in range(5):
+            base.save({"id": f"c{i}", "status": base.DONE, "rev": "r", "proposal": str(proposal), "ended": f"2026-11-0{i + 1}T00:00:00+09:00"})
+        self.assertEqual([p["id"] for p in steps.past_cycles({"id": "c9"})], ["c2", "c3", "c4"])
+        self.assertEqual([p["id"] for p in steps.past_cycles({"id": "c4"})], ["c1", "c2", "c3"])   # 自分は入れない
 
 
 class CostLine(Base):

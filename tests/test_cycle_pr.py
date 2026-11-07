@@ -18,7 +18,7 @@ def run(passed=16, new=(121, 124), kept=(404, 404), tok=23739632):
 
 REC = {"id": "c1", "rev": "4ac2ed3", "head": "abc1234", "dev": run(), "dev_base": [run(), run(passed=15)],
        "held": run(passed=14, new=(87, 96), kept=(348, 349)), "held_base": [run(passed=12, new=(83, 96), kept=(343, 343))],
-       "pair": {"stages": ["B08:4", "B09:6"], "fixed": 1, "broke": 0, "same": 1, "skipped": 0}}
+       "pair": {"stages": ["B08:4", "B09:6"], "fixed": 1, "reproduced": 1, "broke": 0, "same": 1, "skipped": 0}}
 
 
 class PublicProblems(unittest.TestCase):
@@ -46,7 +46,7 @@ class PublicProblems(unittest.TestCase):
 class Body(unittest.TestCase):
     def test_the_numbers_are_in_the_body(self):
         body = cp.surface_body(REC)
-        for text in ("4ac2ed3", "abc1234", "B08:4", "直した 1", "壊した 0", "| 開発用：新版 | 16/18 | 121/124 | 404/404 | 2,374 万 |",
+        for text in ("4ac2ed3", "abc1234", "B08:4", "直した 1", "再現した 1", "壊した 0", "| 開発用：新版 | 16/18 | 121/124 | 404/404 | 2,374 万 |",
                      "| held-out：新版 | 14/18 | 87/96 | 348/349 |", "Argon の事後の評価はこれから", cp.GENERATED):
             self.assertIn(text, body)
 
@@ -58,7 +58,7 @@ class Body(unittest.TestCase):
 
     def test_free_text_in_any_field_stops_the_body(self):
         """欄に文が紛れたら（機械の記録の誤り）、本文を作らない。"""
-        for path, value in ((("id",), "直す所は x"), (("rev",), "not a sha"), (("pair", "stages"), ["B08 の題"]), (("pair", "fixed"), "1 件"),
+        for path, value in ((("id",), "直す所は x"), (("rev",), "not a sha"), (("pair", "stages"), ["B08 の題"]), (("pair", "fixed"), "1 件"), (("pair", "reproduced"), "1 件"),
                             (("dev", "passed"), "十六"), (("dev", "new"), [1]), (("held", "tokens"), True), (("pair", "fixed"), -1)):
             rec = copy.deepcopy(REC)
             node = rec

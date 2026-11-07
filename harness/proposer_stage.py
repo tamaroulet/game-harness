@@ -5,6 +5,7 @@
     python -m harness.proposer_stage collect --dest <写しの置き場> [--config <hline.json>]
     python -m harness.proposer_stage discard --dest <写しの置き場>
 
+周の見回りは、前の周の材料（提案・結果・開発の組の走りの記録）も写しに入れる（prepare の history。v3 §7-7 の 1）。
 bench のアカウントは、oracles（隠しテストと保留の組の結果）・H ラインの out（開発の組の記録の正本と提案役の記録）・会話の席の記録を、
 OS の権限で読めない。提案役をそこで起こすため、操縦士のアカウントで、bench の読める置き場（<local>/bench/proposer/<stamp>/）に
 材料だけを写す：ハーネスの木（HEAD のコミットの git archive。追跡していないファイルは入らない）・tag ごとの開発の組の記録（索引・
@@ -38,6 +39,7 @@ DONE = "launch.out"
 BATCH = "launch.bat"            # bench で走らせるバッチ（Windows の cmd。runas で起こす）
 BENCH_ENV = "bench_env.bat"     # bench の環境（<local>/bench の下。Git の外。bench の走りのバッチと同じものを呼ぶ）
 TAG = re.compile(r"^[A-Za-z0-9._-]+$")   # バッチの 1 行に入るので、記号は通さない
+HISTORY = "history"             # 写しの out の下の、前の周の置き場
 
 
 class StageError(Exception):
@@ -62,7 +64,7 @@ def runas_line(dest):
     return f'runas /user:bench "cmd /c {dest / BATCH}"'
 
 
-def launch_bat(dest, tags):
+def launch_bat(dest, tags, history=False):
     """bench で 1 回走らせるバッチ（cmd が読むので、ASCII と CRLF）。提案役の起動の道具の 1 行の出力と終了コードを DONE に残す。"""
     lines = ["@echo off",
              f"rem Written by harness.proposer_stage prepare ({dest.name}). Run once as bench:",
@@ -70,13 +72,26 @@ def launch_bat(dest, tags):
              f"call {bench_env()}",
              f"cd /d {dest / 'repo'}",
              "python -m harness.proposer_launch " + " ".join(f"--tag {t}" for t in tags)
+             + (f" --history {dest / 'out' / HISTORY}" if history else "")
              + f" --config {dest / 'hline.json'} > {dest / DONE} 2>&1",
              f"echo exit=%ERRORLEVEL% >> {dest / DONE}"]
     return "\r\n".join(lines) + "\r\n"
 
 
-def prepare(config, tags, now=None, root=None):
-    """材料だけの写しを作り、その置き場を返す。関所に当たれば StageError（何も作らない）。root はハーネスの木（既定は ROOT）。"""
+def copy_history(cfg, dest, history):
+    """前の周の材料を写しの <out>/history/<周の id>/ に置く：提案・結果・開発の組の走りの記録（chains/<tag>/）。"""
+    for past in history:
+        place = dest / "out" / HISTORY / past["id"]
+        place.mkdir(parents=True)
+        shutil.copy2(past["proposal"], place / pl.PAST_PROPOSAL)
+        write_json(place / pl.PAST_RESULT, past["result"])
+        for tag in past["tags"]:
+            shutil.copytree(pl.chains_dir(cfg, tag), place / "chains" / tag)
+
+
+def prepare(config, tags, now=None, root=None, history=()):
+    """材料だけの写しを作り、その置き場を返す。関所に当たれば StageError（何も作らない）。root はハーネスの木（既定は ROOT）。
+    history は前の周の材料 [{id, proposal, result, tags}]（copy_history）。"""
     root = Path(root or ROOT)
     tags = list(tags)
     bad = [t for t in tags if not TAG.match(t)]
@@ -100,12 +115,13 @@ def prepare(config, tags, now=None, root=None):
         archive(root, rev, dest / "repo")
         for t in tags:
             shutil.copytree(pl.chains_dir(cfg, t), dest / "out" / "chains" / t)
+        copy_history(cfg, dest, history)
         raw = json.loads(Path(config).read_text(encoding="utf-8"))
         raw["out"] = str(dest / "out")   # oracles などは今の値のまま（関所が読む根と重ならないかを見る）
         (dest / "hline.json").write_text(json.dumps(raw, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        (dest / BATCH).write_bytes(launch_bat(dest, tags).encode("ascii"))
+        (dest / BATCH).write_bytes(launch_bat(dest, tags, bool(history)).encode("ascii"))
         write_json(dest / MANIFEST, {"at": now.isoformat(timespec="seconds"), "tags": tags, "rev": rev,
-                                     "from": {t: str(pl.chains_dir(cfg, t)) for t in tags},
+                                     "from": {t: str(pl.chains_dir(cfg, t)) for t in tags}, "history": [past["id"] for past in history],
                                      "files": sum(1 for p in (dest / "out").rglob("*") if p.is_file())})
     except BaseException as e:
         shutil.rmtree(dest, ignore_errors=True)

@@ -1,4 +1,4 @@
-"""改善ループの機械の判定（v3 §7-7 の 3・4）：基準のステージの分類・対の実行の対象の選び・直した数と壊した数・回帰の守りの線。
+"""改善ループの機械の判定（v3 §7-7 の 3・4）：基準のステージの分類・対の実行の対象の選び・直した数と壊した数・再現の確かめ・回帰の守りの線。
 
 読むだけで、何も書かない。行（row）は採点（chain_score.finish・bench_pair.finish）が公開の集計に書く形：
 {"k": 段, "invalid": 無効の印か False, "new": [通った, 全部], "kept": [通った, 全部], "tokens": 数, ...}。
@@ -7,6 +7,7 @@
     python -m harness.cycle_judge --repo <リポジトリの根> <tag>...    ランごとの合計を出す（確かめ用）
 """
 import argparse
+import collections
 import json
 import sys
 from pathlib import Path
@@ -83,9 +84,10 @@ def targets(named, classes):
 def pair_counts(picked, classes, pairs):
     """pairs は対の実行の (旧版の行, 新版の行) の並び（{(土台, 段): 行} の組）。§7-7 の 3 の数え方：
     直した＝基準で 2 回とも落ちて、旧版が落ち、新版が通った。壊した＝基準で 2 回とも通って、旧版が通り、新版が落ちた。
-    旧版が基準と違う結果を出したステージと、どちらかの行が欠けるか無効のものは数えず、理由を残す。"""
-    fixed, broke, same, skipped = 0, 0, 0, []
-    for old_rows, new_rows in pairs:
+    旧版が基準と違う結果を出したステージと、どちらかの行が欠けるか無効のものは数えず、理由を残す。
+    fixed_at は直したものの [土台, 段, 何番目の対か] の列（再現の確かめが使う）。"""
+    fixed, broke, same, skipped = [], 0, 0, []
+    for i, (old_rows, new_rows) in enumerate(pairs):
         for key in picked:
             want, old, new = classes.get(key), outcome(old_rows.get(key)), outcome(new_rows.get(key))
             if UNKNOWN in (old, new):
@@ -93,12 +95,35 @@ def pair_counts(picked, classes, pairs):
             elif old != want:
                 skipped.append({"stage": list(key), "why": "旧版が基準と違う"})
             elif want == FAIL and new == PASS:
-                fixed += 1
+                fixed.append([*key, i])
             elif want == PASS and new == FAIL:
                 broke += 1
             else:
                 same += 1
-    return {"fixed": fixed, "broke": broke, "same": same, "skipped": skipped, "ok": fixed > broke}
+    return {"fixed": len(fixed), "fixed_at": fixed, "broke": broke, "same": same, "skipped": skipped, "ok": len(fixed) > broke}
+
+
+def fixed_times(fixed_at):
+    """{(土台, 段): 対の実行で直した回数}。"""
+    return collections.Counter((base, k) for base, k, _ in fixed_at)
+
+
+def to_repeat(fixed_at):
+    """再現の確かめで走らせる [(何番目の対か, [(土台, 段), ...])]。直った回と同じ開始の木から、新版でもう 1 回走らせる（§7-7 の 3）。
+    2 回の対で 2 回とも直ったステージは、確かめが済んでいるので入れない。"""
+    times, runs = fixed_times(fixed_at), {}
+    for base, k, i in fixed_at:
+        if times[(base, k)] == 1:
+            runs.setdefault(i, []).append((base, k))
+    return sorted(runs.items())
+
+
+def repro_counts(fixed_at, broke, rows):
+    """再現の確かめの数え方（§7-7 の 3）。rows はもう 1 回の新版の行（{(土台, 段): 行}）。再現した＝もう 1 回の新版が通ったか、対の 2 回とも直った。
+    行が欠けるか無効なら、再現していないと数える（確かめられなかったものに開発用のランの費用を使わない）。"""
+    times = fixed_times(fixed_at)
+    done = [key for key in order(times) if times[key] > 1 or outcome(rows.get(key)) == PASS]
+    return {"reproduced": len(done), "ok": len(done) > broke}
 
 
 # ============================================================ §7-7 の 4：回帰の守り
