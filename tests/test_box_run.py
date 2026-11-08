@@ -272,6 +272,25 @@ class Tries(Base):
         self.assertIn("受け取らなかった", gate_log)
         self.assertEqual(got[2][0]["box_dropped"], [["tests/helpers.py", "許されたパスの外の新しいファイル"]])
 
+    def test_the_next_try_gets_the_note_after_the_gate_output_is_narrowed(self):
+        """門の出力を絞っても、受け取らなかったファイルの知らせは次の試行の入力に届く（11-08 の空走りで、絞りに消されていた）。"""
+        outdir = self.tmp / "out"
+        outdir.mkdir()
+        host, sent = SimpleNamespace(new_worktree=None, changed_paths=lambda wt, cfg: ["pkg/a.py"], gate=lambda *a, **k: (False, "FAIL: test_x (t.T)\n通った行")), []
+
+        def implement(cfg, wt, what, feedback, log):
+            sent.append(feedback)
+            host.box_dropped = [["scratch.py", "許されたパスの外の新しいファイル"]]
+            Path(log).write_text("{}", encoding="utf-8")
+            return (0, [MODEL], None, None, 1)
+        host.implement = implement
+        cfg = {"max_attempts": 2, "ttl_seconds": {"implementer": 10, "gate": 10, "git": 10}, "box": {"package": "pkg"}}
+        with mock.patch.object(hline_task.hline_resume, "keep"), mock.patch.object(hline_task.hline_resume, "previous", return_value=None):
+            hline_task.run_task(host, cfg, "t", "本文", outdir, first=(self.tmp, "b"))
+        self.assertIn("FAIL: test_x", sent[1])
+        self.assertNotIn("通った行", sent[1])
+        self.assertIn("- scratch.py：許されたパスの外の新しいファイル", sent[1])
+
     def test_a_passed_gate_only_records_it(self):
         got, gate_log = self.run_task([["scratch.py", "許されたパスの外の新しいファイル"]], True)
         self.assertNotIn("受け取らなかった", gate_log)
@@ -381,6 +400,12 @@ class Note(unittest.TestCase):
         text = box_tree.dropped_note([["tests/helpers.py", "外"], ["x", "リンク"]])
         self.assertIn("- tests/helpers.py：外", text)
         self.assertIn("- x：リンク", text)
+
+    def test_dropped_note_shows_only_the_first_names_and_the_count(self):
+        text = box_tree.dropped_note([[f"f{i}", "外"] for i in range(box_tree.DROPPED_SHOWN + 3)])
+        self.assertIn(f"- f{box_tree.DROPPED_SHOWN - 1}：外", text)
+        self.assertNotIn(f"- f{box_tree.DROPPED_SHOWN}：外", text)
+        self.assertIn("- ほか 3 件", text)
 
 
 if __name__ == "__main__":
