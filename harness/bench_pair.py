@@ -238,7 +238,7 @@ def publish(dest, public, priv, keys=SUMMARY):
     段ごとの行を含む今までの形は、非公開の置き場 priv（oracles の下）の public_full.json に書く。dev は今までの形のまま。"""
     if public.get("set") != "dev":
         hline_base.write_json(Path(priv) / "public_full.json", public)
-        public = {**{k: public.get(k) for k in keys}, "totals": totals(public.get("stages") or [])}
+        public = {**{k: public.get(k) for k in keys}, **({"arm": public["arm"]} if public.get("arm") else {}), "totals": totals(public.get("stages") or [])}
     hline_base.write_json(dest, public)
 
 

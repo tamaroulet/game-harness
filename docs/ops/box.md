@@ -73,3 +73,15 @@ python -m harness.bench_chain finish --tag <t> --repo <クローン> --out <置�
 - 実装役はコマンドを使えます（`--sandbox` は付けません。1.5.3 の `--sandbox` はコマンドを止めないので、コマンド無しの走りは作りません）。
 - 新しく作ったファイルのうち、課題のパッケージと `tests/test_<パッケージ>*` の外のものは受け取りません。受け取らなかった名は試行の記録（`box_dropped`）に残り、門に落ちたときは次の試行の入力で実装役に知らせます。
 - agy の `--print-timeout` は、stream-json の入力では終了コード 0 のまま、標準エラーの `AGY_ERROR` の `reason` が `print_timeout` になります。時間切れとして扱います。
+
+## 素のエージェント A の走り（v3 §8 の E5）
+
+stage と finish は B と同じです。run だけを `harness.bench_solo` に替えます。A は箱でだけ走るので、stage に `--box` が要ります。
+
+```
+python -m harness.bench_solo run --tag <t> --repo <クローン> --base <rev> --staged <stage が出した置き場> --out <置き場> --implementer config/bench_implementer_agy.json
+```
+
+- 段ごとに実装役を新しく 1 回だけ呼びます。呼び出しの時間は B の段の上限と同じ 1 時間で、門・やり直し・受け取らなかった知らせはありません。頼みは `docs/bench/prompts/solo.md` の前置きに、B と同じ What の文と検証コマンドを足したものです。
+- 段の開始のコミット・箱・実装役の設定・呼び出しの経路・受け取りの決まり・試行の後のコミット・記録の形は B と同じで、finish がそのまま採点します。鎖の記録と公開の集計には `arm: solo` が載ります。タグは腕ごとに分けます。
+- 走り直しは環境の破れだけです。利用枠が尽きたら、その段を無効と書いて終了コード 2 で止まります。回復の後に同じ命令で続きから走ります（書き終えた土台と走りは使います）。

@@ -592,7 +592,7 @@ def finish_chain(rec, out, chains, cfg, priv):
     priv.mkdir(parents=True, exist_ok=True)
     prev = grade(chains / base / "s0" / "tree", hidden_files(chains, base, 0), set(), bool(rec.get("box")))
     public = {"tag": rec["tag"], "set": rec.get("set"), "base": base, "rev": rec["rev"], "stopped": rec.get("stopped"),
-              "s0": rate(prev, prev), "stages": []}
+              "s0": rate(prev, prev), "stages": [], **({"arm": rec["arm"]} if rec.get("arm") else {})}   # 腕の名は A（bench_solo）の記録だけ
     last, tainted = {}, None
     for st in rec.get("stages") or []:
         last[st["k"]] = st
