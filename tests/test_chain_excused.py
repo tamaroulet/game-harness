@@ -165,7 +165,15 @@ class FinishStage(unittest.TestCase):
         git(self.repo, "commit", "-q", "-m", "start")
         self.start = subprocess.run(["git", "-C", str(self.repo), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
 
-    def finish(self, extra_files=(), steps=()):
+    def finish(self, extra_files=(), steps=(), box=False):
+        """box は箱の走りの印（採点の箱は呼ばず、試験の結果を差し替える）。"""
+        if box:
+            with patch.object(chain_score, "grade", return_value={"test_chain_B07_s1.T.test_a": "ok"}), \
+                    patch.object(chain_score, "start_results", return_value=None):
+                return self.finish_with(extra_files, steps, {"box": True})
+        return self.finish_with(extra_files, steps, {})
+
+    def finish_with(self, extra_files, steps, mark):
         (self.repo / "pkg" / "mod.py").write_text("def f(): return 2\n", encoding="utf-8")
         for name in extra_files:
             (self.repo / name).write_text("WARNING: Nan, Inf or huge value in QACC\n", encoding="utf-8")
@@ -175,7 +183,7 @@ class FinishStage(unittest.TestCase):
         git(self.repo, "bundle", "create", str(self.rundir / "git" / "run.bundle"), "tip")
         if steps:
             write_log(self.rundir / "items" / "w1" / "implementer-0-1.log", bench_run.work_dir(self.out, "B07", "t-s1"), steps)
-        rec, st, row = {"base": "B07", "package": "pkg"}, {"k": 1, "run_id": "t-s1", "start": self.start}, {}
+        rec, st, row = {"base": "B07", "package": "pkg", **mark}, {"k": 1, "run_id": "t-s1", "start": self.start}, {}
         cfg = {"out": str(self.out), "oracles": str(self.chains.parent), "inbox": str(self.root / "inbox")}
         with patch.object(chain_score.machine, "path", return_value=self.local):
             chain_score.finish_stage(rec, st, row, self.out, self.chains, cfg, self.priv, {})
@@ -203,6 +211,34 @@ class FinishStage(unittest.TestCase):
         self.assertEqual(priv["own_records"], [["implementer-0-1.log", "view_file", str(mine)]])
         self.assertIn("## 開けなかった道（無効にしない）\n\n- implementer-0-1.log：view_file — " + str(p), index)
         self.assertIn("## 自分の会話の記録（無効にしない）\n\n- implementer-0-1.log：view_file — " + str(mine), index)
+
+    def rm_outside(self):
+        """箱の中で、Windows のパスを名に持つフォルダを消すコマンド（v3 §15 の 11-08 その 3 で当たったものと同じ形）。"""
+        p = self.local / "out" / "harness" / "selftest"
+        return p, ("run_command", {"CommandLine": f'rm -rf "{p}"'}, "DONE", "", None)
+
+    def test_box_run_paths_outside_are_recorded_not_counted(self):
+        p, rm = self.rm_outside()
+        row, priv, index = self.finish(steps=[rm], box=True)
+        self.assertEqual(row["strays"], 0)
+        self.assertNotEqual(row.get("invalid"), "stray")
+        self.assertEqual(priv["strays"], [])
+        self.assertEqual(priv["box_paths"], [["implementer-0-1.log", "run_command", str(p)]])
+        self.assertIn("## 箱の中の外のパス（箱から届かない。無効にしない）\n\n- implementer-0-1.log：run_command — " + str(p), index)
+
+    def test_the_same_path_in_a_windows_run_stays_a_hit(self):
+        p, rm = self.rm_outside()
+        row, priv, _ = self.finish(steps=[rm])
+        self.assertEqual(row["strays"], 1)
+        self.assertEqual(priv["strays"], [["implementer-0-1.log", "run_command", str(p)]])
+        self.assertNotIn("box_paths", priv)
+
+    def test_box_run_net_tool_naming_the_repo_stays_a_hit(self):
+        url = ("read_url_content", {"Url": "https://github.com/tamaroulet/game-harness"}, "DONE", "ok", None)
+        row, priv, _ = self.finish(steps=[url], box=True)
+        self.assertEqual(row["strays"], 1)
+        self.assertEqual(len(priv["strays"]), 1)
+        self.assertNotIn("box_paths", priv)
 
     def test_nothing_excused_adds_no_keys_or_sections(self):
         """当たりにしなかったものが無ければ、非公開の記録の欄も索引の節も今までと同じ（採点し直しで、ファイルが変わらない）。"""

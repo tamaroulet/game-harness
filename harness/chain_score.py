@@ -16,6 +16,9 @@ oracles の chains/runs/<tag>/<土台>/ に置き、集計の数だけを <clone
   agy_stream.own_state と同じ決まりで、ほかの会話の記録はほかの走りの中身を含みうるので、今のまま当たり。
 - 道具の書き出し（artifacts）：作業ツリーの根の TOOL_ARTIFACTS（MuJoCo が警告のときに cwd に書く記録。ゲートの試験の走りで書かれ、
   H ラインのコミットに入る）。境界の違反に数えない。
+- 箱の中の外のパス（box_paths）：箱の走りで、ネットを見る道具でない手番の引数が、作業の場所の外の ${local} の下を指したもの。箱には
+  Windows の置き場が無く、その文字列は箱の中の名にしかならない（v3 §15 の 11-08 その 3。箱の中で試験が作った、Windows のパスを名に持つ
+  フォルダを消すコマンドが当たった）。ネットを見る道具の当たりは、箱の走りでも今のまま。
 """
 import ast
 import json
@@ -57,7 +60,7 @@ OWN_RECORD = re.compile(r"/\.gemini/antigravity-cli/brain/([^/]+)(?:/|$)")
 NOT_FOUND = re.compile(r"cannot find the (?:file|path)|no such file|does not exist", re.I)
 TOOL_ARTIFACTS = ("MUJOCO_LOG.TXT",)
 EXCUSED = (("unopened", "開けなかった道（無効にしない）"), ("own_records", "自分の会話の記録（無効にしない）"),
-           ("artifacts", "道具の書き出し（範囲の外の変更に数えない）"))
+           ("artifacts", "道具の書き出し（範囲の外の変更に数えない）"), ("box_paths", "箱の中の外のパス（箱から届かない。無効にしない）"))
 
 # 採点：<tree> と <tests> を import の道の先頭に置き、<tests> の試験を走らせ、試験ごとに "ok" か理由の 1 行を出す。
 # subTest の 1 つの失敗は親の失敗（件数を水増ししない）。読めた試験で結果の無いもの（読み込みの誤りを含む）は MISSING
@@ -530,7 +533,8 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
         got = adopt(log, steps_of(log)[1], own)
         subs, missing = subs + got[0], missing + got[1]
     found, web, unopened_, own_records = audit_all(logs, own, machine.path("local"), (base, pkg, "docs/bench", "chain/s"), subs)
-    found += missing + [(Path(p).name, LINK_TOOL, LINK_HIT) for p in links]
+    box_paths = [f for f in found if not NET_TOOL.search(f[1])] if boxed else []   # 箱から外の置き場には届かない（上の docstring）
+    found = [f for f in found if f not in box_paths] + missing + [(Path(p).name, LINK_TOOL, LINK_HIT) for p in links]
     gone = replaced(chains, base, k)
     with tempfile.TemporaryDirectory(prefix="bench-chain-") as tmp:
         tree = tip_tree(rundir, tmp)
@@ -541,7 +545,7 @@ def finish_stage(rec, st, row, out, chains, cfg, priv, prev):
         res = grade(tree, hidden_files(chains, base, k), gone, boxed)
         at_start = start_results(rundir, tmp, st, hidden_files(chains, base, k), gone, boxed)
     violations, artifacts = boundary(names, pkg)
-    excused = {key: v for key, v in (("unopened", unopened_), ("own_records", own_records), ("artifacts", artifacts)) if v}
+    excused = {key: v for key, v in (("unopened", unopened_), ("own_records", own_records), ("artifacts", artifacts), ("box_paths", box_paths)) if v}
     new = [t for t in res if stage_of(t, base) == k]
     old = [t for t in res if t not in new]
     row.update(new=rate(res, new), old=rate(res, old), kept=rate(res, [t for t in old if prev.get(t) == "ok"]),
