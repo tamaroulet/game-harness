@@ -171,6 +171,7 @@
         "bench_regress.py",
         "bench_run.py",
         "bench_score.py",
+        "bench_solo.py",
         "bench_start.py",
         "bench_verify.py",
         "box.py",
