@@ -182,6 +182,17 @@ class Chain(unittest.TestCase):
         self.assertIn("箱でだけ", err.getvalue())
 
 
+class Agent(unittest.TestCase):
+    def test_the_implementer_config_is_read_like_b(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "agent.json"
+            p.write_text(json.dumps(AGENT), encoding="utf-8")
+            self.assertEqual(bench_solo.load_agent(p), AGENT)
+            p.write_text("[]", encoding="utf-8")
+            with self.assertRaises(bench_solo.BenchError):
+                bench_solo.load_agent(p)
+
+
 class Arm(unittest.TestCase):
     def test_the_arm_reaches_the_public_summary_and_b_records_are_unchanged(self):
         with tempfile.TemporaryDirectory() as tmp:

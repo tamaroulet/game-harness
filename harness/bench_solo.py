@@ -14,6 +14,7 @@ A は段ごとに 1 回だけ呼ぶ。呼び出しの時間は B の段の上限
 """
 import argparse
 import datetime
+import json
 import os
 import sys
 import types
@@ -212,7 +213,8 @@ def run_chain(ctx, rev, kind):
 
 
 def load_agent(path):
-    doc = bench_run.read_json(Path(path), None)
+    """実装役の設定（B の Factory.load_implementer と同じ読み方。読めない・壊れた JSON は OSError・ValueError のまま上げる）。"""
+    doc = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(doc, dict):
         raise BenchError(f"--implementer の中身がオブジェクトではありません: {path}")
     return doc
