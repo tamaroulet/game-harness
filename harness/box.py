@@ -236,6 +236,11 @@ def agent_opts(cfg, home=None):
     return [*guards(cfg, home), "--network", cfg["network"], *env, "-v", WORK, "-v", f"{cfg['token']}:{TOKEN_IN}:ro"]
 
 
+def home_name(tag, base):
+    """会話の形の、鎖ごとのホームのボリュームの名（A の bench_solo と B の bench_chain。続きから走るときに同じ名を引く）。"""
+    return f"box-chat-{tag}-{base}".lower()
+
+
 def home_volume(cfg, name):
     """会話を続ける実装役のホーム（鎖ごとの名前つきボリューム）。無ければ作る。最初に付けたとき、像の /home/bench の中身と持ち主が写る。"""
     if _call([*docker_cmd(cfg), "volume", "inspect", name])[0] != 0:

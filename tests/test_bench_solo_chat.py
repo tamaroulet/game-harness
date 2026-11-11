@@ -185,7 +185,7 @@ class ChainHome(unittest.TestCase):
         self.assertEqual(dropped, [])
 
     def test_the_home_name_is_a_valid_volume_name(self):
-        self.assertEqual(bench_solo.home_name("e5-a-chat1", "B07"), "box-chat-e5-a-chat1-b07")
+        self.assertEqual(bench_solo.box.home_name("e5-a-chat1", "B07"), "box-chat-e5-a-chat1-b07")
 
     def test_the_command_line_has_the_chat_switch(self):
         with patch.object(bench_solo, "run", side_effect=lambda a: a) as run:

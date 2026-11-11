@@ -224,11 +224,6 @@ def run_step(ctx, k):
     return None
 
 
-def home_name(tag, base):
-    """会話の形の、鎖ごとのホームのボリュームの名（続きから走るときに同じ名を引く）。"""
-    return f"box-chat-{tag}-{base}".lower()
-
-
 def run_chain(ctx, rev, kind):
     """土台 1 本の鎖。記録は bench_chain.run_chain と同じ形に、箱の印と腕の名を足したもの。会話の形は、鎖のホームを作って会話を続け、
     鎖を書き終えたらホームを消す（利用枠や異常で途中で止まったときは残し、同じ命令の続きが使う）。"""
@@ -237,7 +232,7 @@ def run_chain(ctx, rev, kind):
     ctx.rec = {"tag": ctx.tag, "set": kind, "base": ctx.base, "package": ctx.pkg, "rev": rev, "s0": ctx.tip, "stages": [],
                "stopped": None, "box": True, "arm": getattr(ctx, "arm", ARM), "planned": int(ctx.entry["stages"])}
     if chat:
-        ctx.home, ctx.conversation = box.home_volume(box.settings(), home_name(ctx.tag, ctx.base)), None
+        ctx.home, ctx.conversation = box.home_volume(box.settings(), box.home_name(ctx.tag, ctx.base)), None
     for k in range(1, int(ctx.entry["stages"]) + 1):
         st = run_step(ctx, k)
         if st is None:
