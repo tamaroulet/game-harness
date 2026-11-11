@@ -47,6 +47,9 @@ GIT_MAIL = "box@example.invalid"
 # 実装役の箱の始まり：認証をホームへ写し、開始の木を 1 コミットにしてから（実装役が git diff などを使える。外の .git は見せない）実装役を起こす
 START = (f'mkdir -p "$HOME/.gemini/antigravity-cli" && install -m 600 {TOKEN_IN} "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" '
          f'&& git init -q --template= && git -c core.safecrlf=false add -A && git commit -q --no-gpg-sign -m start && exec "$@"')
+# 会話を続ける実装役（A の会話の形、v3 §15 の 11-12 その 2）の始まり：ホームは鎖ごとの名前つきボリュームで、agy の会話の記録が段をまたいで残る。
+# 認証は呼び出しの間だけホームに置き、実装役が終われば消す（時間切れで止めた箱では残り、鎖の終わりにボリュームごと消す）
+START_KEEP = START.replace('&& exec "$@"', '&& { "$@"; rc=$?; rm -f "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"; exit $rc; }')
 UNPACK_AND_RUN = f'tar -x -C {WORK} && cd {WORK} && exec "$@"'
 PROBE = r'''
 import json, os, socket
@@ -213,22 +216,36 @@ class Keep:
 
 # ============================================================ 箱
 
-def guards(cfg):
-    """どの箱にも付ける守り。ルートは読み取り専用、権限なし、利用者は bench、ホームは tmpfs。Windows のフォルダは渡さない。"""
+def guards(cfg, home=None):
+    """どの箱にも付ける守り。ルートは読み取り専用、権限なし、利用者は bench、ホームは tmpfs。Windows のフォルダは渡さない。
+    home（名前つきボリュームの名）を渡すと、ホームをそのボリュームにする（会話を続ける実装役だけ。home_volume）。"""
     lim = cfg["limits"]
-    return ["--read-only", "--tmpfs", f"/tmp:size={lim['tmp']},exec", "--tmpfs", f"{HOME}:size={lim['tmp']},exec,uid={USER_ID},gid={USER_ID}",
+    keep = ["-v", f"{home}:{HOME}"] if home else ["--tmpfs", f"{HOME}:size={lim['tmp']},exec,uid={USER_ID},gid={USER_ID}"]
+    return ["--read-only", "--tmpfs", f"/tmp:size={lim['tmp']},exec", *keep,
             "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", str(lim["pids"]), "--memory", lim["memory"],
             "--user", USER_ID, "-e", f"HOME={HOME}", "-i", "-w", WORK]
 
 
-def agent_opts(cfg):
+def agent_opts(cfg, home=None):
     """実装役の箱：閉じた網と中継だけ。作業の木は名の無いボリューム（容器を消すときに一緒に消える）。認証は読むだけで渡す。"""
     proxy = f"http://{cfg['proxy_name']}:{cfg['proxy_port']}"
     env = [x for k in ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy") for x in ("-e", f"{k}={proxy}")]
     env += [x for k in ("NO_PROXY", "no_proxy") for x in ("-e", f"{k}={NO_PROXY}")]
     env += [x for k, v in (("GIT_AUTHOR_NAME", GIT_ID), ("GIT_AUTHOR_EMAIL", GIT_MAIL), ("GIT_COMMITTER_NAME", GIT_ID), ("GIT_COMMITTER_EMAIL", GIT_MAIL))
             for x in ("-e", f"{k}={v}")]
-    return [*guards(cfg), "--network", cfg["network"], *env, "-v", WORK, "-v", f"{cfg['token']}:{TOKEN_IN}:ro"]
+    return [*guards(cfg, home), "--network", cfg["network"], *env, "-v", WORK, "-v", f"{cfg['token']}:{TOKEN_IN}:ro"]
+
+
+def home_volume(cfg, name):
+    """会話を続ける実装役のホーム（鎖ごとの名前つきボリューム）。無ければ作る。最初に付けたとき、像の /home/bench の中身と持ち主が写る。"""
+    if _call([*docker_cmd(cfg), "volume", "inspect", name])[0] != 0:
+        docker(cfg, "volume", "create", name)
+    return name
+
+
+def drop_home(cfg, name):
+    """鎖の終わりに、会話を続ける実装役のホームを消す（会話の記録と、時間切れで残った認証の写しも消える）。"""
+    _quiet(cfg, "volume", "rm", "-f", name)
 
 
 def tests_opts(cfg):
@@ -243,12 +260,13 @@ def new_files_rule(package):
     return lambda rel: rel.startswith(package + "/") or tests.fullmatch(rel) is not None
 
 
-def agent(cfg, argv, wt, ttl, stdin, allowed=None):
+def agent(cfg, argv, wt, ttl, stdin, allowed=None, home=None):
     """実装役の 1 回の試行を箱で走らせ、変更を wt に受け取る。(終了コード, 標準出力, 標準エラー, 受け取りの記録)。
-    時間切れは終了コード 124（箱は止める。そこまでの変更も受け取る）。docker 自身の失敗は BoxError。"""
+    時間切れは終了コード 124（箱は止める。そこまでの変更も受け取る）。docker 自身の失敗は BoxError。
+    home（home_volume の名）を渡すと、ホームをそのボリュームにし、会話の記録を次の呼び出しへ残す。"""
     name = f"box-agent-{secrets.token_hex(6)}"
     try:
-        docker(cfg, "create", "--name", name, *agent_opts(cfg), cfg["image"], "bash", "-c", START, "_", *argv)
+        docker(cfg, "create", "--name", name, *agent_opts(cfg, home), cfg["image"], "bash", "-c", START_KEEP if home else START, "_", *argv)
         docker(cfg, "cp", "-", f"{name}:{WORK}", data=box_tree.pack(wt))
         code, out, err = _call([*docker_cmd(cfg), "start", "-ai", name], stdin.encode("utf-8"), ttl)
         if code == TIMED_OUT:
@@ -340,6 +358,18 @@ def check(cfg):
         except ValueError:
             problems.append(f"箱の確かめが読めません（終了コード {code}）: {err.strip()[-300:]}")
     return problems + proxy_problems(cfg)
+
+
+def check_cached(cfg, memo=None):
+    """check の外れの列。memo（呼び手の持つ dict。走りの起動ごとに 1 つ）があれば合格を覚え、同じ起動の 2 回目からは省く
+    （11-12 に測ると、check は 1 回 8〜10 秒で、ほとんどが中継の確かめ）。外れは覚えない（次の段でもう一度確かめる）。
+    段ごとには呼び手が require（像の指紋、0.4 秒）を見て、実装役の呼び出しごとに ensure_net が中継の像と動きを見る。"""
+    if memo is not None and memo.get("passed"):
+        return []
+    problems = check(cfg)
+    if memo is not None:
+        memo["passed"] = not problems
+    return problems
 
 
 def setup(cfg):

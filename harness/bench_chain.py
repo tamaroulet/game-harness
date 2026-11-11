@@ -216,9 +216,10 @@ class ChainStage(bench_run.Factory):
     """鎖の段の 1 回の走り。開始のコミットと仕様を外から受け取り、HEAD を確かめず、段の上限で止め、What ごとの生ログを写す。
     H ラインは clone の先端の harness/ で走るので、その木が走らせ役の木と違えば、poll の前に無効にして止める。"""
 
-    def __init__(self, a, start, spec, boxed=None):
+    def __init__(self, a, start, spec, boxed=None, box_memo=None):
         super().__init__(a)
         self.start_sha, self.spec, self.boxed = start, Path(spec), boxed   # boxed は課題のパッケージの名（箱の走りのときだけ）
+        self.box_memo = box_memo   # 走りの起動ごとの箱の確かめの覚え（box.check_cached）。無ければ段ごとに確かめる
 
     def box_mark(self, cfg):
         """H ラインの設定に箱の印を置く（hline_agy・門・全件・進捗の記録がこれを見る）。"""
@@ -231,7 +232,7 @@ class ChainStage(bench_run.Factory):
         try:
             settings = box.settings()
             self.run["box_image"] = box.require(settings)
-            problems = box.check(settings)
+            problems = box.check_cached(settings, self.box_memo)
         except box.BoxError as e:
             problems = [str(e)]
         if problems:
@@ -357,7 +358,7 @@ def run_step(a, repo, out, staged, entry, tip, k, rec):
             plan = write_plan(out / "chains" / a.tag / base / run_id, base, pkg, k, info, files)
             ns = argparse.Namespace(task=base, run_id=run_id, repo=str(repo), base=tip, out=str(out), sessions=no_sessions(out) if boxed else a.sessions,
                                     plan=str(plan), implementer=a.implementer)
-            code = run_stage(ChainStage(ns, start, spec, boxed))
+            code = run_stage(ChainStage(ns, start, spec, boxed, getattr(a, "box_memo", None)))
         done = bench_run.read_json(rundir / "factory" / "run.json", {})
         st = {"k": k, "attempt": attempt, "run_id": run_id, "code": code, "base": done.get("base") or tip,
               "start": done.get("start") or start, "head": done.get("head"),
@@ -394,6 +395,7 @@ def run(a):
     if (why := bench_run.version_problem(repo, a.base)):
         print(f"ABORT: {why}", file=sys.stderr)
         return 2
+    a.box_memo = {}   # 箱の確かめ一式は、この起動の最初の段だけ（box.check_cached）
     try:
         rev = git(repo, ["rev-parse", "--verify", "-q", f"{a.base}^{{commit}}"]).decode().strip()
         with bench_run.KeepAwake(), box.Keep(box.settings()) if doc.get("box") else contextlib.nullcontext():
