@@ -21,6 +21,7 @@ SANDBOX = "--sandbox"
 TIMEOUT_EXIT = 124
 AGY_ERROR = "AGY_ERROR:"          # 1.5.3 が標準エラーに出す構造の行。stream-json の入力では終了コードが 0 のまま出る（11-08 の実測）
 PRINT_TIMEOUT = "print_timeout"   # --print-timeout で切れたときの reason
+INTERRUPTED = "interrupted"       # 呼び出しが外から切れたときの result の error（11-12 の実測：箱の Docker のつまずきと同じ時に、終了コード 1・応答は空・変更 0）
 NOTE = "命令の実行の道具（run_command など）は使えません。ファイルの一覧と検索は、読みと検索の道具で行ってください\n"
 
 
@@ -50,6 +51,12 @@ def agy_error(err):
                 doc = None
             return doc if isinstance(doc, dict) else {"short_error": line[:300]}
     return None
+
+
+def interrupted(parsed):
+    """agy の result の status が ERROR で、error が INTERRUPTED か（agy_stream.outcome の読み）。"""
+    end = parsed.get("outcome") or {}
+    return end.get("status") == "ERROR" and end.get("error") == INTERRUPTED
 
 
 def summary(parsed, log, boxed=False):
@@ -127,6 +134,8 @@ def implement(host, cfg, wt, prompt, log):
         return (TIMEOUT_EXIT, [], None, None, None)
     if failed:   # モデルや API の失敗で手番が切れた（枠切れは上で見た）。実装役の失敗に数えない
         raise Infra(f"実装役の API の失敗（終了コード {code}）: {str(failed.get('short_error') or failed)[:300]}")
+    if interrupted(parsed):   # 実装役が終えたのではなく、呼び出しが途中で切れた。実装役の失敗に数えず、A は段を、B は What を呼び直す
+        raise Infra(f"実装役の呼び出しが途中で切れました（終了コード {code}、result の error が {INTERRUPTED}）")
     if code in infra_retry.INFRA_EXIT_CODES:
         raise Infra(f"実装役の CLI が終了コード {code}: {infra_retry.classify_exit(code, err)}")
     try:

@@ -87,12 +87,24 @@ def non_cache(row):
     return chain_metrics.num(((row or {}).get("cost") or {}).get("non_cache"))
 
 
+def solo(row):
+    """A の行か（finish が門の欄を None で書く。B は門の dict、門の欄の無い古い行は B）。"""
+    return bool(row) and "gate" in row and row["gate"] is None
+
+
+def stopped(row):
+    """段の上限で腕が止まったか。A の stop の tokens は、段の予算（B の上限）を超えた印で、A は止めていない（bench_solo は
+    1 回の呼び出しをトークンでは切らない）。A が止まるのは時間切れだけ。"""
+    stop = (row or {}).get("stop")
+    return stop == "time" or (stop == "tokens" and not solo(row))
+
+
 def claimed(row):
-    """腕が段を終えたと言ったか：B は門を通った（gate.passed）、A は正常に終えた（stop が done）。門の欄の無い古い行は None。
-    B の stop は門に通らなくても done になるので、B を stop では判じない。"""
+    """腕が段を終えたと言ったか：B は門を通った（gate.passed）、A は自分で終えた（stop が done か、予算を超えた印の tokens）。
+    門の欄の無い古い行は None。B の stop は門に通らなくても done になるので、B を stop では判じない。"""
     if not row or "gate" not in row:
         return None
-    return bool(row["gate"].get("passed")) if isinstance(row["gate"], dict) else row.get("stop") == "done"
+    return bool(row["gate"].get("passed")) if isinstance(row["gate"], dict) else row.get("stop") in ("done", "tokens")
 
 
 def failure(row):
@@ -101,7 +113,7 @@ def failure(row):
         return "missing"
     if row.get("invalid") or row.get("violations"):
         return "invalid"
-    if row.get("stop") in ("time", "tokens"):
+    if stopped(row):
         return "limit"
     if isinstance(row.get("gate"), dict) and not row["gate"].get("passed"):
         return "gate"
@@ -196,7 +208,7 @@ def health(runs, items):
     return {**trust(rows), "missing": len(rows) - len(have), "invalid": invalid,
             "violations": sum(1 for x in have if x.get("violations")), "strays": chain_metrics.total(x.get("strays") for x in have),
             "leaks": chain_metrics.total(x.get("leaks") for x in have), "web": chain_metrics.total(x.get("web") for x in have),
-            "limit": sum(1 for x in have if x.get("stop") in ("time", "tokens")),
+            "limit": sum(1 for x in have if stopped(x)),
             "retried": sum(1 for x in have if (chain_metrics.num(x.get("attempts")) or 1) > 1),
             "new_at_start_full": sum(1 for s in start if s[0] == s[1]), "new_at_start_some": sum(1 for s in start if s[0])}
 
