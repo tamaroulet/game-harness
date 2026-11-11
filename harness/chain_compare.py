@@ -352,6 +352,10 @@ def p_text(test, key):
     return "—" if not test else f"p={test[key]:.4g}"
 
 
+def tokens_text(x):
+    return "—" if x is None else f"{x:,.0f}"
+
+
 def summary_lines(doc):
     a, b, v = doc["a"], doc["b"], doc["verdicts"]
     qa, qb = a["quality"], b["quality"]
@@ -360,7 +364,7 @@ def summary_lines(doc):
              f"累積の完了：A {qa['complete']}/{qa['stages']}（{pct(qa['complete_rate'])}）・B {qb['complete']}/{qb['stages']}"
              f"（{pct(qb['complete_rate'])}）・差の平均 {(t['quality'] or {}).get('mean', 0) * 100:+.1f} ポイント",
              f"今までの数え方（保ち）の通過：A {qa['passed']}・B {qb['passed']}",
-             f"段あたりのキャッシュでない分：A {a['cost']['non_cache_per_stage']}・B {b['cost']['non_cache_per_stage']}"
+             f"段あたりのキャッシュでない分：A {tokens_text(a['cost']['non_cache_per_stage'])}・B {tokens_text(b['cost']['non_cache_per_stage'])}"
              f"（費用の対 {v['cost_items']}、除いた項目 {v['cost_excluded']}）",
              "4 分割表（両方完了・B だけ・A だけ・両方落ち）：" + "・".join(str(doc["four_way"]["sum"][k]) for k in TABLE),
              f"検定（帰無：腕に違いが無い）：品質の優越 {p_text(t['quality'], 'greater')}・費用の優越 {p_text(t['cost'], 'less')}"
