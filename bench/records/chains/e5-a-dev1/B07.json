@@ -1,0 +1,309 @@
+{
+ "tag": "e5-a-dev1",
+ "set": "dev",
+ "base": "B07",
+ "rev": "7dc06205773864b109615ce89a00b6437d9d960d",
+ "stopped": null,
+ "s0": [
+  11,
+  11
+ ],
+ "stages": [
+  {
+   "k": 1,
+   "run_id": "e5-a-dev1-s1",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 1984334,
+   "cost": {
+    "input": 197621,
+    "output": 48768,
+    "cache_read": 1737945,
+    "cache_creation": 0,
+    "total": 1984334,
+    "non_cache": 246389,
+    "seconds": 514.0,
+    "agent_seconds": 485.5,
+    "wait_seconds": 0,
+    "turns": 90,
+    "model_turns": 45,
+    "commands": 36,
+    "calls": 1,
+    "dropped": 0,
+    "runs": 1
+   },
+   "gate": null,
+   "new": [
+    8,
+    8
+   ],
+   "old": [
+    11,
+    11
+   ],
+   "kept": [
+    11,
+    11
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    8
+   ],
+   "manifest_sha256": "315e2f6c6d582160c16fe595c5a7a28ebd36e6bce9bb2d4b0de915f1e0995cb3"
+  },
+  {
+   "k": 2,
+   "run_id": "e5-a-dev1-s2",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "tokens",
+   "tries": 1,
+   "tokens": 4321124,
+   "cost": {
+    "input": 246560,
+    "output": 68817,
+    "cache_read": 4005747,
+    "cache_creation": 0,
+    "total": 4321124,
+    "non_cache": 315377,
+    "seconds": 711.0,
+    "agent_seconds": 687.0,
+    "wait_seconds": 0,
+    "turns": 125,
+    "model_turns": 62,
+    "commands": 45,
+    "calls": 1,
+    "dropped": 0,
+    "runs": 1
+   },
+   "gate": null,
+   "new": [
+    12,
+    12
+   ],
+   "old": [
+    14,
+    14
+   ],
+   "kept": [
+    14,
+    14
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    1,
+    12
+   ],
+   "manifest_sha256": "ed0d0d024ab430e5109c584d2a4b6ddbfd822d7a430d2d1f56dac78867bf3fd3"
+  },
+  {
+   "k": 3,
+   "run_id": "e5-a-dev1-s3",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 2597179,
+   "cost": {
+    "input": 260952,
+    "output": 43776,
+    "cache_read": 2292451,
+    "cache_creation": 0,
+    "total": 2597179,
+    "non_cache": 304728,
+    "seconds": 530.0,
+    "agent_seconds": 504.3,
+    "wait_seconds": 0,
+    "turns": 115,
+    "model_turns": 57,
+    "commands": 40,
+    "calls": 1,
+    "dropped": 0,
+    "runs": 1
+   },
+   "gate": null,
+   "new": [
+    2,
+    2
+   ],
+   "old": [
+    26,
+    26
+   ],
+   "kept": [
+    26,
+    26
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    2
+   ],
+   "manifest_sha256": "9dc14ed5207f7da78acbe184d53b78eeabd7f2fa4360316d95dd751e4432c996"
+  },
+  {
+   "k": 4,
+   "run_id": "e5-a-dev1-s4",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 2539674,
+   "cost": {
+    "input": 243281,
+    "output": 48212,
+    "cache_read": 2248181,
+    "cache_creation": 0,
+    "total": 2539674,
+    "non_cache": 291493,
+    "seconds": 520.0,
+    "agent_seconds": 499.0,
+    "wait_seconds": 0,
+    "turns": 93,
+    "model_turns": 46,
+    "commands": 30,
+    "calls": 1,
+    "dropped": 0,
+    "runs": 1
+   },
+   "gate": null,
+   "new": [
+    6,
+    6
+   ],
+   "old": [
+    27,
+    27
+   ],
+   "kept": [
+    27,
+    27
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    3,
+    6
+   ],
+   "manifest_sha256": "7fd5675dfbcea0b087e7046d507f54dd336734a2fa7a1660e58b7fda561c1b08"
+  },
+  {
+   "k": 5,
+   "run_id": "e5-a-dev1-s5",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 2028240,
+   "cost": {
+    "input": 237421,
+    "output": 42002,
+    "cache_read": 1748817,
+    "cache_creation": 0,
+    "total": 2028240,
+    "non_cache": 279423,
+    "seconds": 553.0,
+    "agent_seconds": 531.2,
+    "wait_seconds": 0,
+    "turns": 99,
+    "model_turns": 49,
+    "commands": 36,
+    "calls": 1,
+    "dropped": 0,
+    "runs": 1
+   },
+   "gate": null,
+   "new": [
+    4,
+    4
+   ],
+   "old": [
+    33,
+    33
+   ],
+   "kept": [
+    33,
+    33
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    4
+   ],
+   "manifest_sha256": "15dc83839c004e67c428bb1eb5e91d0a4dfda07fd45743868c2efdf9beb1e229"
+  },
+  {
+   "k": 6,
+   "run_id": "e5-a-dev1-s6",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "tokens",
+   "tries": 1,
+   "tokens": 3264170,
+   "cost": {
+    "input": 260433,
+    "output": 68699,
+    "cache_read": 2935038,
+    "cache_creation": 0,
+    "total": 3264170,
+    "non_cache": 329132,
+    "seconds": 723.0,
+    "agent_seconds": 702.3,
+    "wait_seconds": 0,
+    "turns": 113,
+    "model_turns": 56,
+    "commands": 36,
+    "calls": 1,
+    "dropped": 0,
+    "runs": 1
+   },
+   "gate": null,
+   "new": [
+    10,
+    10
+   ],
+   "old": [
+    37,
+    37
+   ],
+   "kept": [
+    37,
+    37
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    10
+   ],
+   "manifest_sha256": "8784e976ced7254273e09630cc5f3422b1a8c4e95ca052c225fdedf53cf51c31"
+  }
+ ],
+ "arm": "solo",
+ "planned": 6
+}
