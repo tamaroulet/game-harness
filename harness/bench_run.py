@@ -274,8 +274,8 @@ class Timer:
 
 
 def pass_rates(items):
-    """(first_pass, recovered)：試行のある What のうち最初の試行で Gate 1 を通った割合と、最初に落ちた What のうち後で通った割合。"""
-    tried = [[isinstance(t, dict) and bool(t.get("gate")) for t in i.get("tries") or []] for i in items.values()]
+    """(first_pass, recovered)：試行のある What のうち最初の試行で Gate 1 を通った割合と、最初に落ちた What のうち後で通った割合（延長の前の試行 tries_before を含む）。"""
+    tried = [[isinstance(t, dict) and bool(t.get("gate")) for t in (i.get("tries_before") or []) + (i.get("tries") or [])] for i in items.values()]
     tried = [g for g in tried if g]
     if not tried:
         return None, None
@@ -689,7 +689,7 @@ class Factory:
         st = hline_queue.load_state(self.line_cfg) if getattr(self, "line_cfg", None) else {"items": {}}
         items = st["items"]
         run["replaced"] = sum(1 for i in items.values() if i.get("replaced"))
-        run["tries"] = sum(len(i.get("tries") or []) for i in items.values())
+        run["tries"] = sum(len(i.get("tries_before") or []) + len(i.get("tries") or []) for i in items.values())
         run["first_pass"], run["recovered"] = pass_rates(items)
         run["intake_revised"] = len(self.revised)
         run["queue_sha256"] = {n: sha256_file(hline_queue.what_path(self.line_cfg, n)) for n in sorted(items)

@@ -177,6 +177,8 @@
         "box.py",
         "box_run.py",
         "box_tree.py",
+        "chain_compare.py",
+        "chain_metrics.py",
         "chain_score.py",
         "cycle.py",
         "cycle_base.py",

@@ -587,18 +587,22 @@ def taint(row, tainted):
 
 
 def finish_chain(rec, out, chains, cfg, priv):
-    """土台 1 本の公開の集計。段 0 の参照の結果を保ちの起点にし、無効の段の後は「前の段が無効」とする。"""
+    """土台 1 本の公開の集計。段 0 の参照の結果を保ちの起点にし、無効の段の後は「前の段が無効」とする。
+    段の行には、走りの記録から数えた費用と門の働き（chain_metrics.fields）を足す。planned は鎖の予定の段の数（記録にあれば）。"""
+    import chain_metrics  # chain_metrics が chain_score を読むので、ここで読む
     base = rec["base"]
     priv.mkdir(parents=True, exist_ok=True)
     prev = grade(chains / base / "s0" / "tree", hidden_files(chains, base, 0), set(), bool(rec.get("box")))
     public = {"tag": rec["tag"], "set": rec.get("set"), "base": base, "rev": rec["rev"], "stopped": rec.get("stopped"),
-              "s0": rate(prev, prev), "stages": [], **({"arm": rec["arm"]} if rec.get("arm") else {})}   # 腕の名は A（bench_solo）の記録だけ
+              "s0": rate(prev, prev), "stages": [], **({"arm": rec["arm"]} if rec.get("arm") else {}),   # 腕の名は A（bench_solo）の記録だけ
+              **({"planned": rec["planned"]} if rec.get("planned") else {})}
     last, tainted = {}, None
     for st in rec.get("stages") or []:
         last[st["k"]] = st
     for st in (last[k] for k in sorted(last)):
         row = {"k": st["k"], "run_id": st["run_id"], "attempts": st["attempt"] + 1, "invalid": st.get("invalid") or False,
                "reason": st.get("reason"), "stop": st.get("stop"), "tries": st.get("tries"), "tokens": st.get("tokens")}
+        row.update(chain_metrics.fields(out, base, [s for s in rec.get("stages") or [] if s.get("k") == st["k"]]))
         public["stages"].append(row)
         if row["invalid"] or not st.get("head"):
             break

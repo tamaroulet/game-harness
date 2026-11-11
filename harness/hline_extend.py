@@ -50,6 +50,7 @@ def extend(item, got):
     """item を待ちに戻す（置き直したのと同じ：次の処理が残した差分を載せる）。延長の記録を item と最後の試行に残す。"""
     item["extended"] = got
     item["tries"][-1]["extended"] = got
+    item["tries_before"] = list(item["tries"])   # 次の処理が tries を空から数え直すので、延長の前の試行をここに残す（計装が読む）
     item.update(status="waiting", replaced=True)
     item.pop("reason", None)
     item.pop("failure_class", None)

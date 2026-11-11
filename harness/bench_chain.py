@@ -373,7 +373,8 @@ def run_step(a, repo, out, staged, entry, tip, k, rec):
 def run_chain(a, repo, out, staged, rev, entry, kind):
     base, pkg = entry["base"], entry["package"]
     tip = s0_commit(repo, rev, base, pkg, staged / base / "s0" / "tree")
-    rec = {"tag": a.tag, "set": kind, "base": base, "package": pkg, "rev": rev, "s0": tip, "stages": [], "stopped": None}
+    rec = {"tag": a.tag, "set": kind, "base": base, "package": pkg, "rev": rev, "s0": tip, "stages": [], "stopped": None,
+           "planned": int(entry["stages"])}   # 予定の段の数（鎖が止まっても、集計が段の数を知る）
     for k in range(1, int(entry["stages"]) + 1):
         st = run_step(a, repo, out, staged, entry, tip, k, rec)
         if st is None:

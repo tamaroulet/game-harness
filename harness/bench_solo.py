@@ -202,7 +202,7 @@ def run_chain(ctx, rev, kind):
     """土台 1 本の鎖。記録は bench_chain.run_chain と同じ形に、箱の印と腕の名を足したもの。"""
     ctx.tip = bench_chain.s0_commit(ctx.repo, rev, ctx.base, ctx.pkg, ctx.staged / ctx.base / "s0" / "tree")
     ctx.rec = {"tag": ctx.tag, "set": kind, "base": ctx.base, "package": ctx.pkg, "rev": rev, "s0": ctx.tip, "stages": [],
-               "stopped": None, "box": True, "arm": ARM}
+               "stopped": None, "box": True, "arm": ARM, "planned": int(ctx.entry["stages"])}
     for k in range(1, int(ctx.entry["stages"]) + 1):
         st = run_step(ctx, k)
         if st is None:
