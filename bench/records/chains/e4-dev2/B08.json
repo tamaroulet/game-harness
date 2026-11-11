@@ -1,0 +1,343 @@
+{
+ "tag": "e4-dev2",
+ "set": "dev",
+ "base": "B08",
+ "rev": "f6bda7ccda941ba1bbce2a21fcd74c2734b8a1ae",
+ "stopped": null,
+ "s0": [
+  11,
+  11
+ ],
+ "stages": [
+  {
+   "k": 1,
+   "run_id": "e4-dev2-s1",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 1053555,
+   "cost": {
+    "input": 139583,
+    "output": 17533,
+    "cache_read": 896439,
+    "cache_creation": 0,
+    "total": 1053555,
+    "non_cache": 157116,
+    "seconds": 278.0,
+    "agent_seconds": 207.3,
+    "wait_seconds": 0,
+    "turns": 65,
+    "model_turns": 32,
+    "commands": 15,
+    "calls": 1,
+    "dropped": 0,
+    "runs": 1
+   },
+   "gate": {
+    "passed": true,
+    "first": true,
+    "tries": 1,
+    "extended": 0,
+    "full_suite": 0
+   },
+   "new": [
+    2,
+    2
+   ],
+   "old": [
+    10,
+    10
+   ],
+   "kept": [
+    10,
+    10
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    2
+   ],
+   "manifest_sha256": "921793afd169d8f58cf348d54e7d06204b7ad6148a5629bb33f6ab0eb420f2a8"
+  },
+  {
+   "k": 2,
+   "run_id": "e4-dev2-s2",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 4570455,
+   "cost": {
+    "input": 223912,
+    "output": 43292,
+    "cache_read": 4303251,
+    "cache_creation": 0,
+    "total": 4570455,
+    "non_cache": 267204,
+    "seconds": 585.0,
+    "agent_seconds": 514.5,
+    "wait_seconds": 0,
+    "turns": 146,
+    "model_turns": 73,
+    "commands": 59,
+    "calls": 1,
+    "dropped": 0,
+    "runs": 1
+   },
+   "gate": {
+    "passed": true,
+    "first": true,
+    "tries": 1,
+    "extended": 0,
+    "full_suite": 0
+   },
+   "new": [
+    7,
+    7
+   ],
+   "old": [
+    9,
+    9
+   ],
+   "kept": [
+    9,
+    9
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    3,
+    7
+   ],
+   "manifest_sha256": "ca7a01ea6df486a4f2125d0682ca96535bb8a3d1c321ead89c0a1085e4bbe5c6"
+  },
+  {
+   "k": 3,
+   "run_id": "e4-dev2-s3",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 1708322,
+   "cost": {
+    "input": 186589,
+    "output": 31489,
+    "cache_read": 1490244,
+    "cache_creation": 0,
+    "total": 1708322,
+    "non_cache": 218078,
+    "seconds": 370.0,
+    "agent_seconds": 296.8,
+    "wait_seconds": 0,
+    "turns": 79,
+    "model_turns": 39,
+    "commands": 25,
+    "calls": 1,
+    "dropped": 0,
+    "runs": 1
+   },
+   "gate": {
+    "passed": true,
+    "first": true,
+    "tries": 1,
+    "extended": 0,
+    "full_suite": 0
+   },
+   "new": [
+    8,
+    8
+   ],
+   "old": [
+    16,
+    16
+   ],
+   "kept": [
+    16,
+    16
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    8
+   ],
+   "manifest_sha256": "1ed69ccd1fd1fece809104bab7a1e57ab9f27c33485c5afb80eddc07f12c505a"
+  },
+  {
+   "k": 4,
+   "run_id": "e4-dev2-s4",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 4894518,
+   "cost": {
+    "input": 267696,
+    "output": 68785,
+    "cache_read": 4558037,
+    "cache_creation": 0,
+    "total": 4894518,
+    "non_cache": 336481,
+    "seconds": 692.0,
+    "agent_seconds": 616.1,
+    "wait_seconds": 0,
+    "turns": 139,
+    "model_turns": 69,
+    "commands": 48,
+    "calls": 1,
+    "dropped": 0,
+    "runs": 1
+   },
+   "gate": {
+    "passed": true,
+    "first": true,
+    "tries": 1,
+    "extended": 0,
+    "full_suite": 0
+   },
+   "new": [
+    2,
+    2
+   ],
+   "old": [
+    24,
+    24
+   ],
+   "kept": [
+    24,
+    24
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    2
+   ],
+   "manifest_sha256": "4a4deded018d5b2f9cdb90ccf6f46a770affebb1911041b18b04984056bd3b1d"
+  },
+  {
+   "k": 5,
+   "run_id": "e4-dev2-s5",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 3352979,
+   "cost": {
+    "input": 209718,
+    "output": 53733,
+    "cache_read": 3089528,
+    "cache_creation": 0,
+    "total": 3352979,
+    "non_cache": 263451,
+    "seconds": 603.0,
+    "agent_seconds": 530.8,
+    "wait_seconds": 0,
+    "turns": 121,
+    "model_turns": 60,
+    "commands": 39,
+    "calls": 1,
+    "dropped": 0,
+    "runs": 1
+   },
+   "gate": {
+    "passed": true,
+    "first": true,
+    "tries": 1,
+    "extended": 0,
+    "full_suite": 0
+   },
+   "new": [
+    16,
+    16
+   ],
+   "old": [
+    26,
+    26
+   ],
+   "kept": [
+    26,
+    26
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    1,
+    16
+   ],
+   "manifest_sha256": "52710be06e56be2edb304c689adc704732bfbba79bebe969b7559ffb71916221"
+  },
+  {
+   "k": 6,
+   "run_id": "e4-dev2-s6",
+   "attempts": 1,
+   "invalid": false,
+   "reason": null,
+   "stop": "done",
+   "tries": 1,
+   "tokens": 2511460,
+   "cost": {
+    "input": 181757,
+    "output": 44783,
+    "cache_read": 2284920,
+    "cache_creation": 0,
+    "total": 2511460,
+    "non_cache": 226540,
+    "seconds": 505.0,
+    "agent_seconds": 429.3,
+    "wait_seconds": 0,
+    "turns": 96,
+    "model_turns": 47,
+    "commands": 27,
+    "calls": 1,
+    "dropped": 0,
+    "runs": 1
+   },
+   "gate": {
+    "passed": true,
+    "first": true,
+    "tries": 1,
+    "extended": 0,
+    "full_suite": 0
+   },
+   "new": [
+    8,
+    8
+   ],
+   "old": [
+    42,
+    42
+   ],
+   "kept": [
+    42,
+    42
+   ],
+   "violations": 0,
+   "leaks": 0,
+   "strays": 0,
+   "web": 0,
+   "new_at_start": [
+    0,
+    8
+   ],
+   "manifest_sha256": "7786eefe5f35b5988ce9daf491930313c37a4a608718c12d3d396a149f0cb0db"
+  }
+ ]
+}
