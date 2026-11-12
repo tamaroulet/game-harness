@@ -1,7 +1,7 @@
 """累積の筋書き（鎖）の走らせ役（v3 の L3）：段 0 の木から、段ごとに決まった型の What 1 件で工廠を回し、段ごとに採点する。
 
     python -m harness.bench_chain stage  --tag <t> --set <dev|held|reserve> --bases B07,B08,B09 [--stages <K>] [--chains <dir>] [--staged <dir>] [--box]
-    python -m harness.bench_chain run    --tag <t> --repo <clone> --base <rev> --staged <dir> [--out <dir>] [--implementer <json>] [--chat]
+    python -m harness.bench_chain run    --tag <t> --repo <clone> --base <rev> --staged <dir> [--out <dir>] [--implementer <json>]
     python -m harness.bench_chain finish --tag <t> --repo <clone> [--chains <dir>] [--out <dir>]
 
 stage（操縦士のアカウント）は、非公開の鎖の置き場 <chains>/<土台>/ から公開の材料だけ（段 0 の木の <package>/ の .py と
@@ -13,8 +13,8 @@ run（bench のアカウント。<clone> は走らせ役自身のクローン）
 走りが無効か異常なら、その段を RETRIES 回まで走り直し、それでも駄目ならその土台の鎖を止める。記録は <out>/chains/<tag>/<土台>.json
 （済んだ土台は飛ばす）。What ごとの生ログ（実装役の stream-json を含む）は、走りの記録の items/ に写す。
 stage の --box は chain.json に印を置き、run と finish はその印に従って、実装役・門・採点を箱で走らせる（harness/box.py。v3 §8 の E4）。
-run の --chat（箱の走りだけ。腕の名は harness-chat。v3 §15 の 11-12 その 3）は、実装役の会話を鎖のあいだ続ける：鎖ごとの名前つきボリュームを
-実装役のホームにし、段の最後の呼び出しの会話を、次の段の呼び出しが続ける（A の bench_solo --chat と同じ。段 1 の中の試し直しだけは新しい会話）。
+箱の走りの実装役は、呼び出しごとに新しい会話で（記憶を持たない。前の段の分かることは Git の木と仕様と台帳から）、箱の作業の場所には
+課題のパッケージ・試験・仕様（docs/bench/<土台>/）だけを置く（box.task_scope。v3 §15 の 11-12 その 4）。
 finish（操縦士のアカウント）は、段ごとに漏れの走査（bench_guard）・道の検め（作業の場所の外の ${local} の下のパスか、ネットを
 見る道具）・境界の検め（段の開始と先端の差分）・採点（段 0〜k の隠しテストから、段 1〜k の replaced.json の名前を除いた組）をする。
 孤立（段 k の新しい試験）・前の試験（段 0〜k−1 の必須）・保ち（段 k−1 の先端で通っていた前の必須のうち、段 k でも通る）を分け、
@@ -24,7 +24,6 @@ chains/runs/<tag>/<土台>/ に置き、集計の数だけを <clone>/bench/reco
 import argparse
 import contextlib
 import datetime
-import json
 import re
 import secrets
 import shutil
@@ -51,7 +50,6 @@ STAGE_SECONDS = 3600          # 段ごとの上限（枠切れの待ちを除く
 STAGE_TOKENS = 3_000_000
 RETRIES = 2
 WHAT = "P-01"
-CHAT_ARM = "harness-chat"   # 会話の形の B の腕の名（記録と公開の集計に載る。名の無い B は段ごとに新しい会話）
 SETS = ("dev", "held", "reserve")
 TAG = re.compile(r"[A-Za-z0-9._-]+")
 
@@ -167,6 +165,11 @@ def changeable(repo, tip, pkg, k):
     return have + ([new] if new not in have else [])
 
 
+def docs_of(base):
+    """土台の仕様の置き場（段 0 の spec.md と chain/s<k>/spec.md）。箱の作業の場所に、課題のパッケージと試験と一緒に置く（box.task_scope）。"""
+    return f"docs/bench/{base}/"
+
+
 def what_text(base, pkg, k, info, files):
     reqs = ", ".join(r for r, _ in info["reqs"])
     before = f"`docs/bench/{base}/spec.md`" + (f" と、`docs/bench/{base}/chain/` の下の段 1〜{k - 1} の `spec.md`" if k > 1 else "")
@@ -177,10 +180,10 @@ def what_text(base, pkg, k, info, files):
         f"- 前の段までの仕様は {before}", "", "## 合格条件",
         "- 変えるファイルは " + "・".join(f"`{p}`" for p in files),
         f"- 新しい試験 `tests/test_{pkg}_s{k}.py` は、この段の要件のそれぞれを確かめる", "",
-        # 進め方（両腕に同じ。v3 §15 の 11-12 その 3：実装役の時間の半分が、小刻みな試しの計算の往復だった）
-        "## 進め方", f"- 要るのは `{pkg}/` と `tests/test_{pkg}*.py` と、上に挙げた仕様だけ。ほかの場所は読まなくてよい",
-        "- 物理の量を測るときは、小さな試しを何度も走らせず、知りたい量と試したい候補を 1 本のスクリプトにまとめて一度に出す",
-        "- この会話で前に読んだファイルは、変えていなければ読み直さなくてよい。コミットと差分の確かめは走らせ役が行うので、git は使わなくてよい", ""])
+        # 進め方（両腕に同じ課題の手順の助言だけ。腕の仕組み（会話の記憶・目次）には触れない。v3 §15 の 11-12 その 3・その 4：
+        # 実装役の時間の半分が、小刻みな試しの計算の往復だった）
+        "## 進め方", "- 物理の量を測るときは、小さな試しを何度も走らせず、知りたい量と試したい候補を 1 本のスクリプトにまとめて一度に出す",
+        "- コミットと差分の確かめは走らせ役が行うので、git は使わなくてよい", ""])
 
 
 def ledger_rows(pkg, k, info, files):
@@ -224,15 +227,15 @@ class ChainStage(bench_run.Factory):
     """鎖の段の 1 回の走り。開始のコミットと仕様を外から受け取り、HEAD を確かめず、段の上限で止め、What ごとの生ログを写す。
     H ラインは clone の先端の harness/ で走るので、その木が走らせ役の木と違えば、poll の前に無効にして止める。"""
 
-    def __init__(self, a, start, spec, boxed=None, box_memo=None, chat=None):
+    def __init__(self, a, start, spec, boxed=None, box_memo=None):
         super().__init__(a)
         self.start_sha, self.spec, self.boxed = start, Path(spec), boxed   # boxed は課題のパッケージの名（箱の走りのときだけ）
         self.box_memo = box_memo   # 走りの起動ごとの箱の確かめの覚え（box.check_cached）。無ければ段ごとに確かめる
-        self.chat = chat           # 会話の形の {home, conversation}（run の --chat）。無ければ呼び出しごとに新しい会話
 
     def box_mark(self, cfg):
-        """H ラインの設定に箱の印を置く（hline_agy・門・全件・進捗の記録がこれを見る）。会話の形では、鎖のホームと続ける会話も置く。"""
-        return {**cfg, "box": {"package": self.boxed, **(self.chat or {})}} if self.boxed else cfg
+        """H ラインの設定に箱の印を置く（hline_agy・門・全件・進捗の記録がこれを見る）。docs は実装役の箱の作業の場所に置く仕様の置き場
+        （課題のパッケージと試験と一緒に。box.task_scope）で、実装役の目次も課題のパッケージのものになる（hline_prompt.context）。"""
+        return {**cfg, "box": {"package": self.boxed, "docs": docs_of(self.task)}} if self.boxed else cfg
 
     def guard(self, cfg):
         """箱の走りでは、箱の確かめに替える（bench_guard は bench のアカウントの権限を見る。CLI の版は Windows の実物を見る）。"""
@@ -343,36 +346,10 @@ def no_sessions(out):
     return str(path)
 
 
-def last_conversation(rundir):
-    """段の走りの、最後の実装役の呼び出しの会話の ID（result か init の conversation_id）。無ければ None。"""
-    logs = sorted(Path(rundir).glob("items/*/implementer-*.log"), key=lambda p: [int(x) for x in re.findall(r"\d+", p.stem)])
-    for log in reversed(logs):
-        parts = chain_score.read_text(log).split(bench_run.LOG_SPLIT)
-        for line in reversed((parts[1] if len(parts) > 1 else "").splitlines()):
-            try:
-                e = json.loads(line)
-            except ValueError:
-                continue
-            body = e.get(e.get("event")) if isinstance(e, dict) and e.get("event") in ("result", "init") else None
-            if isinstance(body, dict) and (conv := body.get("conversation_id") or e.get("conversation_id")):
-                return conv
-    return None
-
-
-def chat_start(a, staged, base, rec):
-    """run の --chat なら、鎖のホームを作り、会話の形の状態 {home, conversation} を返す（箱の走りだけ）。でなければ None。"""
-    if not getattr(a, "chat", False):
-        return None
-    if not bench_run.read_json(staged / "chain.json", {}).get("box"):
-        raise BenchError("会話の形（--chat）は箱の走りだけです（stage に --box を付けて写し直す）")
-    rec["arm"] = CHAT_ARM
-    return {"home": box.home_volume(box.settings(), box.home_name(a.tag, base)), "conversation": None}
-
-
-def run_step(a, repo, out, staged, entry, tip, k, rec, chat=None):
+def run_step(a, repo, out, staged, entry, tip, k, rec):
     """段 k を走らせる。無効・異常なら RETRIES 回まで走り直す。試すたびに rec に足し、済んだ走りの記録を返す（駄目なら None）。
     走りのディレクトリが前の起動から残っていれば（中断の後の走らせ直し）、走らせずに、書き終えた記録（run.json）を使う。
-    run.json の無い残りは、中断した試しとして数え、次の試しへ進む。会話の形（chat）では、走りの最後の会話を次の呼び出しへ渡す。"""
+    run.json の無い残りは、中断した試しとして数え、次の試しへ進む。"""
     base, pkg = entry["base"], entry["package"]
     boxed = pkg if bench_run.read_json(staged / "chain.json", {}).get("box") else None
     if boxed:
@@ -393,9 +370,7 @@ def run_step(a, repo, out, staged, entry, tip, k, rec, chat=None):
             plan = write_plan(out / "chains" / a.tag / base / run_id, base, pkg, k, info, files)
             ns = argparse.Namespace(task=base, run_id=run_id, repo=str(repo), base=tip, out=str(out), sessions=no_sessions(out) if boxed else a.sessions,
                                     plan=str(plan), implementer=a.implementer)
-            code = run_stage(ChainStage(ns, start, spec, boxed, getattr(a, "box_memo", None), chat))
-        if chat is not None:
-            chat["conversation"] = last_conversation(rundir) or chat["conversation"]
+            code = run_stage(ChainStage(ns, start, spec, boxed, getattr(a, "box_memo", None)))
         done = bench_run.read_json(rundir / "factory" / "run.json", {})
         st = {"k": k, "attempt": attempt, "run_id": run_id, "code": code, "base": done.get("base") or tip,
               "start": done.get("start") or start, "head": done.get("head"),
@@ -413,16 +388,12 @@ def run_chain(a, repo, out, staged, rev, entry, kind):
     tip = s0_commit(repo, rev, base, pkg, staged / base / "s0" / "tree")
     rec = {"tag": a.tag, "set": kind, "base": base, "package": pkg, "rev": rev, "s0": tip, "stages": [], "stopped": None,
            "planned": int(entry["stages"])}   # 予定の段の数（鎖が止まっても、集計が段の数を知る）
-    chat = chat_start(a, staged, base, rec)
     for k in range(1, int(entry["stages"]) + 1):
-        st = run_step(a, repo, out, staged, entry, tip, k, rec, chat)
+        st = run_step(a, repo, out, staged, entry, tip, k, rec)
         if st is None:
             rec["stopped"] = f"s{k}"
             break
         tip = fetch_tip(repo, bench_run.run_dir(out, base, st["run_id"]), f"refs/chains/{a.tag}/{base}/s{k}")
-    if chat is not None:   # 鎖を書き終えたらホームを消す（途中の異常で抜けたときは残し、続きの起動が使う）
-        rec["conversation"] = chat["conversation"]
-        box.drop_home(box.settings(), chat["home"])
     return rec
 
 
@@ -479,7 +450,6 @@ def main(argv=None):
     sub.choices["run"].add_argument("--staged", required=True)
     sub.choices["run"].add_argument("--implementer")
     sub.choices["run"].add_argument("--sessions")
-    sub.choices["run"].add_argument("--chat", action="store_true")
     try:
         a = ap.parse_args(argv)
     except SystemExit as e:

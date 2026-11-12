@@ -55,7 +55,11 @@ class Prompt(unittest.TestCase):
         what = bench_chain.what_text("B07", "pkg", 1, info, files)
         text = bench_solo.prompt_text(what, rows)
         self.assertTrue(text.startswith(bench_solo.PROMPT.read_text(encoding="utf-8").strip()))
-        self.assertIn(what.strip(), text)
+        plain = [line for line in what.strip().splitlines() if not line.startswith(bench_solo.HLINE_HEADERS)]
+        self.assertIn("\n".join(plain), text)   # H ラインのキューの見出しの行（マイルストーン・タスク）だけを外した、B と同じ What の文
+        self.assertEqual(len(plain), len(what.strip().splitlines()) - 2)
+        for header in bench_solo.HLINE_HEADERS:
+            self.assertNotIn(header, text)
         self.assertIn(f"- 検証コマンド: {rows[0]['verification']['command']}", text)
         for harness_only in ("影響テスト", "次の試行", "判定に通りませんでした"):
             self.assertNotIn(harness_only, text)
@@ -107,7 +111,8 @@ class Stage(unittest.TestCase):
         run = self.stage(fake_implement(seen=seen))
         self.assertEqual((run["tries"], run["stop"], run["invalid"], run["arm"], run["box_image"]), (1, "done", None, "solo", "sha256:image"))
         self.assertEqual(run["start"], self.start)
-        self.assertEqual(seen[0]["cfg"], {"implementer": AGENT, "box": {"package": "pkg"}, "ttl_seconds": {"implementer": bench_chain.STAGE_SECONDS}})
+        self.assertEqual(seen[0]["cfg"], {"implementer": AGENT, "box": {"package": "pkg", "docs": "docs/bench/B07/"},
+                                          "ttl_seconds": {"implementer": bench_chain.STAGE_SECONDS}})
         self.assertEqual(json.loads((self.rundir / "factory" / "run.json").read_text(encoding="utf-8"))["head"], run["head"])
         self.assertEqual(json.loads((self.rundir / "factory" / "config.json").read_text(encoding="utf-8")), {"implementer": AGENT})
         self.assertEqual((self.rundir / "calls" / "001-implementer" / "prompt.txt").read_text(encoding="utf-8"), "頼み")

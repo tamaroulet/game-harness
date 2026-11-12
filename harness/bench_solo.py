@@ -11,10 +11,13 @@ A は段ごとに 1 回だけ呼ぶ。呼び出しの時間は B の段の上限
 見ない（B も poll の間でしか見ない）。頼みは docs/bench/prompts/solo.md の前置きに、What の文と検証コマンドを足したもの。
 走り直しは環境の破れ（箱の確かめ・Infra）だけ、bench_chain.RETRIES 回まで。利用枠が尽きたら、その段を無効と書いて止める
 （終了コード 2。回復の後に同じ命令で続きから。書き終えた鎖の記録と走りのディレクトリは使う）。
+箱の作業の場所には、課題のパッケージ・試験・仕様（docs/bench/<土台>/）だけを置く（box.task_scope。B と同じ。v3 §15 の 11-12 その 4）。
 
---chat（会話の形、腕の名は chat。v3 §15 の 11-12 その 2）：素直なチャットの使い方に合わせ、鎖ごとに 1 つの会話を続ける。
-2 段目からは、前置きを外した次の頼みを同じ会話に送る（agy の --conversation）。会話の記録は鎖ごとの名前つきボリュームのホームに残り、
-鎖を書き終えたら消す（box.home_volume・drop_home）。会話の ID は段ごとの run.json に書き、続きから走るときもそれを使う。
+--chat（会話の形、腕の名は chat。v3 §15 の 11-12 その 2・その 4）：人がチャットのエージェントを使うのと同じく、鎖のあいだ 1 つの会話と
+1 つの作業の場所を続ける。2 段目からは、前置きを外した次の頼みを同じ会話に送る（agy の --conversation）。会話の記録（ホーム）と
+作業の場所は鎖ごとの名前つきボリュームに残り（box.chain_volume）、段ごとには新しい段の仕様だけを写し入れる。実装役が作業の場所に
+置いた課題の外のファイル（試しのスクリプトなど）も次の段に残る（受け取らず、記録にも数えない）。鎖を書き終えたらボリュームを消す。
+会話の ID は段ごとの run.json に書き、続きから走るときもそれを使う。会話がまだ無いうちは、課題の範囲の全部を写し入れる。
 箱の確かめ一式は、起動ごとに最初の段だけ（box.check_cached。段ごとには像の指紋だけを見る）。
 """
 import argparse
@@ -43,7 +46,8 @@ IDENT = {"GIT_AUTHOR_NAME": "bench", "GIT_AUTHOR_EMAIL": "bench@localhost",
 LEFT = "前の起動の残り（run.json が無い。中断）"
 CHAT_ARM = "chat"
 FOLLOWUP = "次の頼みです。決まりは最初の頼みと同じです。"
-RETRY_ASK = "前の呼び出しは途中で止まりました。作業の木はこの頼みの始めの状態に戻してあります。同じ頼みをもう一度送ります。"
+RETRY_ASK = "前の呼び出しは途中で止まりました。作業の場所は止まったときのままです。同じ頼みをもう一度送ります。"
+HLINE_HEADERS = ("マイルストーン:", "タスク:")   # H ラインのキューが読む What の見出しの行。A の頼みには要らない
 
 
 class QuotaStop(Exception):
@@ -57,9 +61,11 @@ def now():
 # ============================================================ 頼み
 
 def prompt_text(what, rows):
-    """A の頼み：固定の前置き、B の What と同じ文、B の台帳の節と同じ検証コマンド。門・やり直し・中断の手順・目次は入れない。"""
+    """A の頼み：固定の前置き、B の What と同じ文（H ラインのキューの見出しの行を除く）、B の台帳の節と同じ検証コマンド。
+    門・やり直し・中断の手順・目次は入れない。"""
     command = rows[0]["verification"]["command"]
-    return "\n".join([PROMPT.read_text(encoding="utf-8").strip(), "", "---", what.strip(), f"- 検証コマンド: {command}", ""])
+    body = "\n".join(line for line in what.strip().splitlines() if not line.startswith(HLINE_HEADERS))
+    return "\n".join([PROMPT.read_text(encoding="utf-8").strip(), "", "---", body, f"- 検証コマンド: {command}", ""])
 
 
 def chat_text(prompt, retry=False):
@@ -106,11 +112,26 @@ def box_problems(run, memo=None):
     return box.check_cached(settings, memo)
 
 
+def spec_path(base, k):
+    """段 k の仕様の、作業の木の中の名（bench_chain.start_commit が開始のコミットに足す）。"""
+    return f"{bench_chain.docs_of(base)}chain/s{k}/spec.md"
+
+
+def box_mark(ctx):
+    """実装役の箱の印。作業の場所は課題の範囲だけ（docs。B と同じ）。会話の形では、鎖のホームと作業の場所と続ける会話を足し、
+    会話がまだ無ければ課題の範囲の全部を、あれば新しい段の仕様だけを写し入れる（send）。"""
+    boxed = {"package": ctx.pkg, "docs": bench_chain.docs_of(ctx.base)}
+    if getattr(ctx, "chat", False):
+        boxed.update(home=ctx.home, work=ctx.work, conversation=ctx.conversation,
+                     send=None if ctx.conversation is None else [spec_path(ctx.base, ctx.k)])
+    return boxed
+
+
 def call(ctx, run, rundir, clone, prompt, log):
     """実装役を 1 回呼び（B の実装役と同じ hline_agy.implement）、受け取った木をコミットして先端にする。
-    会話の形では、鎖のホームと続ける会話を渡し、呼び出しが落ちても、その会話の ID を run に残す（続きの段と走り直しが使う）。"""
+    会話の形では、鎖のホームと作業の場所と続ける会話を渡し、呼び出しが落ちても、その会話の ID を run に残す（続きの段と走り直しが使う）。"""
     host = types.SimpleNamespace(box_dropped=None, conversation=None)
-    boxed = {"package": ctx.pkg, **({"home": ctx.home, "conversation": ctx.conversation} if getattr(ctx, "chat", False) else {})}
+    boxed = box_mark(ctx)
     cfg = {"implementer": ctx.agent, "box": boxed, "ttl_seconds": {"implementer": bench_chain.STAGE_SECONDS}}
     try:
         code, models, usage, _, turns = hline_agy.implement(host, cfg, clone, prompt, log)
@@ -225,14 +246,16 @@ def run_step(ctx, k):
 
 
 def run_chain(ctx, rev, kind):
-    """土台 1 本の鎖。記録は bench_chain.run_chain と同じ形に、箱の印と腕の名を足したもの。会話の形は、鎖のホームを作って会話を続け、
-    鎖を書き終えたらホームを消す（利用枠や異常で途中で止まったときは残し、同じ命令の続きが使う）。"""
+    """土台 1 本の鎖。記録は bench_chain.run_chain と同じ形に、箱の印と腕の名を足したもの。会話の形は、鎖のホームと作業の場所を作って
+    会話を続け、鎖を書き終えたらどちらも消す（利用枠や異常で途中で止まったときは残し、同じ命令の続きが使う）。"""
     chat = getattr(ctx, "chat", False)
     ctx.tip = bench_chain.s0_commit(ctx.repo, rev, ctx.base, ctx.pkg, ctx.staged / ctx.base / "s0" / "tree")
     ctx.rec = {"tag": ctx.tag, "set": kind, "base": ctx.base, "package": ctx.pkg, "rev": rev, "s0": ctx.tip, "stages": [],
                "stopped": None, "box": True, "arm": getattr(ctx, "arm", ARM), "planned": int(ctx.entry["stages"])}
     if chat:
-        ctx.home, ctx.conversation = box.home_volume(box.settings(), box.home_name(ctx.tag, ctx.base)), None
+        cfg = box.settings()
+        ctx.home, ctx.work = box.chain_volume(cfg, box.home_name(ctx.tag, ctx.base)), box.chain_volume(cfg, box.work_name(ctx.tag, ctx.base))
+        ctx.conversation = None
     for k in range(1, int(ctx.entry["stages"]) + 1):
         st = run_step(ctx, k)
         if st is None:
@@ -241,7 +264,8 @@ def run_chain(ctx, rev, kind):
         ctx.tip = bench_chain.fetch_tip(ctx.repo, bench_run.run_dir(ctx.out, ctx.base, st["run_id"]), f"refs/chains/{ctx.tag}/{ctx.base}/s{k}")
     if chat:
         ctx.rec["conversation"] = ctx.conversation
-        box.drop_home(box.settings(), ctx.home)
+        for name in (ctx.home, ctx.work):
+            box.drop_volume(box.settings(), name)
     return ctx.rec
 
 
@@ -280,7 +304,7 @@ def run(a):
                     continue
                 ctx = types.SimpleNamespace(tag=a.tag, repo=repo, out=out, staged=staged, entry=entry, base=entry["base"],
                                             pkg=entry["package"], agent=agent, chat=chat, arm=CHAT_ARM if chat else ARM,
-                                            box_memo=memo, home=None, conversation=None)
+                                            box_memo=memo, home=None, work=None, conversation=None)
                 rec = run_chain(ctx, rev, doc.get("set"))
                 path.parent.mkdir(parents=True, exist_ok=True)
                 hline_base.write_json(path, rec)

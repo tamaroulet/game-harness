@@ -6,7 +6,8 @@
 
 回す側は Windows のままで、Docker は WSL2 の中にある（Windows からは wsl.exe 越し、Linux からは直に呼ぶ）。
 箱とのやり取りは標準入出力の tar だけで、パスを変換しない。どの箱も 1 回ごとに使い捨て。
-- 実装役の箱（agent）：作業の木の写しと、agy の認証。ホームは tmpfs。ネットは中継だけ。変更したファイルを受け取る（box_tree.receive）。
+- 実装役の箱（agent）：作業の木の写し（課題の走りでは課題のパッケージ・試験・仕様だけ。task_scope）と、agy の認証。ホームは tmpfs。
+  ネットは中継だけ。変更したファイルを受け取る（box_tree.receive）。A の会話の形だけは、ホームと作業の木を鎖ごとのボリュームにして残す。
 - 門と採点の箱（tests）：木の写しを tmpfs に入れる。ネットなし。結果は標準出力で受け取る。隠しテストは採点の箱にだけ入れる。
 実装役が書いたコードは、箱の外で走らせない。箱の実行そのものの失敗は BoxError（呼び手が環境の異常にする。実装役の失敗に数えない）。
 """
@@ -44,12 +45,16 @@ TOKEN_IN = "/in/token"
 NO_PROXY = "localhost,127.0.0.1"
 GIT_ID = "box"
 GIT_MAIL = "box@example.invalid"
+TOKEN_SETUP = f'mkdir -p "$HOME/.gemini/antigravity-cli" && install -m 600 {TOKEN_IN} "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"'
+GIT_START = 'git init -q --template= && git -c core.safecrlf=false add -A && git commit -q --no-gpg-sign -m start'
+TOKEN_DROP = '{ "$@"; rc=$?; rm -f "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"; exit $rc; }'
 # 実装役の箱の始まり：認証をホームへ写し、開始の木を 1 コミットにしてから（実装役が git diff などを使える。外の .git は見せない）実装役を起こす
-START = (f'mkdir -p "$HOME/.gemini/antigravity-cli" && install -m 600 {TOKEN_IN} "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" '
-         f'&& git init -q --template= && git -c core.safecrlf=false add -A && git commit -q --no-gpg-sign -m start && exec "$@"')
+START = f'{TOKEN_SETUP} && {GIT_START} && exec "$@"'
 # 会話を続ける実装役（A の会話の形、v3 §15 の 11-12 その 2）の始まり：ホームは鎖ごとの名前つきボリュームで、agy の会話の記録が段をまたいで残る。
 # 認証は呼び出しの間だけホームに置き、実装役が終われば消す（時間切れで止めた箱では残り、鎖の終わりにボリュームごと消す）
-START_KEEP = START.replace('&& exec "$@"', '&& { "$@"; rc=$?; rm -f "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"; exit $rc; }')
+START_KEEP = f'{TOKEN_SETUP} && {GIT_START} && {TOKEN_DROP}'
+# 作業の場所も鎖のあいだ残す実装役（A の会話の形、v3 §15 の 11-12 その 4）の始まり：箱の中の git は最初の呼び出しだけ作り、あとは実装役のもの
+START_STAY = f'{TOKEN_SETUP} && {{ [ -d .git ] || {{ {GIT_START}; }}; }} && {TOKEN_DROP}'
 UNPACK_AND_RUN = f'tar -x -C {WORK} && cd {WORK} && exec "$@"'
 PROBE = r'''
 import json, os, socket
@@ -218,7 +223,7 @@ class Keep:
 
 def guards(cfg, home=None):
     """どの箱にも付ける守り。ルートは読み取り専用、権限なし、利用者は bench、ホームは tmpfs。Windows のフォルダは渡さない。
-    home（名前つきボリュームの名）を渡すと、ホームをそのボリュームにする（会話を続ける実装役だけ。home_volume）。"""
+    home（名前つきボリュームの名）を渡すと、ホームをそのボリュームにする（会話を続ける実装役だけ。chain_volume）。"""
     lim = cfg["limits"]
     keep = ["-v", f"{home}:{HOME}"] if home else ["--tmpfs", f"{HOME}:size={lim['tmp']},exec,uid={USER_ID},gid={USER_ID}"]
     return ["--read-only", "--tmpfs", f"/tmp:size={lim['tmp']},exec", *keep,
@@ -226,31 +231,47 @@ def guards(cfg, home=None):
             "--user", USER_ID, "-e", f"HOME={HOME}", "-i", "-w", WORK]
 
 
-def agent_opts(cfg, home=None):
-    """実装役の箱：閉じた網と中継だけ。作業の木は名の無いボリューム（容器を消すときに一緒に消える）。認証は読むだけで渡す。"""
+def agent_opts(cfg, home=None, work=None):
+    """実装役の箱：閉じた網と中継だけ。作業の木は名の無いボリューム（容器を消すときに一緒に消える）。認証は読むだけで渡す。
+    work（名前つきボリュームの名）を渡すと、作業の木をそのボリュームにする（段をまたいで残す実装役だけ。chain_volume）。"""
     proxy = f"http://{cfg['proxy_name']}:{cfg['proxy_port']}"
     env = [x for k in ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy") for x in ("-e", f"{k}={proxy}")]
     env += [x for k in ("NO_PROXY", "no_proxy") for x in ("-e", f"{k}={NO_PROXY}")]
     env += [x for k, v in (("GIT_AUTHOR_NAME", GIT_ID), ("GIT_AUTHOR_EMAIL", GIT_MAIL), ("GIT_COMMITTER_NAME", GIT_ID), ("GIT_COMMITTER_EMAIL", GIT_MAIL))
             for x in ("-e", f"{k}={v}")]
-    return [*guards(cfg, home), "--network", cfg["network"], *env, "-v", WORK, "-v", f"{cfg['token']}:{TOKEN_IN}:ro"]
+    return [*guards(cfg, home), "--network", cfg["network"], *env, "-v", f"{work}:{WORK}" if work else WORK, "-v", f"{cfg['token']}:{TOKEN_IN}:ro"]
 
 
 def home_name(tag, base):
-    """会話の形の、鎖ごとのホームのボリュームの名（A の bench_solo と B の bench_chain。続きから走るときに同じ名を引く）。"""
+    """会話の形（A の bench_solo --chat）の、鎖ごとのホームのボリュームの名（続きから走るときに同じ名を引く）。"""
     return f"box-chat-{tag}-{base}".lower()
 
 
-def home_volume(cfg, name):
-    """会話を続ける実装役のホーム（鎖ごとの名前つきボリューム）。無ければ作る。最初に付けたとき、像の /home/bench の中身と持ち主が写る。"""
+def work_name(tag, base):
+    """会話の形の、鎖ごとの作業の場所のボリュームの名。"""
+    return f"box-work-{tag}-{base}".lower()
+
+
+def chain_volume(cfg, name):
+    """鎖のあいだ残す名前つきボリューム（会話を続ける実装役のホームと作業の場所）。無ければ作る。名を返す。
+    最初に付けたとき、像のその場所（/home/bench・/work）の中身と持ち主が写る。"""
     if _call([*docker_cmd(cfg), "volume", "inspect", name])[0] != 0:
         docker(cfg, "volume", "create", name)
     return name
 
 
-def drop_home(cfg, name):
-    """鎖の終わりに、会話を続ける実装役のホームを消す（会話の記録と、時間切れで残った認証の写しも消える）。"""
+def drop_volume(cfg, name):
+    """鎖の終わりに、鎖のボリュームを消す（会話の記録・作業の場所の残り・時間切れで残った認証の写しも消える）。"""
     _quiet(cfg, "volume", "rm", "-f", name)
+
+
+def task_scope(boxed):
+    """箱の印（{"package", "docs", ...}）の、箱の作業の場所に置く範囲（相対パス → 真偽）：課題のパッケージ・tests/test_<package>*・
+    仕様の置き場 docs（v3 §15 の 11-12 その 4。リポジトリの残りは課題に要らない）。docs の無い印は None（木の全部を渡す）。"""
+    if not (boxed or {}).get("docs"):
+        return None
+    own, docs = new_files_rule(boxed["package"]), boxed["docs"]
+    return lambda rel: own(rel) or rel.startswith(docs)
 
 
 def tests_opts(cfg):
@@ -265,14 +286,19 @@ def new_files_rule(package):
     return lambda rel: rel.startswith(package + "/") or tests.fullmatch(rel) is not None
 
 
-def agent(cfg, argv, wt, ttl, stdin, allowed=None, home=None):
+def agent(cfg, argv, wt, ttl, stdin, allowed=None, home=None, work=None, scope=None, send=None):
     """実装役の 1 回の試行を箱で走らせ、変更を wt に受け取る。(終了コード, 標準出力, 標準エラー, 受け取りの記録)。
     時間切れは終了コード 124（箱は止める。そこまでの変更も受け取る）。docker 自身の失敗は BoxError。
-    home（home_volume の名）を渡すと、ホームをそのボリュームにし、会話の記録を次の呼び出しへ残す。"""
+    home（chain_volume の名）を渡すと、ホームをそのボリュームにし、会話の記録を次の呼び出しへ残す。
+    scope（task_scope）を渡すと、写し入れと受け取りをその範囲に絞る。work（chain_volume の名。home と一緒に渡す）を渡すと、作業の木を
+    そのボリュームにして段をまたいで残し（箱の中の git は最初の呼び出しだけ作る）、範囲の外のファイルは受け取らず箱に残す。
+    send（相対パスの集まり）を渡すと、範囲のうちその名だけを写し入れる（残した作業の場所に、新しい段の仕様だけを足す）。"""
     name = f"box-agent-{secrets.token_hex(6)}"
+    keep = None if scope is None and send is None else (lambda rel: (scope is None or scope(rel)) and (send is None or rel in send))
     try:
-        docker(cfg, "create", "--name", name, *agent_opts(cfg, home), cfg["image"], "bash", "-c", START_KEEP if home else START, "_", *argv)
-        docker(cfg, "cp", "-", f"{name}:{WORK}", data=box_tree.pack(wt))
+        docker(cfg, "create", "--name", name, *agent_opts(cfg, home, work), cfg["image"], "bash", "-c",
+               START_STAY if work else START_KEEP if home else START, "_", *argv)
+        docker(cfg, "cp", "-", f"{name}:{WORK}", data=box_tree.pack(wt, keep=keep))
         code, out, err = _call([*docker_cmd(cfg), "start", "-ai", name], stdin.encode("utf-8"), ttl)
         if code == TIMED_OUT:
             _quiet(cfg, "kill", name)
@@ -281,7 +307,7 @@ def agent(cfg, argv, wt, ttl, stdin, allowed=None, home=None):
             raise BoxError(f"実装役の箱を起こせません（終了コード {code}）: {err.strip()[-400:]}")
         data = docker(cfg, "cp", f"{name}:{WORK}", "-")
         try:
-            got = box_tree.receive(data, wt, allowed, strip=WORK_NAME)
+            got = box_tree.receive(data, wt, allowed, strip=WORK_NAME, scope=scope, keep_out=bool(work))
         except box_tree.TreeError as e:
             raise BoxError(str(e)) from e
         return code, proc.decoded(out), err, got

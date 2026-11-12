@@ -53,9 +53,10 @@ def _member(name, mode, size=0):
     return info
 
 
-def pack(root, extra=None):
+def pack(root, extra=None, keep=None):
     """root の木の tar のバイト列（.git を除く）。extra は {tar の中の名: バイト列} で、箱へ一緒に渡すもの（走らせ役の短いスクリプトなど）。
-    root が None なら extra だけ。持ち主は箱の利用者にし、権限はファイル 644・ディレクトリ 755 にそろえる（Windows の属性を持ち込まない）。"""
+    root が None なら extra だけ。持ち主は箱の利用者にし、権限はファイル 644・ディレクトリ 755 にそろえる（Windows の属性を持ち込まない）。
+    keep（相対パス → 真偽）を渡すと、root の木のうち真のものだけを渡す（箱の作業の場所を課題の範囲に絞る。box.task_scope）。"""
     buf, total, made = io.BytesIO(), 0, set()
     with tarfile.open(fileobj=buf, mode="w", format=tarfile.PAX_FORMAT) as tar:
         def add(name, data):
@@ -67,6 +68,8 @@ def pack(root, extra=None):
                     tar.addfile(info)
             tar.addfile(_member(name, FILE_MODE, len(data)), io.BytesIO(data))
         for rel in walk(root) if root is not None else []:
+            if keep is not None and not keep(rel):
+                continue
             data = (Path(root) / rel).read_bytes()
             total += len(data)
             if total > MAX_TOTAL:
@@ -93,12 +96,15 @@ def why_dropped(member, parts, rel, seen):
     return "大きすぎるファイル" if member.size > MAX_FILE else None
 
 
-def receive(data, dest, allowed=None, strip=None):
+def receive(data, dest, allowed=None, strip=None, scope=None, keep_out=False):
     """箱から返った tar を dest に写す。{"written": [...], "removed": [...], "dropped": [[名, 理由], ...]}。
     allowed(相対パス) が偽の新しいファイルは受け取らない（すでにあるファイルの変更は受け取る）。
-    strip は tar の中の頭のディレクトリの名（docker cp が付ける）。これを外した相対パスで扱う。"""
+    strip は tar の中の頭のディレクトリの名（docker cp が付ける）。これを外した相対パスで扱う。
+    scope（相対パス → 真偽。箱に渡した範囲）を渡すと、dest の範囲の外のファイルは消さず、tar の範囲の外の名は新しいファイルとして扱う。
+    keep_out が真なら、tar の範囲の外の名は受け取らず、落としたものにも数えない（段をまたいで残る作業の場所の、試しのスクリプトなど）。"""
     dest = Path(dest)
-    before, written, dropped, named, seen, total = set(walk(dest)), [], [], set(), set(), 0
+    before = {r for r in walk(dest) if scope is None or scope(r)}
+    written, dropped, named, seen, total = [], [], set(), set(), 0
     try:
         tar = tarfile.open(fileobj=io.BytesIO(data), mode="r:*")
     except tarfile.TarError as e:
@@ -114,6 +120,8 @@ def receive(data, dest, allowed=None, strip=None):
             if not parts or skipped(parts) or member.isdir():
                 continue
             rel = "/".join(parts)
+            if keep_out and scope is not None and not scope(rel):
+                continue
             named.add(rel)
             why = why_dropped(member, parts, rel, seen)
             if why is None and rel not in before and allowed is not None and not allowed(rel):

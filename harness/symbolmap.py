@@ -7,6 +7,7 @@ from pathlib import Path
 from hline_base import Infra  # isort: skip（harness/ を import の道に足す）
 
 HEAD = "# リポジトリの目次（harness/ のモジュール・クラス・関数。引数・行番号・import しているテストつき）"
+PKG_HEAD = "# 作業の場所と課題のパッケージの目次（モジュール・クラス・関数。引数・行番号・import している試験つき）"
 DOC_HEAD = "# 関係しそうなモジュールの説明（モジュール先頭の docstring）"
 NOTES = ("（引数を省いて縮めました）", "（引数とメソッドを省いて縮めました）")
 CUT = "…（長すぎるため以降を切り落としました）"
@@ -27,6 +28,11 @@ def _params(a):
 
 def _func(n):
     return {"name": n.name, "lineno": n.lineno, "params": _params(n.args), "returns": ast.unparse(n.returns) if n.returns else None}
+
+
+def _source(path):
+    """ソースの文字列（BOM を外し、読めない字は置き換える）。"""
+    return Path(path).read_text(encoding="utf-8-sig", errors="replace")
 
 
 def _tree(source):
@@ -60,7 +66,7 @@ def test_importers(root):
     root, found = Path(root), {}
     known = {p.relative_to(root).as_posix() for p in root.glob("harness/**/*.py")}
     for path in sorted(root.glob("tests/**/*.py")):
-        for name in _imported(_tree(path.read_text(encoding="utf-8-sig", errors="replace")) or ast.Module([], [])):
+        for name in _imported(_tree(_source(path)) or ast.Module([], [])):
             stem = "harness/" + name.removeprefix("harness.").replace(".", "/")
             for target in (p for p in (stem + ".py", stem + "/__init__.py") if p in known):
                 found.setdefault(target, set()).add(path.relative_to(root).as_posix())
@@ -73,7 +79,7 @@ def build(root):
     importers = test_importers(root)
     for file in sorted(root.glob("harness/**/*.py")):
         rel = file.relative_to(root).as_posix()
-        index = module_index(file.read_text(encoding="utf-8-sig", errors="replace"), rel)
+        index = module_index(_source(file), rel)
         if index is None:
             skipped.append(rel)
         else:
@@ -109,7 +115,7 @@ def imported_modules(root, paths, index):
     known, found = index.get("modules", {}), set()
     for rel in paths:
         try:
-            tree = _tree((Path(root) / rel).read_text(encoding="utf-8-sig", errors="replace"))
+            tree = _tree(_source(Path(root) / rel))
         except OSError:
             continue
         for name in _imported(tree or ast.Module([], [])):
@@ -145,8 +151,8 @@ def _line(f, level, pad):
     return f"{pad}def {f['name']}({params})" + (f" -> {f['returns']}" if f["returns"] else "") + f"  L{f['lineno']}"
 
 
-def _lines(index, level):
-    out = [HEAD] + (["飛ばした（構文の誤り・読めない）: " + ", ".join(index["skipped"])] if index.get("skipped") else [])
+def _lines(index, level, head=HEAD):
+    out = [head] + (["飛ばした（構文の誤り・読めない）: " + ", ".join(index["skipped"])] if index.get("skipped") else [])
     for path, m in index.get("modules", {}).items():
         out += ["", f"## {path}", "テスト: " + (", ".join(m["tests"]) or "なし")] + [_line(f, level, "") for f in m["functions"]]
         for c in m["classes"]:
@@ -154,14 +160,43 @@ def _lines(index, level):
     return out
 
 
-def render(index, max_chars):
-    """目次の文字列（max_chars を超えない）。超えるときは引数 → メソッド → 末尾の順に省き、最後の行で知らせる。"""
+def render(index, max_chars, head=HEAD):
+    """目次の文字列（max_chars を超えない）。超えるときは引数 → メソッド → 末尾の順に省き、最後の行で知らせる。head は先頭の見出し（と説明）。"""
     for level in (0, 1, 2):
-        text = "\n".join(_lines(index, level) + ([NOTES[level - 1]] if level else []))
+        text = "\n".join(_lines(index, level, head) + ([NOTES[level - 1]] if level else []))
         if len(text) <= max_chars:
             return text
     room = max_chars - len(CUT) - 1
     return (text[:room].rsplit("\n", 1)[0] + "\n" + CUT) if room > 0 else CUT[:max(max_chars, 0)]
+
+
+def package_index(root, package):
+    """課題のパッケージ（箱の課題の走りの <package>/）の目次。試験は tests/test_<package>*.py のうち、そのモジュールを import しているもの。"""
+    root, modules, skipped = Path(root), {}, []
+    tests = {p.relative_to(root).as_posix(): set(_imported(_tree(_source(p)) or ast.Module([], [])))
+             for p in sorted(root.glob(f"tests/test_{package}*.py"))}
+    for file in sorted(root.glob(f"{package}/**/*.py")):
+        rel = file.relative_to(root).as_posix()
+        index = module_index(_source(file), rel)
+        name = rel[:-3].removesuffix("/__init__").replace("/", ".")
+        if index is None:
+            skipped.append(rel)
+        else:
+            modules[rel] = dict(index, tests=[t for t, names in tests.items() if any(n == name or n.startswith(name + ".") for n in names)])
+    return {"modules": modules, "skipped": sorted(skipped)}
+
+
+def package_text(root, package, docs, max_chars):
+    """箱の課題の走り（作業の場所は課題のパッケージ・試験・仕様だけ。box.task_scope）の実装役に渡す、作業の場所の説明と課題のパッケージの目次。
+    harness/ の目次は課題に要らないので渡さない（v3 §15 の 11-12 その 4）。作れなければ空文字列で、呼び手は止まらない。"""
+    try:
+        tests = sorted(p.relative_to(Path(root)).as_posix() for p in Path(root).glob(f"tests/test_{package}*.py"))
+        shown = "・".join(f"`{t}`" for t in tests) or "まだ無い"
+        head = "\n".join([PKG_HEAD, f"作業の場所には、課題のパッケージ `{package}/` と試験（{shown}）と仕様の置き場 `{docs}` だけを置いています。"
+                                     "ほかのファイルはありません。"])
+        return render(package_index(root, package), max_chars, head)
+    except Exception:  # noqa: BLE001 - 目次が作れなくても、実装役は呼ぶ
+        return ""
 
 
 def limit(cfg):

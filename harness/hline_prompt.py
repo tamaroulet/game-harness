@@ -58,10 +58,19 @@ def ledger_section(wt, what):
         return ""
 
 
+def context(host, cfg, wt, what):
+    """実装役に渡す目次。箱の課題の走り（箱の印に docs がある。作業の場所は課題のパッケージ・試験・仕様だけ）では、harness/ の目次の
+    代わりに、作業の場所の説明と課題のパッケージの目次にする（v3 §15 の 11-12 その 4：harness/ の目次と説明は課題に要らず、約 6 KB あった）。"""
+    boxed = cfg.get("box") or {}
+    if boxed.get("package") and boxed.get("docs"):
+        return host.symbolmap.package_text(wt, boxed["package"], boxed["docs"], host.symbolmap.limit(cfg))
+    return host.symbolmap.prompt_text(cfg, wt, None, what, scope=True)
+
+
 def implement(host, cfg, wt, what, feedback, log):
     """実装役を 1 回呼ぶ。使ったモデルを照合し記録する（model_pin）。起動の失敗は Infra。TTL 超過（124）は例外にせず、そのまま返す。ターン数の上限の打ち切りは例外にせず、照合しない（hline_budget.outcome）。"""
     agent = cfg["implementer"]
-    shown = host.symbolmap.prompt_text(cfg, wt, None, what, scope=True)
+    shown = context(host, cfg, wt, what)
     host.map_chars = len(shown)   # 試行の記録に入れる（hline_task.run_task が読む）。implement の戻り値の形は変えない
     shown = "\n\n".join(filter(None, (ledger_section(wt, what), shown, impacted.prompt_note())))
     follow, host.follow_up = getattr(host, "follow_up", False), False   # run_task が試行ごとに置く。読んだら戻す

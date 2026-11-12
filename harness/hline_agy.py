@@ -103,15 +103,18 @@ def call(host, agent, wt, ttl, prompt):
 def in_box(host, agent, boxed, wt, ttl, prompt):
     """箱で 1 回呼ぶ（v3 §8 の E4）。(終了コード, 標準出力, 標準エラー)。コマンドを許す（--sandbox は付けない）。箱の失敗は Infra。
     受け取らなかったファイルは host.box_dropped に置く（hline_task.run_task が試行の記録と次の試行の入力に入れる）。
-    boxed の home と conversation（A の会話の形だけ）があれば、ホームをそのボリュームにして、その会話を続ける。"""
+    boxed の docs（課題の走り）があれば、箱の作業の場所を課題のパッケージ・試験・仕様に絞る（box.task_scope）。
+    boxed の home・conversation・work・send（A の会話の形だけ）があれば、ホームと作業の場所を鎖のボリュームにして、その会話を続ける。"""
     try:
         model_pin.require_implementer(agent, "H ラインの実装役")
         cfg = box.settings()
         box.require(cfg)
         box.ensure_net(cfg)
         args = [a for a in agy_stream.args(agent, ["agy"], prompt, ttl, conversation_id=boxed.get("conversation")) if a != SANDBOX]
+        send = boxed.get("send")
         code, out, err, got = box.agent(cfg, args, wt, ttl, agy_stream.stdin_for(agent, prompt) or "", box.new_files_rule(boxed["package"]),
-                                        home=boxed.get("home"))
+                                        home=boxed.get("home"), work=boxed.get("work"), scope=box.task_scope(boxed),
+                                        send=None if send is None else set(send))
     except (box.BoxError, model_pin.ModelPinError) as e:
         raise Infra(str(e)) from e
     host.box_dropped = got["dropped"] or None

@@ -342,7 +342,7 @@ class Stage(Base):
         return bench_chain.ChainStage(ns, "start", self.tmp / "spec.md", boxed)
 
     def test_box_mark_reaches_the_config_only_when_boxed(self):
-        self.assertEqual(self.stage_obj().box_mark({"a": 1}), {"a": 1, "box": {"package": "pkg"}})
+        self.assertEqual(self.stage_obj().box_mark({"a": 1}), {"a": 1, "box": {"package": "pkg", "docs": "docs/bench/B/"}})
         self.assertEqual(self.stage_obj(None).box_mark({"a": 1}), {"a": 1})
 
     def test_guard_uses_the_box_check_and_invalidates_on_problems(self):
