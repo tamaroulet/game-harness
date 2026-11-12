@@ -95,9 +95,12 @@ def read_json(path, default):
 
 
 def line_config(base_cfg, work, inbox, base, branch, implementer=None):
-    """clone の config/hline.json の 8 つの欄を走行用に上書きしたもの。implementer があれば実装役の設定もそれに替える。"""
+    """clone の config/hline.json の 9 つの欄を走行用に上書きしたもの。implementer があれば実装役の設定もそれに替える。
+    report は false（受信箱の report.md・TODO.md を書かない。走行では誰も読まず、目的までの距離の節が git を千回ほど呼んで、
+    poll ごとに 40 秒前後かかっていた。v3 §15 の 11-12 その 2）。"""
     cfg = {**base_cfg, "inbox": str(inbox), "out": str(work / "out"), "worktrees": str(work / "wt"), "base": base,
-           "integration_branch": branch, "milestones": [GROUP], "open_pr": False, "open_issue": False, "gate_always_modules": []}
+           "integration_branch": branch, "milestones": [GROUP], "open_pr": False, "open_issue": False, "gate_always_modules": [],
+           "report": False}
     return {**cfg, "implementer": implementer} if implementer is not None else cfg
 
 

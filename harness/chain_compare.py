@@ -40,6 +40,7 @@ TABLE = ("both", "b_only", "a_only", "neither")
 FAILURES = (("missing", "記録無し（鎖が止まった後）"), ("invalid", "無効か境界の違反"), ("limit", "時間かトークンの切れ"),
             ("gate", "B の門の不合格"), ("new", "新しい要件の未達"), ("old", "前の要件の退行"))
 COST_KEYS = chain_metrics.SUMS
+A_ARMS, B_ARMS = {"solo", "chat"}, {None, "harness-chat"}   # 腕の名（A は段ごとの会話と会話の形、B は名無しと会話の形）
 
 
 # ============================================================ 読み
@@ -340,8 +341,8 @@ def warnings_of(runs_a, runs_b):
         out.append("走りによって土台がそろっていません（無い土台の段は完了でないと数える）")
     if len({r["set"] for r in runs_a + runs_b}) > 1:
         out.append("組（set）の違う走りが混じっています")
-    if any(r["arm"] != "solo" for r in runs_a) or any(r["arm"] == "solo" for r in runs_b):
-        out.append("腕の名が --a（solo）・--b（名無し）と合いません（B どうしの揺れの見積もりなら、そのままでよい）")
+    if any(r["arm"] not in A_ARMS for r in runs_a) or any(r["arm"] not in B_ARMS for r in runs_b):
+        out.append("腕の名が --a（solo・chat）・--b（名無し・harness-chat）と合いません（同じ腕どうしの揺れの見積もりなら、そのままでよい）")
     return out
 
 

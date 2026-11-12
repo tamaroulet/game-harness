@@ -293,6 +293,9 @@ def human_line(cfg, st):
 
 
 def write_report(cfg, st):
+    """受信箱の report.md・TODO.md を今の状態で書き直す。設定の report が false なら書かない（ベンチの走行。bench_run.line_config）。"""
+    if cfg.get("report") is False:
+        return
     human = human_line(cfg, st)
     try:
         text = progress_report(cfg)
