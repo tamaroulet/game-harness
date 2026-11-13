@@ -155,7 +155,7 @@ premises:
   text: ベンチ（X-01〜X-03）の検証用のモデルは、Gemini 4 Hydrogen（medium）を主の候補にし、X-01 で 1 課題あたりの利用枠の減りと解決の余地を測って、燃費が許せる範囲なら標準にする（3.8 Flash は少数の課題で比べる候補）。ベンチで証明するのは共通骨格（要件の台帳・1 つの単位を 1 つの会話で続ける・機械の背圧）だけにし、実戦の専用化（受け入れテストの事前の提示・大きい粒度・Unity の多段の関門）はベンチの形に縛られずに作る。課題の組は FeatureBench の Fast（v1.1）にし、像は seaborn・mlflow・pandas・astropy の 4 つ（63 課題）を中心に使う（P-033）
   kind: decision
   basis: [操縦士の裁定（2026-11-14、整理の PR の前の指示と、0-a の後の指示）]
-  note: 2026-11-14 の X-01 の 1 課題目で、Hydrogen の週の目盛りの減りは 2 ポイント未満だったので、数の線により標準にした。Hydrogen は agy 1.5.3 の Gemini Models の週の枠で動き、Argon と Claude の枠を使わない（操縦士の報告。X-01 で、CLI が報告したモデルの照合と目盛りの読みで確かめる）。FeatureBench の通常の実行が F2P のテストのファイルを消して隠すことは、featurebench/infer/runtime.py（コミット 08b25d9）で確かめた
+  note: 2026-11-14 の X-01 の 1 課題目で、Hydrogen の週の目盛りの減りは 2 ポイント未満だったので、数の線により標準にした。Hydrogen は agy 1.5.3 の Gemini Models の週の枠で動き、Argon と Claude の枠を使わない（操縦士の報告。X-01 で、CLI が報告したモデルの照合と目盛りの読みで確かめる）。FeatureBench の通常の実行が F2P のテストのファイルを消して隠すことは、featurebench/infer/runtime.py（コミット 08b25d9）で確かめた。公式の API の値段（R-20261114-gemini-api-pricing。燃費の換算に使う）では、Hydrogen の入力と出力の単価は 3.8 Flash の 2026 年の値段の 2 倍で、2027-01-01 からの Flash の値段と同じ。キャッシュの読みは 2026 年は同じで、2027 年からは Flash が 2 倍
   checked_at: 2026-11-14
   recheck_by: 2026-12-14
   used_by: [v4 設計 §4-1, v4 設計 §4-2, v4 設計 §4-4, v4 設計 §5-1, v4 実験 §2, v4 実験 §3, v4 実験 §4, v4 実験 §5]
