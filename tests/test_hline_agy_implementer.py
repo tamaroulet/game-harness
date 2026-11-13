@@ -64,7 +64,7 @@ class Base(unittest.TestCase):
         self.calls = []
         self.reply = (0, stream(), "")
         self.host = types.SimpleNamespace(
-            symbolmap=types.SimpleNamespace(prompt_text=lambda *a, **k: ""), build_prompt=lambda what, fb, shown: "PROMPT",
+            symbolmap=types.SimpleNamespace(prompt_text=lambda *a, **k: ""), build_prompt=lambda what, fb, shown, **k: "PROMPT",
             proc=types.SimpleNamespace(run=self.fake_run, resolve_cli=lambda cli: [cli]))
         for target in (mock.patch.object(hline_agy.agy_pinned, "require", return_value={}),):
             target.start()

@@ -18,12 +18,18 @@ from hline_budget import capped_args, outcome, resume_turn_cap, turn_cap
 TIMEOUT_EXIT = 124   # ttl_seconds.implementer の時間切れ（proc.run が返す）
 
 
-def build_prompt(what, feedback=None, symbol_map=None):
-    """実装役に渡す入力。What の本文をそのまま渡す（段を 1 つにしたので TaskSpec は作らない）。"""
-    p = ["あなたはハーネス（Python のリポジトリ game-harness）の実装役です。作業ディレクトリはその作業ツリーです。",
-         "次の What を満たす変更を、作業ディレクトリの中だけで行ってください。",
-         "- 合格条件を満たすことを、unittest のテストを tests/ に書いて示す（既存の書き方に合わせる）",
-         "- docs/progress.yaml と .claude/ は変えない。コミットはしない（コミットはハーネスが行う）。CLAUDE.md の進捗（anchor・report）と報告の規約は総監督向けで、あなたには適用しない",
+def build_prompt(what, feedback=None, symbol_map=None, *, task=False):
+    """実装役に渡す入力。What の本文をそのまま渡す（段を 1 つにしたので TaskSpec は作らない）。
+    task は箱の課題の走り（作業の場所は課題のパッケージ・試験・仕様だけ。task_run）の印で、前置きが作業の場所に無いもの
+    （game-harness のリポジトリ・docs/progress.yaml・.claude/・CLAUDE.md）を指さないようにする（v3 §15 の 11-13：誤りの直しで、指図は足さない）。"""
+    head = ["あなたは、Python の課題のパッケージで作業する実装役です。作業ディレクトリには、そのパッケージと試験（tests/）と仕様（docs/bench/）があります。",
+            "次の What を満たす変更を、作業ディレクトリの中だけで行ってください。",
+            "- 合格条件を満たすことを、unittest のテストを tests/ に書いて示す（既存の書き方に合わせる）"] if task else [
+            "あなたはハーネス（Python のリポジトリ game-harness）の実装役です。作業ディレクトリはその作業ツリーです。",
+            "次の What を満たす変更を、作業ディレクトリの中だけで行ってください。",
+            "- 合格条件を満たすことを、unittest のテストを tests/ に書いて示す（既存の書き方に合わせる）",
+            "- docs/progress.yaml と .claude/ は変えない。コミットはしない（コミットはハーネスが行う）。CLAUDE.md の進捗（anchor・report）と報告の規約は総監督向けで、あなたには適用しない"]
+    p = [*head,
          "- ハーネスが試行の後に影響テストを走らせ、落ちたテストの名前とトレースバックを"
          "次の試行に渡す。既存のテストを壊さない。コマンドの道具があれば、自分でテストを走らせて確かめてよい",
          "- テストはモジュールごとに別のプロセスで並列に走る。tests/ に書くテストは、固定の一時ディレクトリ・固定のポート・走る順番に依らせない",
@@ -58,12 +64,17 @@ def ledger_section(wt, what):
         return ""
 
 
-def context(host, cfg, wt, what):
-    """実装役に渡す目次。箱の課題の走り（箱の印に docs がある。作業の場所は課題のパッケージ・試験・仕様だけ）では、harness/ の目次の
-    代わりに、作業の場所の説明と課題のパッケージの目次にする（v3 §15 の 11-12 その 4：harness/ の目次と説明は課題に要らず、約 6 KB あった）。"""
+def task_run(cfg):
+    """箱の課題の走りか（箱の印に package と docs がある。作業の場所は課題のパッケージ・試験・仕様だけ。box.task_scope）。"""
     boxed = cfg.get("box") or {}
-    if boxed.get("package") and boxed.get("docs"):
-        return host.symbolmap.package_text(wt, boxed["package"], boxed["docs"], host.symbolmap.limit(cfg))
+    return bool(boxed.get("package") and boxed.get("docs"))
+
+
+def context(host, cfg, wt, what):
+    """実装役に渡す目次。箱の課題の走りでは、harness/ の目次の代わりに、作業の場所の説明と課題のパッケージの目次にする
+    （v3 §15 の 11-12 その 4：harness/ の目次と説明は課題に要らず、約 6 KB あった）。"""
+    if task_run(cfg):
+        return host.symbolmap.package_text(wt, cfg["box"]["package"], cfg["box"]["docs"], host.symbolmap.limit(cfg))
     return host.symbolmap.prompt_text(cfg, wt, None, what, scope=True)
 
 
@@ -76,7 +87,7 @@ def implement(host, cfg, wt, what, feedback, log):
     follow, host.follow_up = getattr(host, "follow_up", False), False   # run_task が試行ごとに置く。読んだら戻す
     host.turn_cap_used = cap = (resume_turn_cap if follow else turn_cap)(agent)   # 試行の記録に入れる
     began = time.monotonic()
-    prompt = host.build_prompt(what, feedback, shown)
+    prompt = host.build_prompt(what, feedback, shown, task=task_run(cfg))
     if agent.get("cli") == "agy":
         try:
             return hline_agy.implement(host, cfg, wt, prompt, log)

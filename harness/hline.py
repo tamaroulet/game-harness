@@ -24,7 +24,7 @@ from hline_room import director_settings, setup  # noqa: E402,F401
 from hline_spec import boundary_problems, diff_counts  # noqa: E402,F401
 
 
-def build_prompt(what, feedback=None, symbol_map=None): return hline_prompt.build_prompt(what, feedback, symbol_map)
+def build_prompt(what, feedback=None, symbol_map=None, *, task=False): return hline_prompt.build_prompt(what, feedback, symbol_map, task=task)
 
 
 def implement(cfg, wt, what, feedback, log): return hline_prompt.implement(sys.modules[__name__], cfg, wt, what, feedback, log)

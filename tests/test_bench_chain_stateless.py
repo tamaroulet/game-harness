@@ -1,6 +1,6 @@
 """B（ハーネス）の実装役は記憶を持たない（v3 §15 の 11-12 その 4：会話の形の B は外した）。前の段の分かることは Git の木と仕様と台帳から
-受け取り、箱の作業の場所は課題のパッケージ・試験・仕様だけ、目次は harness/ ではなく課題のパッケージのもの。進め方は両腕に同じ課題の
-手順の助言だけ。箱と H ラインは呼ばない（差し替える）。"""
+受け取り、箱の作業の場所は課題のパッケージ・試験・仕様だけ、目次は harness/ ではなく課題のパッケージのもの。進め方の助言は
+入れず、前置きは作業の場所に無いものを指さない（v3 §15 の 11-13）。箱と H ラインは呼ばない（差し替える）。"""
 import argparse
 import contextlib
 import hashlib
@@ -35,14 +35,32 @@ class Car:
 
 
 class Guidance(unittest.TestCase):
-    def test_both_arms_get_the_same_task_advice_and_nothing_about_an_arm(self):
+    def test_the_what_has_no_advice_on_how_to_work_and_nothing_about_an_arm(self):
+        # 進め方の助言はプロンプトの文面でのお願いで、要綱に数えないので入れない（v3 §15 の 11-13）
         what = bench_chain.what_text("B07", "pkg", 2, INFO, ["pkg/mod.py", "tests/test_pkg_s2.py"])
-        head, _, tail = what.partition("## 進め方")
-        self.assertIn("## 合格条件", head)
-        self.assertIn("1 本のスクリプトにまとめて", tail)
-        self.assertIn("git は使わなくてよい", tail)
-        for arm_only in ("この会話", "読み直さなくてよい", "ほかの場所は読まなくてよい", "目次", "影響テスト", "次の試行"):
-            self.assertNotIn(arm_only, what)
+        self.assertIn("## 合格条件", what)
+        self.assertNotIn("## 進め方", what)
+        for advice in ("1 本のスクリプトにまとめて", "git は使わなくてよい", "この会話", "読み直さなくてよい", "ほかの場所は読まなくてよい",
+                       "目次", "影響テスト", "次の試行"):
+            self.assertNotIn(advice, what)
+
+
+class Preamble(unittest.TestCase):
+    def test_a_boxed_task_run_is_not_told_about_files_it_does_not_have(self):
+        # 箱の課題の走りの作業の場所は課題のパッケージ・試験・仕様だけ。前置きがリポジトリの台帳や .claude を指すのは誤り（v3 §15 の 11-13）
+        task = hline_prompt.build_prompt("# 題", None, "# 目次", task=True)
+        for missing in ("game-harness", "docs/progress.yaml", ".claude/", "CLAUDE.md"):
+            self.assertNotIn(missing, task)
+        self.assertIn("作業ディレクトリには、そのパッケージと試験（tests/）と仕様（docs/bench/）があります", task)
+        self.assertIn("影響テスト", task)   # B の仕組み（試行の後の影響テストと、次の試行への引き渡し）は残る
+        repo = hline_prompt.build_prompt("# 題", None, "# 目次")
+        self.assertIn("docs/progress.yaml と .claude/ は変えない", repo)   # H ラインが自分の木で走るときは今のまま
+        self.assertEqual(task.split("\n---\n", 1)[1], repo.split("\n---\n", 1)[1])
+
+    def test_the_task_mark_comes_from_the_box_mark(self):
+        self.assertTrue(hline_prompt.task_run({"box": {"package": "pkg", "docs": "docs/bench/B07/"}}))
+        self.assertFalse(hline_prompt.task_run({"box": {"package": "pkg"}}))
+        self.assertFalse(hline_prompt.task_run({}))
 
 
 class Mark(unittest.TestCase):
