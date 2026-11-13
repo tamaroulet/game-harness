@@ -1,6 +1,6 @@
 name: approval
 
-# 配布元: tamaroulet/game-harness の harness/templates/game-repo/。直接編集しない。
+# 正本はこのファイル。ほかのリポジトリに入れるときは、.github/ms4-approvers と .github/scripts/ms4_approval_gate.py と一緒に写す。
 #
 # PR の必須チェック「approval」。人間の承認（ms4:approved ラベル）が、
 # 今の head SHA に対して、承認者によって付けられているかを判定する。

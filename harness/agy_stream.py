@@ -1,6 +1,4 @@
-"""実装役（agy）の呼び出しの引数と、stream-json の読み取り（docs/design/v2_1_improvement_plan.md §1.1・§1.2）。
-
-pipeline（条件 B）とドライバ（条件 A）が同じものを使う。
+"""agy の呼び出しの引数と、stream-json の読み取り。
 
 **stream-json**：agy は手番（step）が終わるたびに `step_update`（`state: DONE`）の中にその手番の利用量を出し、
 最後に `result` で合計を出す。**この呼び出しの利用量は手番の足し込み**にする。`result` の合計は会話全体の累計で、
@@ -177,7 +175,7 @@ def parse(text, workdir=None):
 
 
 def token_problems(steps):
-    """思考が出力を超える手番（v2r、docs/design/v2r_protocol.md §9.1）。["step <n>: thinking=<t> > output=<o>"]。
+    """思考が出力を超える手番。["step <n>: thinking=<t> > output=<o>"]。
 
     費用は出力の単価で思考を数えている（思考は出力に含まれる。V2-RUN の 112 手番すべてで思考 ≤ 出力を実測）。
     この関係が破れた手番があれば、費用の式の前提が崩れているので、guard が止める。

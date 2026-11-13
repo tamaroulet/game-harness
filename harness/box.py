@@ -1,4 +1,4 @@
-"""実装役・門・採点の箱（v3 §8 の E4）：Docker の呼び方、像と中継の確かめ、箱の起動。
+"""実行環境のアダプタ：WSL2 の Docker の箱。Docker の呼び方、像と中継の確かめ、箱の起動（docs/ops/box.md）。
 
     python -m harness.box setup    WSL2 の準備のスクリプトを root で走らせる（box/setup_wsl.sh。やり直せる）
     python -m harness.box build    像を造る（box/ と config/box.json から）
@@ -258,7 +258,7 @@ def tests_opts(cfg):
 
 
 def new_files_rule(package):
-    """実装役が新しく作ったファイルのうち、受け取ってよいものの判じ方（bench_run.allowed_path と同じ範囲）。
+    """エージェントが新しく作ったファイルのうち、受け取ってよいものの判じ方（課題のパッケージの下と、tests/test_<パッケージ>*）。
     作業の残りのファイルで境界の検めに当たって段が 0 点にならないように、外のものは受け取らず、次の試行の入力で知らせる。"""
     tests = re.compile(rf"tests/test_{re.escape(package)}[^/]*")
     return lambda rel: rel.startswith(package + "/") or tests.fullmatch(rel) is not None

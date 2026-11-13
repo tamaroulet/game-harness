@@ -1,6 +1,6 @@
-"""承認ゲート。PR の必須チェック `approval` の実体（ゲームのリポジトリに配る）。
+"""承認ゲート。PR の必須チェック `approval` の実体。
 
-配布元: tamaroulet/game-harness の harness/templates/game-repo/。直接編集しない。
+正本はこのファイル。ほかのリポジトリ（Unity のゲームのリポジトリなど）に入れるときは、ここから写す。
 
 ワークフロー（.github/workflows/approval.yml）が pull_request_target で呼ぶ。
 pull_request_target は保護された base ブランチ側の定義で動くので、PR の中で

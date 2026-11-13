@@ -1,5 +1,0 @@
-{
-  "kind": "unittest",
-  "ref": "origin/main",
-  "modules": ["tests.rollgame_judge"]
-}

@@ -2,12 +2,11 @@
 
     python -m harness.model_pin            すべてのエージェント設定がモデルを明示しているかを検査する
 
-**なぜ要るか**: v2 の報告書（experiments/v2/results/run/report.md）で、仕様分解役（declare・decompose）のモデル名が
-「記録なし（CLI の既定）」になった。config/decompose.json に --model が無く、CLI の既定のモデルで動いていたので、
-事前投資（1.202043 USD）をどのモデルが書いたのか、一次情報のどこにも残っていなかった。
+**なぜ要るか**: 2026-09 の走行で、分解役のモデル名が「記録なし（CLI の既定）」になった。設定に --model が無く、
+CLI の既定のモデルで動いていたので、どのモデルが書いたのかが一次情報のどこにも残っていなかった（記録は archive/pre-v4 のタグ）。
 
 **鉄則**:
-1. ハーネスが呼ぶすべてのエージェント（分解役・構造化役・実装役）の設定に、`model_flag` と正確なモデルの ID を書く。
+1. ハーネスが呼ぶすべてのエージェント（調べ役・実装役など）の設定に、`model_flag` と正確なモデルの ID を書く。
    CLI の既定のモデルには頼らない。書いていなければ、起動の時点で止める（`require`）
 2. 実行のたびに、CLI が報告したモデル（claude は JSON の modelUsage、agy は stream-json の model）を記録し、
    設定のモデルと照合する。報告が無い・違うときは止める（`check_claude`・`check_reported`）
@@ -111,25 +110,12 @@ def require_implementer(imp, where):
 # ============================================================ 設定の一斉検査
 
 def agent_configs(root=ROOT):
-    """ハーネスが呼ぶエージェントの設定。[(場所, 設定の表, モデルのキー)]。"""
+    """ハーネスが呼ぶエージェントの設定。[(場所, 設定の表, モデルのキー)]。エージェントの設定を足したら、ここにも足す。"""
     out = []
-    for name in ("decompose", "spec", "proposer"):
-        p = Path(root) / "config" / f"{name}.json"
-        if p.exists():
-            out.append((f"config/{name}.json", json.loads(p.read_text(encoding="utf-8")), "model"))
-    p = Path(root) / "config" / "hline.json"   # H ラインの実装役（harness/hline.py）
-    if p.exists():
-        hline = json.loads(p.read_text(encoding="utf-8"))
-        if "implementer" in hline:
-            out.append(("config/hline.json の implementer", hline["implementer"], "model"))
-    p = Path(root) / "config" / "research.json"   # 調べ役（harness/research.py、W-123）
+    p = Path(root) / "config" / "research.json"   # 調べ役（harness/research.py）
     if p.exists():
         for name, b in sorted(json.loads(p.read_text(encoding="utf-8")).get("backends", {}).items()):
             out.append((f"config/research.json の backends.{name}", b, "model_name" if b.get("cli") == "agy" else "model"))
-    for p in sorted((Path(root) / "projects").glob("*/pipeline.json")):
-        cfg = json.loads(p.read_text(encoding="utf-8"))
-        if isinstance(cfg.get("implementer"), dict):
-            out.append((f"{p.relative_to(root).as_posix()} の implementer", cfg["implementer"], "model_name"))
     return out
 
 

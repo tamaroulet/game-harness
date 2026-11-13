@@ -42,7 +42,7 @@ class Rules(unittest.TestCase):
         self.assertEqual(tuple(item["properties"]["sector"]["enum"]), research.SECTORS)
         self.assertEqual(tuple(item["properties"]["source_tier"]["enum"]), research.TIERS)
         self.assertIn("queries", schema["required"])
-        prompt = (ROOT / "docs" / "prompts" / "researcher.md").read_text(encoding="utf-8")
+        prompt = (ROOT / "config" / "research_instruction.md").read_text(encoding="utf-8")
         for name in research.SECTORS + ("source_tier", "sector", "approach", "queries"):
             self.assertIn(name, prompt)
 

@@ -2,7 +2,7 @@
 
     python -m unittest tests.test_model_pin
 
-**なぜ要るか**: v2 の報告書で、仕様分解役のモデル名が「記録なし（CLI の既定）」になった。ここでは次を縛る。
+**なぜ要るか**: 2026-09 の走行で、分解役のモデル名が「記録なし（CLI の既定）」になった。ここでは次を縛る。
 - すべてのエージェント設定が model_flag と正確なモデルの ID を持つ（CLI の既定に頼らない）
 - CLI が報告したモデルが無い・設定と違う実行は止める
 """
@@ -64,24 +64,19 @@ class Check(unittest.TestCase):
 
 class Configs(unittest.TestCase):
     def test_every_agent_setting_in_the_repository_pins_its_model(self):
-        """unity-2d の実装役は json の出力で、使ったモデルを記録できない（移行するまで起動時に止まる）。
-        それ以外の不備が増えたら、ここで落ちる。"""
         places = [where for where, _, _ in model_pin.agent_configs()]
-        for expected in ("config/decompose.json", "config/spec.json", "config/hline.json の implementer",
-                         "projects/falling-blocks/pipeline.json の implementer"):
-            self.assertIn(expected, places)
-        found = model_pin.problems()
-        self.assertEqual([f for f in found if "projects/unity-2d/" not in f], [])
-        self.assertEqual(len(found), 1, found)
+        for name in ("agy", "claude", "claude-deep"):
+            self.assertIn(f"config/research.json の backends.{name}", places)
+        self.assertEqual(model_pin.problems(), [])
 
     def test_a_setting_without_a_model_is_found(self):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / "config").mkdir()
-            (Path(d) / "config" / "decompose.json").write_text(json.dumps({"cli": "claude"}), encoding="utf-8")
+            (Path(d) / "config" / "research.json").write_text(json.dumps({"backends": {"x": {"cli": "claude"}}}),
+                                                              encoding="utf-8")
             found = model_pin.problems(d)
         self.assertEqual(len(found), 1)
         self.assertIn("model_flag", found[0])
-
 
 if __name__ == "__main__":
     unittest.main()

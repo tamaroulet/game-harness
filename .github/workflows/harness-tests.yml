@@ -1,13 +1,10 @@
 name: harness-tests
 
-# スケジューラの状態遷移テスト。git は本物、GitHub は偽物、子プロセスはスタブ。
-# test：taskkill と Windows のパスを使うので windows-latest（GitHub-hosted）で走らせる。ハーネスが実際に動く土台。
-# test-linux：同じ全件を ubuntu-latest でも通す（v3 の計画の線 2 の E3）。Windows にしか無い振る舞いを確かめる試験は、
-#   OS に依らない形に直すか、Windows のときだけ走る形にしてある。ジョブは別々に走る（どちらかの失敗がもう一方を止めない）。
+# ハーネスの試験の全件と、前提の台帳・モデルの固定の検査。
+# test：windows-latest（ハーネスが実際に動く土台）。test-linux：同じものを ubuntu-latest でも通す。
+#   Windows にしか無い振る舞いを確かめる試験は、Windows のときだけ走る形にしてある。ジョブは別々に走る（どちらかの失敗がもう一方を止めない）。
 # self-hosted runner は使わない（PC が止まっていてもチェックが回るように）。
-#
-# 全件は harness.fastsuite でモジュールごとに別のプロセスで並列に走らせる（Gate 1 と同じ道具）。
-# 並列で落ちたモジュールは単独で 1 回走らせ直し、通れば flaky として本文に出す（終了コードには効かない）。
+# 前提の台帳は --strict で見る。確かめ直す期限（recheck_by）を過ぎた前提があると落ちるので、期限が来たら照らし直すか退けるかを決める。
 
 on:
   push:
@@ -33,28 +30,18 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.lock
 
-      # 版は config/toolchain.json にだけ書く。requirements.lock はそこから作ったもの（W-126。test_toolchain が一致を縛る）
       - name: dependencies
         run: python -m pip install -r requirements.lock
 
-      # dotnet build を呼ぶテスト（invgen・invrun・query・struct_literal・testgen）が、初めての NuGet パッケージを
-      # 並列に同時に展開すると、グローバルのパッケージのフォルダで書き込みが競合する（NU5037。PR #165 の実測）。
-      # 並列の前に 1 回だけ restore し、テストからは読むだけにする。csproj は config/toolchain.json の csproj から作る（W-126）
-      - name: nuget warm-up
-        shell: pwsh
-        run: |
-          $d = Join-Path $env:RUNNER_TEMP 'nuget-warmup'
-          python -m harness.toolchain warmup $d
-          dotnet restore (Join-Path $d 'Warmup.csproj')
-
-      # runner コンテキストはジョブ単位の env では使えない（ワークフローごと起動しなかった。実測）
       - name: unittest
-        env:
-          HARNESS_SELFTEST_DIR: ${{ runner.temp }}\harness-selftest
-        run: python -m harness.fastsuite discover -s tests
+        run: python -m unittest discover -s tests
 
-  # 同じ全件を Linux で。手順は test と同じで、違うのは runner と、HARNESS_SELFTEST_DIR の区切りだけ（Linux は /）。
-  # dotnet は ubuntu-latest に入っている（探り probe/linux-ci、2026-10-30 の実測）
+      - name: premises
+        run: python -m harness.premises check --strict
+
+      - name: model pin
+        run: python -m harness.model_pin
+
   test-linux:
     runs-on: ubuntu-latest
     env:
@@ -71,15 +58,11 @@ jobs:
       - name: dependencies
         run: python -m pip install -r requirements.lock
 
-      # 並列の前に 1 回だけ restore する理由は test と同じ（NU5037）
-      - name: nuget warm-up
-        shell: pwsh
-        run: |
-          $d = Join-Path $env:RUNNER_TEMP 'nuget-warmup'
-          python -m harness.toolchain warmup $d
-          dotnet restore (Join-Path $d 'Warmup.csproj')
-
       - name: unittest
-        env:
-          HARNESS_SELFTEST_DIR: ${{ runner.temp }}/harness-selftest
-        run: python -m harness.fastsuite discover -s tests
+        run: python -m unittest discover -s tests
+
+      - name: premises
+        run: python -m harness.premises check --strict
+
+      - name: model pin
+        run: python -m harness.model_pin
