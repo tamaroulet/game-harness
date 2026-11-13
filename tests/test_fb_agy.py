@@ -45,7 +45,7 @@ class Run(unittest.TestCase):
             self.assertFalse(path.startswith("/testbed"), path)
         cmd = fb_agy.run_command(fb_agy.agent_settings(AGENT, "gemini-4-hydrogen-medium"), 600)
         self.assertTrue(cmd.startswith("set -o pipefail;"), "tee の後でも agy の終了コードを返す")
-        self.assertIn(f"HOME={fb_agy.HOME} agy -p= --input-format stream-json", cmd)
+        self.assertIn(f"HOME={fb_agy.HOME} AGY_CLI_DISABLE_AUTO_UPDATE=1 agy -p= --input-format stream-json", cmd)
         self.assertIn("--model gemini-4-hydrogen-medium", cmd)
         self.assertIn("--print-timeout 580s", cmd)
         self.assertIn(f"< {fb_agy.PROMPT_PATH} | tee {fb_agy.STREAM_PATH}", cmd)

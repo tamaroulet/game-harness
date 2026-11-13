@@ -105,9 +105,9 @@ def agent_settings(agent_cfg, model):
 
 
 def run_command(imp, ttl):
-    """/testbed で走らせる命令。頼みは PROMPT_PATH から標準入力で渡し、出力は STREAM_PATH にも残す。"""
+    """/testbed で走らせる命令。頼みは PROMPT_PATH から標準入力で渡し、出力は STREAM_PATH にも残す。自動更新は止める（版の固定。箱の像と同じ）。"""
     argv = agy_stream.args(imp, [NAME], "", ttl)
-    return (f"set -o pipefail; mkdir -p {LOG_DIR}; HOME={HOME} {shlex.join(argv)} < {PROMPT_PATH} "
+    return (f"set -o pipefail; mkdir -p {LOG_DIR}; HOME={HOME} AGY_CLI_DISABLE_AUTO_UPDATE=1 {shlex.join(argv)} < {PROMPT_PATH} "
             f"| tee {STREAM_PATH}")
 
 
