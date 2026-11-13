@@ -21,8 +21,6 @@ import exitcode  # noqa: E402
 # 入口はあるが、終了コードを誰も読まないもの（理由を書いて免除する）
 EXEMPT = {
     "exitcode.py": "正規化そのもの",
-    "adapters/csharp_tests.py": "結果ファイルの要約を表示するだけの診断用。終了コードを返さない",
-    "templates/game-repo/.github/scripts/ms4_approval_gate.py": "ゲームのリポジトリへ配る承認門のひな形。harness では動かない（承認機構なのでここでは触らない）",
 }
 MAIN_RE = re.compile(r'^if __name__ == "__main__":', re.M)
 

@@ -15,13 +15,37 @@ sys.path.insert(0, str(HARNESS))
 import exitcode  # noqa: E402
 import job_object  # noqa: E402
 import proc  # noqa: E402
-import scheduler  # noqa: E402
 
 # 孫を起こし、子と孫の pid を argv[1] に書いて眠る
 SPAWN = ("import os,subprocess,sys,time\n"
          "g=subprocess.Popen([sys.executable,'-c','import time; time.sleep(300)'])\n"
          "open(sys.argv[1],'w').write(f'{os.getpid()} {g.pid}')\ntime.sleep(300)")
 SELF = f"import sys\nsys.path.insert(0,sys.argv[2])\nimport job_object\njob_object.ensure_self_job()\n{SPAWN}"
+
+
+def pid_alive(pid):
+    """プロセスが生きているか。Windows では os.kill(pid, 0) が相手を終了させるので、OpenProcess と GetExitCodeProcess で見る。"""
+    if sys.platform != "win32":
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except OSError:
+            return True
+        return True
+    import ctypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    PROCESS_QUERY_LIMITED_INFORMATION, STILL_ACTIVE, ERROR_INVALID_PARAMETER = 0x1000, 259, 87
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+    if not handle:
+        return ctypes.get_last_error() != ERROR_INVALID_PARAMETER
+    try:
+        code = ctypes.c_ulong()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return True
+        return code.value == STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def until(cond, limit=15):
@@ -35,13 +59,13 @@ class Base(unittest.TestCase):
     def setUp(self):
         self.tmp, self.pids = Path(tempfile.mkdtemp()), []
         self.addCleanup(shutil.rmtree, self.tmp, True)
-        self.addCleanup(lambda: [os.kill(p, 9) for p in self.pids if scheduler.pid_alive(p)])
+        self.addCleanup(lambda: [os.kill(p, 9) for p in self.pids if pid_alive(p)])
 
     def assertDead(self, path):
         self.assertTrue(until(lambda: path.exists() and len(path.read_text().split()) == 2, 20), "pid が書かれなかった")
         pids = [int(x) for x in path.read_text().split()]
         self.pids += pids
-        self.assertTrue(until(lambda: not any(scheduler.pid_alive(p) for p in pids)), f"生き残り: {pids}")
+        self.assertTrue(until(lambda: not any(pid_alive(p) for p in pids)), f"生き残り: {pids}")
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows の Job Object が要る")
@@ -51,8 +75,8 @@ class JobKillsTheTree(Base):
         rc, _, err = proc.run([sys.executable, "-c", SPAWN, str(f)], self.tmp, 5, "spawn")
         self.assertEqual((rc, err), (124, "TTL超過 (5s): spawn"))
         self.assertDead(f)
-        self.assertEqual(scheduler.run_logged([sys.executable, "-c", SPAWN, str(g)], self.tmp, 5, self.tmp / "x", None), 124)
-        self.assertIn("TTL超過", (self.tmp / "x").read_text(encoding="utf-8"))
+        rc, _, err = proc.run([sys.executable, "-c", SPAWN, str(g)], self.tmp, 5, "spawn")
+        self.assertIn("TTL超過", err)
         self.assertDead(g)
 
     def test_g2_killing_the_harness_takes_its_descendants(self):
@@ -73,9 +97,6 @@ class Behaviour(Base):
         rc, out, err = proc.run(["no-such-command-xyz"], self.tmp, 5, "t")
         self.assertEqual((rc, out), (127, ""))
         self.assertTrue(err.startswith("コマンドが見つかりません"))
-        log = self.tmp / "x"
-        self.assertEqual(scheduler.run_logged([sys.executable, "-c", "print('hi')"], self.tmp, 30, log, None), 0)
-        self.assertEqual(scheduler.run_logged(["no-such-command-xyz"], self.tmp, 5, log, None), 127)
 
     def test_g3_job_api_never_raises_and_normalized_arms_it(self):
         self.assertEqual(job_object.ensure_self_job(), job_object.ensure_self_job())
@@ -101,7 +122,7 @@ class StaticAudit(unittest.TestCase):
             mods = {(getattr(n, "module", None) or a.name).split(".")[0] for n in ast.walk(tree)
                     if isinstance(n, (ast.Import, ast.ImportFrom)) for a in n.names}
             main = [ast.unparse(n) for n in ast.walk(tree) if isinstance(n, ast.If) and ast.unparse(n.test) == "__name__ == '__main__'"]
-            if main and mods & {"subprocess", "proc", "scheduler"} and not any("exitcode.normalized(" in m for m in main):
+            if main and mods & {"subprocess", "proc"} and not any("exitcode.normalized(" in m for m in main):
                 bad.append(rel)
         self.assertEqual(bad, [])
 

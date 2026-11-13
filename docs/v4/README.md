@@ -1,6 +1,6 @@
 # v4：ゲーム開発のための自律開発ハーネスの正本
 
-2026-11-13 に、v3（[direction_and_plan_v3.md](../design/direction_and_plan_v3.md)、凍結）から移った。v4 は役割の違う 3 つの層に分ける。
+2026-11-13 に、v3（[direction_and_plan_v3.md](https://github.com/tamaroulet/game-harness/blob/archive/pre-v4/docs/design/direction_and_plan_v3.md)、凍結）から移った。v1〜v3 の文書・コード・ランの記録は、タグ archive/pre-v4 にある（main には残さない）。v4 は役割の違う 3 つの層に分ける。
 
 | 層 | 文書 | 中身 | 変え方 |
 |:--|:--|:--|:--|
@@ -12,7 +12,7 @@
 
 - 調べものの記録：[docs/research/](../research/)。調べ方の規則は [research_protocol.md](../design/research_protocol.md)。主張ごとに出典と抜粋があり、抜粋は出典の本文で機械に照合する。
 - 前提の台帳：[premises.yaml](../design/premises.yaml)。根拠の種類（research・measured・decision・assumption）と、確かめ直す期限を持つ。`python -m harness.premises check --strict` で点検する。
-- ランの公開の記録：[bench/records/](../../bench/records/)（件数と費用だけ）。
+- v3 までのランの公開の記録（件数と費用だけ。M-02 の B07 の 2 本を含む）：タグ archive/pre-v4 の [bench/records/](https://github.com/tamaroulet/game-harness/tree/archive/pre-v4/bench/records)。
 
 ## 読む順
 

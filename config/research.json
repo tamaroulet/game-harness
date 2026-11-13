@@ -6,7 +6,7 @@
   "recheck_days": 30,
   "index": "${local}/research/index.json",
   "public_records": "docs/research",
-  "instruction": "docs/prompts/researcher.md",
+  "instruction": "config/research_instruction.md",
   "schema": "config/research_schema.json",
   "records": "${local}/research/records",
   "queue": "${local}/research/queue",
@@ -57,5 +57,5 @@
       "ttl_seconds": 2400
     }
   },
-  "_backends_note": "agy は --mode plan（読み取りだけ）と --sandbox で動かし、出力の形は --json-schema で CLI の側でも強制する。claude は Claude の利用枠を使うので、agy の枠が無く急ぐときだけ --backend claude で選ぶ。claude の auxiliary_models は、固定したモデルに当たらない接頭辞だけを書く（model_pin.auxiliary_prefixes）。claude の 2 つの旗の形は提案役（config/proposer.json）と同じ（v3 §15 の 11-05 その 2）：--tools で使える道具そのものを WebSearch・WebFetch だけにし（--restricted は WebFetch を --tools で名指さない限り外す）、--restricted で人の設定（既定の許しの方式 auto・許しの規則・フック）を読まず、--strict-mcp-config で MCP の連携を持たない。問いは標準入力で渡すので、ファイルの道具は要らない。--restricted の下では人の設定の思考の深さも読まないので、--effort でモデルの既定（Haiku 5.5 は medium、Sonnet 5.5 は high）を固める"
+  "_backends_note": "agy は --mode plan（読み取りだけ）と --sandbox で動かし、出力の形は --json-schema で CLI の側でも強制する。claude は Claude の利用枠を使うので、agy の枠が無く急ぐときだけ --backend claude で選ぶ。claude の auxiliary_models は、固定したモデルに当たらない接頭辞だけを書く（model_pin.auxiliary_prefixes）。claude の旗の形：--tools で使える道具そのものを WebSearch・WebFetch だけにし（--restricted は WebFetch を --tools で名指さない限り外す）、--restricted で人の設定（既定の許しの方式 auto・許しの規則・フック）を読まず、--strict-mcp-config で MCP の連携を持たない。問いは標準入力で渡すので、ファイルの道具は要らない。--restricted の下では人の設定の思考の深さも読まないので、--effort でモデルの既定（Haiku 5.5 は medium、Sonnet 5.5 は high）を固める"
 }

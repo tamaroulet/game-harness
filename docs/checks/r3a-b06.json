@@ -1,6 +1,0 @@
-{
-  "kind": "unittest",
-  "modules": [
-    "tests.launcher_judge"
-  ]
-}

@@ -6,8 +6,9 @@
   "network": "box-int",
   "proxy_name": "box-proxy",
   "proxy_port": 8888,
-  "_agy_note": "配布の URL と SHA-512。版は config/toolchain.json の box",
+  "_agy_note": "箱の agy の版と、配布の URL と SHA-512（公式の配布は最新の版だけなので、URL と SHA-512 で固定する）。変えたら python -m harness.box build で像を造り直す",
   "agy": {
+    "version": "1.5.3",
     "url": "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.5.3-6604829099950080/linux-x64/cli_linux_x64.tar.gz",
     "sha512": "e363e1b17daaac2589f18e6973429c039fd5a5e5c15e9c0852fa349836f3992b10fe84732bc8d8c8208e149f0304f15aba9dec696d12efeed03917492c0580eb"
   },

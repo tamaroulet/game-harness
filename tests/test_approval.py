@@ -1,96 +1,19 @@
-"""承認まわりの部品。受入テストの抽出器（test_summary）と承認ゲート（ms4_approval_gate）。
+"""承認まわりの部品：承認ゲート（.github/scripts/ms4_approval_gate.py）と、main のルールセットの写し（.github/ruleset-main.json）。
 
-    python -m unittest discover -s tests -v
+    python -m unittest tests.test_approval -v
 """
 import importlib.util
+import json
 import re
-import sys
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "harness"))
 
-from adapters import csharp_tests as test_summary  # noqa: E402
-
-GATE_PATH = ROOT / "harness" / "templates" / "game-repo" / ".github" / "scripts" / "ms4_approval_gate.py"
+GATE_PATH = ROOT / ".github" / "scripts" / "ms4_approval_gate.py"
 spec = importlib.util.spec_from_file_location("ms4_approval_gate", GATE_PATH)
 gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
-
-FIXTURE = ROOT / "tests" / "fixtures" / "BossChargeStateTests.cs"
-
-
-# ============================================================ 抽出器
-
-class TestSummaryTests(unittest.TestCase):
-    def test_real_acceptance_tests_are_all_listed(self):
-        """Issue #2 で分解役が書いた実物。[Test] の数と Assert の数が一致すること。"""
-        src = FIXTURE.read_text(encoding="utf-8-sig")
-        tests = test_summary.summarize_source(src)
-        self.assertEqual(len(tests), src.count("[Test]"))
-        self.assertEqual(len(tests), 22)
-        self.assertEqual(sum(len(t["asserts"]) for t in tests), src.count("Assert."))
-        first = tests[0]
-        self.assertEqual(first["name"], "Idle_BeforeBeginCharge_NeverDashes")
-        self.assertEqual(first["asserts"][0]["args"][0], "BossChargePhase.Idle")
-        self.assertEqual(first["asserts"][0]["message"], "BeginCharge を呼ぶ前に突進してはならない")
-
-    def test_synthetic_shapes(self):
-        src = '''
-        using NUnit.Framework;
-        public class T {
-            // [Test] コメントの中の属性と Assert.IsTrue(false); は数えない
-            /* [Test] public void Commented() { Assert.Fail(); } */
-
-            [Test]
-            public void MultiLine_Assert()
-            {
-                Assert.AreEqual(
-                    3,
-                    Compute(1, 2),
-                    "1 と 2 で 3; 括弧 ) も文字列の中なら無視");
-            }
-
-            [TestCase(0, 0)]
-            [TestCase(-1, 0)]
-            public void Clamp(int input, int expected)
-            {
-                Assert.That(Clamp(input), Is.EqualTo(expected));
-            }
-
-            [Test, Category("slow")]
-            public void Throws() { Assert.Throws<System.ArgumentException>(() => Make(null)); }
-
-            [Test]
-            public void NoAssertion() { var x = 1; }
-
-            public void Helper() { Assert.Fail("テストではない"); }
-
-            [Test]
-            public void Verbatim() { Assert.AreEqual(@"a""b", S(), @"メッセージ"); }
-        }
-        '''
-        tests = {t["name"]: t for t in test_summary.summarize_source(src)}
-        self.assertEqual(sorted(tests), ["Clamp", "MultiLine_Assert", "NoAssertion", "Throws", "Verbatim"])
-
-        ml = tests["MultiLine_Assert"]["asserts"]
-        self.assertEqual(len(ml), 1)
-        self.assertEqual(ml[0]["args"], ["3", "Compute(1, 2)"])
-        self.assertIn("括弧 ) も文字列", ml[0]["message"])
-
-        self.assertEqual(tests["Clamp"]["cases"], ["0, 0", "-1, 0"])
-        self.assertEqual(tests["Clamp"]["asserts"][0]["kind"], "That")
-        self.assertEqual(tests["Throws"]["asserts"][0]["kind"], "Throws<System.ArgumentException>")
-        self.assertEqual(tests["NoAssertion"]["asserts"], [])
-        self.assertEqual(tests["Verbatim"]["asserts"][0]["args"], ['@"a""b"', "S()"])
-
-        md = test_summary.to_markdown("T.cs", list(tests.values()))
-        self.assertIn("**アサーション無し**", md)
-        self.assertIn("TestCase(-1, 0)", md)
-
-
-# ============================================================ 承認ゲート
 
 class FakeAPI:
     def __init__(self, head_sha="a" * 40, labels=("ms4:approved",), events=None):
@@ -207,27 +130,11 @@ class ApprovalGateTests(unittest.TestCase):
         self.assertRegex(wf, r"(?m)^\s*approval:\s*$", "必須チェック名はジョブ名 approval")
 
 
-class InstalledGateMatchesTemplateTests(unittest.TestCase):
-    """harness 自身に入れた承認ゲートが、配布元の雛形と同じであること。
-
-    写しが雛形とずれると、「検証済みの門」と「実際に動いている門」が別物になる。
-    直すときは雛形を直し、写しを置き直す（写しを直接直さない）。
-    """
-
-    def test_installed_copy_is_byte_identical(self):
-        template = ROOT / "harness" / "templates" / "game-repo" / ".github"
-        installed = ROOT / ".github"
-        for rel in ("workflows/approval.yml", "scripts/ms4_approval_gate.py", "ms4-approvers"):
-            with self.subTest(rel):
-                self.assertEqual((installed / rel).read_bytes(), (template / rel).read_bytes())
-
-
-class RulesetTemplateTests(unittest.TestCase):
-    """A4 で適用するルールセットの雛形。適用前に中身を機械で確かめる。"""
+class RulesetTests(unittest.TestCase):
+    """main に掛けたルールセットの写し。変えるときは、この写しを直してから GitHub の設定に当てる。"""
 
     def setUp(self):
-        import json
-        self.rs = json.loads((ROOT / "harness" / "templates" / "ruleset-main.json").read_text(encoding="utf-8"))
+        self.rs = json.loads((ROOT / ".github" / "ruleset-main.json").read_text(encoding="utf-8"))
         self.rules = {r["type"]: r for r in self.rs["rules"]}
 
     def test_nobody_can_bypass(self):

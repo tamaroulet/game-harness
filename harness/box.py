@@ -1,4 +1,4 @@
-"""実装役・門・採点の箱（v3 §8 の E4）：Docker の呼び方、像と中継の確かめ、箱の起動。
+"""実行環境のアダプタ：WSL2 の Docker の箱。Docker の呼び方、像と中継の確かめ、箱の起動（docs/ops/box.md）。
 
     python -m harness.box setup    WSL2 の準備のスクリプトを root で走らせる（box/setup_wsl.sh。やり直せる）
     python -m harness.box build    像を造る（box/ と config/box.json から）
@@ -24,7 +24,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import box_tree  # noqa: E402
 import exitcode  # noqa: E402
 import proc  # noqa: E402
-import toolchain  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "config" / "box.json"
@@ -136,9 +135,9 @@ def context_files(subdir=""):
     return {rel: (base / rel).read_bytes().replace(b"\r\n", b"\n") for rel in box_tree.walk(base)}
 
 
-def agy_version():
-    """箱の agy の版（版の台帳 config/toolchain.json）。"""
-    return toolchain.load()["box"]["agy"]
+def agy_version(cfg=None):
+    """箱の agy の版（config/box.json の agy.version。配布の URL と SHA-512 と一緒に置く）。"""
+    return (cfg or settings())["agy"]["version"]
 
 
 def fingerprint(cfg):
@@ -146,7 +145,7 @@ def fingerprint(cfg):
     h = hashlib.sha256()
     for rel, data in sorted(context_files().items()):
         h.update(rel.encode() + b"\0" + data + b"\0")
-    h.update(json.dumps({**cfg["agy"], "version": agy_version()}, sort_keys=True).encode())
+    h.update(json.dumps(cfg["agy"], sort_keys=True).encode())
     return h.hexdigest()[:32]
 
 
@@ -259,7 +258,7 @@ def tests_opts(cfg):
 
 
 def new_files_rule(package):
-    """実装役が新しく作ったファイルのうち、受け取ってよいものの判じ方（bench_run.allowed_path と同じ範囲）。
+    """エージェントが新しく作ったファイルのうち、受け取ってよいものの判じ方（課題のパッケージの下と、tests/test_<パッケージ>*）。
     作業の残りのファイルで境界の検めに当たって段が 0 点にならないように、外のものは受け取らず、次の試行の入力で知らせる。"""
     tests = re.compile(rf"tests/test_{re.escape(package)}[^/]*")
     return lambda rel: rel.startswith(package + "/") or tests.fullmatch(rel) is not None
@@ -380,7 +379,7 @@ def check_cached(cfg, memo=None):
 def setup(cfg):
     """WSL2 の準備のスクリプトを root で走らせる（標準入力で渡す。automount を切った後でも動く）。"""
     script = (BOX_DIR / SETUP).read_bytes().replace(b"\r\n", b"\n")
-    tail = ["bash", "-s", "--", agy_version(), cfg["agy"]["url"], cfg["agy"]["sha512"]]
+    tail = ["bash", "-s", "--", agy_version(cfg), cfg["agy"]["url"], cfg["agy"]["sha512"]]
     args = ["wsl.exe", "-d", cfg["distro"], "-u", "root", "--cd", "/", "--exec", *tail] if sys.platform == "win32" else tail
     code, out, err = _call(args, script, BUILD_TTL)
     print(proc.decoded(out)[-2000:])
