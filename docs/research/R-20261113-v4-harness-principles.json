@@ -1,0 +1,669 @@
+{
+  "id": "R-20261113-v4-harness-principles",
+  "title": "長く走る自律開発のハーネスの原理とコスト：状態の外在化・検証の背圧・文脈とキャッシュ",
+  "stage": "map",
+  "decision": "v4 のハーネスの設計の原理（中くらいの仕事の入口・内部・出口）と、区切り（会話を続けるか新しくするか）の決め方",
+  "sectors": [
+    "frontier_labs",
+    "practitioners_at_scale",
+    "academia",
+    "standards_tools",
+    "practitioners"
+  ],
+  "asked_at": "2026-11-13T18:00:12+09:00",
+  "backend": "seat",
+  "models": [
+    "claude-opus-5-5"
+  ],
+  "usage": null,
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "長く走るエージェントの核の課題は、各セッションが前の記憶なしに始まること。Anthropic は compaction だけでは足りないとした。",
+      "source_url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents",
+      "source_title": "Effective harnesses for long-running agents",
+      "published": "2025-11-26",
+      "quote": "The core challenge of long-running agents is that they must work in discrete sessions, and each new session begins with no memory of what came before.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "外の構造の状態で引き継ぐ多セッション",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "7f46a21060ec6377dd52ea676be9174cfc722738a00d66b94ceb9eedc0667d43",
+        "reason": null
+      }
+    },
+    {
+      "id": "C2",
+      "claim": "機能の一覧は JSON にした。モデルは Markdown より JSON を不適切に書き換えにくい。",
+      "source_url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents",
+      "source_title": "Effective harnesses for long-running agents",
+      "published": "2025-11-26",
+      "quote": "After some experimentation, we landed on using JSON for this, as the model is less likely to inappropriately change or overwrite JSON files compared to Markdown files.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "外の構造の状態で引き継ぐ多セッション",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "7f46a21060ec6377dd52ea676be9174cfc722738a00d66b94ceb9eedc0667d43",
+        "reason": null
+      }
+    },
+    {
+      "id": "C3",
+      "claim": "実装役には 1 回に 1 機能だけを頼んだ（一気に作ろうとする失敗への対策）。",
+      "source_url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents",
+      "source_title": "Effective harnesses for long-running agents",
+      "published": "2025-11-26",
+      "quote": "the next iteration of the coding agent was then asked to work on only one feature at a time.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "外の構造の状態で引き継ぐ多セッション",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "7f46a21060ec6377dd52ea676be9174cfc722738a00d66b94ceb9eedc0667d43",
+        "reason": null
+      }
+    },
+    {
+      "id": "C4",
+      "claim": "初期化役と実装役の違いは最初の頼みだけで、システムの頼み・道具・ハーネスは同じ。",
+      "source_url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents",
+      "source_title": "Effective harnesses for long-running agents",
+      "published": "2025-11-26",
+      "quote": "The system prompt, set of tools, and overall agent harness was otherwise identical.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "外の構造の状態で引き継ぐ多セッション",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "7f46a21060ec6377dd52ea676be9174cfc722738a00d66b94ceb9eedc0667d43",
+        "reason": null
+      }
+    },
+    {
+      "id": "C5",
+      "claim": "Sonnet 4.5 は context anxiety が強く、compaction だけでは足りず、文脈のリセットが要った。",
+      "source_url": "https://www.anthropic.com/engineering/harness-design-long-running-apps",
+      "source_title": "Harness design for long-running application development",
+      "published": "2026-03-24",
+      "quote": "In our earlier testing, we found Claude Sonnet 4.5 exhibited context anxiety strongly enough that compaction alone wasn't sufficient to enable strong long task performance, so context resets became essential to the harness design.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "リセットの要否はモデル次第",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "f4122db7da3e1d48c53a1ba48dd8be76d5d4ec6e738e23e1c9b0636324ad57d7",
+        "reason": null
+      }
+    },
+    {
+      "id": "C6",
+      "claim": "Opus 4.5 ではその振る舞いが消え、文脈のリセットを外して 1 本の続くセッションにした。",
+      "source_url": "https://www.anthropic.com/engineering/harness-design-long-running-apps",
+      "source_title": "Harness design for long-running application development",
+      "published": "2026-03-24",
+      "quote": "Opus 4.5 largely removed that behavior on its own, so I was able to drop context resets from this harness entirely.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "リセットの要否はモデル次第",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "f4122db7da3e1d48c53a1ba48dd8be76d5d4ec6e738e23e1c9b0636324ad57d7",
+        "reason": null
+      }
+    },
+    {
+      "id": "C7",
+      "claim": "ハーネスの部品は、モデルが単独でできないことの仮定で、確かめ直す価値がある。",
+      "source_url": "https://www.anthropic.com/engineering/harness-design-long-running-apps",
+      "source_title": "Harness design for long-running application development",
+      "published": "2026-03-24",
+      "quote": "every component in a harness encodes an assumption about what the model can't do on its own, and those assumptions are worth stress testing",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "部品は外す条件つきの仮説",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "f4122db7da3e1d48c53a1ba48dd8be76d5d4ec6e738e23e1c9b0636324ad57d7",
+        "reason": null
+      }
+    },
+    {
+      "id": "C8",
+      "claim": "評価役は、課題が今のモデルの単独で確実にできる範囲の外にあるときだけ費用に見合う。",
+      "source_url": "https://www.anthropic.com/engineering/harness-design-long-running-apps",
+      "source_title": "Harness design for long-running application development",
+      "published": "2026-03-24",
+      "quote": "It is worth the cost when the task sits beyond what the current model does reliably solo.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "部品は外す条件つきの仮説",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "f4122db7da3e1d48c53a1ba48dd8be76d5d4ec6e738e23e1c9b0636324ad57d7",
+        "reason": null
+      }
+    },
+    {
+      "id": "C9",
+      "claim": "3 役のハーネスは単独の 20 倍超の費用だったが、出来の差はすぐ分かるほど大きかった（1 例）。",
+      "source_url": "https://www.anthropic.com/engineering/harness-design-long-running-apps",
+      "source_title": "Harness design for long-running application development",
+      "published": "2026-03-24",
+      "quote": "The harness was over 20x more expensive, but the difference in output quality was immediately apparent.",
+      "kind": "opinion",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "費用の構造",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "f4122db7da3e1d48c53a1ba48dd8be76d5d4ec6e738e23e1c9b0636324ad57d7",
+        "reason": null
+      }
+    },
+    {
+      "id": "C10",
+      "claim": "文脈のトークンが増えるほど、文脈から情報を正しく思い出す力が落ちる（context rot）。",
+      "source_url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "source_title": "Effective context engineering for AI agents",
+      "published": "2025-09-29",
+      "quote": "as the number of tokens in the context window increases, the model’s ability to accurately recall information from that context decreases.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "文脈の腐り",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "2f429f9992c511d418ce8f62f3b494add4167ea710fe01d1c56f20a1573449d9",
+        "reason": null
+      }
+    },
+    {
+      "id": "C11",
+      "claim": "最も安全で軽い compaction は、道具の結果の消去。",
+      "source_url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "source_title": "Effective context engineering for AI agents",
+      "published": "2025-09-29",
+      "quote": "One of the safest lightest touch forms of compaction is tool result clearing",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "文脈の管理",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "2f429f9992c511d418ce8f62f3b494add4167ea710fe01d1c56f20a1573449d9",
+        "reason": null
+      }
+    },
+    {
+      "id": "C12",
+      "claim": "100 ターンの web 検索の評価で、context editing は文脈の尽きで失敗する流れを完了させ、トークンを 84% 減らした。",
+      "source_url": "https://www.anthropic.com/news/context-management",
+      "source_title": "Managing context on the Claude Developer Platform",
+      "published": "",
+      "quote": "In a 100-turn web search evaluation, context editing enabled agents to complete workflows that would otherwise fail due to context exhaustion",
+      "kind": "vendor_claim",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "文脈の管理",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "dd65f9d20a750ff99edf9f947f5783ddb907258ca3a693bdf2c73df2fffa8ca0",
+        "reason": null
+      }
+    },
+    {
+      "id": "C13",
+      "claim": "エージェントはチャットの約 4 倍、多役のシステムは約 15 倍のトークンを使う。",
+      "source_url": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "source_title": "How we built our multi-agent research system",
+      "published": "2025-06-13",
+      "quote": "agents typically use about 4× more tokens than chat interactions, and multi-agent systems use about 15× more tokens than chats.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "費用の構造",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "3db0dec5a9fd7bb97733a8fb75b445e9d325add5be451e927da76b4658ebdfab",
+        "reason": null
+      }
+    },
+    {
+      "id": "C14",
+      "claim": "自律の長い開発では、検証器がほぼ完璧でないと違う問題を解く。",
+      "source_url": "https://www.anthropic.com/engineering/building-c-compiler",
+      "source_title": "Building a C compiler with a team of parallel Claudes",
+      "published": "2026-02-05",
+      "quote": "So it’s important that the task verifier is nearly perfect, otherwise Claude will solve the wrong problem.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "検証の背圧",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "fe4954b0442d169ba3b0aaf2e4b3b657812e3ac44bc41ee48cd370e4bdc1845b",
+        "reason": null
+      }
+    },
+    {
+      "id": "C15",
+      "claim": "大きいプロジェクトの終盤、新しい機能のたびに既存の機能を壊すようになった（CI と強制で止めた）。",
+      "source_url": "https://www.anthropic.com/engineering/building-c-compiler",
+      "source_title": "Building a C compiler with a team of parallel Claudes",
+      "published": "2026-02-05",
+      "quote": "near the end of the project, Claude started to frequently break existing functionality each time it implemented a new feature.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "検証の背圧",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "fe4954b0442d169ba3b0aaf2e4b3b657812e3ac44bc41ee48cd370e4bdc1845b",
+        "reason": null
+      }
+    },
+    {
+      "id": "C16",
+      "claim": "新しいコンテナに文脈なしで入るエージェントは、向き直りにかなりの時間を使う。",
+      "source_url": "https://www.anthropic.com/engineering/building-c-compiler",
+      "source_title": "Building a C compiler with a team of parallel Claudes",
+      "published": "2026-02-05",
+      "quote": "each agent is dropped into a fresh container with no context and will spend significant time orienting itself, especially on large projects.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "frontier_labs",
+      "approach": "外の構造の状態で引き継ぐ多セッション",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "fe4954b0442d169ba3b0aaf2e4b3b657812e3ac44bc41ee48cd370e4bdc1845b",
+        "reason": null
+      }
+    },
+    {
+      "id": "C17",
+      "claim": "Claude のプロンプトキャッシュの読みは、基本の入力の 0.1 倍の値段。",
+      "source_url": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching.md",
+      "source_title": "Prompt caching（Claude の文書）",
+      "published": "",
+      "quote": "Cache read tokens are 0.1 times the base input tokens price",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "キャッシュの費用",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "22cb831ad6743a61a53c74bfa0af5555a7ca1e4474d7db46a44eb74cb6af9bd7",
+        "reason": null
+      }
+    },
+    {
+      "id": "C18",
+      "claim": "Gemini API の implicit caching は 2.5 以降のモデルで既定で有効。",
+      "source_url": "https://ai.google.dev/gemini-api/docs/caching.md.txt",
+      "source_title": "Context caching（Gemini API の文書）",
+      "published": "",
+      "quote": "Implicit caching is enabled by default for all Gemini 2.5 and newer models.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "キャッシュの費用",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "0a5ff9c109cc8838ac38d953e016686353dd7f5775f8d8cfc1022e8b26744b10",
+        "reason": null
+      }
+    },
+    {
+      "id": "C19",
+      "claim": "Unity のテストをコマンドラインで走らせるときは -batchmode で人の入力を要らなくする。",
+      "source_url": "https://docs.unity3d.com/Packages/com.unity.test-framework@1.4/manual/reference-command-line.html",
+      "source_title": "Running tests from the command line（Unity Test Framework）",
+      "published": "",
+      "quote": "Use the -batchmode option when running tests on the command line to remove the need for manual user inputs.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "検証の背圧（Unity）",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "1322179e4fe19e93363ec4be350f5c8fe7475fbbf3cb1edfcf98b459ed7b7e75",
+        "reason": null
+      }
+    },
+    {
+      "id": "C20",
+      "claim": "本番のエージェントで最も大事な数は KV キャッシュの当たり率。",
+      "source_url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus",
+      "source_title": "Context Engineering for AI Agents: Lessons from Building Manus",
+      "published": "2025-07-18",
+      "quote": "I'd argue that the KV-cache hit rate is the single most important metric for a production-stage AI agent.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "practitioners_at_scale",
+      "approach": "キャッシュの費用",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "17c8b6cb65b97822842ea4c72e9eee7048124c4d2684ffd4132347707f9954c7",
+        "reason": null
+      }
+    },
+    {
+      "id": "C21",
+      "claim": "文脈は追記だけにする。",
+      "source_url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus",
+      "source_title": "Context Engineering for AI Agents: Lessons from Building Manus",
+      "published": "2025-07-18",
+      "quote": "Make your context append-only.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "practitioners_at_scale",
+      "approach": "キャッシュの費用",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "17c8b6cb65b97822842ea4c72e9eee7048124c4d2684ffd4132347707f9954c7",
+        "reason": null
+      }
+    },
+    {
+      "id": "C22",
+      "claim": "Manus の入力と出力のトークンの比は平均で約 100：1。",
+      "source_url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus",
+      "source_title": "Context Engineering for AI Agents: Lessons from Building Manus",
+      "published": "2025-07-18",
+      "quote": "In Manus, for example, the average input-to-output token ratio is around 100:1",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "practitioners_at_scale",
+      "approach": "費用の構造",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "17c8b6cb65b97822842ea4c72e9eee7048124c4d2684ffd4132347707f9954c7",
+        "reason": null
+      }
+    },
+    {
+      "id": "C23",
+      "claim": "圧縮は常に戻せる形にする（ファイルシステムを外の記憶にする）。",
+      "source_url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus",
+      "source_title": "Context Engineering for AI Agents: Lessons from Building Manus",
+      "published": "2025-07-18",
+      "quote": "Our compression strategies are always designed to be restorable",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "practitioners_at_scale",
+      "approach": "文脈の管理",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "17c8b6cb65b97822842ea4c72e9eee7048124c4d2684ffd4132347707f9954c7",
+        "reason": null
+      }
+    },
+    {
+      "id": "C24",
+      "claim": "多役は、書き込みを 1 本の流れに保ち、ほかの役が知恵を足すときに最もよく効く。",
+      "source_url": "https://cognition.ai/blog/multi-agents-working",
+      "source_title": "Multi-Agents: What's Actually Working",
+      "published": "2026-04-22",
+      "quote": "multi-agent systems work best today when writes stay single-threaded and the additional agents contribute intelligence rather than actions.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "practitioners_at_scale",
+      "approach": "単一の書き手と独立の検証",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "f1adae07d593a7de996bc3dcb92a3a63ba12f21986f9a377c774170d739c300f",
+        "reason": null
+      }
+    },
+    {
+      "id": "C25",
+      "claim": "コードの検証役は、書き手と文脈を事前に共有しないときに最もよく効いた。",
+      "source_url": "https://cognition.ai/blog/multi-agents-working",
+      "source_title": "Multi-Agents: What's Actually Working",
+      "published": "2026-04-22",
+      "quote": "we found this technique to work best when the coding and review agents do not share any context beforehand.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "practitioners_at_scale",
+      "approach": "単一の書き手と独立の検証",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "f1adae07d593a7de996bc3dcb92a3a63ba12f21986f9a377c774170d739c300f",
+        "reason": null
+      }
+    },
+    {
+      "id": "C26",
+      "claim": "派手な長い自律開発の例は、どれも単純で確かめられる成功の基準を持つ。ふつうのソフトはそうでない。",
+      "source_url": "https://cognition.ai/blog/multi-agents-working",
+      "source_title": "Multi-Agents: What's Actually Working",
+      "published": "2026-04-22",
+      "quote": "These are exciting but they all share a property most real software doesn't: a simple, verifiable success criterion.",
+      "kind": "opinion",
+      "confidence": "medium",
+      "source_tier": "primary",
+      "sector": "practitioners_at_scale",
+      "approach": "検証の背圧",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "f1adae07d593a7de996bc3dcb92a3a63ba12f21986f9a377c774170d739c300f",
+        "reason": null
+      }
+    },
+    {
+      "id": "C27",
+      "claim": "18 のモデルで、入力が長くなるほど性能は一様でなく不安定になる。",
+      "source_url": "https://research.trychroma.com/context-rot",
+      "source_title": "Context Rot: How Increasing Input Tokens Impacts LLM Performance",
+      "published": "2025-07-14",
+      "quote": "Our results reveal that models do not use their context uniformly; instead, their performance grows increasingly unreliable as input length grows.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "practitioners_at_scale",
+      "approach": "文脈の腐り",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "3c8a288a0109963369009562c67974213ab552ed24d77660179c7ce87b95873d",
+        "reason": null
+      }
+    },
+    {
+      "id": "C28",
+      "claim": "毎ループ仕様を読み直すのは無駄と承知のうえで、文脈を少なく使うほうが結果が良いとして新しい文脈で回す。",
+      "source_url": "https://ghuntley.com/ralph/",
+      "source_title": "Ralph Wiggum as a \"software engineer\"",
+      "published": "2025-07-14",
+      "quote": "Yes, this is wasteful because you're effectively burning the allocation of the specifications every loop and not reusing the allocation.",
+      "kind": "opinion",
+      "confidence": "medium",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "外の構造の状態で引き継ぐ多セッション",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "918d639e78b527f3889d0cf4eb108f99a3951c2c707bb4e2a1431a2b01c92311",
+        "reason": null
+      }
+    },
+    {
+      "id": "C29",
+      "claim": "テストや型や静的解析など、何でも背圧として配線して不正な生成を拒む。",
+      "source_url": "https://ghuntley.com/ralph/",
+      "source_title": "Ralph Wiggum as a \"software engineer\"",
+      "published": "2025-07-14",
+      "quote": "Anything can be wired in as back pressure to reject invalid code generation.",
+      "kind": "opinion",
+      "confidence": "medium",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "検証の背圧",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "918d639e78b527f3889d0cf4eb108f99a3951c2c707bb4e2a1431a2b01c92311",
+        "reason": null
+      }
+    },
+    {
+      "id": "C30",
+      "claim": "Context-Folding は、畳みの振る舞いを RL（FoldGRPO）で学ばせる方式（学習が前提）。",
+      "source_url": "https://arxiv.org/abs/2510.11967",
+      "source_title": "Scaling Long-Horizon LLM Agent via Context-Folding",
+      "published": "2025-10-13",
+      "quote": "To make this behavior learnable, we develop an end-to-end reinforcement learning framework FoldGRPO with specific process rewards to encourage effective task decomposition and context management.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "academia",
+      "approach": "学習した文脈の畳み",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "af3bd0018d6857413d67bd9e56df4c9a9a1292ba9e452f8e524f9cb19f68be8f",
+        "reason": null
+      }
+    },
+    {
+      "id": "C31",
+      "claim": "古い観測を伏せるだけで、生のエージェントの費用を半分にし、LLM の要約と同じかやや上の解決率（SWE-agent・SWE-bench Verified）。",
+      "source_url": "https://arxiv.org/html/2508.21433v3",
+      "source_title": "The Complexity Trap: Simple Observation Masking Is as Efficient as LLM Summarization for Agent Context Management",
+      "published": "2025",
+      "quote": "We find that a simple environment Observation Masking strategy halves cost relative to the Raw Agent while matching, and sometimes slightly exceeding, the solve rate of LLM-Summary.",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "academia",
+      "approach": "文脈の管理",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-13T18:00:12+09:00",
+        "sha256": "74c763b760b90638eb5fb2ce0fa7193fbef8d6bbf95448a2b202496bb728b330",
+        "reason": null
+      }
+    }
+  ],
+  "queries": [
+    "Anthropic engineering \"Effective harnesses for long-running agents\"",
+    "Anthropic engineering \"Harness design for long-running application development\"",
+    "Manus blog \"Context Engineering for AI Agents: Lessons from Building Manus\" KV-cache hit rate",
+    "Scaling Long-Horizon LLM Agent via Context-Folding arXiv",
+    "\"The Complexity Trap\" observation masking LLM summarization agent context management SWE-bench",
+    "Gemini API implicit caching minimum token count cached token discount Gemini 3",
+    "Chroma research \"Context Rot\" how increasing input tokens impacts LLM performance",
+    "Cognition \"Don't Build Multi-Agents\" context sharing principles Walden Yan",
+    "mini-SWE-agent bash only scaffold matches complex agent scaffolds SWE-bench Verified results",
+    "Unity Test Framework command line batchmode -runTests PlayMode EditMode documentation",
+    "Unity official MCP server AI agents Unity Editor 2026 Model Context Protocol"
+  ],
+  "unknowns": [
+    "反証の段（docs/design/research_protocol.md §2。別の会社のモデル Argon で行う）はまだ行っていない。この記録は席（Claude）が自分で集めた反する証拠を含むが、規則の反証の代わりにはならない。",
+    "最前線（frontier_labs）の主張は Anthropic と Google の文書に偏った。OpenAI・Google DeepMind・Microsoft と GitHub・Meta の長く走るハーネスの一次の記事は、今回は読んでいない。",
+    "agy（Antigravity の CLI）のキャッシュの仕組みは公開されていない。新しい会話で約 1.6 万〜2.1 万トークンまでキャッシュが当たらない、は手元の実測（docs/v4/experiments.md の M-01）で、この記録の主張ではない。",
+    "Context-Folding の表 1（RL なしの畳みは長文脈の ReAct より下）は PDF から読んだ。PDF は機械の照合ができないので、主張には要旨の文だけを入れた。",
+    "SWE-bench Verified が最小の足場で飽和しているという順位（Vals.ai）は、検索の結果でしか見ていない（ページは JavaScript で取れない）。",
+    "Unity の公式の MCP の今の状態（2026-05 のベータの後、CLI に移ったという第三者の記事）は確かめていない。"
+  ],
+  "counts": {
+    "verified": 31,
+    "quote_not_found": 0,
+    "unreachable": 0,
+    "no_source": 0
+  },
+  "question": "# 長く走る自律開発のハーネスの原理とコスト：状態の外在化・検証の背圧・文脈とキャッシュ\n\n## 段\nmap\n\n## 決めたい判断\nv4 のハーネスの設計の原理（中くらいの仕事の入口・内部・出口）と、区切り（会話を続けるか新しくするか）の決め方\n\n## 判断を変えうるもの\n強いモデルでは外の状態も検証も要らないという実測。区切りを細かくするほど良いという実測。キャッシュの費用の構造が提供元によらず同じという事実\n\n## 分野\nfrontier_labs\npractitioners_at_scale\nacademia\nstandards_tools\npractitioners\n\n## 問い\n長く走るコーディングのエージェントで、最前線の企業・大規模に運用する当事者・研究・標準と道具の文書・実務家は、状態の引き継ぎ・検証・文脈の管理・プロンプトのキャッシュをどう扱っているか。費用の構造はどうなっているか。\n"
+}
