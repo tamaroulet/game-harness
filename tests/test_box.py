@@ -15,10 +15,8 @@ from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE.parent / "harness")]
-import bench_run  # noqa: E402
 import box  # noqa: E402
 import box_tree  # noqa: E402
-import toolchain  # noqa: E402
 
 CFG = box.settings()
 
@@ -109,11 +107,13 @@ class Guards(unittest.TestCase):
         at = [box.START.index(word) for word in ("install -m 600", "git init", "add -A", "git commit", 'exec "$@"')]
         self.assertEqual(at, sorted(at))
 
-    def test_new_files_rule_is_the_same_as_the_boundary_check(self):
+    def test_new_files_rule_allows_only_the_package_and_its_tests(self):
         rule = box.new_files_rule("pkg")
-        for rel in ("pkg/a.py", "pkg/sub/b.py", "tests/test_pkg.py", "tests/test_pkg_s3.py", "tests/test_other.py", "tests/helpers.py",
-                    "scratch.py", "MUJOCO_LOG.TXT", "docs/x.md", "pkg2/a.py", "tests/test_pkg/x.py"):
-            self.assertEqual(rule(rel), bench_run.allowed_path(rel, "pkg"), rel)
+        for rel in ("pkg/a.py", "pkg/sub/b.py", "tests/test_pkg.py", "tests/test_pkg_s3.py"):
+            self.assertTrue(rule(rel), rel)
+        for rel in ("tests/test_other.py", "tests/helpers.py", "scratch.py", "MUJOCO_LOG.TXT", "docs/x.md", "pkg2/a.py",
+                    "tests/test_pkg/x.py"):
+            self.assertFalse(rule(rel), rel)
 
 
 class Agent(unittest.TestCase):
@@ -260,15 +260,11 @@ class Images(unittest.TestCase):
         with mock.patch.object(box, "_call", fake_docker({}, {})):
             self.assertEqual(box.require(CFG), "sha256:i")
 
-    def test_fingerprint_follows_the_agy_version_in_the_ledger(self):
-        one = box.fingerprint(CFG)
-        with mock.patch.object(box, "agy_version", return_value="9.9.9"):
-            self.assertNotEqual(one, box.fingerprint(CFG))
-
-    def test_the_image_pins_the_same_packages_as_the_ledger(self):
-        pins = dict(line.split("==") for line in box.context_files()["Dockerfile"].decode().split() if "==" in line)
-        ledger = {k.lower(): v for k, v in toolchain.load()["python_packages"].items()}
-        self.assertEqual({k.lower(): v for k, v in pins.items() if k.lower() in ledger}, ledger)
+    def test_fingerprint_follows_the_agy_version_in_the_settings(self):
+        other = json.loads(json.dumps(CFG))
+        other["agy"]["version"] = "9.9.9"
+        self.assertNotEqual(box.fingerprint(CFG), box.fingerprint(other))
+        self.assertEqual(box.agy_version(other), "9.9.9")
 
     def test_a_missing_image_is_a_box_error(self):
         with mock.patch.object(box, "_call", return_value=(1, b"", "No such image")), self.assertRaises(box.BoxError):

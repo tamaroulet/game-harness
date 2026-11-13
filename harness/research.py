@@ -24,15 +24,14 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import agent_cli  # noqa: E402
 import agy_pinned  # noqa: E402
 import agy_stream  # noqa: E402
 import exitcode  # noqa: E402
-import hline_quota  # noqa: E402
 import machine  # noqa: E402
 import model_pin  # noqa: E402
 import proc  # noqa: E402
 import research_verify  # noqa: E402
-from hline_base import implementer_args  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "config" / "research.json"
@@ -108,15 +107,15 @@ def call(cfg, name, prompt, workdir, run=proc.run, resolve=proc.resolve_cli):
             model_pin.require_implementer(b, f"{WHERE}（{name}）")
             args = agy_stream.args(b, resolve(b["cli"]), prompt, ttl) + ["--json-schema", str(ROOT / cfg["schema"])]
             code, out, err = run(args, workdir, ttl, WHERE, input=agy_stream.stdin_for(b, prompt))
-            if quota := hline_quota.message(out, err, agy=True):
+            if quota := agent_cli.quota_message(out, err, agy=True):
                 return {"code": code, "out": out, "quota": quota}
             parsed = agy_stream.parse(out, workdir)
             _require_ok(code, err)
             models = [model_pin.check_reported(b["model_name"], parsed["model"], f"{WHERE}（{name}）")]
             return {"code": code, "out": out, "text": parsed["response"], "models": models, "usage": parsed["usage"], "quota": None}
         model_pin.require(b, f"{WHERE}（{name}）")
-        code, out, err = run(implementer_args(b, resolve(b["cli"])), workdir, ttl, WHERE, input=prompt)
-        if quota := hline_quota.message(out, err):
+        code, out, err = run(agent_cli.args(b, resolve(b["cli"])), workdir, ttl, WHERE, input=prompt)
+        if quota := agent_cli.quota_message(out, err):
             return {"code": code, "out": out, "quota": quota}
         _require_ok(code, err)
         used, why = model_pin.claude_models(out)

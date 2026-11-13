@@ -24,7 +24,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import box_tree  # noqa: E402
 import exitcode  # noqa: E402
 import proc  # noqa: E402
-import toolchain  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "config" / "box.json"
@@ -136,9 +135,9 @@ def context_files(subdir=""):
     return {rel: (base / rel).read_bytes().replace(b"\r\n", b"\n") for rel in box_tree.walk(base)}
 
 
-def agy_version():
-    """箱の agy の版（版の台帳 config/toolchain.json）。"""
-    return toolchain.load()["box"]["agy"]
+def agy_version(cfg=None):
+    """箱の agy の版（config/box.json の agy.version。配布の URL と SHA-512 と一緒に置く）。"""
+    return (cfg or settings())["agy"]["version"]
 
 
 def fingerprint(cfg):
@@ -146,7 +145,7 @@ def fingerprint(cfg):
     h = hashlib.sha256()
     for rel, data in sorted(context_files().items()):
         h.update(rel.encode() + b"\0" + data + b"\0")
-    h.update(json.dumps({**cfg["agy"], "version": agy_version()}, sort_keys=True).encode())
+    h.update(json.dumps(cfg["agy"], sort_keys=True).encode())
     return h.hexdigest()[:32]
 
 
@@ -380,7 +379,7 @@ def check_cached(cfg, memo=None):
 def setup(cfg):
     """WSL2 の準備のスクリプトを root で走らせる（標準入力で渡す。automount を切った後でも動く）。"""
     script = (BOX_DIR / SETUP).read_bytes().replace(b"\r\n", b"\n")
-    tail = ["bash", "-s", "--", agy_version(), cfg["agy"]["url"], cfg["agy"]["sha512"]]
+    tail = ["bash", "-s", "--", agy_version(cfg), cfg["agy"]["url"], cfg["agy"]["sha512"]]
     args = ["wsl.exe", "-d", cfg["distro"], "-u", "root", "--cd", "/", "--exec", *tail] if sys.platform == "win32" else tail
     code, out, err = _call(args, script, BUILD_TTL)
     print(proc.decoded(out)[-2000:])

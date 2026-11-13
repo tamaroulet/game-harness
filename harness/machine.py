@@ -6,16 +6,12 @@
     machine.json の場所：環境変数 HARNESS_MACHINE、無ければ <リポジトリの親>/.local/machine.json
     無いとき：config/machine.example.json で代用する（ADR-004 の前の直書きと同じ場所）。envcheck は代用を不合格にする
 
-名前は machine.json の paths のほか、台帳（config/toolchain.json）の unity_editor（エディタの版）を使える。
 """
 import json
 import os
 import re
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import toolchain  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 ENV = "HARNESS_MACHINE"
@@ -52,7 +48,6 @@ def names(path=None):
     except (OSError, ValueError) as e:
         raise MachineError(f"machine.json を読めません（{path}）：{e}") from e
     out = {k: os.path.normpath(env_vars(str(v))) for k, v in (doc.get("paths") or {}).items()}
-    out["unity_editor"] = toolchain.load().get("unity_editor") or ""
     return out
 
 

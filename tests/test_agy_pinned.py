@@ -1,4 +1,4 @@
-"""agy の導入先の SHA-256 の照合（harness/agy_pinned.py）と、driver・pipeline への組み込み。一時ディレクトリで確かめる。"""
+"""agy の導入先の SHA-256 の照合（harness/agy_pinned.py）。一時ディレクトリで確かめる。"""
 import sys
 import tempfile
 import unittest
@@ -8,15 +8,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 
 import agy_pinned  # noqa: E402
-import pipeline  # noqa: E402
-from ab import common, driver  # noqa: E402
-
-IMP = {"cli": "agy", "headless_flag": "-p", "auto_approve_flag": "--yes", "model_flag": "--model", "model_name": "m"}
-PINNED = {"cli": {"agy": "1.2.14"}}
-
-
-def fail():
-    raise agy_pinned.AgyDigestError("照合に落ちた")
 
 
 class Check(unittest.TestCase):
@@ -67,44 +58,7 @@ class Check(unittest.TestCase):
         self.assertEqual(agy_pinned.problems(self.record(files=agy_pinned.measure(self.dir, ["agy.exe"]))), [])
 
 
-class Wiring(unittest.TestCase):
-    def test_guard_checks_before_measuring_the_version(self):
-        measured = []
-        with self.assertRaises(common.ABError):
-            driver.agy_guard(IMP, measure=lambda n: measured.append(n) or "1.2.14", pinned=PINNED, verify=fail)
-        self.assertEqual(measured, [])
-
-    def test_guard_returns_the_cli_version_and_other_clis_skip_the_check(self):
-        self.assertEqual(driver.agy_guard(IMP, measure=lambda n: "1.2.14", pinned=PINNED, verify=lambda: {}), "1.2.14")
-        self.assertEqual(driver.agy_guard(dict(IMP, cli="claude"), measure=lambda n: "2.1.258",
-                                          pinned={"cli": {"claude": "2.1.258"}}, verify=fail), "2.1.258")
-
-    def test_a_failed_check_does_not_call_the_runner(self):
-        called = []
-        with self.assertRaises(common.ABError):
-            driver.agy_call(IMP, "p", ".", None, 60, runner=lambda *a, **k: called.append(1),
-                            guard=lambda imp: driver.agy_guard(imp, verify=fail))
-        self.assertEqual(called, [])
-
-    def test_pipeline_guard(self):
-        with self.assertRaises(SystemExit) as cm:
-            pipeline.guard_implementer({"cli": "agy"}, verify=fail)
-        self.assertTrue(str(cm.exception.code).startswith("ABORT: "))
-        self.assertIsNone(pipeline.guard_implementer({"cli": "agy"}, verify=lambda: {}))
-        self.assertIsNone(pipeline.guard_implementer({"cli": "claude"}, verify=lambda: self.fail("呼ばれた")))
-
-    def test_call_implementer_guards_first(self):
-        src = Path(pipeline.__file__).read_text(encoding="utf-8")
-        body = src[src.index("def call_implementer("):]
-        self.assertLess(body.index("guard_implementer(imp)"), body.index("prompt = c.unit"))
-
-
 class Static(unittest.TestCase):
-    def test_acl_runbook_has_the_commands_and_sections(self):
-        text = (ROOT / "docs" / "ops" / "agy_acl.md").read_text(encoding="utf-8")
-        for needle in ("icacls", "/deny", "WD", "AD", "DE", "DC", "/remove:d", "## 適用", "## 確認", "## 外し方"):
-            self.assertIn(needle, text)
-
     def test_module_does_not_import_subprocess(self):
         self.assertNotIn("subprocess", Path(agy_pinned.__file__).read_text(encoding="utf-8"))
 

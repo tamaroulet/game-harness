@@ -3,7 +3,7 @@
     python -m unittest tests.test_hline_quota -v
 
 入力は、2026-10-06 の走行（20261006-2109-500-b7-5-0-state-json の implementer-0-2.log）で実装役の CLI が実際に返した
-標準出力と標準エラーをそのまま写したもの（tests/fixtures/hline_quota_429.*）。proc.run を差し替え、外部の CLI・push・PR は起こさない。
+標準出力と標準エラーをそのまま写したもの（tests/fixtures/claude_quota_429.*）。proc.run を差し替え、外部の CLI・push・PR は起こさない。
 """
 import datetime
 import json
@@ -17,8 +17,8 @@ import hline  # noqa: E402
 import hline_quota as hq  # noqa: E402
 import test_hline_queue as base  # noqa: E402
 
-OUT = (HERE / "fixtures" / "hline_quota_429.stdout.json").read_text(encoding="utf-8")
-ERR = (HERE / "fixtures" / "hline_quota_429.stderr.txt").read_text(encoding="utf-8")
+OUT = (HERE / "fixtures" / "claude_quota_429.stdout.json").read_text(encoding="utf-8")
+ERR = (HERE / "fixtures" / "claude_quota_429.stderr.txt").read_text(encoding="utf-8")
 RAW = "You've hit your session limit · resets 12am (Asia/Tokyo)"
 JST = datetime.timezone(datetime.timedelta(hours=9))
 OK = json.dumps({"result": "できた", "modelUsage": {"claude-sonnet-5-5": {}}, "num_turns": 3})
