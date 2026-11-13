@@ -76,6 +76,24 @@
 - 0-a〜0-c で作るのは、実行環境のアダプタとエージェントの実行口の側（[設計と仮説](design.md)の §5-1）。制御核（機能の台帳・検証の手順の形・1 機能 1 会話の周回・検証の関門）は X-02 の前に作る。
 - 公平の設定：両方の腕で、同じイメージ・同じモデルと思考の強さ・同じ時間とトークンの上限・同じ採点（ベンチの公式の評価）。素の A は、agy の 1 つの会話に課題の全文を渡すだけ。
 
+### 0-b の繋ぎ方（2026-11-14 に整理）
+
+FeatureBench のコードは書き換えない（コミット 08b25d9 のまま）。agy の分だけを、このリポジトリのアダプタから足す。
+
+- FeatureBench のまま使うもの：課題のデータ（Fast v1.1）・課題の像・fb infer の Level 1 の初期化（マスクのパッチ・F2P のテストのファイルの削除・git の作り直し）・パッチの回収（/testbed の git の差分）・output.jsonl・fb eval。
+- 足すもの：
+  1. agy のエージェント：FeatureBench の BaseAgent の形で作り、起動のときに FeatureBench のエージェントの表に足す（get_agent を包む）。
+     - 入れ方：入れる段は公開の網が使えるので、config/box.json の URL から agy 1.5.3 を取り、SHA-512 を照らして /usr/local/bin に置く。
+     - 認証：WSL の bench 利用者の OAuth のトークンを、コンテナの HOME の下（/root/.gemini/antigravity-cli/）に置く。/testbed の外で、会話の記録も HOME の下に書かれる。
+     - 呼び方：頼み（課題の文だけ）は /tmp の stream-json のファイルから標準入力で渡す。モデルは名指しし、出力は stream-json、許可は自動。
+  2. 中継の宛先：FeatureBench の中継は、エージェントの名前とモデルから API の宛先を 1 つ決める。agy では宛先の決め方を包み、箱の中継の許しの一覧と同じ 3 つ（daily-cloudcode-pa.googleapis.com・www.googleapis.com・oauth2.googleapis.com の 443）だけを通す。
+- 確かめること：
+  - 偽物の agy で（利用枠 0）、入れる段・トークンの置き場・中継・パッチの回収・output.jsonl・fb eval までが通る。
+  - 回収したパッチと infer.log に、トークンの文字列と HOME の下（.gemini）のパスが無い。
+  - agy が /testbed に自分のファイル（設定・計画など）を残さないことは、本物の agy で同じ検査をして確かめる（X-01 の 1 課題目）。
+- 分かっていないこと：agy の OAuth の更新が、FeatureBench の中継の 3 つの宛先だけで通るか（偽物では分からない。X-01 の 1 課題目で見る）。
+
+
 ## 3. X-01 校正（素の A、FeatureBench の Fast）
 
 - 目的：仮説 H1（素の A が、手順の型で落ちるか）と、X-01〜X-03 の標準のモデルを決めること（1 課題あたりの利用枠の減りと、解決の余地）。
