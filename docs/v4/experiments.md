@@ -63,8 +63,8 @@
 | 順 | すること | 利用枠 |
 |:--|:--|:--|
 | 0-a | 済み（2026-11-14）。FeatureBench 0.3.0（コミット 08b25d9）を WSL の中に Python 3.12.16 と uv 0.13.8 で入れた。データは v1.1。seaborn の像 1 つで、正解のパッチの 2 課題が解決した（Fast の設定。F2P 100%、2 つで 82 秒）。Lite の設定では GPU を求めて始まらなかった（M-04） | 0 |
-| 0-b | agy の実行口を足す。先に、fb infer の環境の初期化とプロキシに当たらない繋ぎ方を整理する（データ・課題の像・fb eval は活かす）。FeatureBench の Gemini CLI の実行口は、コンテナに Node 22 と gemini-cli を入れ、自前の中継で generativelanguage.googleapis.com だけを通す（featurebench/infer/agents/gemini_cli.py・network.py。コミット 08b25d9 を 2026-11-14 に読んだ）。agy は独自のバイナリで、OAuth のトークンと daily-cloudcode-pa.googleapis.com などを使う（箱の中継の許しの一覧）ので、同じ形では通らない。agy の版と SHA の固定は箱の設定を使う。偽物の agy で空の 1 回を通し、頼みと記録の形を確かめる。FeatureBench は作業の木（/testbed）の git の差分をパッチとして回収するので、agy の認証のトークンと会話の記録（~/.gemini）は /testbed の外に置き、回収するパッチとログに混ざらないことを確かめる（操縦士、2026-11-14）。ここでも、取ってある seaborn の像だけを使う | 0 |
-| 0-c | 外への通信を、モデルの API だけに絞る（箱の proxy の形を使う。未来の版の取り寄せを防ぐ） | 0 |
+| 0-b | 済み（偽物の agy で、2026-11-14）。harness/fb_agy.py を足した（FeatureBench は書き換えず、--agent の選び・get_agent・中継の宛先の決め方を包む）。seaborn の 1 課題で、fb infer → output.jsonl → fb eval が通った。トークンは agy が読む場所（/root/.gemini/antigravity-cli/）に置かれた。回収したパッチは、偽物が /testbed に作った 1 ファイルだけで、HOME の下の会話の記録は入らない。パッチと infer.log にトークンの文字列は無い（fb_agy check で合格）。報告されたモデルは名指しと同じ。コミット 08b25d9 の fb infer は --force-rerun が無いと必ず止まるので、部品が同じ課題の ID を渡す。残り：本物の agy が /testbed に自分のファイルを残さないかと、OAuth の更新が 3 つの宛先で通るかを、X-01 の 1 課題目で同じ検査で見る | 0 |
+| 0-c | 済み（偽物の agy で、2026-11-14）。agy を走らせている間、コンテナから oauth2.googleapis.com には届き（404）、pypi.org と github.com は止まった。FeatureBench の中継（入れる段の後は API の宛先だけを通す）に agy の 3 つの宛先を渡す形で足りる | 0 |
 | 1 | 校正 X-01 | 小 |
 | 2 | 開発 X-02（FeatureBench の開発用の課題、SWE-EVO の複数 PR の課題を少し） | 中 |
 | 3 | 証明 X-03（封をした held-out） | 中〜大 |
@@ -132,3 +132,4 @@ FeatureBench のコードは書き換えない（コミット 08b25d9 のまま�
 - 2026-11-13：M-01〜M-05 を記録。調べものの記録 R-20261113-v4-harness-principles（31 件）と R-20261113-v4-benchmarks（18 件）を作り、抜粋は出典の本文で全部 verified。操縦士の決め（v3 凍結・v4 の 3 層・game-harness#377 をマージせずに閉じる・公式のベンチへ移る・細かいリセットをやめる・実戦（実際のゲーム開発）の想定を賢いモデル × 中くらいの仕事の一括にする・公開する比べと証明 X-01〜X-03 は Flash で完結させ、Claude の枠で公式のベンチは回さない）。
 - 2026-11-14：操縦士の決め（ベンチの検証用のモデルの主の候補を Gemini 4 Hydrogen にし、X-01 で燃費を測って標準を決める。ベンチで証明するのは共通骨格だけにし、実戦の専用化は別の層にする）。0-b の注意（fb infer の初期化とプロキシ、agy の通信の違い）を書いた。
 - 2026-11-14：0-a を済ませた（M-04、§2）。Lite の 19 課題が GPU を求めて手元で走らないので、X-01〜X-03 の課題の組を Fast（v1.1）の 4 つの像（63 課題）に移した（操縦士の決め）。X-01 の 5 課題を種で選んだ。P-007 を測り直した（前提の台帳）。
+- 2026-11-14：0-b・0-c を偽物の agy で済ませた（§2）。本物の agy での確かめは X-01 の 1 課題目で行う。
