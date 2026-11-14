@@ -1,0 +1,11 @@
+{
+  "_comment": "FeatureBench の fb infer で agy を走らせるときの旗（harness/fb_agy.py、実験と計画の 0-b）。モデルは fb infer の --model で正確な ID を渡し、走りの後に CLI が報告したモデルと照らす。model_name は X-01〜X-03 の標準の候補（P-032）",
+  "cli": "agy",
+  "headless_flag": "-p",
+  "auto_approve_flag": "--dangerously-skip-permissions",
+  "model_flag": "--model",
+  "model_name": "gemini-4-hydrogen-medium",
+  "output_format_args": ["--output-format", "stream-json"],
+  "extra_flags": [],
+  "usage_format": "agy"
+}

@@ -5,13 +5,15 @@
 # （理由は docs/v4/design.md §11）。P-014〜P-020 は抜粋を出典で照合し直した。P-021 から後は v4 の前提。
 premises:
 - id: P-007
-  text: agy の挙動は、リポジトリの外のグローバルの ~/.gemini/GEMINI.md に左右される
+  text: Windows の上の agy は、リポジトリの外のグローバルの ~/.gemini/GEMINI.md を文脈に読み込み、その挙動に左右される
   kind: measured
-  basis: [総監督の記録（2026-09-18 の実測）]
-  note: v4 では agy を箱の中で、全体設定の無い HOME で呼ぶ形に寄せて影響を断つ（docs/v4/cleanup_plan.md の 7）。~/.gemini には触らない
-  checked_at: 2026-09-18
-  recheck_by: 2026-11-18
-  used_by: [ADR-004 K-15, W-123, v4 整理の計画 7]
+  basis:
+    - 総監督の記録（2026-09-18 の実測）
+    - 会話の席の実測（2026-11-14。agy 1.2.14 と gemini-3.8-flash-high を道具なしで 1 回呼ぶと、全体の GEMINI.md の見出しの 1 行をそのまま引いた。その行は実物に 1 回だけある。入力 18,247・出力 666 トークン）
+  note: v4 では agy を箱の中で、全体設定の無い HOME で呼ぶ形に寄せて影響を断つ（docs/v4/cleanup_plan.md の §4）。~/.gemini には触らない（中身は読まず、引かれた行の一致だけを数えた）
+  checked_at: 2026-11-14
+  recheck_by: 2026-12-14
+  used_by: [調べ役の agy（反証の段）, v4 整理の計画 §4]
 - id: P-014
   text: 最前線の長く走る自律開発は、新しい文脈のセッションを、進捗のファイル・git・試験を変えられない機能の一覧で引き継ぐ形（単一のエージェント）か、計画役・作業役・審判役の階層で周期ごとに新しい文脈から始める形で回している
   kind: research
@@ -150,10 +152,18 @@ premises:
   recheck_by: 2026-11-27
   used_by: [v4 設計 §4-2, v4 設計 §4-4, v4 設計 §7]
 - id: P-032
-  text: ベンチ（X-01〜X-03）の検証用のモデルは、Gemini 4 Hydrogen（medium）を主の候補にし、X-01 で 1 課題あたりの利用枠の減りと解決の余地を測って、燃費が許せる範囲なら標準にする（3.8 Flash は少数の課題で比べる候補）。ベンチで証明するのは共通骨格（要件の台帳・1 つの単位を 1 つの会話で続ける・機械の背圧）だけにし、実戦の専用化（受け入れテストの事前の提示・大きい粒度・Unity の多段の関門）はベンチの形に縛られずに作る
+  text: ベンチ（X-01〜X-03）の検証用のモデルは、Gemini 4 Hydrogen（medium）を主の候補にし、X-01 で 1 課題あたりの利用枠の減りと解決の余地を測って、燃費が許せる範囲なら標準にする（3.8 Flash は少数の課題で比べる候補）。ベンチで証明するのは共通骨格（要件の台帳・1 つの単位を 1 つの会話で続ける・機械の背圧）だけにし、実戦の専用化（受け入れテストの事前の提示・大きい粒度・Unity の多段の関門）はベンチの形に縛られずに作る。課題の組は FeatureBench の Fast（v1.1）にし、像は seaborn・mlflow・pandas・astropy の 4 つ（63 課題）を中心に使う（P-033）。正解のテストは、X-01 をテストを隠す通常の実行（Level 1）と白箱（fb infer の --white）の両方で校正した。隠した条件では落ちの大半がどの手順でも届かず、白箱では 5 課題のうち 4 が解けたので、X-01 の続きとして 4 つの像の大きい層（隠しのパッチが消した実装の行が 925 以上の 16 課題）から 5 課題を選んで白箱で校正し、判定の線により、X-02 を白箱の Fast の大きい層で進める（組の広さと held-out の分け方は X-02 の前に決める。白箱でも、素の A とハーネスに同じテストを見せる）
   kind: decision
-  basis: [操縦士の裁定（2026-11-14、整理の PR の前の指示）]
-  note: Hydrogen は agy 1.5.3 の Gemini Models の週の枠で動き、Argon と Claude の枠を使わない（操縦士の報告。X-01 で、CLI が報告したモデルの照合と目盛りの読みで確かめる）。FeatureBench の通常の実行が F2P のテストのファイルを消して隠すことは、featurebench/infer/runtime.py（コミット 08b25d9）で確かめた
+  basis: [操縦士の裁定（2026-11-14、整理の PR の前の指示と、0-a の後の指示と、X-01 の 5 課題の後と白箱の校正の後の指示）]
+  note: 2026-11-14 の X-01 の 1 課題目で、Hydrogen の週の目盛りの減りは 2 ポイント未満だったので、数の線により標準にした。Hydrogen は agy 1.5.3 の Gemini Models の週の枠で動き、Argon と Claude の枠を使わない（操縦士の報告。X-01 で、CLI が報告したモデルの照合と目盛りの読みで確かめる）。FeatureBench の通常の実行が F2P のテストのファイルを消して隠すことは、featurebench/infer/runtime.py（コミット 08b25d9）で確かめた。公式の API の値段（R-20261114-gemini-api-pricing。燃費の換算に使う）では、Hydrogen の入力と出力の単価は 3.8 Flash の 2026 年の値段の 2 倍で、2027-01-01 からの Flash の値段と同じ。キャッシュの読みは 2026 年は同じで、2027 年からは Flash が 2 倍
   checked_at: 2026-11-14
   recheck_by: 2026-12-14
-  used_by: [v4 設計 §4-1, v4 設計 §4-2, v4 設計 §4-4, v4 設計 §5-1, v4 実験 §2, v4 実験 §3]
+  used_by: [v4 設計 §4-1, v4 設計 §4-2, v4 設計 §4-4, v4 設計 §5-1, v4 実験 §2, v4 実験 §3, v4 実験 §4, v4 実験 §5]
+- id: P-033
+  text: FeatureBench の Lite（v1.1）は、30 課題のうち 19 課題が課題の設定で GPU を求め、手元の Docker（NVIDIA の container toolkit なし）では始まらない。Fast（v1.1）の 100 課題は GPU を求めず、手元で正解のパッチが通る
+  kind: measured
+  basis: [会話の席の実測（2026-11-14。FeatureBench 0.3.0 の parse_docker_runtime_config で数え、seaborn の 2 課題の正解のパッチを Fast の設定で評価して、どちらも解決した）]
+  note: GPU を求めるかは docker_specs.run_args.cuda_visible_devices で決まり、同じ課題の ID でも split の設定で変わる。X-01〜X-03 を Fast に移した根拠（P-032）
+  checked_at: 2026-11-14
+  recheck_by: 2026-12-14
+  used_by: [v4 実験 M-04, v4 実験 §2, v4 実験 §3]
