@@ -7,6 +7,7 @@ FeatureBench のコードは書き換えない。起動のときに次の 3 つ�
 1. fb infer の --agent の選び（argparse の choices）に agy を足す
 2. エージェントの表（get_agent）に AgyAgent を足す
 3. 中継の宛先の決め方（resolve_model_api_endpoints）を、agy では AGY_HOSTS の 3 つ（箱の中継の許しの一覧と同じ）にする
+制御核を通した腕（config/fb_core.json。harness/fb_core.py）も、同じ 3 つで足す（--agent agy-gate など）。
 
 agy の入れ方・認証・呼び方：
 - 入れる段（公開の網が使える）で、config/box.json の URL から agy を取り、SHA-512 を照らして /usr/local/bin に置く
@@ -177,15 +178,20 @@ def register():
             self.cm.exec_command(container, f"mkdir -p {LOG_DIR}", log_file=log_file)
             return True
 
+        def place_token(self, container):
+            """認証のトークンを、コンテナの HOME の下に置く（中身はログに残さない。/testbed の外）。"""
+            with tempfile.TemporaryDirectory() as d:
+                token = Path(d) / TOKEN_NAME
+                token.write_bytes(token_file.read_bytes())
+                os.chmod(token, 0o600)
+                self.cm.copy_to_container(container, token, f"{TOKEN_DIR}/{TOKEN_NAME}")
+
         def prepare_run(self, container, instruction, log_file):
             with tempfile.TemporaryDirectory() as d:
                 prompt = Path(d) / "prompt.jsonl"
                 prompt.write_text(agy_stream.stdin_for(self.imp, instruction), encoding="utf-8")
                 self.cm.copy_to_container(container, prompt, PROMPT_PATH)
-                token = Path(d) / TOKEN_NAME
-                token.write_bytes(token_file.read_bytes())
-                os.chmod(token, 0o600)
-                self.cm.copy_to_container(container, token, f"{TOKEN_DIR}/{TOKEN_NAME}")
+            self.place_token(container)
             return True
 
         def get_run_command(self, instruction):
@@ -206,11 +212,15 @@ def register():
                 return False
             return True
 
+    import fb_core
+    arms_cfg, core_cfg = fb_core.load_arms()
+    tools = os.environ.get("FB_CORE_TOOLS") or core_cfg.get("tools_dir")
+    agents = {NAME: AgyAgent, **fb_core.arm_agents(AgyAgent, arms_cfg, tools_src=tools)}
     original_get_agent = agents_mod.get_agent
 
     def get_agent(agent_name, **kwargs):
-        if agent_name == NAME:
-            return AgyAgent(**kwargs)
+        if agent_name in agents:
+            return agents[agent_name](**kwargs)
         return original_get_agent(agent_name, **kwargs)
 
     agents_mod.get_agent = get_agent
@@ -219,7 +229,7 @@ def register():
     original_resolve = network.resolve_model_api_endpoints
 
     def resolve_model_api_endpoints(agent, model, env_vars):
-        if agent == NAME:
+        if agent in agents:
             return tuple(sorted(network.ApiEndpoint(host, 443) for host in AGY_HOSTS))
         return original_resolve(agent, model, env_vars)
 
@@ -229,7 +239,7 @@ def register():
 
     def add_argument(self, *names, **kwargs):
         if "--agent" in names and kwargs.get("choices"):
-            kwargs = dict(kwargs, choices=[*kwargs["choices"], NAME])
+            kwargs = dict(kwargs, choices=[*kwargs["choices"], *agents])
         return original_add_argument(self, *names, **kwargs)
 
     argparse.ArgumentParser.add_argument = add_argument
