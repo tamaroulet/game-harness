@@ -400,31 +400,69 @@ def gold_runs_of(d):
     return {"files": files, "failed": failed}
 
 
+def keysets(c, generic=False):
+    """1 つの状態の静的な落ちを、状態をまたいで比べられる鍵の集まりにする。
+    generic=True は、正解を使わずに雑音を除く後付けの直しの案（§5-4 の限界）：任意の依存の skip（could not import）・
+    __all__ の名の未定義（UndefinedExport）・パッケージのどこかで外から代入される属性を除く。"""
+    und = {(f.get("file"), f.get("kind"), f.get("name")) for f in c.get("undefined") or []
+           if not (generic and f.get("kind") == "UndefinedExport")}
+    imp = {(f.get("module"), f.get("type")) for f in ((c.get("imports") or {}).get("failed") or [])
+           if not f.get("optional") and not (generic and f.get("type") == "Skipped" and "could not import" in (f.get("msg") or ""))}
+    stored = set((c.get("attrs") or {}).get("stored_anywhere") or []) if generic else set()
+    att = {(f.get("file"), f.get("class"), f.get("attr")) for f in ((c.get("attrs") or {}).get("flags") or [])
+           if f.get("attr") not in stored}
+    return {"undefined": und, "imports": imp, "attrs": att}
+
+
+def on_target(kind, key, removed, mfiles):
+    import re
+    words = set(re.findall(r"[A-Za-z_]\w*", " ".join(str(k) for k in key if k)))
+    if words & removed:
+        return True
+    if kind in ("undefined", "attrs") and key[0] in mfiles:
+        return True
+    if kind == "imports" and key[0]:
+        stem = key[0].replace(".", "/")
+        return any(p == stem + ".py" or p == stem + "/__init__.py" for p in mfiles)
+    return False
+
+
 def summarize_task(d):
     g = d["ground"]
     removed, mfiles = set(g["removed"]), set(g["mask_files"])
     gold_runs = gold_runs_of(d)
+    gold = next(c for c in d["candidates"] if c["name"] == "gold")
+    gk, gk_generic = keysets(gold), keysets(gold, generic=True)
     rows = []
     for c in d["candidates"]:
         if not c.get("applied", True) or "error" in c:
             rows.append({"state": c["name"], "error": (c.get("apply_error") or c.get("error") or "")[:200]})
             continue
-        fs = findings(c, [])
-        static = {k: len(fs[k]) for k in ("undefined", "imports", "attrs")}
-        on_target = {k: sum(1 for f in fs[k] if relevant(k, f, removed, mfiles)) for k in ("undefined", "imports", "attrs")}
+        ks, ks_generic = keysets(c), keysets(c, generic=True)
+        absolute = {k: len(v) for k, v in ks.items()}
+        generic = {k: len(v) for k, v in ks_generic.items()}
+        beyond = {k: sorted(ks[k] - gk[k], key=str) for k in ks}
+        beyond_n = {k: len(v) for k, v in beyond.items()}
+        beyond_on = {k: sum(1 for key in v if on_target(k, key, removed, mfiles)) for k, v in beyond.items()}
         tv = test_verdicts(c, gold_runs) if c["name"] != "gold" else {"pass_in_gold": [], "fail_in_gold": [], "not_run_in_gold": []}
+        tests = (c.get("tests") or {})
         by = {}
         for n in c.get("f2p_failed") or []:
             lab = g["items"].get(n, "不明")
             by[lab] = by.get(lab, 0) + 1
-        caught = sum(static.values()) > 0 or len(tv["pass_in_gold"]) > 0
-        rows.append({"state": c["name"], "resolved": c.get("resolved"), "white": c.get("white"), "static": static,
-                     "on_target": on_target, "tests_failed": len(fs["tests"]), "tests_pass_in_gold": len(tv["pass_in_gold"]),
-                     "tests_fail_in_gold": len(tv["fail_in_gold"]), "tests_not_run_in_gold": len(tv["not_run_in_gold"]),
-                     "tests_files_run": len(((c.get("tests") or {}).get("files") or {})),
-                     "tests_files_not_run": len(((c.get("tests") or {}).get("not_run") or [])),
-                     "caught": caught, "f2p_failed_by_ground": by, "secs": c.get("secs")})
-    return {"id": d["id"], "ground_counts": g["counts"], "removed": len(removed), "mask_files": len(mfiles), "states": rows}
+        caught_beyond = sum(beyond_n.values()) > 0 or len(tv["pass_in_gold"]) > 0
+        rows.append({"state": c["name"], "resolved": c.get("resolved"), "white": c.get("white"),
+                     "absolute": absolute, "absolute_tests_failed": len(tests.get("failed") or []),
+                     "generic": generic, "beyond_gold": beyond_n, "beyond_gold_on_target": beyond_on,
+                     "beyond_gold_sample": {k: [list(x) for x in v[:6]] for k, v in beyond.items()},
+                     "tests_pass_in_gold": len(tv["pass_in_gold"]), "tests_fail_in_gold": len(tv["fail_in_gold"]),
+                     "tests_not_run_in_gold": len(tv["not_run_in_gold"]),
+                     "tests_files_run": len(tests.get("files") or {}), "tests_files_not_run": len(tests.get("not_run") or []),
+                     "tests_msgs": sorted({(x.get("msg") or "")[:120] for x in (tests.get("failed") or [])
+                                          if x["node"] in set(tv["pass_in_gold"])})[:6],
+                     "caught_beyond_gold": caught_beyond, "f2p_failed_by_ground": by, "secs": c.get("secs")})
+    return {"id": d["id"], "ground_counts": g["counts"], "removed": len(removed), "mask_files": len(mfiles),
+            "gold_generic": {k: len(v) for k, v in gk_generic.items()}, "states": rows}
 
 
 def cmd_summary(args):

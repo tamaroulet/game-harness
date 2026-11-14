@@ -199,6 +199,20 @@ class ProbeTest(unittest.TestCase):
         own, picked, _ = probe.select_tests(self.root, ["pkg/stats.py"], [], {"pkg/tests/test_stats.py"})
         self.assertEqual(picked, [])
 
+    def test_junit_messages_match_summary_nodes(self):
+        xml = Path(self.root) / "j.xml"
+        xml.write_text(textwrap.dedent("""\
+            <testsuites><testsuite>
+            <testcase classname="pkg.tests.test_stats" name="test_a[1]"><failure message="AttributeError: no _eval_univariate">tb</failure></testcase>
+            <testcase classname="pkg.tests.test_stats.TestK" name="test_b"><error message="NameError: name 'x' is not defined">tb</error></testcase>
+            <testcase classname="pkg.tests.test_stats" name="test_ok"/>
+            </testsuite></testsuites>
+            """), encoding="utf-8")
+        msgs = probe.junit_messages(str(xml))
+        self.assertEqual(msgs[probe.node_key("pkg/tests/test_stats.py::test_a[1]")], "AttributeError: no _eval_univariate")
+        self.assertEqual(msgs[probe.node_key("pkg/tests/test_stats.py::TestK::test_b")], "NameError: name 'x' is not defined")
+        self.assertEqual(len(msgs), 2)
+
     def test_refs(self):
         res = probe.check_refs(self.root, probe.source_files(self.root, ["pkg"]), ["_eval_univariate", "gone"],
                                ["return  SELF.step()", "absent text"])

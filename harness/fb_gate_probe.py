@@ -394,7 +394,14 @@ def check_attrs(root, files):
                         and n.attr not in have):
                     flags.append({"file": rel, "line": n.lineno, "class": k[1], "attr": n.attr})
     uniq = {(f["file"], f["class"], f["attr"]): f for f in flags}
-    return {"classes_checked": checked, "classes_skipped": skipped, "flags": sorted(uniq.values(), key=lambda f: (f["file"], f["line"]))}
+    stored = set()
+    for _rel, tree in idx.mods.values():
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store):
+                stored.add(n.attr)
+    return {"classes_checked": checked, "classes_skipped": skipped,
+            "flags": sorted(uniq.values(), key=lambda f: (f["file"], f["line"])),
+            "stored_anywhere": sorted({f["attr"] for f in uniq.values()} & stored)}
 
 
 # ---------------------------------------------------------------- テスト
@@ -457,22 +464,57 @@ def select_tests(root, ledger_paths, changed, hidden):
     return sorted(own), picked, sorted(want)
 
 
+def junit_messages(path):
+    """JUnit XML（pytest --junitxml）から、落ちた項目の (クラスの名か None, 項目の名) → 落ちの 1 行。
+    端末の幅で切れない落ちの文を取るため（端末の幅の環境変数は、表示を確かめるテストを変えるので触らない）。"""
+    import xml.etree.ElementTree as ET
+    out = {}
+    try:
+        root = ET.parse(path).getroot()
+    except (OSError, ET.ParseError):
+        return out
+    for tc in root.iter("testcase"):
+        for tag in ("failure", "error"):
+            el = tc.find(tag)
+            if el is not None:
+                cls = (tc.get("classname") or "").rsplit(".", 1)[-1]
+                key = (cls if cls[:1].isupper() else None, tc.get("name") or "")
+                msg = (el.get("message") or (el.text or "").strip().splitlines()[-1:] or [""])
+                out[key] = (msg if isinstance(msg, str) else msg[0])[:300]
+                break
+    return out
+
+
+def node_key(node):
+    parts = node.split("::")[1:]
+    if not parts:
+        return (None, node)
+    return (parts[-2] if len(parts) >= 2 else None, parts[-1])
+
+
 def run_tests(root, files, test_cmd, timeout_one, file_timeout, budget):
     results, failed, t0, not_run = {}, [], time.time(), []
+    xml = "/tmp/fb_gate_junit.xml"
     for rel in files:
         if time.time() - t0 > budget:
             not_run.append(rel)
             continue
-        cmd = f"timeout {int(file_timeout)} {test_cmd} -p no:cacheprovider --timeout={int(timeout_one)} {rel}"
+        if os.path.exists(xml):
+            os.remove(xml)
+        cmd = (f"timeout {int(file_timeout)} {test_cmd} -p no:cacheprovider --timeout={int(timeout_one)} "
+               f"--junitxml={xml} {rel}")
         s = time.time()
         p = subprocess.run(["bash", "-c", cmd], cwd=root, capture_output=True,
-                           env=dict(os.environ, MPLBACKEND="Agg", PYTHONDONTWRITEBYTECODE="1", COLUMNS="300"))
+                           env=dict(os.environ, MPLBACKEND="Agg", PYTHONDONTWRITEBYTECODE="1"))
         out = p.stdout.decode("utf-8", errors="replace")
+        msgs = junit_messages(xml)
         counts = {}
         for m in PASS_RE.finditer(out):
             counts[m.group(1)] = counts.get(m.group(1), 0) + 1
             if m.group(1) in ("FAILED", "ERROR"):
-                failed.append({"node": m.group(2), "kind": m.group(1), "msg": (m.group(3) or "")[:200]})
+                node = m.group(2)
+                failed.append({"node": node, "kind": m.group(1),
+                               "msg": msgs.get(node_key(node)) or (m.group(3) or "")[:300]})
         results[rel] = {"rc": p.returncode, "secs": round(time.time() - s, 1), "counts": counts,
                         "timeout": p.returncode == 124, "tail": out[-300:] if p.returncode not in (0, 1) else ""}
     return {"files": results, "failed": failed, "not_run": not_run}
