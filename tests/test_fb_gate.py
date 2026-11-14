@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 import fb_gate_probe as probe  # noqa: E402
 import fb_ground as ground  # noqa: E402
+import fb_replay as replay  # noqa: E402
 
 MASK = textwrap.dedent("""\
     diff --git a/pkg/stats.py b/pkg/stats.py
@@ -218,6 +219,87 @@ class ProbeTest(unittest.TestCase):
                                ["return  SELF.step()", "absent text"])
         self.assertEqual(res["names"], ["_eval_univariate"])
         self.assertEqual(res["literals"], ["return  SELF.step()"])
+
+
+LOADER_OLD = """\
+def install(names, path, cmd, verbose):
+    pass
+
+install(
+    {'pandas'},
+    '/testbed/build/cp311',
+    ['/opt/env/bin/ninja'],
+    True,
+)
+"""
+
+LOADER_NEW = """\
+install('pkg', {'pkg'}, '/w/build/cp312', ['/usr/bin/ninja', '-C', '/w/build/cp312'], False)
+"""
+
+
+class BuildGuardTest(unittest.TestCase):
+    def test_parse_loader(self):
+        self.assertEqual(probe.parse_loader(LOADER_OLD), {"build": "/testbed/build/cp311", "cmd": ["/opt/env/bin/ninja"]})
+        self.assertEqual(probe.parse_loader(LOADER_NEW),
+                         {"build": "/w/build/cp312", "cmd": ["/usr/bin/ninja", "-C", "/w/build/cp312"]})
+        self.assertIsNone(probe.parse_loader("x = 1\n"))
+        self.assertIsNone(probe.parse_loader("def (:\n"))
+
+    def test_editable_builds_one_per_build_dir(self):
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            write(a, "_pandas_editable_loader.py", LOADER_OLD)
+            write(b, "_pandas_editable_loader.py", LOADER_OLD)      # 同じ置き場を 2 つの site から見ても 1 つ
+            write(b, "_other_editable_loader.py", "nothing here\n")
+            write(b, "pandas-editable.pth", "import _pandas_editable_loader\n")
+            got = probe.editable_builds([a, b])
+        self.assertEqual([(x["build"], x["loader"]) for x in got], [("/testbed/build/cp311", "_pandas_editable_loader.py")])
+
+    def test_compile_steps(self):
+        out = textwrap.dedent("""\
+            [1/1] Generating write_version_file with a custom command
+            """)
+        self.assertEqual(probe.compile_steps(out), [])
+        out = textwrap.dedent("""\
+            [1/154] Generating pandas/_libs/algos_take_helper_pxi with a custom command
+            [2/154] Compiling Cython source /testbed/pandas/_libs/algos.pyx
+            [3/154] Compiling C object pandas/_libs/algos.cpython-311-x86_64-linux-gnu.so.p/meson-generated_algos.c.o
+            [154/154] Linking target pandas/_libs/interval.cpython-311-x86_64-linux-gnu.so
+            ninja: no work to do.
+            """)
+        self.assertEqual(len(probe.compile_steps(out)), 3)
+        self.assertEqual(len(probe.compile_steps("[1/1] Regenerating build files.\n")), 1)
+
+    @unittest.skipUnless(os.path.isdir("/proc/self"), "needs /proc (runs in the task box and on Linux)")
+    def test_run_session_kills_grandchildren(self):
+        code, out, killed = probe.run_session(
+            ["bash", "-c", "sleep 300 >/dev/null 2>&1 & sleep 300 >/dev/null 2>&1 & echo started"], 30)
+        self.assertEqual(code, 0)
+        self.assertIn(b"started", out)
+        self.assertEqual(killed, 2)
+
+    @unittest.skipUnless(os.path.isdir("/proc/self"), "needs /proc (runs in the task box and on Linux)")
+    def test_run_session_timeout(self):
+        code, _, killed = probe.run_session(["bash", "-c", "sleep 300"], 1)
+        self.assertEqual(code, 124)
+        self.assertEqual(killed, 0)       # 時間切れで止めた後、残りは無い
+
+    def test_deep_stack_runs_and_reraises(self):
+        def nest(n):
+            return 0 if n == 0 else 1 + nest(n - 1)
+        self.assertEqual(probe.deep_stack(lambda: nest(20000)), 20000)
+        with self.assertRaises(KeyError):
+            probe.deep_stack(lambda: {}["missing"])
+
+
+class ReplayTest(unittest.TestCase):
+    def test_commit_sha_only_from_stdout(self):
+        sha = "0123456789abcdef0123456789abcdef01234567"
+        self.assertEqual(replay.commit_sha(sha + "\n"), sha)
+        for bad in ("", "The file will have its original line endings in your working directory\n",
+                    sha + "\nwarning: CRLF will be replaced by LF in x.csv.\n", sha[:-1] + "\n"):
+            with self.assertRaises(RuntimeError):
+                replay.commit_sha(bad)
 
 
 if __name__ == "__main__":

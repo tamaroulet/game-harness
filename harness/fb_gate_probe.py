@@ -17,12 +17,16 @@ spec の鍵：
   names・literals：refs で、始まりの状態のソースに出てくるかを調べる名と文言
 """
 import ast
+import glob
 import io
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
+import sysconfig
+import threading
 import time
 import tokenize
 
@@ -96,9 +100,183 @@ def check_undefined(root, files, pyflakes_dir):
         return os.path.relpath(filename, root).replace(os.sep, "/")
 
     r = Reporter()
+    unchecked = []
     for rel in files:
-        api.checkPath(os.path.join(root, rel), r)
-    return found
+        try:
+            api.checkPath(os.path.join(root, rel), r)
+        except RecursionError:   # 大きいスタックでも尽きる深い式。落ちとは数えず、確かめなかったファイルとして書く
+            unchecked.append(rel)
+    return {"found": found, "unchecked": unchecked}
+
+
+def deep_stack(fn, stack_mb=512, limit=50000):
+    """深い式（sympy の生成コードなど）で pyflakes の再帰が尽きないよう、大きいスタックのスレッドで走らせる。
+    再帰の上限は 50000（1 段あたり 5KB を見込む）。Windows の Python はスタックを 256MB 未満しか受け付けないので、
+    断られたら 255MB にする（箱の中は Linux）。"""
+    box = {}
+
+    def run():
+        sys.setrecursionlimit(limit)
+        try:
+            box["value"] = fn()
+        except BaseException as e:   # 呼んだ側に渡し直す
+            box["error"] = e
+
+    try:
+        old = threading.stack_size(stack_mb * 1024 * 1024)
+    except ValueError:
+        old = threading.stack_size(255 * 1024 * 1024)
+    try:
+        t = threading.Thread(target=run)
+        t.start()
+        t.join()
+    finally:
+        threading.stack_size(old)
+    if "error" in box:
+        raise box["error"]
+    return box["value"]
+
+
+# ---------------------------------------------------------------- 後始末と組み立て（検査が子・孫の処理や C/C++ の組み立てを残さない）
+
+def session_procs(sid):
+    """会話 sid（start_new_session で作った子が頭）に属する処理の PID。孫（ninja が起こした cc1 など）も、親が先に
+    終わって 1 番に付け替えられた後も、会話の番号は変わらないので拾える。"""
+    out = []
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            with open(f"/proc/{d}/stat", "rb") as f:
+                fields = f.read().rsplit(b")", 1)[1].split()
+            if int(fields[3]) == sid and fields[0] != b"Z":
+                out.append(int(d))
+        except (OSError, ValueError, IndexError):
+            continue
+    return out
+
+
+def kill_session(sid):
+    """会話 sid の処理を全部止め、止めた数を返す。"""
+    pids = session_procs(sid)
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+    return len(pids)
+
+
+def run_session(args, timeout, **kw):
+    """新しい会話で走らせ、終わったら（時間切れでも）会話に残った処理を全部止める。
+    (終わりの符号, 標準出力のバイト列, 止めた処理の数)。時間切れの符号は 124。"""
+    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, **kw)
+    try:
+        out, _ = p.communicate(timeout=timeout)
+        code = p.returncode
+    except subprocess.TimeoutExpired:
+        kill_session(p.pid)
+        out, _ = p.communicate()
+        code = 124
+    return code, out, kill_session(p.pid)
+
+
+def orphans():
+    """箱の中で 1 番に付け替えられた処理（ゾンビを除く）。前の検査の残りを見つける。"""
+    out = []
+    me = os.getpid()
+    for d in os.listdir("/proc"):
+        if not d.isdigit() or int(d) in (1, me):
+            continue
+        try:
+            with open(f"/proc/{d}/stat", "rb") as f:
+                head, tail = f.read().rsplit(b")", 1)
+            fields = tail.split()
+            if int(fields[1]) == 1 and fields[0] != b"Z":
+                out.append({"pid": int(d), "comm": head.split(b"(", 1)[1].decode("utf-8", "replace")})
+        except (OSError, ValueError, IndexError):
+            continue
+    return out
+
+
+def sweep_orphans():
+    found = orphans()
+    for o in found:
+        try:
+            os.kill(o["pid"], signal.SIGKILL)
+        except OSError:
+            pass
+    return [o["comm"] for o in found]
+
+
+def parse_loader(text):
+    """meson-python の editable の読み込み口（_<名>_editable_loader.py）の末尾の install(...) から、
+    組み立ての置き場と命令を取る。({"build": 置き場, "cmd": [命令]} か None)"""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "install":
+            build = cmd = None
+            for a in node.args:
+                try:
+                    v = ast.literal_eval(a)
+                except (ValueError, TypeError, SyntaxError):
+                    continue
+                if isinstance(v, str) and build is None and v.startswith("/"):
+                    build = v
+                elif isinstance(v, list) and v and all(isinstance(x, str) for x in v):
+                    cmd = v
+            if build and cmd:
+                return {"build": build, "cmd": cmd}
+    return None
+
+
+def editable_builds(site_dirs=None):
+    """この Python に入っている meson-python の editable の組み立て（置き場ごとに 1 つ）。"""
+    if site_dirs is None:
+        paths = sysconfig.get_paths()
+        site_dirs = sorted({paths["purelib"], paths["platlib"]})
+    seen, out = set(), []
+    for sd in site_dirs:
+        for f in sorted(glob.glob(os.path.join(sd, "_*_editable_loader.py"))):
+            with open(f, encoding="utf-8") as fh:
+                b = parse_loader(fh.read())
+            if b and b["build"] not in seen:
+                seen.add(b["build"])
+                out.append(dict(b, loader=os.path.basename(f)))
+    return out
+
+
+def compile_steps(dry_run_stdout):
+    """ninja -n の出力のうち、C/C++・Cython の組み立てと繋ぎの歩（Compiling・Linking）と、組み立ての設定の作り直し
+    （Regenerating。作り直すと全部の組み立てになりうる）。版の書き出しのような、毎回走る軽い歩は数えない。"""
+    keys = ("Compiling", "Linking", "Regenerating")
+    return [l for l in dry_run_stdout.splitlines() if l.startswith("[") and any(k in l for k in keys)]
+
+
+def build_state(builds):
+    """組み立ての残り（ninja -n。組み立ては走らせない）と、組み立てた物（.so・.o）の時刻の最大。"""
+    out = []
+    for b in builds:
+        st = {"build": b["build"], "pending": None, "first": [], "built_mtime": 0}
+        try:
+            p = subprocess.run(b["cmd"] + ["-n"], cwd=b["build"], capture_output=True, timeout=300)
+            if p.returncode == 0:
+                steps = compile_steps(p.stdout.decode("utf-8", errors="replace"))
+                st.update({"pending": len(steps), "first": steps[:3]})
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        for dirpath, _, names in os.walk(b["build"]):
+            for n in names:
+                if n.endswith((".so", ".o")):
+                    try:
+                        st["built_mtime"] = max(st["built_mtime"], os.stat(os.path.join(dirpath, n)).st_mtime_ns)
+                    except OSError:
+                        pass
+        out.append(st)
+    return out
 
 
 # ---------------------------------------------------------------- import
@@ -132,17 +310,15 @@ def check_imports(root, files, packages, budget=1500):
     with open(script, "w", encoding="utf-8") as f:
         f.write(IMPORT_SCRIPT)
     env = dict(os.environ, MPLBACKEND="Agg", PYTHONDONTWRITEBYTECODE="1")
-    found, todo, t0 = [], list(mods), time.time()
+    found, todo, t0, killed = [], list(mods), time.time(), 0
     while todo and time.time() - t0 < budget:
         listing = os.path.join("/tmp", "fb_gate_mods.json")
         with open(listing, "w", encoding="utf-8") as f:
             json.dump(todo, f)
-        try:
-            p = subprocess.run([sys.executable, script, listing], cwd=root, env=env, capture_output=True,
-                               timeout=max(60, budget - (time.time() - t0)))
-            out = p.stdout.decode("utf-8", errors="replace")
-        except subprocess.TimeoutExpired as e:
-            out = (e.stdout or b"").decode("utf-8", errors="replace")
+        _, out_b, n = run_session([sys.executable, script, listing], max(60, budget - (time.time() - t0)),
+                                  cwd=root, env=env)
+        killed += n
+        out = out_b.decode("utf-8", errors="replace")
         started, done = None, False
         for line in out.splitlines():
             try:
@@ -165,7 +341,7 @@ def check_imports(root, files, packages, budget=1500):
     for d in found:
         miss = (d.get("missing") or "").split(".")[0]
         d["optional"] = d["type"] == "ModuleNotFoundError" and bool(miss) and miss not in packages
-    return {"modules": len(mods), "failed": found, "not_run": todo}
+    return {"modules": len(mods), "failed": found, "not_run": todo, "killed_leftovers": killed}
 
 
 # ---------------------------------------------------------------- 属性（self.名）
@@ -493,7 +669,7 @@ def node_key(node):
 
 
 def run_tests(root, files, test_cmd, timeout_one, file_timeout, budget):
-    results, failed, t0, not_run = {}, [], time.time(), []
+    results, failed, t0, not_run, killed = {}, [], time.time(), [], 0
     xml = "/tmp/fb_gate_junit.xml"
     for rel in files:
         if time.time() - t0 > budget:
@@ -504,9 +680,11 @@ def run_tests(root, files, test_cmd, timeout_one, file_timeout, budget):
         cmd = (f"timeout {int(file_timeout)} {test_cmd} -p no:cacheprovider --timeout={int(timeout_one)} "
                f"--junitxml={xml} {rel}")
         s = time.time()
-        p = subprocess.run(["bash", "-c", cmd], cwd=root, capture_output=True,
-                           env=dict(os.environ, MPLBACKEND="Agg", PYTHONDONTWRITEBYTECODE="1"))
-        out = p.stdout.decode("utf-8", errors="replace")
+        code, out_b, n = run_session(["bash", "-c", cmd], int(file_timeout) + 60, cwd=root,
+                                     env=dict(os.environ, MPLBACKEND="Agg", PYTHONDONTWRITEBYTECODE="1"))
+        killed += n
+        p = subprocess.CompletedProcess(cmd, code)
+        out = out_b.decode("utf-8", errors="replace")
         msgs = junit_messages(xml)
         counts = {}
         for m in PASS_RE.finditer(out):
@@ -517,7 +695,7 @@ def run_tests(root, files, test_cmd, timeout_one, file_timeout, budget):
                                "msg": msgs.get(node_key(node)) or (m.group(3) or "")[:300]})
         results[rel] = {"rc": p.returncode, "secs": round(time.time() - s, 1), "counts": counts,
                         "timeout": p.returncode == 124, "tail": out[-300:] if p.returncode not in (0, 1) else ""}
-    return {"files": results, "failed": failed, "not_run": not_run}
+    return {"files": results, "failed": failed, "not_run": not_run, "killed_leftovers": killed}
 
 
 # ---------------------------------------------------------------- refs（始まりの状態のソースに名と文言が出てくるか）
@@ -557,15 +735,26 @@ def main():
     root, packages = spec["root"], spec["packages"]
     checks = set(spec.get("checks") or [])
     files = source_files(root, packages)
-    res = {"source_files": len(files), "secs": {}}
+    res = {"source_files": len(files), "secs": {}, "orphans_before": sweep_orphans()}
 
     def timed(name, fn):
         t = time.time()
         res[name] = fn()
         res["secs"][name] = round(time.time() - t, 1)
 
+    # import とテストは、editable の組み立て（meson-python）を起こしうる。組み立ての残り（C/C++ の歩）があれば走らせない。
+    builds = editable_builds() if checks & {"imports", "tests"} else []
+    if builds:
+        res["build"] = {"before": build_state(builds)}
+        pending = [b for b in res["build"]["before"] if b["pending"] != 0]
+        if pending:
+            res["error"] = f"editable build pending (import and tests not run): {pending}"[:500]
+            checks -= {"imports", "tests"}
+
     if "undefined" in checks:
-        timed("undefined", lambda: check_undefined(root, files, spec["pyflakes_dir"]))
+        timed("undefined", lambda: deep_stack(lambda: check_undefined(root, files, spec["pyflakes_dir"])))
+        res["undefined_unchecked"] = res["undefined"]["unchecked"]
+        res["undefined"] = res["undefined"]["found"]
     if "imports" in checks:
         timed("imports", lambda: check_imports(root, files, set(packages), spec.get("import_budget", 1500)))
     if "attrs" in checks:
@@ -584,6 +773,14 @@ def main():
         res["tests_selected"] = {"own": own, "existing": picked}
         timed("tests", lambda: run_tests(root, own + picked, spec["test_cmd"], spec.get("timeout_one", 10),
                                          spec.get("file_timeout", 300), spec.get("test_budget", 600)))
+    if builds:   # 検査の間に C/C++ の組み立てが走っていない（組み立てた物の時刻が変わっていない）ことを確かめる
+        res["build"]["after"] = build_state(builds)
+        before = {b["build"]: b["built_mtime"] for b in res["build"]["before"]}
+        rebuilt = [b["build"] for b in res["build"]["after"] if b["built_mtime"] != before.get(b["build"])]
+        res["build"]["rebuilt"] = rebuilt
+        if rebuilt:
+            res["error"] = f"editable build ran during the checks: {rebuilt}"
+    res["orphans_after"] = sweep_orphans()
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(res, f, ensure_ascii=False)
 

@@ -13,6 +13,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -37,9 +38,28 @@ MEMORY = "6g"
 log = logging.getLogger("fb_replay")
 
 
-def sh(args, data=None, timeout=None):
+SHA_RE = re.compile(r"[0-9a-f]{40}")
+
+
+def sh_split(args, data=None, timeout=None):
+    """(終わりの符号, 標準出力, 標準エラー)。出力を値として読むときは、標準エラーを混ぜない
+    （git add が標準エラーに出す改行の警告が、読んだ値に入ったことがある）。"""
     p = subprocess.run(args, input=data, capture_output=True, timeout=timeout)
-    return p.returncode, p.stdout.decode("utf-8", errors="replace") + p.stderr.decode("utf-8", errors="replace")
+    return p.returncode, p.stdout.decode("utf-8", errors="replace"), p.stderr.decode("utf-8", errors="replace")
+
+
+def sh(args, data=None, timeout=None):
+    """(終わりの符号, 標準出力と標準エラーをつないだもの)。記録と誤りの文に使う。値として読まない。"""
+    code, out, err = sh_split(args, data, timeout)
+    return code, out + err
+
+
+def commit_sha(stdout):
+    """git rev-parse の標準出力から、コミットの SHA だけを取る。1 行の 40 桁でなければ止める。"""
+    lines = stdout.strip().splitlines()
+    if len(lines) != 1 or not SHA_RE.fullmatch(lines[0].strip()):
+        raise RuntimeError(f"not a commit sha: {stdout.strip()[:120]!r}")
+    return lines[0].strip()
 
 
 class Box:
@@ -64,6 +84,11 @@ class Box:
             return sh(["docker", "exec", "-i", self.name, "bash", "-c", cmd], data=data, timeout=timeout)
         except subprocess.TimeoutExpired:
             return 124, "timeout"
+
+    def exec_split(self, command, timeout=600):
+        """標準出力と標準エラーを分けて返す。値を読む命令に使う。"""
+        cmd = f"{self.exports}; {command}" if self.exports else command
+        return sh_split(["docker", "exec", "-i", self.name, "bash", "-c", cmd], timeout=timeout)
 
     def put(self, path, text):
         with tempfile.NamedTemporaryFile("wb", delete=False) as f:
@@ -108,13 +133,31 @@ def f2p_list(row):
     return json.loads(v) if isinstance(v, str) else list(v)
 
 
-def prepare(box, row):
-    """FeatureBench の Level 1 の初期化（テストを隠す条件）と同じ手順で、始まりの状態を作る。始まりのコミットを返す。"""
-    from featurebench.environment_fixes import apply_environment_fixes
-    from featurebench.utils.identifiers import testbed_test_file
-    code, out = box.exec(f"{CONDA.rsplit(' && cd', 1)[0]} && rm -rf /testbed/* && cp -r /root/my_repo/* /testbed/ && rm -rf /root/my_repo")
+def restore(box):
+    """/root/my_repo から /testbed を戻す（FeatureBench の Level 1 の初めの手順。FeatureBench は cp -r で写す）。
+    中身が一字一句同じ（diff -r で差が無い）なら写さない。写すとファイルの時刻が新しくなり、meson-python の editable の
+    組み立て（pandas）が、検査の import のたびに C/C++ の全部の組み立て（154 歩）をやり直す。違うのは時刻だけなので、
+    中身の状態は FeatureBench の手順と同じ。戻し方（same・copied）を返し、結果に書く。"""
+    code, _, err = box.exec_split("diff -rq --no-dereference /testbed /root/my_repo >/dev/null")
+    if code == 0:
+        mode, cmd = "same", "rm -rf /root/my_repo"
+    elif code == 1:
+        mode = "copied"
+        cmd = f"{CONDA.rsplit(' && cd', 1)[0]} && rm -rf /testbed/* && cp -r /root/my_repo/* /testbed/ && rm -rf /root/my_repo"
+    else:
+        raise RuntimeError(f"restore check failed (rc {code}): {err[-300:]}")
+    code, out = box.exec(cmd)
     if code != 0:
         raise RuntimeError(f"restore failed: {out[-300:]}")
+    return mode
+
+
+def prepare(box, row):
+    """FeatureBench の Level 1 の初期化（テストを隠す条件）と同じ手順で、始まりの状態を作る。
+    (始まりのコミット, 戻し方) を返す。"""
+    from featurebench.environment_fixes import apply_environment_fixes
+    from featurebench.utils.identifiers import testbed_test_file
+    mode = restore(box)
     box.put("/tmp/mask.patch", row["patch"])
     code, out = box.exec("cd /testbed && git apply --whitespace=fix /tmp/mask.patch && rm -f /tmp/mask.patch")
     if code != 0:
@@ -126,14 +169,32 @@ def prepare(box, row):
         raise RuntimeError("environment fixes failed")
     clear_bytecode(box)
     code, out = box.exec('cd /testbed && rm -rf .git && git init -q && git config user.email "fb@bench.com" && '
-                         'git config user.name "FeatureBench" && git add -A && git commit -qm base --allow-empty && git rev-parse HEAD')
+                         'git config user.name "FeatureBench" && git add -A && git commit -qm base --allow-empty')
     if code != 0:
         raise RuntimeError(f"git init failed: {out[-300:]}")
+    code, stdout, err = box.exec_split("cd /testbed && git rev-parse --verify HEAD")
+    if code != 0:
+        raise RuntimeError(f"rev-parse failed: {err[-300:]}")
+    base = commit_sha(stdout)
     sh(["docker", "cp", f"{TOOLS_SRC}/.", f"{box.name}:{TOOLS_DIR}"])
     box.exec(f"mkdir -p {PROBE_DIR}")
     for p in PROBE_FILES:
         box.put(f"{PROBE_DIR}/{p.name}", p.read_text(encoding="utf-8"))
-    return out.strip().splitlines()[-1]
+    reset(box, base)
+    return base, mode
+
+
+def reset(box, base):
+    """/testbed を始まりのコミットに戻し、戻ったことを確かめる：HEAD が base で、変更も追跡外のファイルも無い。
+    戻らなければ止める（前の候補の変更の上に次の候補を当てない）。"""
+    code, out = box.exec(f"cd /testbed && git reset -q --hard {base} && git clean -qfd")
+    if code != 0:
+        raise RuntimeError(f"reset failed: {out[-300:]}")
+    code, stdout, err = box.exec_split("cd /testbed && git rev-parse HEAD && git status --porcelain --untracked-files=all")
+    lines = stdout.strip().splitlines()
+    if code != 0 or not lines or lines[0].strip() != base or len(lines) > 1:
+        raise RuntimeError(f"testbed not clean after reset: {lines[:4]} {err[-200:]}")
+    clear_bytecode(box)
 
 
 def clear_bytecode(box):
@@ -243,8 +304,7 @@ def strip_hidden(patch, row):
 def candidate(box, row, base, name, patch, checks, settings):
     from featurebench.utils.identifiers import testbed_test_file
     t0 = time.time()
-    box.exec(f"cd /testbed && git reset -q --hard {base} && git clean -qfd")
-    clear_bytecode(box)
+    reset(box, base)
     applied = True
     if patch is not None:
         box.put("/tmp/cand.patch", patch if patch.endswith("\n") else patch + "\n")
@@ -271,8 +331,8 @@ def run_task(iid, row, cands, gold_dir, out_dir):
                 "timeout_one": rs.get("timeout_one") or 10}
     box = Box(row["image_name"], f"fbreplay-{os.getpid()}-{abs(hash(iid)) % 10**6}-{int(time.time())}", parse_docker_runtime_config(rs))
     try:
-        base = prepare(box, row)
-        result = {"id": iid, "base": base, "ground": ground(box, row, gold_dir, iid), "candidates": []}
+        base, mode = prepare(box, row)
+        result = {"id": iid, "base": base, "restore": mode, "ground": ground(box, row, gold_dir, iid), "candidates": []}
         result["candidates"].append(candidate(box, row, base, "start", None, STATIC, settings))
         result["candidates"].append(candidate(box, row, base, "gold", gold_patch(row), STATIC + ["tests"], settings))
         for c in cands:
@@ -322,10 +382,12 @@ def gold_retest(iid, row, out_dir):
                 "timeout_one": rs.get("timeout_one") or 10}
     box = Box(row["image_name"], f"fbreplay-g-{os.getpid()}-{abs(hash(iid)) % 10**6}-{int(time.time())}", parse_docker_runtime_config(rs))
     try:
-        base = prepare(box, row)
-        box.exec(f"cd /testbed && git reset -q --hard {base} && git clean -qfd")
+        base, _ = prepare(box, row)
+        reset(box, base)
         box.put("/tmp/cand.patch", gold_patch(row))
-        box.exec("cd /testbed && git apply --whitespace=fix /tmp/cand.patch")
+        code, out = box.exec("cd /testbed && git apply --whitespace=fix /tmp/cand.patch")
+        if code != 0:
+            raise RuntimeError(f"gold apply failed: {out[-300:]}")
         clear_bytecode(box)
         spec = {"root": "/testbed", "packages": packages_of(row), "checks": ["tests"], "test_files": want,
                 "test_cmd": settings["test_cmd"], "timeout_one": settings["timeout_one"], "file_timeout": 300,
@@ -427,16 +489,31 @@ def on_target(kind, key, removed, mfiles):
     return False
 
 
+def hygiene(c):
+    """1 つの状態の、検査の後始末と前提の記録：組み立ての残りと検査中の組み立て・残った処理・確かめなかったファイル。"""
+    b = c.get("build") or {}
+    return {"build_pending": [x.get("pending") for x in b.get("before") or []],
+            "build_rebuilt": b.get("rebuilt") or [],
+            "orphans": len(c.get("orphans_before") or []) + len(c.get("orphans_after") or []),
+            "killed_leftovers": sum(((c.get(k) or {}).get("killed_leftovers") or 0) for k in ("imports", "tests")),
+            "undefined_unchecked": c.get("undefined_unchecked") or []}
+
+
 def summarize_task(d):
     g = d["ground"]
     removed, mfiles = set(g["removed"]), set(g["mask_files"])
     gold_runs = gold_runs_of(d)
     gold = next(c for c in d["candidates"] if c["name"] == "gold")
+    gold_error = (gold.get("apply_error") or gold.get("error") or "") if (not gold.get("applied", True) or "error" in gold) else ""
     gk, gk_generic = keysets(gold), keysets(gold, generic=True)
     rows = []
     for c in d["candidates"]:
         if not c.get("applied", True) or "error" in c:
-            rows.append({"state": c["name"], "error": (c.get("apply_error") or c.get("error") or "")[:200]})
+            rows.append({"state": c["name"], "error": (c.get("apply_error") or c.get("error") or "")[:200],
+                         "hygiene": hygiene(c)})
+            continue
+        if gold_error:   # 正解の状態が壊れていると、正解との差の読みができない
+            rows.append({"state": c["name"], "error": f"gold state failed: {gold_error[:150]}", "hygiene": hygiene(c)})
             continue
         ks, ks_generic = keysets(c), keysets(c, generic=True)
         absolute = {k: len(v) for k, v in ks.items()}
@@ -460,9 +537,11 @@ def summarize_task(d):
                      "tests_files_run": len(tests.get("files") or {}), "tests_files_not_run": len(tests.get("not_run") or []),
                      "tests_msgs": sorted({(x.get("msg") or "")[:120] for x in (tests.get("failed") or [])
                                           if x["node"] in set(tv["pass_in_gold"])})[:6],
-                     "caught_beyond_gold": caught_beyond, "f2p_failed_by_ground": by, "secs": c.get("secs")})
-    return {"id": d["id"], "ground_counts": g["counts"], "removed": len(removed), "mask_files": len(mfiles),
-            "gold_generic": {k: len(v) for k, v in gk_generic.items()}, "states": rows}
+                     "caught_beyond_gold": caught_beyond, "f2p_failed_by_ground": by, "secs": c.get("secs"),
+                     "hygiene": hygiene(c)})
+    return {"id": d["id"], "base_ok": bool(SHA_RE.fullmatch(d.get("base") or "")), "restore": d.get("restore"),
+            "ground_counts": g["counts"], "removed": len(removed), "mask_files": len(mfiles),
+            "gold_generic": {k: len(v) for k, v in gk_generic.items()}, "gold_error": gold_error[:200], "states": rows}
 
 
 def cmd_summary(args):
