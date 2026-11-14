@@ -2,9 +2,9 @@
   "id": "R-20261115-swe-evo-arena-and-griffe",
   "title": "中流の積み上げの土俵（SWE-EVO）と、公開の口の差分の検査（griffe）",
   "stage": "compare",
-  "decision": "中流のタスクの積み上げを確かめる土俵に SWE-EVO（リリースの間の進化）を使えるか。公開の口の差分を、独自の検査器でなく既存の道具（griffe）で取れるか",
+  "decision": "中流のタスクの積み上げを検証する土俵に SWE-EVO（リリースの間の進化）を使えるか。公開の口の差分を、独自の検査器でなく既存の道具（griffe）で取れるか",
   "sectors": [],
-  "asked_at": "2026-11-15T01:39:03+09:00",
+  "asked_at": "2026-11-15T01:39:44+09:00",
   "backend": "seat",
   "models": [],
   "usage": null,
@@ -24,7 +24,7 @@
       "verify": {
         "status": "verified",
         "http_status": 200,
-        "fetched_at": "2026-11-15T01:39:03+09:00",
+        "fetched_at": "2026-11-15T01:39:44+09:00",
         "sha256": "ea1b167986a28be9a143b545eea165b00d2b7373ce78fa0b8130b950c8304438",
         "reason": null
       }
@@ -44,7 +44,7 @@
       "verify": {
         "status": "verified",
         "http_status": 200,
-        "fetched_at": "2026-11-15T01:39:03+09:00",
+        "fetched_at": "2026-11-15T01:39:44+09:00",
         "sha256": "ea1b167986a28be9a143b545eea165b00d2b7373ce78fa0b8130b950c8304438",
         "reason": null
       }
@@ -64,7 +64,7 @@
       "verify": {
         "status": "verified",
         "http_status": 200,
-        "fetched_at": "2026-11-15T01:39:03+09:00",
+        "fetched_at": "2026-11-15T01:39:44+09:00",
         "sha256": "ea1b167986a28be9a143b545eea165b00d2b7373ce78fa0b8130b950c8304438",
         "reason": null
       }
@@ -84,7 +84,7 @@
       "verify": {
         "status": "verified",
         "http_status": 200,
-        "fetched_at": "2026-11-15T01:39:03+09:00",
+        "fetched_at": "2026-11-15T01:39:44+09:00",
         "sha256": "ea1b167986a28be9a143b545eea165b00d2b7373ce78fa0b8130b950c8304438",
         "reason": null
       }
@@ -104,7 +104,7 @@
       "verify": {
         "status": "verified",
         "http_status": 200,
-        "fetched_at": "2026-11-15T01:39:03+09:00",
+        "fetched_at": "2026-11-15T01:39:44+09:00",
         "sha256": "ea1b167986a28be9a143b545eea165b00d2b7373ce78fa0b8130b950c8304438",
         "reason": null
       }
@@ -124,7 +124,7 @@
       "verify": {
         "status": "verified",
         "http_status": 200,
-        "fetched_at": "2026-11-15T01:39:03+09:00",
+        "fetched_at": "2026-11-15T01:39:44+09:00",
         "sha256": "09d3d254b19c9eb9f3bc192265bb340a774ea729d6427abdf1e9d4a98fdb9f2c",
         "reason": null
       }
@@ -144,14 +144,14 @@
       "verify": {
         "status": "verified",
         "http_status": 200,
-        "fetched_at": "2026-11-15T01:39:03+09:00",
+        "fetched_at": "2026-11-15T01:39:44+09:00",
         "sha256": "09d3d254b19c9eb9f3bc192265bb340a774ea729d6427abdf1e9d4a98fdb9f2c",
         "reason": null
       }
     },
     {
       "id": "C8",
-      "claim": "戻り値の型と属性の型の非互換は、静的に判じるのが難しいので、まだ検出しない。",
+      "claim": "戻り値の型と属性の型の非互換は、静的に判定するのが難しいので、まだ検出しない。",
       "source_url": "https://mkdocstrings.github.io/griffe/guide/users/checking/",
       "source_title": "Griffe: Checking for API breakages（利用者の手引き）",
       "published": "不明",
@@ -164,7 +164,7 @@
       "verify": {
         "status": "verified",
         "http_status": 200,
-        "fetched_at": "2026-11-15T01:39:03+09:00",
+        "fetched_at": "2026-11-15T01:39:44+09:00",
         "sha256": "09d3d254b19c9eb9f3bc192265bb340a774ea729d6427abdf1e9d4a98fdb9f2c",
         "reason": null
       }
@@ -184,7 +184,7 @@
       "verify": {
         "status": "verified",
         "http_status": 200,
-        "fetched_at": "2026-11-15T01:39:03+09:00",
+        "fetched_at": "2026-11-15T01:39:44+09:00",
         "sha256": "09d3d254b19c9eb9f3bc192265bb340a774ea729d6427abdf1e9d4a98fdb9f2c",
         "reason": null
       }
@@ -204,7 +204,7 @@
       "verify": {
         "status": "verified",
         "http_status": 200,
-        "fetched_at": "2026-11-15T01:39:03+09:00",
+        "fetched_at": "2026-11-15T01:39:44+09:00",
         "sha256": "09d3d254b19c9eb9f3bc192265bb340a774ea729d6427abdf1e9d4a98fdb9f2c",
         "reason": null
       }
@@ -216,9 +216,9 @@
   ],
   "unknowns": [
     "会話の席が 2026-11-15 に原文を読み、抜粋を機械で照合した（SWE-EVO の論文の v6 と、griffe の利用者の手引き）。agy は使っていない（P-007）",
-    "SWE-EVO のデータの欄（PRs の欄に、PR ごとのテストを除くパッチと、テストのパッチがあること）は、論文の本文ではなく、データそのもの（GitHub の SWE-EVO/SWE-EVO の hf_out、コミット 9b83d5a）で確かめた。実験と計画の段 0 の実測に書く",
-    "SWE-EVO の評価のコード（SWE-bench/swebench/harness/test_spec/python.py）は、評価のときに base_commit へ戻さず、イメージの /testbed の状態にパッチを当てる。始まりの状態がタグのコミットと一致するかは、段 0 でイメージごとに確かめる",
-    "griffe が、動的に作る公開の記号や、C 拡張のモジュールをどこまで読むかは、手引きに書かれていない（段 0 で 7 つのパッケージに当てて確かめる）"
+    "SWE-EVO のデータの欄（PRs の欄に、PR ごとのテストを除くパッチと、テストのパッチがあること）は、論文の本文ではなく、データそのもの（GitHub の SWE-EVO/SWE-EVO の hf_out、コミット 9b83d5a）で確認した。実験と計画の段 0 の実測に書く",
+    "SWE-EVO の評価のコード（SWE-bench/swebench/harness/test_spec/python.py）は、評価のときに base_commit へ戻さず、イメージの /testbed の状態にパッチを当てる。始まりの状態がタグのコミットと一致するかは、段 0 でイメージごとに確認する",
+    "griffe が、動的に作る公開の記号や、C 拡張のモジュールをどこまで読むかは、手引きに書かれていない（段 0 で 7 つのパッケージに当てて確認する）"
   ],
   "counts": {
     "verified": 10,
@@ -226,5 +226,5 @@
     "unreachable": 0,
     "no_source": 0
   },
-  "question": "# 中流の積み上げの土俵と、公開の口の差分の検査\n\n## 段\ncompare\n\n## 決めたい判断\n中流のタスクの積み上げを確かめる土俵に SWE-EVO（リリースの間の進化）を使えるか。公開の口の差分を、独自の検査器でなく既存の道具（griffe）で取れるか\n\n## 判断を変えうるもの\nSWE-EVO の始まりの状態が正常なリリースでない記述。リンクの PR の本文が課題の文に入らない記述。griffe が Git の参照の間で比べられない記述、または検出の範囲が狭すぎる記述\n\n## 候補\n- 土俵：SWE-EVO のリンクの PR の並び／FeatureBench の同じ版の複数の機能\n- 公開の口の差分：griffe／独自の検査器\n\n## 問い\nSWE-EVO の課題は、どの状態から始まり、課題の文に何を含み、課題の大きさはどう分かれるか。griffe check は何を比べ、何を検出し、何を検出しないか。\n"
+  "question": "# 中流の積み上げの土俵と、公開の口の差分の検査\n\n## 段\ncompare\n\n## 決めたい判断\n中流のタスクの積み上げを検証する土俵に SWE-EVO（リリースの間の進化）を使えるか。公開の口の差分を、独自の検査器でなく既存の道具（griffe）で取れるか\n\n## 判断を変えうるもの\nSWE-EVO の始まりの状態が正常なリリースでない記述。リンクの PR の本文が課題の文に入らない記述。griffe が Git の参照の間で比べられない記述、または検出の範囲が狭すぎる記述\n\n## 候補\n- 土俵：SWE-EVO のリンクの PR の並び／FeatureBench の同じ版の複数の機能\n- 公開の口の差分：griffe／独自の検査器\n\n## 問い\nSWE-EVO の課題は、どの状態から始まり、課題の文に何を含み、課題の大きさはどう分かれるか。griffe check は何を比べ、何を検出し、何を検出しないか。\n"
 }
