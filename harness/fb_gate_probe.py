@@ -104,7 +104,7 @@ def check_undefined(root, files, pyflakes_dir):
     for rel in files:
         try:
             api.checkPath(os.path.join(root, rel), r)
-        except RecursionError:   # 大きいスタックでも尽きる深い式。落ちとは数えず、確かめなかったファイルとして書く
+        except RecursionError:   # 大きいスタックでも上限に当たる深い式。検出に数えず、検査しなかったファイルとして記録する
             unchecked.append(rel)
     return {"found": found, "unchecked": unchecked}
 
@@ -112,7 +112,7 @@ def check_undefined(root, files, pyflakes_dir):
 def deep_stack(fn, stack_mb=512, limit=50000):
     """深い式（sympy の生成コードなど）で pyflakes の再帰が尽きないよう、大きいスタックのスレッドで走らせる。
     再帰の上限は 50000（1 段あたり 5KB を見込む）。Windows の Python はスタックを 256MB 未満しか受け付けないので、
-    断られたら 255MB にする（箱の中は Linux）。"""
+    断られたら 255MB にする（コンテナの中は Linux）。"""
     box = {}
 
     def run():
@@ -137,11 +137,11 @@ def deep_stack(fn, stack_mb=512, limit=50000):
     return box["value"]
 
 
-# ---------------------------------------------------------------- 後始末と組み立て（検査が子・孫の処理や C/C++ の組み立てを残さない）
+# ---------------------------------------------------------------- プロセスの後始末とビルドの検査（検査が子孫プロセスや C/C++ のビルドを残さない）
 
 def session_procs(sid):
-    """会話 sid（start_new_session で作った子が頭）に属する処理の PID。孫（ninja が起こした cc1 など）も、親が先に
-    終わって 1 番に付け替えられた後も、会話の番号は変わらないので拾える。"""
+    """セッション sid（start_new_session で作った子がリーダー）に属するプロセスの PID。孫（ninja が起こした cc1 など）も、
+    親が先に終わって PID 1 に付け替えられた後も、セッション ID は変わらないので拾える。"""
     out = []
     for d in os.listdir("/proc"):
         if not d.isdigit():
@@ -157,7 +157,7 @@ def session_procs(sid):
 
 
 def kill_session(sid):
-    """会話 sid の処理を全部止め、止めた数を返す。"""
+    """セッション sid のプロセスを全部止め、止めた数を返す。"""
     pids = session_procs(sid)
     for pid in pids:
         try:
@@ -168,8 +168,8 @@ def kill_session(sid):
 
 
 def run_session(args, timeout, **kw):
-    """新しい会話で走らせ、終わったら（時間切れでも）会話に残った処理を全部止める。
-    (終わりの符号, 標準出力のバイト列, 止めた処理の数)。時間切れの符号は 124。"""
+    """新しいセッションで走らせ、終わったら（タイムアウトでも）セッションに残ったプロセスを全部止める。
+    (終了コード, 標準出力のバイト列, 止めたプロセスの数)。タイムアウトの終了コードは 124。"""
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, **kw)
     try:
         out, _ = p.communicate(timeout=timeout)
@@ -182,7 +182,7 @@ def run_session(args, timeout, **kw):
 
 
 def orphans():
-    """箱の中で 1 番に付け替えられた処理（ゾンビを除く）。前の検査の残りを見つける。"""
+    """コンテナの中で PID 1 に付け替えられた孤児プロセス（ゾンビを除く）。前の検査の残りを見つける。"""
     out = []
     me = os.getpid()
     for d in os.listdir("/proc"):
@@ -210,8 +210,8 @@ def sweep_orphans():
 
 
 def parse_loader(text):
-    """meson-python の editable の読み込み口（_<名>_editable_loader.py）の末尾の install(...) から、
-    組み立ての置き場と命令を取る。({"build": 置き場, "cmd": [命令]} か None)"""
+    """meson-python の editable install のローダー（_<名>_editable_loader.py）の末尾の install(...) から、
+    ビルドディレクトリとビルドコマンドを取る。({"build": ディレクトリ, "cmd": [コマンド]} か None)"""
     try:
         tree = ast.parse(text)
     except SyntaxError:
@@ -234,7 +234,7 @@ def parse_loader(text):
 
 
 def editable_builds(site_dirs=None):
-    """この Python に入っている meson-python の editable の組み立て（置き場ごとに 1 つ）。"""
+    """この Python に入っている meson-python の editable install（ビルドディレクトリごとに 1 つ）。"""
     if site_dirs is None:
         paths = sysconfig.get_paths()
         site_dirs = sorted({paths["purelib"], paths["platlib"]})
@@ -250,14 +250,14 @@ def editable_builds(site_dirs=None):
 
 
 def compile_steps(dry_run_stdout):
-    """ninja -n の出力のうち、C/C++・Cython の組み立てと繋ぎの歩（Compiling・Linking）と、組み立ての設定の作り直し
-    （Regenerating。作り直すと全部の組み立てになりうる）。版の書き出しのような、毎回走る軽い歩は数えない。"""
+    """ninja -n の出力のうち、C/C++・Cython のコンパイルとリンクのステップ（Compiling・Linking）と、build.ninja の
+    再生成（Regenerating。再生成すると全体の再ビルドになりうる）。版の書き出しのような、毎回走る軽いステップは数えない。"""
     keys = ("Compiling", "Linking", "Regenerating")
     return [l for l in dry_run_stdout.splitlines() if l.startswith("[") and any(k in l for k in keys)]
 
 
 def build_state(builds):
-    """組み立ての残り（ninja -n。組み立ては走らせない）と、組み立てた物（.so・.o）の時刻の最大。"""
+    """残りのビルドのステップ（ninja -n。ビルドは走らせない）と、ビルド成果物（.so・.o）の mtime の最大。"""
     out = []
     for b in builds:
         st = {"build": b["build"], "pending": None, "first": [], "built_mtime": 0}
@@ -742,7 +742,7 @@ def main():
         res[name] = fn()
         res["secs"][name] = round(time.time() - t, 1)
 
-    # import とテストは、editable の組み立て（meson-python）を起こしうる。組み立ての残り（C/C++ の歩）があれば走らせない。
+    # import とテストは、editable install（meson-python）の再ビルドを起こしうる。C/C++ のビルドのステップが残っていれば走らせない。
     builds = editable_builds() if checks & {"imports", "tests"} else []
     if builds:
         res["build"] = {"before": build_state(builds)}
@@ -773,7 +773,7 @@ def main():
         res["tests_selected"] = {"own": own, "existing": picked}
         timed("tests", lambda: run_tests(root, own + picked, spec["test_cmd"], spec.get("timeout_one", 10),
                                          spec.get("file_timeout", 300), spec.get("test_budget", 600)))
-    if builds:   # 検査の間に C/C++ の組み立てが走っていない（組み立てた物の時刻が変わっていない）ことを確かめる
+    if builds:   # 検査の間に C/C++ のビルドが走っていない（ビルド成果物の mtime が変わっていない）ことを確認する
         res["build"]["after"] = build_state(builds)
         before = {b["build"]: b["built_mtime"] for b in res["build"]["before"]}
         rebuilt = [b["build"] for b in res["build"]["after"] if b["built_mtime"] != before.get(b["build"])]

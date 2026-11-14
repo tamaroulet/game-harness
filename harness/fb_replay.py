@@ -134,10 +134,10 @@ def f2p_list(row):
 
 
 def restore(box):
-    """/root/my_repo から /testbed を戻す（FeatureBench の Level 1 の初めの手順。FeatureBench は cp -r で写す）。
-    中身が一字一句同じ（diff -r で差が無い）なら写さない。写すとファイルの時刻が新しくなり、meson-python の editable の
-    組み立て（pandas）が、検査の import のたびに C/C++ の全部の組み立て（154 歩）をやり直す。違うのは時刻だけなので、
-    中身の状態は FeatureBench の手順と同じ。戻し方（same・copied）を返し、結果に書く。"""
+    """/root/my_repo から /testbed を戻す（FeatureBench の Level 1 の初めの手順。FeatureBench は cp -r でコピーする）。
+    中身が一字一句同じ（diff -r で差が無い）ならコピーしない。コピーするとファイルの mtime が新しくなり、meson-python の
+    editable install（pandas）が、検査の import のたびに C/C++ の全体の再ビルド（ninja の 154 ステップ）を始める。
+    違うのは mtime だけなので、ファイルの中身は FeatureBench の手順と同じ。戻し方（same・copied）を返し、結果に記録する。"""
     code, _, err = box.exec_split("diff -rq --no-dereference /testbed /root/my_repo >/dev/null")
     if code == 0:
         mode, cmd = "same", "rm -rf /root/my_repo"
@@ -185,7 +185,7 @@ def prepare(box, row):
 
 
 def reset(box, base):
-    """/testbed を始まりのコミットに戻し、戻ったことを確かめる：HEAD が base で、変更も追跡外のファイルも無い。
+    """/testbed を始まりのコミットに戻し、戻ったことを確認する：HEAD が base で、変更も追跡外のファイルも無い。
     戻らなければ止める（前の候補の変更の上に次の候補を当てない）。"""
     code, out = box.exec(f"cd /testbed && git reset -q --hard {base} && git clean -qfd")
     if code != 0:
@@ -490,7 +490,7 @@ def on_target(kind, key, removed, mfiles):
 
 
 def hygiene(c):
-    """1 つの状態の、検査の後始末と前提の記録：組み立ての残りと検査中の組み立て・残った処理・確かめなかったファイル。"""
+    """1 つの状態の、検査の後始末と前提の記録：残りのビルドのステップと検査中の再ビルド・残ったプロセス・検査しなかったファイル。"""
     b = c.get("build") or {}
     return {"build_pending": [x.get("pending") for x in b.get("before") or []],
             "build_rebuilt": b.get("rebuilt") or [],
