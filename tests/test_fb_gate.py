@@ -132,6 +132,39 @@ class GroundTest(unittest.TestCase):
     def test_unregex(self):
         self.assertEqual(ground.unregex(r"^Value \(x\) must be > 0$"), "Value (x) must be > 0")
 
+    def test_node_id_strips_display_prefix(self):
+        self.assertEqual(ground.node_id("| MEM 1.2/15.5 GB | DISK 84.6/1006.9 GB tests/m/test_a.py::test_b"),
+                         "tests/m/test_a.py::test_b")
+        self.assertEqual(ground.node_id("pkg/tests/test_x.py::TestK::test_c[a b-1]"), "pkg/tests/test_x.py::TestK::test_c[a b-1]")
+        self.assertEqual(ground.node_id("not a node"), "not a node")
+
+    def test_inherited_tests_use_subclass_name_and_setup_chain(self):
+        src = textwrap.dedent("""\
+            class TestBase:
+                def setup_class(self):
+                    self.d = make("base")
+
+                def test_shape(self):
+                    assert self.d.shape == (3,)
+
+            class TestSub(TestBase):
+                def setup_method(self):
+                    self.extra = "sub setup message text"
+
+                def test_own(self):
+                    assert True
+
+            class TestOverride(TestBase):
+                def test_shape(self):
+                    assert True
+            """)
+        scopes = ground.test_scopes(src)
+        self.assertEqual(sorted(scopes), ["TestBase::test_shape", "TestOverride::test_shape", "TestSub::test_own",
+                                          "TestSub::test_shape"])
+        names = [getattr(n, "name", "") for n in scopes["TestSub::test_shape"]]
+        self.assertEqual(names, ["test_shape", "setup_method", "setup_class"])   # 子の準備が先、基底の準備も入る
+        self.assertEqual([getattr(n, "name", "") for n in scopes["TestOverride::test_shape"]], ["test_shape", "setup_class"])
+
 
 def write(base, rel, text):
     p = Path(base) / rel

@@ -105,17 +105,37 @@ def _fixtures(body):
 
 
 def test_scopes(src):
-    """テストの関数ごとの範囲（§5-2 の規則 2）。{"Class::name" か "name": [ノードの並び]}。"""
+    """テストの関数ごとの範囲（§5-2 の規則 2）。{"Class::name" か "name": [ノードの並び]}。
+    クラスは、同じファイルで定義された基底のクラスから受け継いだテストの関数も、子のクラスの名前で持つ（pytest は
+    受け継いだテストを子のクラスの名前で集める）。準備のメソッドと fixture は、子から基底の順に、先に見つかったものを使う。"""
     tree = ast.parse(src)
     fixtures = _fixtures(tree.body)
     helpers = {n.name: n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    classes = {n.name: n for n in tree.body if isinstance(n, ast.ClassDef)}
+
+    def chain(cls):
+        """cls と、同じファイルで定義された祖先（左の基底から幅優先。重なりなし）。"""
+        out, todo = [], [cls]
+        while todo:
+            c = todo.pop(0)
+            if c in out:
+                continue
+            out.append(c)
+            todo += [classes[b.id] for b in c.bases if isinstance(b, ast.Name) and b.id in classes]
+        return out
 
     def scope_of(fn, cls=None):
         nodes = [fn]
         cls_fixtures = {}
         if cls is not None:
-            nodes += [m for m in cls.body if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and m.name in SETUP_METHODS]
-            cls_fixtures = _fixtures(cls.body)
+            seen = set()
+            for c in chain(cls):
+                for m in c.body:
+                    if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and m.name in SETUP_METHODS and m.name not in seen:
+                        seen.add(m.name)
+                        nodes.append(m)
+            for c in reversed(chain(cls)):
+                cls_fixtures.update(_fixtures(c.body))
         for a in fn.args.posonlyargs + fn.args.args + fn.args.kwonlyargs:
             fx = cls_fixtures.get(a.arg) or fixtures.get(a.arg)
             if fx is not None and fx is not fn:
@@ -132,10 +152,23 @@ def test_scopes(src):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
             scopes[node.name] = scope_of(node)
         elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
-            for m in node.body:
-                if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and m.name.startswith("test"):
-                    scopes[f"{node.name}::{m.name}"] = scope_of(m, node)
+            seen = set()
+            for c in chain(node):
+                for m in c.body:
+                    if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and m.name.startswith("test") and m.name not in seen:
+                        seen.add(m.name)
+                        scopes[f"{node.name}::{m.name}"] = scope_of(m, node)
     return scopes
+
+
+NODE_RE = re.compile(r"(?:^|\s)(\S+\.py::.*)$")
+
+
+def node_id(item):
+    """評価の記録の項目名から、pytest の項目の ID（path.py::...）だけを取る。記録によっては、pytest の表示の前置き
+    （"| MEM 1.2/15.5 GB | DISK ... "）が付いている。見つからなければ、そのまま返す。"""
+    m = NODE_RE.search(item.strip())
+    return m.group(1) if m else item.strip()
 
 
 def scope_names(nodes):

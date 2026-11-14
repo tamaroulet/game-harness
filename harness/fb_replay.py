@@ -278,7 +278,8 @@ def ground(box, row, gold_dir, iid):
         label, why = fb_ground.classify(row["problem_statement"], removed, src_names, src_lits, nodes)
         funcs[k] = {"label": label, "why": why}
     items = {}
-    for node in gold_items(gold_dir, iid):
+    for item in gold_items(gold_dir, iid):
+        node = fb_ground.node_id(item)
         path = node.split("::", 1)[0]
         key = fb_ground.function_key(node)
         f = funcs.get(f"{path}::{key}")
@@ -366,14 +367,15 @@ def cmd_run(args):
 
 
 def gold_retest(iid, row, out_dir):
-    """A の状態で走らせた既存のテストのファイルのうち、正解の状態で走らせていないものを、正解の状態で走らせる。
-    A の状態での落ちが、パッチのせいか、環境のせいかを分けるため（正解の状態でも落ちるものは環境）。"""
+    """A の状態で実際に走ったテストのファイルのうち、正解の状態で走らせていないものを、正解の状態で走らせる。
+    A の状態での落ちが、パッチのせいか、環境のせいかを分けるため（正解の状態でも落ちるものは環境）。
+    選んだが時間の上限で走らなかったファイルは、比べに使わないので当て直さない。"""
     path = Path(out_dir) / f"{iid}.json"
     d = json.loads(path.read_text(encoding="utf-8"))
     gold = next(c for c in d["candidates"] if c["name"] == "gold")
     done = set(((gold.get("tests") or {}).get("files") or {}))
     want = sorted({f for c in d["candidates"] if c["name"] not in ("start", "gold")
-                   for f in ((c.get("tests_selected") or {}).get("existing") or [])} - done)
+                   for f in ((c.get("tests") or {}).get("files") or {})} - done)
     if not want or d.get("gold_retest") is not None:
         return iid, f"skip ({len(want)} files)"
     from featurebench.utils.runtime_config import parse_docker_runtime_config
@@ -397,6 +399,35 @@ def gold_retest(iid, row, out_dir):
         return iid, f"ok ({len(want)} files)"
     finally:
         box.close()
+
+
+def reground(iid, row, gold_dir, out_dir):
+    """始まりの状態を作り直して、根拠の分け（§5-2）だけを計算し直し、結果の ground を差し替える。第 1 関門の検査は走らせない。"""
+    from featurebench.utils.runtime_config import parse_docker_runtime_config
+    path = Path(out_dir) / f"{iid}.json"
+    d = json.loads(path.read_text(encoding="utf-8"))
+    rs = repo_settings(row)
+    box = Box(row["image_name"], f"fbreplay-r-{os.getpid()}-{abs(hash(iid)) % 10**6}-{int(time.time())}", parse_docker_runtime_config(rs))
+    try:
+        prepare(box, row)
+        d["ground"] = ground(box, row, gold_dir, iid)
+        path.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+        return iid, f"ok (不明 {sum(1 for v in d['ground']['items'].values() if v == '不明')})"
+    finally:
+        box.close()
+
+
+def cmd_reground(args):
+    ids = [x.strip() for x in Path(args.tasks).read_text(encoding="utf-8").splitlines() if x.strip()]
+    rows = load_rows(ids)
+    for iid in ids:
+        if not (Path(args.out) / f"{iid}.json").exists():
+            continue
+        try:
+            _, status = reground(iid, rows[iid], args.gold, args.out)
+        except Exception as e:  # 記録して次へ
+            status = f"error: {e!r}"[:300]
+        print(f"{time.strftime('%H:%M:%S')} {iid.split('.')[0]}.{iid.split('.')[2]} {status}", flush=True)
 
 
 def cmd_goldtests(args):
@@ -525,7 +556,7 @@ def summarize_task(d):
         tests = (c.get("tests") or {})
         by = {}
         for n in c.get("f2p_failed") or []:
-            lab = g["items"].get(n, "不明")
+            lab = g["items"].get(fb_ground.node_id(n), "不明")
             by[lab] = by.get(lab, 0) + 1
         caught_beyond = sum(beyond_n.values()) > 0 or len(tv["pass_in_gold"]) > 0
         rows.append({"state": c["name"], "resolved": c.get("resolved"), "white": c.get("white"),
@@ -564,9 +595,13 @@ def main(argv=None):
     g = sub.add_parser("goldtests")
     g.add_argument("--tasks", required=True)
     g.add_argument("--out", required=True)
+    rg = sub.add_parser("reground")
+    rg.add_argument("--tasks", required=True)
+    rg.add_argument("--gold", required=True)
+    rg.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.WARNING)
-    return {"run": cmd_run, "summary": cmd_summary, "goldtests": cmd_goldtests}[args.cmd](args)
+    return {"run": cmd_run, "summary": cmd_summary, "goldtests": cmd_goldtests, "reground": cmd_reground}[args.cmd](args)
 
 
 if __name__ == "__main__":
