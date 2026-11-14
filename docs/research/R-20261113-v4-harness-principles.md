@@ -42,7 +42,7 @@
 | C28 | 毎ループ仕様を読み直すのは無駄と承知のうえで、文脈を少なく使うほうが結果が良いとして新しい文脈で回す。 | 外の構造の状態で引き継ぐ多セッション | practitioners | secondary | opinion | 2025-07-14 | verified | [Ralph Wiggum as a "software engineer"](https://ghuntley.com/ralph/) |
 | C29 | テストや型や静的解析など、何でも背圧として配線して不正な生成を拒む。 | 検証の背圧 | practitioners | secondary | opinion | 2025-07-14 | verified | [Ralph Wiggum as a "software engineer"](https://ghuntley.com/ralph/) |
 | C30 | Context-Folding は、畳みの振る舞いを RL（FoldGRPO）で学ばせる方式（学習が前提）。 | 学習した文脈の畳み | academia | secondary | fact | 2025-10-13 | verified | [Scaling Long-Horizon LLM Agent via Context-Folding](https://arxiv.org/abs/2510.11967) |
-| C31 | 古い観測を伏せるだけで、生のエージェントの費用を半分にし、LLM の要約と同じかやや上の解決率（SWE-agent・SWE-bench Verified）。 | 文脈の管理 | academia | secondary | fact | 2025 | verified | [The Complexity Trap: Simple Observation Masking Is as Efficient as LLM Summarization for Agent Context Management](https://arxiv.org/html/2508.21433v3) |
+| C31 | 古い観測を伏せるだけで、生のエージェントの費用を半分にし、LLM の要約と同じかやや上の解決率（SWE-agent・SWE-bench Verified）。 | 文脈の管理 | academia | primary | fact | 2025 | verified | [The Complexity Trap: Simple Observation Masking Is as Efficient as LLM Summarization for Agent Context Management](https://arxiv.org/html/2508.21433v3) |
 
 ## 抜粋
 

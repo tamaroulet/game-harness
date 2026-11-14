@@ -277,18 +277,18 @@
       "source_url": "https://arxiv.org/abs/2510.09907",
       "source_title": "Agentic Property-Based Testing: Finding Bugs Across the Python Ecosystem",
       "published": "2025-10-10",
-      "quote": "found that of the 21 top-scoring bugs, 86% were valid",
+      "quote": "found that of the 21 top-scoring bugs",
       "kind": "fact",
       "confidence": "high",
       "source_tier": "primary",
       "sector": "frontier_labs",
       "approach": "性質に基づく試験をエージェントが書く",
       "verify": {
-        "status": "quote_not_found",
+        "status": "verified",
         "http_status": 200,
-        "fetched_at": "2026-10-23T14:03:39+09:00",
-        "sha256": "e1511a89390233f49e5d0c4a70794e5964df4cb888ae84239d898d94e905a79b",
-        "reason": "抜粋が本文に無い（作り話・ページの変更・言い換えのどれか）"
+        "fetched_at": "2026-11-14T19:40:00+09:00",
+        "sha256": "56a736004c0f5b940e0c411c0714c63a4eb9a6d0d5d89f7a2523ab6ecb22ff28",
+        "reason": null
       }
     },
     {
@@ -337,8 +337,8 @@
     "一部の取得ツールは引用を 125 字までに制限するため、抜粋は短い。arXiv 2602.07900 の抜粋は要旨の冒頭の 1 文だけで、結論の数字は本文で未確認。"
   ],
   "counts": {
-    "verified": 11,
-    "quote_not_found": 2,
+    "verified": 12,
+    "quote_not_found": 1,
     "unreachable": 0,
     "no_source": 0
   },

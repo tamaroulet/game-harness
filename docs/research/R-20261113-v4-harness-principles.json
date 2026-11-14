@@ -626,7 +626,7 @@
       "quote": "We find that a simple environment Observation Masking strategy halves cost relative to the Raw Agent while matching, and sometimes slightly exceeding, the solve rate of LLM-Summary.",
       "kind": "fact",
       "confidence": "high",
-      "source_tier": "secondary",
+      "source_tier": "primary",
       "sector": "academia",
       "approach": "文脈の管理",
       "verify": {

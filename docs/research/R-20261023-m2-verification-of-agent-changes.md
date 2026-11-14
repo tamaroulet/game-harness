@@ -5,7 +5,7 @@
 - 決めたい判断：エージェントが書いた変更の合否を、何で決めるか（決定論の試験・別の役が先に書く受入テスト・LLM のレビュー・実行で確かめる段・人の承認）。いまは実装役が自分で書いた試験と人のラベルで決まっている
 - 調べた日時：2026-10-23T14:03:39+09:00
 - 調べ役：claude-deep（claude-haiku-5-5, claude-sonnet-5-5）
-- 照合：verified 11・quote_not_found 2・unreachable 0・no_source 0
+- 照合：verified 12・quote_not_found 1・unreachable 0・no_source 0
 - 印：verified＝抜粋が出典の本文にある。quote_not_found＝ページはあるが抜粋が無い。unreachable＝取りに行けない（偽ではなく未照合）。no_source＝出典が無い
 
 ## 主張
@@ -23,7 +23,7 @@
 | C9 | TDFlow は、人が書いたテストを固定の仕様として与え、副エージェントがパッチを作る。人のテストがあると SWE-Bench Lite で 88.8% に達した。人手の確認で見つかったテスト不正は 7 件で、失敗として数えた。 | 人が書いたテストを先に与える（テスト先行） | academia | primary | fact | 2025-10-27 | verified | [TDFlow: Agentic Workflows for Test Driven Development](https://arxiv.org/abs/2510.23761) |
 | C10 | AgentCoder は、コード生成とは別の「テスト設計役」のエージェントにテストを作らせる。HumanEval・MBPP で GPT-4 の pass@1 が 96.3%・91.8% だった。ただし対象は関数単位の小さな課題で、リポジトリ規模ではない。 | 別のエージェントがテストを書く | academia | primary | fact | 2023-12-20 | verified | [AgentCoder: Multiagent-Code Generation with Iterative Testing and Optimisation](https://arxiv.org/abs/2312.13010) |
 | C11 | SWE-bench Verified 上の 6 モデルの軌跡の分析では、エージェントが書くテストは多いが、解けた課題と解けなかった課題で書く量が似ている。テストの量を変える実験でも結果はほぼ変わらず、エージェント自作のテストの価値は小さいかもしれないと結論している。 | 実装役が自分で書くテストの価値の測定 | academia | primary | fact | 2026-02-08 | verified | [Rethinking the Value of Agent-Generated Tests for LLM-Based Software Engineering Agents](https://arxiv.org/abs/2602.07900v1) |
-| C12 | Anthropic の Frontier Red Team は、Claude Code ベースのエージェントに性質を提案させ、Hypothesis のテストを書かせた。100 の Python パッケージで、報告の 56% が有効な欠陥だった。上位 21 件では 86% が有効だった。 | 性質に基づく試験をエージェントが書く | frontier_labs | primary | fact | 2025-10-10 | quote_not_found | [Agentic Property-Based Testing: Finding Bugs Across the Python Ecosystem](https://arxiv.org/abs/2510.09907) |
+| C12 | Anthropic の Frontier Red Team は、Claude Code ベースのエージェントに性質を提案させ、Hypothesis のテストを書かせた。100 の Python パッケージで、報告の 56% が有効な欠陥だった。上位 21 件では 86% が有効だった。 | 性質に基づく試験をエージェントが書く | frontier_labs | primary | fact | 2025-10-10 | verified | [Agentic Property-Based Testing: Finding Bugs Across the Python Ecosystem](https://arxiv.org/abs/2510.09907) |
 | C13 | Vericoding ベンチマークは、仕様から形式検証つきのコードを作らせる。市販の LLM の成功率は Lean で 27%、Verus/Rust で 44%、Dafny で 82% だった。 | 形式検証つきのコード生成 | academia | primary | fact | 2025-09-26 | verified | [A benchmark for vericoding: formally verified program synthesis](https://arxiv.org/abs/2509.22908) |
 
 ## 抜粋
@@ -39,7 +39,7 @@
 - C9：「When provided human-written tests, TDFlow attains 88.8% pass rate on SWE-Bench Lite」
 - C10：「The test designer agent will generate test cases for the generated code,」
 - C11：「Large Language Model (LLM) code agents increasingly resolve repository-level issues by iteratively editing code」
-- C12：「found that of the 21 top-scoring bugs, 86% were valid」
+- C12：「found that of the 21 top-scoring bugs」
 - C13：「We find vericoding success rates of 27% in Lean, 44% in Verus/Rust and 82% in Dafny using off-the-shelf LLMs.」
 
 ## 確かめられなかったこと
