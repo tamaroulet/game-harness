@@ -111,6 +111,16 @@ class Parsing(unittest.TestCase):
         self.assertEqual(fb_core.parse_static(PYFLAKES),
                          ["pkg/mod.py:10:5: undefined name 'missing_fn'", "pkg/new.py:2:7: invalid syntax"])
 
+    def test_restoring_masked_imports_in_the_visible_test_is_allowed(self):
+        diff = ("diff --git a/t.py b/t.py\n--- a/t.py\n+++ b/t.py\n@@ -9,6 +9,6 @@\n-\n-\n"
+                "+from mlflow.metrics.genai.genai_metric import (\n+    _extract_score_and_justification,\n"
+                "+    make_genai_metric,\n+)\n+from pandas import read_iceberg\n+import numpy as np\n")
+        self.assertEqual(fb_core.test_edit_problems(diff), [])
+
+    def test_changing_assertions_in_the_visible_test_is_flagged(self):
+        diff = "@@ -20 +20 @@\n-    assert result == expected\n+    assert True\n"
+        self.assertEqual(fb_core.test_edit_problems(diff), ["-    assert result == expected", "+    assert True"])
+
     def test_split_exit_keeps_stderr_after_the_mark(self):
         code, body = fb_core.split_exit("out\n" + fb_core.EXIT_MARK + "1\nstderr line\n")
         self.assertEqual(code, 1)
@@ -177,6 +187,15 @@ class Adapter(unittest.TestCase):
             Path(d, "pyflakes").mkdir()
             Path(d, "pyflakes", "__init__.py").write_text("", encoding="utf-8")
             self.assertTrue(fb_core.tools_ready(d))
+
+    def test_c1_fails_when_the_visible_test_was_rewritten_even_if_pytest_passes(self):
+        box = FakeBox({"-m pytest pkg/tests": (0, "PASSED pkg/tests/test_mod.py::test_a\n1 passed in 0.01s"),
+                       "git diff -U0 HEAD": (0, "@@ -5 +5 @@\n-    assert f() == 2\n+    assert f() == 3\n")})
+        with tempfile.TemporaryDirectory() as d:
+            res = fb_core.ContainerAdapter(box.exec, d).verify([core.Check("C1", "tests", ["pkg/tests/test_mod.py"])])
+        self.assertFalse(res[0].ok)
+        self.assertIn("visible-test-integrity", res[0].failed)
+        self.assertTrue(res[0].errors[0].startswith("visible test file changed beyond import lines"))
 
     def test_static_passes_when_nothing_changed(self):
         box = FakeBox({"git status": (0, "")})

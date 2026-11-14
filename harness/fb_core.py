@@ -147,6 +147,23 @@ def changed_py(status_output):
     return files
 
 
+_IMPORT_LINE_RE = re.compile(r"^(?:import\s+\S.*|from\s+\S+\s+import\b.*|\w+(?:\s+as\s+\w+)?\s*,?|\)\s*,?|\()$")
+
+
+def test_edit_problems(diff):
+    """見えるテストのファイルの差分（git diff -U0）のうち、認めない行を返す。認めるのは、空行と import の行
+    （括弧で続く import の名の行と閉じ括弧を含む）の足し引きだけ。隠しのパッチが import を消して空行に替えた課題がある（M-06）。"""
+    bad = []
+    for line in (diff or "").splitlines():
+        if line.startswith(("+++", "---", "@@", "diff --git", "index ", "new file", "deleted file")):
+            continue
+        if line[:1] in "+-":
+            body = line[1:].strip()
+            if body and not _IMPORT_LINE_RE.match(body):
+                bad.append(line[:200])
+    return bad
+
+
 def parse_static(output):
     """pyflakes の出力から、落ちに数える行（undefined name と構文の誤り）だけを拾う。"""
     return [line.strip() for line in (output or "").splitlines() if _STATIC_RE.search(line)]
@@ -198,8 +215,15 @@ class ContainerAdapter:
                              f"-p no:cacheprovider",
                              self.test_timeout + 60)
         passed, failed, errors, summary = parse_pytest(out, code)
-        return core.CheckResult(c.id, code == 0, passed=passed, failed=failed, errors=errors, summary=summary,
-                                raw=self._save(c.id, out))
+        _, diff = self.run(f"git diff -U0 HEAD -- {targets}", 120)
+        bad = test_edit_problems(diff)
+        if bad:
+            # 見えるテストを、消された import の足し戻しを超えて書き換えたら、関門は合格にしない（テストの書き換え）
+            failed = failed + ["visible-test-integrity"]
+            errors = [f"visible test file changed beyond import lines: {bad[0]}"] + errors
+            summary = f"{summary}; visible test file edited ({len(bad)} lines beyond imports)"
+        return core.CheckResult(c.id, code == 0 and not bad, passed=passed, failed=failed, errors=errors,
+                                summary=summary, raw=self._save(c.id, out + "\n--- git diff of the visible test file ---\n" + diff))
 
     def _static(self, c):
         _, status = self.run("git status --porcelain --untracked-files=all", 120)
