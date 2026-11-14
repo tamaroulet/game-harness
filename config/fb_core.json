@@ -1,7 +1,7 @@
 {
   "_comment": "制御核を通した agy の腕（harness/fb_core.py、実験と計画 §4 の X-02）。fb infer の --agent で選ぶ。モデルと旗は config/fb_agy.json と同じ（素の A と同じ）。gate：手番の後に確かめ（見えるテスト・pyflakes）を走らせ、通るまで同じ会話に押し返す。show_ledger：はじめの頼みに要件の台帳を添える。static：確かめに pyflakes（undefined name と構文の誤り）を入れる。max_rounds：押し返しを含む手番の数の上限。tools_dir：箱に写す pyflakes の置き場（WSL の上。FB_CORE_TOOLS で上書きできる）。どの腕を X-02 で使うかと線は、走らせる前に実験と計画 §4 に書く",
   "tools_dir": "/opt/fb/tools/pyflakes_pkg",
-  "pyflakes": {"version": "3.2.0"},
+  "pyflakes": {"version": "3.2.0", "wheel": "pyflakes-3.2.0-py2.py3-none-any.whl", "sha256": "84b5be138a2dfbb40689ca07e2152deb896a65c3a3e24c251c5c62489568074a", "_note": "PyPI が出す sha256 と照らしてから展開した（2026-11-14、操縦士の ok）。課題の箱には関門のときだけ写し、エージェントの PATH と PYTHONPATH には入れない"},
   "arms": {
     "agy-off": {"gate": false, "show_ledger": false, "static": false, "max_rounds": 1},
     "agy-ledger": {"gate": false, "show_ledger": true, "static": false, "max_rounds": 1},
