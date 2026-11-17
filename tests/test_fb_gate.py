@@ -364,6 +364,15 @@ class BuildGuardTest(unittest.TestCase):
                                           "msg": "ModuleNotFoundError: No module named 'dspy'"}])
 
     @unittest.skipUnless(os.path.isdir("/proc/self"), "needs /proc (runs in the task box and on Linux)")
+    def test_run_tests_strict_budget_cuts_the_last_file_and_skips_the_rest(self):
+        # R0 の割り当て：1 ファイルの上限は残りの時間との短いほう。残りが 0 なら走らせない
+        with tempfile.TemporaryDirectory() as root:
+            res = probe.run_tests(root, ["a.py", "b.py", "c.py"], "bash -c 'sleep 2' x", None, 300, 3, strict=True)
+        self.assertEqual(res["files"]["a.py"]["rc"], 0)
+        self.assertEqual(res["files"]["b.py"]["rc"], 124)        # 残り 1 秒で止めた
+        self.assertEqual(res["not_run"], ["c.py"])
+
+    @unittest.skipUnless(os.path.isdir("/proc/self"), "needs /proc (runs in the task box and on Linux)")
     def test_run_session_timeout(self):
         code, _, _, killed = probe.run_session(["bash", "-c", "sleep 300"], 1)
         self.assertEqual(code, 124)

@@ -74,9 +74,9 @@ def commit_sha(stdout):
 class Box:
     """課題の像から起こした箱。exec は (終わりの符号, 出力)。"""
 
-    def __init__(self, image, name, rt):
+    def __init__(self, image, name, rt, network="none"):
         self.name = name
-        args = ["docker", "run", "-d", "--network", "none", "--name", name, "-u", "root", "-w", "/testbed",
+        args = ["docker", "run", "-d", "--network", network, "--name", name, "-u", "root", "-w", "/testbed",
                 "--memory", MEMORY, "--memory-swap", MEMORY]   # 箱ごとの上限（並べた箱で WSL のメモリを使い切らない）
         if rt.get("shm_size"):
             args += ["--shm-size", rt["shm_size"]]

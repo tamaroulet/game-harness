@@ -758,19 +758,23 @@ def node_key(node):
     return (parts[-2] if len(parts) >= 2 else None, parts[-1])
 
 
-def run_tests(root, files, test_cmd, timeout_one, file_timeout, budget):
+def run_tests(root, files, test_cmd, timeout_one, file_timeout, budget, strict=False):
+    """strict=True は R0 の時間の割り当て（1 ファイルの上限は file_timeout と残りの短いほう。残りが 0 なら走らせない）。
+    timeout_one が None なら、pytest-timeout の --timeout を付けない（その道具の無いイメージのため）。"""
     results, failed, t0, not_run, killed = {}, [], time.time(), [], 0
     xml = "/tmp/fb_gate_junit.xml"
     for rel in files:
-        if time.time() - t0 > budget:
+        left = budget - (time.time() - t0)
+        if (strict and left <= 0) or (not strict and left < 0):
             not_run.append(rel)
             continue
+        limit = max(1, int(min(file_timeout, left))) if strict else int(file_timeout)
         if os.path.exists(xml):
             os.remove(xml)
-        cmd = (f"timeout {int(file_timeout)} {test_cmd} -p no:cacheprovider --timeout={int(timeout_one)} "
-               f"--junitxml={xml} {rel}")
+        per_test = f"--timeout={int(timeout_one)} " if timeout_one else ""
+        cmd = f"timeout {limit} {test_cmd} -p no:cacheprovider {per_test}--junitxml={xml} {rel}"
         s = time.time()
-        code, out_b, err_b, n = run_session(["bash", "-c", cmd], int(file_timeout) + 60, cwd=root,
+        code, out_b, err_b, n = run_session(["bash", "-c", cmd], limit + 60, cwd=root,
                                             env=dict(os.environ, MPLBACKEND="Agg", PYTHONDONTWRITEBYTECODE="1"))
         killed += n
         p = subprocess.CompletedProcess(cmd, code)
@@ -870,7 +874,8 @@ def main():
         res["test_modules"] = want
         res["tests_selected"] = {"own": own, "existing": picked}
         timed("tests", lambda: run_tests(root, own + picked, spec["test_cmd"], spec.get("timeout_one", 10),
-                                         spec.get("file_timeout", 300), spec.get("test_budget", 600)))
+                                         spec.get("file_timeout", 300), spec.get("test_budget", 600),
+                                         spec.get("strict_budget", False)))
     if builds:   # 検査の間に C/C++ のビルドが走っていない（ビルド成果物の mtime が変わっていない）ことを確認する
         res["build"]["after"] = build_state(builds)
         before = {b["build"]: b["built_mtime"] for b in res["build"]["before"]}
