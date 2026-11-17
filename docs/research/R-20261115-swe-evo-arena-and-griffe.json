@@ -1,0 +1,230 @@
+{
+  "id": "R-20261115-swe-evo-arena-and-griffe",
+  "title": "中流の積み上げの土俵（SWE-EVO）と、公開の口の差分の検査（griffe）",
+  "stage": "compare",
+  "decision": "中流のタスクの積み上げを検証する土俵に SWE-EVO（リリースの間の進化）を使えるか。公開の口の差分を、独自の検査器でなく既存の道具（griffe）で取れるか",
+  "sectors": [],
+  "asked_at": "2026-11-15T01:39:44+09:00",
+  "backend": "seat",
+  "models": [],
+  "usage": null,
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "SWE-EVO の課題の始まりは、リポジトリのリリースのタグに一致するコミット（リリースの時点の状態）に限って選んだ。",
+      "source_url": "https://arxiv.org/html/2512.18470v6",
+      "source_title": "SWE-EVO: Benchmarking Coding Agents in Long-Horizon Software Evolution Scenarios（v6）",
+      "published": "2026-05-22",
+      "quote": "selecting only those samples whose base commit corresponds exactly to a version tag of the repository",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "リリースの間の進化を土俵にする",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-15T01:39:44+09:00",
+        "sha256": "ea1b167986a28be9a143b545eea165b00d2b7373ce78fa0b8130b950c8304438",
+        "reason": null
+      }
+    },
+    {
+      "id": "C2",
+      "claim": "課題の文は、そのリリースと次のタグのリリースのあいだのリリースノートの差。",
+      "source_url": "https://arxiv.org/html/2512.18470v6",
+      "source_title": "SWE-EVO: Benchmarking Coding Agents in Long-Horizon Software Evolution Scenarios（v6）",
+      "published": "2026-05-22",
+      "quote": "we define the problem statement as the release-note delta between that version and its next tagged version",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "リリースの間の進化を土俵にする",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-15T01:39:44+09:00",
+        "sha256": "ea1b167986a28be9a143b545eea165b00d2b7373ce78fa0b8130b950c8304438",
+        "reason": null
+      }
+    },
+    {
+      "id": "C3",
+      "claim": "既定の設定では、課題の文に、リリースノートと、そこから明示的にリンクされた PR と issue の本文を含める。",
+      "source_url": "https://arxiv.org/html/2512.18470v6",
+      "source_title": "SWE-EVO: Benchmarking Coding Agents in Long-Horizon Software Evolution Scenarios（v6）",
+      "published": "2026-05-22",
+      "quote": "the text of any PRs or issues explicitly linked from that release note",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "リリースの間の進化を土俵にする",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-15T01:39:44+09:00",
+        "sha256": "ea1b167986a28be9a143b545eea165b00d2b7373ce78fa0b8130b950c8304438",
+        "reason": null
+      }
+    },
+    {
+      "id": "C4",
+      "claim": "どのモデルも解けなかった課題はリンクの PR が平均 14.84、最も易しい群は 1.67。PR の数は、リリースの単位の難しさの代わりの指標になる。",
+      "source_url": "https://arxiv.org/html/2512.18470v6",
+      "source_title": "SWE-EVO: Benchmarking Coding Agents in Long-Horizon Software Evolution Scenarios（v6）",
+      "published": "2026-05-22",
+      "quote": "unresolved-by-all instances average 14.84 PRs, compared with 1.67 for the easiest group",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "課題の大きさと難しさ",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-15T01:39:44+09:00",
+        "sha256": "ea1b167986a28be9a143b545eea165b00d2b7373ce78fa0b8130b950c8304438",
+        "reason": null
+      }
+    },
+    {
+      "id": "C5",
+      "claim": "どの課題にも、正解のパッチの前で落ちて後で通るテスト（FAIL_TO_PASS）が少なくとも 1 つあり、ほかに退行を見る PASS_TO_PASS が課題あたり平均 793 ある。",
+      "source_url": "https://arxiv.org/html/2512.18470v6",
+      "source_title": "SWE-EVO: Benchmarking Coding Agents in Long-Horizon Software Evolution Scenarios（v6）",
+      "published": "2026-05-22",
+      "quote": "at least one FAIL_TO_PASS test validates each gold patch (81% have two or more), with an additional mean of 793 PASS_TO_PASS regression tests per instance",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "課題の大きさと難しさ",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-15T01:39:44+09:00",
+        "sha256": "ea1b167986a28be9a143b545eea165b00d2b7373ce78fa0b8130b950c8304438",
+        "reason": null
+      }
+    },
+    {
+      "id": "C6",
+      "claim": "griffe check は、今のコードと Git の参照（タグ・コミット・ブランチ）のあいだで、公開の API の破壊的な変更を調べる。参照の時点のコードは、一時の worktree に作って比べる。",
+      "source_url": "https://mkdocstrings.github.io/griffe/guide/users/checking/",
+      "source_title": "Griffe: Checking for API breakages（利用者の手引き）",
+      "published": "不明",
+      "quote": "You can specify a Git tag, commit (hash), or even a branch",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "公開の口の差分を既存の道具で取る",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-15T01:39:44+09:00",
+        "sha256": "09d3d254b19c9eb9f3bc192265bb340a774ea729d6427abdf1e9d4a98fdb9f2c",
+        "reason": null
+      }
+    },
+    {
+      "id": "C7",
+      "claim": "検出する破壊的な変更は、引数の移動・削除・種類の変更・既定値の変更・必須への変更・必須の引数の追加と、公開のオブジェクトの削除・種類の変更・基底クラスの削除など。",
+      "source_url": "https://mkdocstrings.github.io/griffe/guide/users/checking/",
+      "source_title": "Griffe: Checking for API breakages（利用者の手引き）",
+      "published": "不明",
+      "quote": "Parameter moved Parameter removed Parameter changed kind Parameter changed default Parameter changed required Parameter added required",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "公開の口の差分を既存の道具で取る",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-15T01:39:44+09:00",
+        "sha256": "09d3d254b19c9eb9f3bc192265bb340a774ea729d6427abdf1e9d4a98fdb9f2c",
+        "reason": null
+      }
+    },
+    {
+      "id": "C8",
+      "claim": "戻り値の型と属性の型の非互換は、静的に判定するのが難しいので、まだ検出しない。",
+      "source_url": "https://mkdocstrings.github.io/griffe/guide/users/checking/",
+      "source_title": "Griffe: Checking for API breakages（利用者の手引き）",
+      "published": "不明",
+      "quote": "Telling if a type construct is compatible with another one is not trivial, especially statically",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "公開の口の差分を既存の道具で取る",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-15T01:39:44+09:00",
+        "sha256": "09d3d254b19c9eb9f3bc192265bb340a774ea729d6427abdf1e9d4a98fdb9f2c",
+        "reason": null
+      }
+    },
+    {
+      "id": "C9",
+      "claim": "何を公開とするかの慣習が griffe の理解と違うと、誤検出が出るか、破壊的な変更を見落とす。",
+      "source_url": "https://mkdocstrings.github.io/griffe/guide/users/checking/",
+      "source_title": "Griffe: Checking for API breakages（利用者の手引き）",
+      "published": "不明",
+      "quote": "you might get false-positives, or breaking changes could go undetected",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "公開の口の差分を既存の道具で取る",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-15T01:39:44+09:00",
+        "sha256": "09d3d254b19c9eb9f3bc192265bb340a774ea729d6427abdf1e9d4a98fdb9f2c",
+        "reason": null
+      }
+    },
+    {
+      "id": "C10",
+      "claim": "属性の値の変化の検出は、ほとんどいつも誤検出を出すので外した。",
+      "source_url": "https://mkdocstrings.github.io/griffe/guide/users/checking/",
+      "source_title": "Griffe: Checking for API breakages（利用者の手引き）",
+      "published": "不明",
+      "quote": "This check was removed because it almost always emits false-positives",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "公開の口の差分を既存の道具で取る",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-15T01:39:44+09:00",
+        "sha256": "09d3d254b19c9eb9f3bc192265bb340a774ea729d6427abdf1e9d4a98fdb9f2c",
+        "reason": null
+      }
+    }
+  ],
+  "queries": [
+    "（会話の席が原文を直接読んだ。検索は使っていない）https://arxiv.org/html/2512.18470v6",
+    "（同上）https://mkdocstrings.github.io/griffe/guide/users/checking/"
+  ],
+  "unknowns": [
+    "会話の席が 2026-11-15 に原文を読み、抜粋を機械で照合した（SWE-EVO の論文の v6 と、griffe の利用者の手引き）。agy は使っていない（P-007）",
+    "SWE-EVO のデータの欄（PRs の欄に、PR ごとのテストを除くパッチと、テストのパッチがあること）は、論文の本文ではなく、データそのもの（GitHub の SWE-EVO/SWE-EVO の hf_out、コミット 9b83d5a）で確認した。実験と計画の段 0 の実測に書く",
+    "SWE-EVO の評価のコード（SWE-bench/swebench/harness/test_spec/python.py）は、評価のときに base_commit へ戻さず、イメージの /testbed の状態にパッチを当てる。始まりの状態がタグのコミットと一致するかは、段 0 でイメージごとに確認する",
+    "griffe が、動的に作る公開の記号や、C 拡張のモジュールをどこまで読むかは、手引きに書かれていない（段 0 で 7 つのパッケージに当てて確認する）"
+  ],
+  "counts": {
+    "verified": 10,
+    "quote_not_found": 0,
+    "unreachable": 0,
+    "no_source": 0
+  },
+  "question": "# 中流の積み上げの土俵と、公開の口の差分の検査\n\n## 段\ncompare\n\n## 決めたい判断\n中流のタスクの積み上げを検証する土俵に SWE-EVO（リリースの間の進化）を使えるか。公開の口の差分を、独自の検査器でなく既存の道具（griffe）で取れるか\n\n## 判断を変えうるもの\nSWE-EVO の始まりの状態が正常なリリースでない記述。リンクの PR の本文が課題の文に入らない記述。griffe が Git の参照の間で比べられない記述、または検出の範囲が狭すぎる記述\n\n## 候補\n- 土俵：SWE-EVO のリンクの PR の並び／FeatureBench の同じ版の複数の機能\n- 公開の口の差分：griffe／独自の検査器\n\n## 問い\nSWE-EVO の課題は、どの状態から始まり、課題の文に何を含み、課題の大きさはどう分かれるか。griffe check は何を比べ、何を検出し、何を検出しないか。\n"
+}
