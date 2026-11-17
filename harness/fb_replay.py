@@ -6,6 +6,14 @@ WSL の FeatureBench の venv で、FeatureBench の評価と同じ手順で課�
 
     python -m harness.fb_replay run --tasks <ID の並びのファイル> --runs <ランの置き場>... --gold <正解の評価の置き場> --out <置き場> [--jobs 3]
     python -m harness.fb_replay summary --out <置き場> [--runs ...] [--gold ...]
+    python -m harness.fb_replay scan --tasks <ID の並びのファイル> --out <置き場> [--only pandas]
+    python -m harness.fb_replay r0 --tasks <ID の並び> --runs <ランの置き場>... --stage <run3> --imports <scan の置き場> --out <置き場> [--fill <fill の置き場>]
+    python -m harness.fb_replay fill --tasks <ID の並び> --stage <run3> --imports <scan の置き場> --out <置き場> [--only http_headers]
+    python -m harness.fb_replay recheck --tasks <ID の並び> --runs <ランの置き場>... --stage <run3> --imports <scan の置き場> --out <置き場> [--only mlflow]
+
+scan はイメージのテストのファイルごとの import を読み（import もテストもしない）、r0 は段 a の記録に、正解を使わない
+第 1 関門の読み R0（実験と計画 §5-6）を当てて数える（G0-3。コンテナは使わない）。fill は、正解の状態で R0 が選ぶ
+ファイルのうち run3 に結果が無いものを走らせる（記録不足を埋める）。
 
 箱の網は切る（--network none）。課題の ID と結果は <置き場>/<ID>.json に書く。
 """
@@ -25,6 +33,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import exitcode  # noqa: E402
+import fb_gate_probe as gate  # noqa: E402
 import fb_ground  # noqa: E402
 
 PROBE_FILES = [HERE / "fb_gate_probe.py", HERE / "exitcode.py", HERE / "job_object.py"]
@@ -580,6 +589,410 @@ def cmd_summary(args):
     print(json.dumps(out, ensure_ascii=False, indent=1))
 
 
+# ---------------------------------------------------------------- R0 の再集計（G0-3。実験と計画 §5-6）
+
+R0_BUDGET = 300          # 1 回の関門のテストの段の全体（test_budget）
+R0_FILE_TIMEOUT = 300    # 1 ファイルの上限（残りの時間との短いほう）
+FILE_RC_KNOWN = (0, 1, 5)
+
+
+def image_tag(image):
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", image.split("/")[-1])
+
+
+def rel_path(path):
+    return path[len("/testbed/"):] if path.startswith("/testbed/") else path.lstrip("/")
+
+
+def cmd_scan(args):
+    """課題のイメージの /testbed のテストのファイルごとの import を読む（R0 の群 2・3 の材料）。構文木で読むだけで、
+    import もテストもしない。イメージごとに 1 回。--only で先に 1 つだけ読める（最も重い pandas で先に確かめる）。"""
+    from featurebench.utils.runtime_config import parse_docker_runtime_config
+    ids = [x.strip() for x in Path(args.tasks).read_text(encoding="utf-8").splitlines() if x.strip()]
+    rows = load_rows(ids)
+    first = {}
+    for iid in ids:
+        first.setdefault(rows[iid]["image_name"], iid)
+    Path(args.out).mkdir(parents=True, exist_ok=True)
+    for image, iid in first.items():
+        if args.only and not any(o in image for o in args.only):
+            continue
+        path = Path(args.out) / f"imports_{image_tag(image)}.json"
+        if path.exists():
+            print(f"{image_tag(image)} skip", flush=True)
+            continue
+        row = rows[iid]
+        t0 = time.time()
+        box = Box(image, f"fbscan-{os.getpid()}-{int(time.time())}", parse_docker_runtime_config(repo_settings(row)))
+        try:
+            box.exec(f"mkdir -p {PROBE_DIR}")
+            for p in PROBE_FILES:
+                box.put(f"{PROBE_DIR}/{p.name}", p.read_text(encoding="utf-8"))
+            res = probe(box, {"root": "/testbed", "packages": packages_of(row), "checks": ["test_imports"]})
+            _, procs = box.exec("ps -eo comm= | sort | uniq -c | sort -rn")
+        finally:
+            box.close()
+        res.update({"image": image, "wall": round(time.time() - t0, 1), "procs_after": procs.strip()})
+        if "test_imports" not in res:
+            print(f"{image_tag(image)} error: {res.get('error')}", flush=True)
+            continue
+        path.write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
+        ti = res["test_imports"]
+        print(f"{image_tag(image)} files={len(ti['files'])} unparsed={len(ti['unparsed'])} wall={res['wall']}s "
+              f"scan={res['secs'].get('test_imports')}s orphans_before={len(res.get('orphans_before') or [])} "
+              f"orphans_after={len(res.get('orphans_after') or [])}", flush=True)
+
+
+def plan_budget(order, records, budget=R0_BUDGET, file_timeout=R0_FILE_TIMEOUT):
+    """R0 の時間の割り当てを、run3 のファイルごとの秒で作り直す。order は走らせる順のファイル、records は
+    {ファイル: run3 の結果（rc・secs・timeout）}。({ファイル: done・cut・timeout・no_record・not_started}, 使った秒)。
+    done だけが結果を使えるファイル。no_record（run3 に結果が無い）は 0 秒・結果は不明として扱う。"""
+    left, plan = float(budget), {}
+    for f in order:
+        if left <= 0:
+            plan[f] = "not_started"
+            continue
+        rec = records.get(f)
+        if rec is None:
+            plan[f] = "no_record"
+            continue
+        secs, limit = float(rec.get("secs") or 0), min(float(file_timeout), left)
+        if secs > limit:
+            plan[f], spent = "cut", limit
+        elif rec.get("timeout") or rec.get("rc") == 124:
+            plan[f], spent = "timeout", secs
+        else:
+            plan[f], spent = "done", secs
+        left -= spent
+    return plan, round(float(budget) - max(left, 0.0), 1)
+
+
+def existing_test_edits(patch):
+    """パッチのうち、t=0 にあるテストのファイル（.py で is_test_file に当たるもの）を変えるか消す差分（R0 の 5）。
+    新しいファイルは数えない。[{"path", "kind": modified か deleted}]。"""
+    out = []
+    for block in re.split(r"(?m)^diff --git ", patch or "")[1:]:
+        head, _, rest = block.partition("\n")
+        m = re.match(r"a/(\S+) b/(\S+)", head)
+        if not m:
+            continue
+        header = rest.split("\n@@", 1)[0]
+        if re.search(r"(?m)^new file mode", header):
+            continue
+        old = m.group(1)
+        if old.endswith(".py") and gate.is_test_file(old):
+            kind = "deleted" if re.search(r"(?m)^deleted file mode", header) else "modified"
+            out.append({"path": old, "kind": kind})
+    return out
+
+
+def state_tests(d, c):
+    """1 つの状態の run3 のテストの結果：({ファイル: rc・secs・timeout}, {ファイル: [落ちた項目]})。
+    正解の状態は、当て直した分（gold_retest）と、記録不足を埋めた分（gold_fill。fill の結果）も足す
+    （ファイルは重ならない。重なれば先のものを使う）。測り直した状態（recheck）は、その結果だけを使う。"""
+    again = (d.get("recheck") or {}).get(c.get("name"))
+    if again is not None:   # 測り直した状態（recheck）は、その結果だけを使う
+        parts = [again.get("tests") or {}]
+    else:
+        parts = [c.get("tests") or {}]
+        if c.get("name") == "gold":
+            parts.append((d.get("gold_retest") or {}).get("tests") or {})
+            parts.append((d.get("gold_fill") or {}).get("tests") or {})
+    files, failed = {}, {}
+    for t in parts:
+        mine = {rel: rec for rel, rec in (t.get("files") or {}).items() if rel not in files}
+        files.update(mine)
+        for x in t.get("failed") or []:
+            rel = x["node"].split("::", 1)[0]
+            if rel in mine:
+                failed.setdefault(rel, []).append(x)
+    return files, failed
+
+
+def r0_order(imports_t0, ledger_paths, changed):
+    """R0 の選びと走らせる順（群 1→2→3）。(選び, 順のファイル)。"""
+    sel = gate.select_tests_r0(imports_t0, ledger_paths, changed)
+    return sel, sel["own"] + sel["ledger"] + sel["changed"]
+
+
+def imports_at_t0(row, imports_dir):
+    """scan の結果から、t=0 のテストのファイルごとの import（消した公式のテストを除く）。(import, scan, 除いたファイル)。"""
+    from featurebench.utils.identifiers import testbed_test_file
+    scan = json.loads((Path(imports_dir) / f"imports_{image_tag(row['image_name'])}.json").read_text(encoding="utf-8"))
+    hidden = {rel_path(testbed_test_file(t)) for t in f2p_list(row)}
+    return {k: v for k, v in scan["test_imports"]["files"].items() if k not in hidden}, scan, hidden
+
+
+def r0_state(c, start_keys, imports_t0, ledger_paths, packages, removed, mfiles, records, failed_by_file, edits):
+    """1 つの状態に R0 を当てる（実験と計画 §5-6）。的に当たるか（removed・mfiles）は評価にだけ使う。"""
+    sel, order = r0_order(imports_t0, ledger_paths, c.get("changed") or [])
+    plan, used = plan_budget(order, records)
+    ks = keysets(c)
+    new = {k: sorted(ks[k] - start_keys[k], key=str) for k in ks}
+    classes, target, unknown_fails, unknown_files = {}, [], [], []
+    for f in order:
+        if plan[f] != "done":
+            continue
+        fails = failed_by_file.get(f) or []
+        if records[f].get("rc") not in FILE_RC_KNOWN and not fails:
+            unknown_files.append(f)
+            continue
+        for x in fails:
+            cls = gate.failure_class(x.get("msg"), packages)
+            classes[cls] = classes.get(cls, 0) + 1
+            if cls == "target":
+                target.append(x)
+            elif cls == "U":
+                unknown_fails.append(x)
+    static_on = sum(1 for k, v in new.items() for key in v if on_target(k, key, removed, mfiles))
+    tests_on = sum(1 for x in target if relevant("tests", x, removed, mfiles))
+    pushed = bool(sum(len(v) for v in new.values()) or target or edits)
+    on_t = bool(static_on or tests_on)
+    counts = {}
+    for v in plan.values():
+        counts[v] = counts.get(v, 0) + 1
+    return {"state": c["name"], "resolved": c.get("resolved"), "white": c.get("white"),
+            "pushed": pushed, "on_target": on_t,
+            "pushed_with_unknown": pushed or bool(unknown_fails or unknown_files),
+            "on_target_with_unknown": on_t or any(relevant("tests", x, removed, mfiles) for x in unknown_fails),
+            "static_new": {k: len(v) for k, v in new.items()}, "static_new_on_target": static_on,
+            "static_new_sample": {k: [list(x) for x in v[:4]] for k, v in new.items() if v},
+            "tests_target": len(target), "tests_target_on_target": tests_on, "test_classes": classes,
+            "tests_target_sample": [[x["node"], (x.get("msg") or "")[:160]] for x in target[:4]],
+            "tests_unknown": len(unknown_fails), "unknown_files": len(unknown_files), "edits": edits,
+            "selected": {g: len(sel[g]) for g in ("own", "ledger", "changed")},
+            "top_level_dropped": sel["top_level_dropped"], "plan": counts, "secs_used": used,
+            "record_gap_files": sum(1 for f in order if plan[f] == "no_record")}
+
+
+def r0_task(d, row, imports_t0, patch_of):
+    """1 つの課題の、正解と記録の A のパッチの状態に R0 を当てる。patch_of(状態の名) は、run3 が当てたのと同じパッチ。"""
+    start = next(c for c in d["candidates"] if c["name"] == "start")
+    removed, mfiles = set(d["ground"]["removed"]), set(d["ground"]["mask_files"])
+    args = (keysets(start), imports_t0, statement_paths(row["problem_statement"]), packages_of(row), removed, mfiles)
+    states = []
+    for c in d["candidates"]:
+        if c["name"] == "start":
+            continue
+        if not c.get("applied", True) or "error" in c:
+            states.append({"state": c["name"], "error": (c.get("apply_error") or c.get("error") or "")[:200]})
+            continue
+        records, failed = state_tests(d, c)
+        edits = [] if c["name"] == "gold" else existing_test_edits(patch_of(c["name"]))
+        states.append(r0_state(c, *args, records, failed, edits))
+    return {"id": d["id"], "states": states}
+
+
+def r0_lines(results):
+    """判定線（実験と計画 §5-6）と、添える数。"""
+    gold = [(r["id"], s) for r in results for s in r["states"] if s["state"] == "gold"]
+    cands = [(r["id"], s) for r in results for s in r["states"] if s["state"] != "gold" and "error" not in s]
+    unresolved = [(i, s) for i, s in cands if s.get("resolved") is False]
+    resolved = [(i, s) for i, s in cands if s.get("resolved")]
+
+    def short(i, s=None):
+        p = i.split(".")
+        return p[0].split("__")[0] + ":" + p[2] + (f"[{s['state']}]" if s else "")
+
+    out = {"gold_pushed": [short(i) for i, s in gold if s.get("pushed")],
+           "unresolved_caught": [short(i, s) for i, s in unresolved if s["pushed"] and s["on_target"]],
+           "unresolved_pushed_off_target": [short(i, s) for i, s in unresolved if s["pushed"] and not s["on_target"]],
+           "resolved_pushed": [short(i, s) for i, s in resolved if s["pushed"]],
+           "gold_pushed_with_unknown": [short(i) for i, s in gold if s.get("pushed_with_unknown")],
+           "unresolved_caught_with_unknown": [short(i, s) for i, s in unresolved
+                                              if s["pushed_with_unknown"] and s["on_target_with_unknown"]],
+           "states_with_record_gap": [short(i, s) for i, s in gold + cands if s.get("record_gap_files")],
+           "counts": {"gold": len(gold), "unresolved": len(unresolved), "resolved": len(resolved)}}
+    out["line1_gold_le_2"] = len(out["gold_pushed"]) <= 2
+    out["line2_caught_ge_5"] = len(out["unresolved_caught"]) >= 5
+    out["pass"] = out["line1_gold_le_2"] and out["line2_caught_ge_5"]
+    return out
+
+
+def cmd_fill(args):
+    """G0-3 の記録不足を埋める（利用枠 0）。正解の状態で、R0 の順のファイルのうち run3 に結果が無いものだけを、R0 の順に、
+    run3 と同じ走らせ方（1 ファイル 300 秒）で走らせ、<out>/<ID>.json に書く。run3 の記録は書き換えない
+    （r0 の --fill で正解の状態に足す）。時間の割り当て（300 秒）は r0 の plan_budget が当てる。"""
+    from featurebench.utils.runtime_config import parse_docker_runtime_config
+    ids = [x.strip() for x in Path(args.tasks).read_text(encoding="utf-8").splitlines() if x.strip()]
+    ids = [i for i in ids if not args.only or any(o in i for o in args.only)]
+    rows = load_rows(ids)
+    Path(args.out).mkdir(parents=True, exist_ok=True)
+    for iid in ids:
+        out_path = Path(args.out) / f"{iid}.json"
+        tag = f"{iid.split('.')[0]}.{iid.split('.')[2]}"
+        if out_path.exists():
+            print(f"{tag} skip", flush=True)
+            continue
+        d = json.loads((Path(args.stage) / f"{iid}.json").read_text(encoding="utf-8"))
+        row = rows[iid]
+        gold = next(c for c in d["candidates"] if c["name"] == "gold")
+        imports_t0, _, _ = imports_at_t0(row, args.imports)
+        _, order = r0_order(imports_t0, statement_paths(row["problem_statement"]), gold.get("changed") or [])
+        records, _ = state_tests(d, gold)
+        want = [f for f in order if f not in records]
+        if not want:
+            print(f"{tag} nothing to fill", flush=True)
+            continue
+        rs = repo_settings(row)
+        t0 = time.time()
+        box = Box(row["image_name"], f"fbfill-{os.getpid()}-{int(time.time())}", parse_docker_runtime_config(rs))
+        try:
+            base, mode = prepare(box, row)
+            reset(box, base)
+            box.put("/tmp/cand.patch", gold_patch(row))
+            code, out = box.exec("cd /testbed && git apply --whitespace=fix /tmp/cand.patch")
+            if code != 0:
+                raise RuntimeError(f"gold apply failed: {out[-300:]}")
+            clear_bytecode(box)
+            spec = {"root": "/testbed", "packages": packages_of(row), "checks": ["tests"], "test_files": want,
+                    "base": base, "test_cmd": rs.get("test_cmd") or "pytest -rA -p no:cacheprovider --color=no",
+                    "timeout_one": rs.get("timeout_one") or 10, "file_timeout": R0_FILE_TIMEOUT,
+                    # ファイルの間の数ミリ秒の手間で、300 秒の境のファイルを取りこぼさないための余り（割り当ては r0 が 300 秒で当てる）
+                    "test_budget": R0_BUDGET + 30, "pyflakes_dir": TOOLS_DIR}
+            res = probe(box, spec)
+            _, procs = box.exec("ps -eo comm= | sort | uniq -c | sort -rn")
+        finally:
+            box.close()
+        res.update({"id": iid, "base": base, "restore": mode, "applied": True, "want": want,
+                    "changed_same_as_run3": sorted(res.get("changed") or []) == sorted(gold.get("changed") or []),
+                    "wall": round(time.time() - t0, 1), "procs_after": procs.strip()})
+        out_path.write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
+        t = res.get("tests") or {}
+        before = [b.get("pending") for b in (res.get("build") or {}).get("before") or []]
+        print(f"{tag} want={len(want)} ran={len(t.get('files') or {})} not_run={len(t.get('not_run') or [])} "
+              f"failed={len(t.get('failed') or [])} tests={res.get('secs', {}).get('tests')}s wall={res['wall']}s "
+              f"build_pending={before} rebuilt={(res.get('build') or {}).get('rebuilt')} "
+              f"orphans_before={len(res.get('orphans_before') or [])} orphans_after={len(res.get('orphans_after') or [])} "
+              f"killed={t.get('killed_leftovers')} changed_same={res['changed_same_as_run3']} error={res.get('error')}",
+              flush=True)
+
+
+def cmd_recheck(args):
+    """状態をまるごと測り直す（利用枠 0）。run3 の probe は、mlflow の要約の行（conftest の飾り付き）を読めず、
+    収集の誤りの本文と標準エラーも残していなかった。今の probe で、課題の正解と記録の A のパッチの状態ごとに、
+    その状態の R0 の順のファイルを、run3 と同じ走らせ方（1 ファイル 300 秒）で走らせ、<out>/<ID>.json に書く。
+    r0 の --recheck で、その状態の記録を差し替える。時間の割り当て（300 秒）は r0 の plan_budget が当てる。"""
+    from collections import Counter
+    from featurebench.utils.runtime_config import parse_docker_runtime_config
+    ids = [x.strip() for x in Path(args.tasks).read_text(encoding="utf-8").splitlines() if x.strip()]
+    ids = [i for i in ids if not args.only or any(o in i for o in args.only)]
+    rows = load_rows(ids)
+    patches = {(p["label"], p["id"]): p for p in a_patches(args.runs, set(ids))}
+    Path(args.out).mkdir(parents=True, exist_ok=True)
+    for iid in ids:
+        out_path = Path(args.out) / f"{iid}.json"
+        tag = f"{iid.split('.')[0]}.{iid.split('.')[2]}"
+        if out_path.exists():
+            print(f"{tag} skip", flush=True)
+            continue
+        d = json.loads((Path(args.stage) / f"{iid}.json").read_text(encoding="utf-8"))
+        row = rows[iid]
+        imports_t0, _, _ = imports_at_t0(row, args.imports)
+        ledger = statement_paths(row["problem_statement"])
+        jobs, keep = [], set(args.states or [])
+        for c in d["candidates"]:
+            if c["name"] == "start" or not c.get("applied", True) or "error" in c:
+                continue
+            if keep and c["name"] not in keep and not (c["name"] == "gold" and "start" in keep):
+                continue
+            if c["name"] == "gold":
+                patch = gold_patch(row)
+            else:
+                p = patches[(c["name"], iid)]
+                patch = strip_hidden(p["patch"], row) if p["white"] else p["patch"]
+            _, order = r0_order(imports_t0, ledger, c.get("changed") or [])
+            if c["name"] == "gold" and "start" in keep:   # 参考：t=0 で、正解の状態と同じファイルを走らせる
+                jobs.insert(0, ("start", None, order, []))
+            if not keep or c["name"] in keep:
+                jobs.append((c["name"], patch, order, sorted(c.get("changed") or [])))
+        rs = repo_settings(row)
+        t0 = time.time()
+        box = Box(row["image_name"], f"fbrecheck-{os.getpid()}-{int(time.time())}", parse_docker_runtime_config(rs))
+        states = {}
+        try:
+            base, _ = prepare(box, row)
+            for name, patch, order, changed in jobs:
+                reset(box, base)
+                if patch is not None:
+                    box.put("/tmp/cand.patch", patch if patch.endswith("\n") else patch + "\n")
+                    code, out = box.exec("cd /testbed && git apply --whitespace=fix /tmp/cand.patch")
+                    if code != 0:
+                        raise RuntimeError(f"{name} apply failed: {out[-300:]}")
+                    clear_bytecode(box)
+                spec = {"root": "/testbed", "packages": packages_of(row), "checks": ["tests"], "test_files": order,
+                        "base": base, "test_cmd": rs.get("test_cmd") or "pytest -rA -p no:cacheprovider --color=no",
+                        "timeout_one": rs.get("timeout_one") or 10, "file_timeout": R0_FILE_TIMEOUT,
+                        "test_budget": R0_BUDGET + 30, "pyflakes_dir": TOOLS_DIR}   # 余りは fill と同じ
+                r = probe(box, spec)
+                r.update({"applied": True, "changed_same_as_run3": sorted(r.get("changed") or []) == changed})
+                states[name] = r
+            _, procs = box.exec("ps -eo comm= | sort | uniq -c | sort -rn")
+        finally:
+            box.close()
+        for name, r in states.items():
+            t = r.get("tests") or {}
+            for x in t.get("failed") or []:
+                x["class"] = gate.failure_class(x.get("msg"), packages_of(row))
+            r["classes"] = dict(Counter(x["class"] for x in t.get("failed") or []))
+            rc = dict(Counter(str(v.get("rc")) for v in (t.get("files") or {}).values()))
+            print(f"{tag} {name} ran={len(t.get('files') or {})} not_run={len(t.get('not_run') or [])} rc={rc} "
+                  f"classes={r['classes']} tests={r.get('secs', {}).get('tests')}s changed_same={r['changed_same_as_run3']} "
+                  f"orphans_after={len(r.get('orphans_after') or [])} killed={t.get('killed_leftovers')} "
+                  f"error={r.get('error')}", flush=True)
+        out_path.write_text(json.dumps({"id": iid, "states": states, "wall": round(time.time() - t0, 1),
+                                        "procs_after": procs.strip()}, ensure_ascii=False), encoding="utf-8")
+        print(f"{tag} wall={round(time.time() - t0, 1)}s procs_after={procs.strip().replace(chr(10), ' |')}", flush=True)
+
+
+def cmd_r0(args):
+    """run3 の記録に R0 を当てて数える（G0-3）。コンテナは使わない（テストの import は scan の結果を読む）。
+    --fill を渡すと、fill の結果を正解の状態の記録に足し、--recheck を渡すと、測り直した状態の記録を差し替える。"""
+    ids = [x.strip() for x in Path(args.tasks).read_text(encoding="utf-8").splitlines() if x.strip()]
+    rows = load_rows(ids)
+    patches = {(p["label"], p["id"]): p for p in a_patches(args.runs, set(ids))}
+    Path(args.out).mkdir(parents=True, exist_ok=True)
+    results, notes = [], []
+    for iid in ids:
+        d = json.loads((Path(args.stage) / f"{iid}.json").read_text(encoding="utf-8"))
+        fill = Path(args.fill) / f"{iid}.json" if args.fill else None
+        if fill is not None and fill.exists():
+            d["gold_fill"] = json.loads(fill.read_text(encoding="utf-8"))
+        again = Path(args.recheck) / f"{iid}.json" if args.recheck else None
+        if again is not None and again.exists():
+            d["recheck"] = json.loads(again.read_text(encoding="utf-8"))["states"]
+        row = rows[iid]
+        imports_t0, scan, hidden = imports_at_t0(row, args.imports)
+        masked_tests = sorted(f for f in fb_ground.mask_files(row["patch"]) if gate.is_test_file(f) and f not in hidden)
+        if masked_tests:   # 隠しのパッチが、消した公式のテスト以外のテストのファイルを変えた（イメージの import と t=0 がずれうる）
+            notes.append({"id": iid, "mask_patch_test_files": masked_tests})
+
+        def patch_of(name, iid=iid, row=row):
+            p = patches.get((name, iid))
+            if p is None:
+                return ""
+            return strip_hidden(p["patch"], row) if p["white"] else p["patch"]
+
+        res = r0_task(d, row, imports_t0, patch_of)
+        res["hidden_excluded"] = len(set(scan["test_imports"]["files"]) & hidden)
+        results.append(res)
+        (Path(args.out) / f"{iid}.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+    lines = r0_lines(results)
+    lines["notes"] = notes
+    (Path(args.out) / "lines.json").write_text(json.dumps(lines, ensure_ascii=False, indent=1), encoding="utf-8")
+    for r in results:
+        for s in r["states"]:
+            if "error" in s:
+                print(f"{r['id'].split('.')[2]:<24} {s['state']:<11} error {s['error']}")
+                continue
+            print(f"{r['id'].split('.')[2]:<24} {s['state']:<11} res={str(s['resolved'])[:1]} "
+                  f"push={int(s['pushed'])} on={int(s['on_target'])} static={s['static_new']} on_s={s['static_new_on_target']} "
+                  f"tests={s['tests_target']} on_t={s['tests_target_on_target']} cls={s['test_classes']} "
+                  f"unk_files={s['unknown_files']} edits={len(s['edits'])} sel={s['selected']} plan={s['plan']} "
+                  f"gap={s['record_gap_files']}")
+    print(json.dumps(lines, ensure_ascii=False, indent=1))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="harness.fb_replay", description=__doc__.splitlines()[0].replace("%", "%%"))
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -599,9 +1012,37 @@ def main(argv=None):
     rg.add_argument("--tasks", required=True)
     rg.add_argument("--gold", required=True)
     rg.add_argument("--out", required=True)
+    sc = sub.add_parser("scan")
+    sc.add_argument("--tasks", required=True)
+    sc.add_argument("--out", required=True)
+    sc.add_argument("--only", nargs="*")
+    r0 = sub.add_parser("r0")
+    r0.add_argument("--tasks", required=True)
+    r0.add_argument("--runs", nargs="+", required=True)
+    r0.add_argument("--stage", required=True, help="段 a の記録の置き場（run3）")
+    r0.add_argument("--imports", required=True, help="scan の置き場")
+    r0.add_argument("--out", required=True)
+    r0.add_argument("--fill", help="fill の置き場（正解の状態の記録不足を埋めた結果）")
+    r0.add_argument("--recheck", help="recheck の置き場（測り直した状態の結果）")
+    fl = sub.add_parser("fill")
+    fl.add_argument("--tasks", required=True)
+    fl.add_argument("--stage", required=True, help="段 a の記録の置き場（run3）")
+    fl.add_argument("--imports", required=True, help="scan の置き場")
+    fl.add_argument("--out", required=True)
+    fl.add_argument("--only", nargs="*", help="ID に含まれる文字列で絞る")
+    rc = sub.add_parser("recheck")
+    rc.add_argument("--tasks", required=True)
+    rc.add_argument("--stage", required=True, help="段 a の記録の置き場（run3）")
+    rc.add_argument("--imports", required=True, help="scan の置き場")
+    rc.add_argument("--runs", nargs="+", required=True)
+    rc.add_argument("--out", required=True)
+    rc.add_argument("--only", nargs="*", help="ID に含まれる文字列で絞る")
+    rc.add_argument("--states", nargs="*",
+                    help="走らせる状態（既定は正解と記録の A のすべて。start は参考の t=0 で、正解の状態と同じファイル）")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.WARNING)
-    return {"run": cmd_run, "summary": cmd_summary, "goldtests": cmd_goldtests, "reground": cmd_reground}[args.cmd](args)
+    return {"run": cmd_run, "summary": cmd_summary, "goldtests": cmd_goldtests, "reground": cmd_reground,
+            "scan": cmd_scan, "r0": cmd_r0, "fill": cmd_fill, "recheck": cmd_recheck}[args.cmd](args)
 
 
 if __name__ == "__main__":

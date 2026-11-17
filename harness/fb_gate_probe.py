@@ -10,7 +10,7 @@ spec の鍵：
   packages：ソースの根の名の並び（例 ["pandas"]）
   ledger_paths：課題の文の口の Path（根からの相対）
   base：始まりのコミット（変えたファイルを git で数える）
-  checks：走らせる確かめ（undefined・imports・attrs・tests・refs）
+  checks：走らせる検査（undefined・imports・attrs・tests・refs・test_imports）
   pyflakes_dir：pyflakes を置いた所
   test_cmd・timeout_one・file_timeout・test_budget：テストの走らせ方
   hidden_tests：消した公式のテストのファイル（選ばない）
@@ -34,7 +34,8 @@ SKIP_DIRS = {"__pycache__", ".git", "build", "dist", "node_modules", ".tox", ".e
 FREE_BASES = {"object", "ABC", "Generic", "Protocol"}
 FREE_MODULES = {"abc", "typing", "typing_extensions"}
 DYNAMIC_METHODS = {"__getattr__", "__getattribute__"}
-PASS_RE = re.compile(r"^(PASSED|FAILED|ERROR|XPASS|XFAIL|SKIPPED)\s+(\S+)(?:\s+-\s+(.*))?$", re.M)
+# -rA の要約の行。conftest が状態の語と項目の間に「| MEM … | DISK … 」のような飾りを入れることがある（mlflow）
+PASS_RE = re.compile(r"^(PASSED|FAILED|ERROR|XPASS|XFAIL|SKIPPED)\s+(?:\|.*?\s(?=\S+\.py))?(\S+)(?:\s+-\s+(.*))?$", re.M)
 
 
 def is_test_file(rel):
@@ -169,16 +170,16 @@ def kill_session(sid):
 
 def run_session(args, timeout, **kw):
     """新しいセッションで走らせ、終わったら（タイムアウトでも）セッションに残ったプロセスを全部止める。
-    (終了コード, 標準出力のバイト列, 止めたプロセスの数)。タイムアウトの終了コードは 124。"""
+    (終了コード, 標準出力のバイト列, 標準エラーのバイト列, 止めたプロセスの数)。タイムアウトの終了コードは 124。"""
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, **kw)
     try:
-        out, _ = p.communicate(timeout=timeout)
+        out, err = p.communicate(timeout=timeout)
         code = p.returncode
     except subprocess.TimeoutExpired:
         kill_session(p.pid)
-        out, _ = p.communicate()
+        out, err = p.communicate()
         code = 124
-    return code, out, kill_session(p.pid)
+    return code, out, err, kill_session(p.pid)
 
 
 def orphans():
@@ -315,8 +316,8 @@ def check_imports(root, files, packages, budget=1500):
         listing = os.path.join("/tmp", "fb_gate_mods.json")
         with open(listing, "w", encoding="utf-8") as f:
             json.dump(todo, f)
-        _, out_b, n = run_session([sys.executable, script, listing], max(60, budget - (time.time() - t0)),
-                                  cwd=root, env=env)
+        _, out_b, _, n = run_session([sys.executable, script, listing], max(60, budget - (time.time() - t0)),
+                                     cwd=root, env=env)
         killed += n
         out = out_b.decode("utf-8", errors="replace")
         started, done = None, False
@@ -640,9 +641,96 @@ def select_tests(root, ledger_paths, changed, hidden):
     return sorted(own), picked, sorted(want)
 
 
+def test_imports(root):
+    """テストのファイルごとの、import するモジュールの名の並び（R0 の群 2・3 を選ぶ材料）。構文木で読むだけで、
+    import もテストもしない。読めないファイルは unparsed に入れる。"""
+    files, unparsed = {}, []
+    for rel in all_test_files(root):
+        try:
+            tree = ast.parse(read(root, rel))
+        except (SyntaxError, ValueError):
+            unparsed.append(rel)
+            continue
+        files[rel] = sorted(imported_modules(tree, module_name(rel), rel.endswith("__init__.py")))
+    return {"files": files, "unparsed": unparsed}
+
+
+def select_tests_r0(imports, ledger_paths, changed):
+    """R0 のテストの選び方（実験と計画 §5-6 の 2）。imports は {t=0 にあるテストのファイル: [import するモジュールの名]}。
+    群 1（own）：候補が足したか変えたテストのファイル（名前が test_ で始まるもの）。群 2（ledger）：台帳の Path の
+    モジュールを import するもの。群 3（changed）：変えたソースのモジュールを import するもの。最上位のモジュールの名
+    （. を含まない名）は選びに使わない（最上位の __init__.py の変更は、ほぼすべてのテストに当たる）。群の中はパスの順で、
+    1 つのファイルは最初に当たった群にだけ入れる。"""
+    def names(paths):
+        found = {module_name(p) for p in paths} - {None}
+        return {n for n in found if "." in n}, {n for n in found if "." not in n}
+
+    want_ledger, top_ledger = names(ledger_paths)
+    want_changed, top_changed = names([c for c in changed if not is_test_file(c)])
+    want_changed -= want_ledger
+    own = sorted(c for c in changed if c.endswith(".py") and is_test_file(c) and os.path.basename(c).startswith("test_"))
+    taken = set(own)
+    ledger = sorted(rel for rel, mods in imports.items() if rel not in taken and set(mods) & want_ledger)
+    taken |= set(ledger)
+    other = sorted(rel for rel, mods in imports.items() if rel not in taken and set(mods) & want_changed)
+    return {"own": own, "ledger": ledger, "changed": other, "want_ledger": sorted(want_ledger),
+            "want_changed": sorted(want_changed), "top_level_dropped": sorted(top_ledger | top_changed)}
+
+
+# R0 の環境の型（実験と計画 §5-6 の 4）。E1〜E6 は押し返さない。U は誤りの文が空で判別できない。
+NETWORK_WORDS = ("URLError", "urlopen error", "Name or service not known", "Temporary failure in name resolution",
+                 "Network is unreachable", "Connection refused", "ConnectionError", "Max retries exceeded", "gaierror",
+                 "auto-update failed", "is expired")
+_NO_MODULE_RE = re.compile(r"No module named '([^']+)'")
+_NO_ATTR_RE = re.compile(r"module '([^']+)' has no attribute")
+_CANNOT_IMPORT_RE = re.compile(r"cannot import name '[^']+' from '([^']+)'")
+_PATH_ERROR_RE = re.compile(r"\b(?:FileNotFoundError|NotADirectoryError|IsADirectoryError|PermissionError)\b.*?'(/[^']*)'")
+_TEST_TIMEOUT_RE = re.compile(r"Timeout \(>[0-9.]+s\) from pytest-timeout")
+
+
+def failure_class(msg, packages, root="/testbed"):
+    """テストの落ちの原因の型：E1〜E6（環境）・U（誤りの文が空）・target（押し返す）。packages は対象のパッケージの名。
+    対象のパッケージの名に当たる No module named・has no attribute・cannot import name は、消された部品の穴として target。"""
+    text = (msg or "").strip()
+    if not text:
+        return "U"
+    tops = set(packages or [])
+
+    def outside(name):
+        return name.split(".")[0] not in tops
+
+    m = _NO_MODULE_RE.search(text)
+    if m:
+        return "E2" if outside(m.group(1)) else "target"
+    for rx in (_NO_ATTR_RE, _CANNOT_IMPORT_RE):
+        m = rx.search(text)
+        if m:
+            return "E3" if outside(m.group(1)) else "target"
+    m = _PATH_ERROR_RE.search(text)
+    base = root.rstrip("/")
+    if m and not (m.group(1) == base or m.group(1).startswith(base + "/")):
+        return "E4"
+    if "exited with return code" in text or "command not found" in text:
+        return "E5"
+    if _TEST_TIMEOUT_RE.search(text):
+        return "E6"
+    if any(w in text for w in NETWORK_WORDS):
+        return "E1"
+    return "target"
+
+
+def error_line(text):
+    """pytest の誤りの本文（JUnit XML の誤りの本文か、標準エラー）から原因の 1 行：最後の「E 」の行（pytest が
+    例外を示す行）。無ければ最後の行。"""
+    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
+    marked = [ln[1:].strip() for ln in lines if ln.startswith("E ")]
+    return (marked[-1] if marked else (lines[-1] if lines else ""))[:300]
+
+
 def junit_messages(path):
     """JUnit XML（pytest --junitxml）から、落ちた項目の (クラスの名か None, 項目の名) → 落ちの 1 行。
-    端末の幅で切れない落ちの文を取るため（端末の幅の環境変数は、表示を確かめるテストを変えるので触らない）。"""
+    端末の幅で切れない落ちの文を取るため（端末の幅の環境変数は、表示を確かめるテストを変えるので触らない）。
+    収集の誤りは message が "collection failure" に決まっているので、本文から原因の行を取る。"""
     import xml.etree.ElementTree as ET
     out = {}
     try:
@@ -655,16 +743,18 @@ def junit_messages(path):
             if el is not None:
                 cls = (tc.get("classname") or "").rsplit(".", 1)[-1]
                 key = (cls if cls[:1].isupper() else None, tc.get("name") or "")
-                msg = (el.get("message") or (el.text or "").strip().splitlines()[-1:] or [""])
-                out[key] = (msg if isinstance(msg, str) else msg[0])[:300]
+                msg = el.get("message") or ""
+                if not msg or msg == "collection failure":
+                    msg = error_line(el.text) or msg
+                out[key] = msg[:300]
                 break
     return out
 
 
 def node_key(node):
     parts = node.split("::")[1:]
-    if not parts:
-        return (None, node)
+    if not parts:   # ファイルの収集の誤り。JUnit XML の名は、パスをドットでつないだモジュールの名
+        return (None, re.sub(r"\.py$", "", node).replace("/", "."))
     return (parts[-2] if len(parts) >= 2 else None, parts[-1])
 
 
@@ -680,21 +770,27 @@ def run_tests(root, files, test_cmd, timeout_one, file_timeout, budget):
         cmd = (f"timeout {int(file_timeout)} {test_cmd} -p no:cacheprovider --timeout={int(timeout_one)} "
                f"--junitxml={xml} {rel}")
         s = time.time()
-        code, out_b, n = run_session(["bash", "-c", cmd], int(file_timeout) + 60, cwd=root,
-                                     env=dict(os.environ, MPLBACKEND="Agg", PYTHONDONTWRITEBYTECODE="1"))
+        code, out_b, err_b, n = run_session(["bash", "-c", cmd], int(file_timeout) + 60, cwd=root,
+                                            env=dict(os.environ, MPLBACKEND="Agg", PYTHONDONTWRITEBYTECODE="1"))
         killed += n
         p = subprocess.CompletedProcess(cmd, code)
         out = out_b.decode("utf-8", errors="replace")
+        err = err_b.decode("utf-8", errors="replace")
         msgs = junit_messages(xml)
-        counts = {}
+        counts, before = {}, len(failed)
         for m in PASS_RE.finditer(out):
             counts[m.group(1)] = counts.get(m.group(1), 0) + 1
             if m.group(1) in ("FAILED", "ERROR"):
                 node = m.group(2)
                 failed.append({"node": node, "kind": m.group(1),
                                "msg": msgs.get(node_key(node)) or (m.group(3) or "")[:300]})
+        if p.returncode not in (0, 1, 5, 124) and len(failed) == before:
+            # 項目の行が無い終わり（符号 4：conftest の import の誤りや使い方の誤りなど。原因は標準エラーに出る）
+            failed.append({"node": rel, "kind": "ERROR", "file_level": True,
+                           "msg": error_line(err) or error_line(out)})
         results[rel] = {"rc": p.returncode, "secs": round(time.time() - s, 1), "counts": counts,
-                        "timeout": p.returncode == 124, "tail": out[-300:] if p.returncode not in (0, 1) else ""}
+                        "timeout": p.returncode == 124, "tail": out[-300:] if p.returncode not in (0, 1) else "",
+                        "err_tail": err[-300:] if p.returncode not in (0, 1) else ""}
     return {"files": results, "failed": failed, "not_run": not_run, "killed_leftovers": killed}
 
 
@@ -761,6 +857,8 @@ def main():
         timed("attrs", lambda: check_attrs(root, files))
     if "refs" in checks:
         timed("refs", lambda: check_refs(root, files, spec.get("names") or [], spec.get("literals") or []))
+    if "test_imports" in checks:
+        timed("test_imports", lambda: test_imports(root))
     if "tests" in checks:
         changed = git_changed(root, spec.get("base"))
         if spec.get("test_files") is not None:   # 決めたファイルだけを走らせる（正解の状態で、A の状態と同じファイルを当て直すため）
