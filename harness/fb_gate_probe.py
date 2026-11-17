@@ -34,7 +34,8 @@ SKIP_DIRS = {"__pycache__", ".git", "build", "dist", "node_modules", ".tox", ".e
 FREE_BASES = {"object", "ABC", "Generic", "Protocol"}
 FREE_MODULES = {"abc", "typing", "typing_extensions"}
 DYNAMIC_METHODS = {"__getattr__", "__getattribute__"}
-PASS_RE = re.compile(r"^(PASSED|FAILED|ERROR|XPASS|XFAIL|SKIPPED)\s+(\S+)(?:\s+-\s+(.*))?$", re.M)
+# -rA の要約の行。conftest が状態の語と項目の間に「| MEM … | DISK … 」のような飾りを入れることがある（mlflow）
+PASS_RE = re.compile(r"^(PASSED|FAILED|ERROR|XPASS|XFAIL|SKIPPED)\s+(?:\|.*?\s(?=\S+\.py))?(\S+)(?:\s+-\s+(.*))?$", re.M)
 
 
 def is_test_file(rel):
@@ -169,16 +170,16 @@ def kill_session(sid):
 
 def run_session(args, timeout, **kw):
     """新しいセッションで走らせ、終わったら（タイムアウトでも）セッションに残ったプロセスを全部止める。
-    (終了コード, 標準出力のバイト列, 止めたプロセスの数)。タイムアウトの終了コードは 124。"""
+    (終了コード, 標準出力のバイト列, 標準エラーのバイト列, 止めたプロセスの数)。タイムアウトの終了コードは 124。"""
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, **kw)
     try:
-        out, _ = p.communicate(timeout=timeout)
+        out, err = p.communicate(timeout=timeout)
         code = p.returncode
     except subprocess.TimeoutExpired:
         kill_session(p.pid)
-        out, _ = p.communicate()
+        out, err = p.communicate()
         code = 124
-    return code, out, kill_session(p.pid)
+    return code, out, err, kill_session(p.pid)
 
 
 def orphans():
@@ -315,8 +316,8 @@ def check_imports(root, files, packages, budget=1500):
         listing = os.path.join("/tmp", "fb_gate_mods.json")
         with open(listing, "w", encoding="utf-8") as f:
             json.dump(todo, f)
-        _, out_b, n = run_session([sys.executable, script, listing], max(60, budget - (time.time() - t0)),
-                                  cwd=root, env=env)
+        _, out_b, _, n = run_session([sys.executable, script, listing], max(60, budget - (time.time() - t0)),
+                                     cwd=root, env=env)
         killed += n
         out = out_b.decode("utf-8", errors="replace")
         started, done = None, False
@@ -718,9 +719,18 @@ def failure_class(msg, packages, root="/testbed"):
     return "target"
 
 
+def error_line(text):
+    """pytest の誤りの本文（JUnit XML の誤りの本文か、標準エラー）から原因の 1 行：最後の「E 」の行（pytest が
+    例外を示す行）。無ければ最後の行。"""
+    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
+    marked = [ln[1:].strip() for ln in lines if ln.startswith("E ")]
+    return (marked[-1] if marked else (lines[-1] if lines else ""))[:300]
+
+
 def junit_messages(path):
     """JUnit XML（pytest --junitxml）から、落ちた項目の (クラスの名か None, 項目の名) → 落ちの 1 行。
-    端末の幅で切れない落ちの文を取るため（端末の幅の環境変数は、表示を確かめるテストを変えるので触らない）。"""
+    端末の幅で切れない落ちの文を取るため（端末の幅の環境変数は、表示を確かめるテストを変えるので触らない）。
+    収集の誤りは message が "collection failure" に決まっているので、本文から原因の行を取る。"""
     import xml.etree.ElementTree as ET
     out = {}
     try:
@@ -733,16 +743,18 @@ def junit_messages(path):
             if el is not None:
                 cls = (tc.get("classname") or "").rsplit(".", 1)[-1]
                 key = (cls if cls[:1].isupper() else None, tc.get("name") or "")
-                msg = (el.get("message") or (el.text or "").strip().splitlines()[-1:] or [""])
-                out[key] = (msg if isinstance(msg, str) else msg[0])[:300]
+                msg = el.get("message") or ""
+                if not msg or msg == "collection failure":
+                    msg = error_line(el.text) or msg
+                out[key] = msg[:300]
                 break
     return out
 
 
 def node_key(node):
     parts = node.split("::")[1:]
-    if not parts:
-        return (None, node)
+    if not parts:   # ファイルの収集の誤り。JUnit XML の名は、パスをドットでつないだモジュールの名
+        return (None, re.sub(r"\.py$", "", node).replace("/", "."))
     return (parts[-2] if len(parts) >= 2 else None, parts[-1])
 
 
@@ -758,21 +770,27 @@ def run_tests(root, files, test_cmd, timeout_one, file_timeout, budget):
         cmd = (f"timeout {int(file_timeout)} {test_cmd} -p no:cacheprovider --timeout={int(timeout_one)} "
                f"--junitxml={xml} {rel}")
         s = time.time()
-        code, out_b, n = run_session(["bash", "-c", cmd], int(file_timeout) + 60, cwd=root,
-                                     env=dict(os.environ, MPLBACKEND="Agg", PYTHONDONTWRITEBYTECODE="1"))
+        code, out_b, err_b, n = run_session(["bash", "-c", cmd], int(file_timeout) + 60, cwd=root,
+                                            env=dict(os.environ, MPLBACKEND="Agg", PYTHONDONTWRITEBYTECODE="1"))
         killed += n
         p = subprocess.CompletedProcess(cmd, code)
         out = out_b.decode("utf-8", errors="replace")
+        err = err_b.decode("utf-8", errors="replace")
         msgs = junit_messages(xml)
-        counts = {}
+        counts, before = {}, len(failed)
         for m in PASS_RE.finditer(out):
             counts[m.group(1)] = counts.get(m.group(1), 0) + 1
             if m.group(1) in ("FAILED", "ERROR"):
                 node = m.group(2)
                 failed.append({"node": node, "kind": m.group(1),
                                "msg": msgs.get(node_key(node)) or (m.group(3) or "")[:300]})
+        if p.returncode not in (0, 1, 5, 124) and len(failed) == before:
+            # 項目の行が無い終わり（符号 4：conftest の import の誤りや使い方の誤りなど。原因は標準エラーに出る）
+            failed.append({"node": rel, "kind": "ERROR", "file_level": True,
+                           "msg": error_line(err) or error_line(out)})
         results[rel] = {"rc": p.returncode, "secs": round(time.time() - s, 1), "counts": counts,
-                        "timeout": p.returncode == 124, "tail": out[-300:] if p.returncode not in (0, 1) else ""}
+                        "timeout": p.returncode == 124, "tail": out[-300:] if p.returncode not in (0, 1) else "",
+                        "err_tail": err[-300:] if p.returncode not in (0, 1) else ""}
     return {"files": results, "failed": failed, "not_run": not_run, "killed_leftovers": killed}
 
 

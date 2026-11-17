@@ -9,6 +9,7 @@ WSL の FeatureBench の venv で、FeatureBench の評価と同じ手順で課�
     python -m harness.fb_replay scan --tasks <ID の並びのファイル> --out <置き場> [--only pandas]
     python -m harness.fb_replay r0 --tasks <ID の並び> --runs <ランの置き場>... --stage <run3> --imports <scan の置き場> --out <置き場> [--fill <fill の置き場>]
     python -m harness.fb_replay fill --tasks <ID の並び> --stage <run3> --imports <scan の置き場> --out <置き場> [--only http_headers]
+    python -m harness.fb_replay recheck --tasks <ID の並び> --runs <ランの置き場>... --stage <run3> --imports <scan の置き場> --out <置き場> [--only mlflow]
 
 scan はイメージのテストのファイルごとの import を読み（import もテストもしない）、r0 は段 a の記録に、正解を使わない
 第 1 関門の読み R0（実験と計画 §5-6）を当てて数える（G0-3。コンテナは使わない）。fill は、正解の状態で R0 が選ぶ
@@ -688,11 +689,15 @@ def existing_test_edits(patch):
 def state_tests(d, c):
     """1 つの状態の run3 のテストの結果：({ファイル: rc・secs・timeout}, {ファイル: [落ちた項目]})。
     正解の状態は、当て直した分（gold_retest）と、記録不足を埋めた分（gold_fill。fill の結果）も足す
-    （ファイルは重ならない。重なれば先のものを使う）。"""
-    parts = [c.get("tests") or {}]
-    if c.get("name") == "gold":
-        parts.append((d.get("gold_retest") or {}).get("tests") or {})
-        parts.append((d.get("gold_fill") or {}).get("tests") or {})
+    （ファイルは重ならない。重なれば先のものを使う）。測り直した状態（recheck）は、その結果だけを使う。"""
+    again = (d.get("recheck") or {}).get(c.get("name"))
+    if again is not None:   # 測り直した状態（recheck）は、その結果だけを使う
+        parts = [again.get("tests") or {}]
+    else:
+        parts = [c.get("tests") or {}]
+        if c.get("name") == "gold":
+            parts.append((d.get("gold_retest") or {}).get("tests") or {})
+            parts.append((d.get("gold_fill") or {}).get("tests") or {})
     files, failed = {}, {}
     for t in parts:
         mine = {rel: rec for rel, rec in (t.get("files") or {}).items() if rel not in files}
@@ -863,9 +868,80 @@ def cmd_fill(args):
               flush=True)
 
 
+def cmd_recheck(args):
+    """状態をまるごと測り直す（利用枠 0）。run3 の probe は、mlflow の要約の行（conftest の飾り付き）を読めず、
+    収集の誤りの本文と標準エラーも残していなかった。今の probe で、課題の正解と記録の A のパッチの状態ごとに、
+    その状態の R0 の順のファイルを、run3 と同じ走らせ方（1 ファイル 300 秒）で走らせ、<out>/<ID>.json に書く。
+    r0 の --recheck で、その状態の記録を差し替える。時間の割り当て（300 秒）は r0 の plan_budget が当てる。"""
+    from collections import Counter
+    from featurebench.utils.runtime_config import parse_docker_runtime_config
+    ids = [x.strip() for x in Path(args.tasks).read_text(encoding="utf-8").splitlines() if x.strip()]
+    ids = [i for i in ids if not args.only or any(o in i for o in args.only)]
+    rows = load_rows(ids)
+    patches = {(p["label"], p["id"]): p for p in a_patches(args.runs, set(ids))}
+    Path(args.out).mkdir(parents=True, exist_ok=True)
+    for iid in ids:
+        out_path = Path(args.out) / f"{iid}.json"
+        tag = f"{iid.split('.')[0]}.{iid.split('.')[2]}"
+        if out_path.exists():
+            print(f"{tag} skip", flush=True)
+            continue
+        d = json.loads((Path(args.stage) / f"{iid}.json").read_text(encoding="utf-8"))
+        row = rows[iid]
+        imports_t0, _, _ = imports_at_t0(row, args.imports)
+        ledger = statement_paths(row["problem_statement"])
+        jobs = []
+        for c in d["candidates"]:
+            if c["name"] == "start" or not c.get("applied", True) or "error" in c:
+                continue
+            if c["name"] == "gold":
+                patch = gold_patch(row)
+            else:
+                p = patches[(c["name"], iid)]
+                patch = strip_hidden(p["patch"], row) if p["white"] else p["patch"]
+            _, order = r0_order(imports_t0, ledger, c.get("changed") or [])
+            jobs.append((c["name"], patch, order, sorted(c.get("changed") or [])))
+        rs = repo_settings(row)
+        t0 = time.time()
+        box = Box(row["image_name"], f"fbrecheck-{os.getpid()}-{int(time.time())}", parse_docker_runtime_config(rs))
+        states = {}
+        try:
+            base, _ = prepare(box, row)
+            for name, patch, order, changed in jobs:
+                reset(box, base)
+                box.put("/tmp/cand.patch", patch if patch.endswith("\n") else patch + "\n")
+                code, out = box.exec("cd /testbed && git apply --whitespace=fix /tmp/cand.patch")
+                if code != 0:
+                    raise RuntimeError(f"{name} apply failed: {out[-300:]}")
+                clear_bytecode(box)
+                spec = {"root": "/testbed", "packages": packages_of(row), "checks": ["tests"], "test_files": order,
+                        "base": base, "test_cmd": rs.get("test_cmd") or "pytest -rA -p no:cacheprovider --color=no",
+                        "timeout_one": rs.get("timeout_one") or 10, "file_timeout": R0_FILE_TIMEOUT,
+                        "test_budget": R0_BUDGET + 30, "pyflakes_dir": TOOLS_DIR}   # 余りは fill と同じ
+                r = probe(box, spec)
+                r.update({"applied": True, "changed_same_as_run3": sorted(r.get("changed") or []) == changed})
+                states[name] = r
+            _, procs = box.exec("ps -eo comm= | sort | uniq -c | sort -rn")
+        finally:
+            box.close()
+        for name, r in states.items():
+            t = r.get("tests") or {}
+            for x in t.get("failed") or []:
+                x["class"] = gate.failure_class(x.get("msg"), packages_of(row))
+            r["classes"] = dict(Counter(x["class"] for x in t.get("failed") or []))
+            rc = dict(Counter(str(v.get("rc")) for v in (t.get("files") or {}).values()))
+            print(f"{tag} {name} ran={len(t.get('files') or {})} not_run={len(t.get('not_run') or [])} rc={rc} "
+                  f"classes={r['classes']} tests={r.get('secs', {}).get('tests')}s changed_same={r['changed_same_as_run3']} "
+                  f"orphans_after={len(r.get('orphans_after') or [])} killed={t.get('killed_leftovers')} "
+                  f"error={r.get('error')}", flush=True)
+        out_path.write_text(json.dumps({"id": iid, "states": states, "wall": round(time.time() - t0, 1),
+                                        "procs_after": procs.strip()}, ensure_ascii=False), encoding="utf-8")
+        print(f"{tag} wall={round(time.time() - t0, 1)}s procs_after={procs.strip().replace(chr(10), ' |')}", flush=True)
+
+
 def cmd_r0(args):
     """run3 の記録に R0 を当てて数える（G0-3）。コンテナは使わない（テストの import は scan の結果を読む）。
-    --fill を渡すと、fill の結果を正解の状態の記録に足す。"""
+    --fill を渡すと、fill の結果を正解の状態の記録に足し、--recheck を渡すと、測り直した状態の記録を差し替える。"""
     ids = [x.strip() for x in Path(args.tasks).read_text(encoding="utf-8").splitlines() if x.strip()]
     rows = load_rows(ids)
     patches = {(p["label"], p["id"]): p for p in a_patches(args.runs, set(ids))}
@@ -876,6 +952,9 @@ def cmd_r0(args):
         fill = Path(args.fill) / f"{iid}.json" if args.fill else None
         if fill is not None and fill.exists():
             d["gold_fill"] = json.loads(fill.read_text(encoding="utf-8"))
+        again = Path(args.recheck) / f"{iid}.json" if args.recheck else None
+        if again is not None and again.exists():
+            d["recheck"] = json.loads(again.read_text(encoding="utf-8"))["states"]
         row = rows[iid]
         imports_t0, scan, hidden = imports_at_t0(row, args.imports)
         masked_tests = sorted(f for f in fb_ground.mask_files(row["patch"]) if gate.is_test_file(f) and f not in hidden)
@@ -938,16 +1017,24 @@ def main(argv=None):
     r0.add_argument("--imports", required=True, help="scan の置き場")
     r0.add_argument("--out", required=True)
     r0.add_argument("--fill", help="fill の置き場（正解の状態の記録不足を埋めた結果）")
+    r0.add_argument("--recheck", help="recheck の置き場（測り直した状態の結果）")
     fl = sub.add_parser("fill")
     fl.add_argument("--tasks", required=True)
     fl.add_argument("--stage", required=True, help="段 a の記録の置き場（run3）")
     fl.add_argument("--imports", required=True, help="scan の置き場")
     fl.add_argument("--out", required=True)
     fl.add_argument("--only", nargs="*", help="ID に含まれる文字列で絞る")
+    rc = sub.add_parser("recheck")
+    rc.add_argument("--tasks", required=True)
+    rc.add_argument("--stage", required=True, help="段 a の記録の置き場（run3）")
+    rc.add_argument("--imports", required=True, help="scan の置き場")
+    rc.add_argument("--runs", nargs="+", required=True)
+    rc.add_argument("--out", required=True)
+    rc.add_argument("--only", nargs="*", help="ID に含まれる文字列で絞る")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.WARNING)
     return {"run": cmd_run, "summary": cmd_summary, "goldtests": cmd_goldtests, "reground": cmd_reground,
-            "scan": cmd_scan, "r0": cmd_r0, "fill": cmd_fill}[args.cmd](args)
+            "scan": cmd_scan, "r0": cmd_r0, "fill": cmd_fill, "recheck": cmd_recheck}[args.cmd](args)
 
 
 if __name__ == "__main__":

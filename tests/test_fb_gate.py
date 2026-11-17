@@ -3,6 +3,7 @@
     python -m unittest tests.test_fb_gate -v
 """
 import os
+import shlex
 import sys
 import tempfile
 import textwrap
@@ -247,6 +248,43 @@ class ProbeTest(unittest.TestCase):
         self.assertEqual(msgs[probe.node_key("pkg/tests/test_stats.py::TestK::test_b")], "NameError: name 'x' is not defined")
         self.assertEqual(len(msgs), 2)
 
+    def test_junit_collection_failure_reads_the_body(self):
+        xml = Path(self.root) / "j.xml"
+        xml.write_text(textwrap.dedent("""\
+            <testsuites><testsuite>
+            <testcase classname="" name="tests.dspy.test_save"><error message="collection failure">ImportError while importing test module '/testbed/tests/dspy/test_save.py'.
+            Traceback:
+            tests/dspy/test_save.py:3: in &lt;module&gt;
+                import dspy
+            E   ModuleNotFoundError: No module named 'dspy'</error></testcase>
+            </testsuite></testsuites>
+            """), encoding="utf-8")
+        msgs = probe.junit_messages(str(xml))
+        self.assertEqual(msgs[probe.node_key("tests/dspy/test_save.py")], "ModuleNotFoundError: No module named 'dspy'")
+
+    def test_summary_lines_with_decoration(self):
+        out = textwrap.dedent("""\
+            PASSED tests/a.py::test_ok
+            FAILED tests/a.py::test_b - AssertionError: x
+            ERROR tests/dspy/test_save.py
+            PASSED | MEM 1.0/15.5 GB | DISK 270.8/1006.9 GB tests/server/test_handlers.py::test_health
+            FAILED | MEM 1.0/15.5 GB | DISK 270.8/1006.9 GB tests/server/test_handlers.py::test_repo[wasbs://c@a.net/b-Azure] - KeyError: 'X'
+            SKIPPED [1] tests/a.py:3: no db
+            tests/server/test_handlers.py::test_health PASSED | MEM 0
+            """)
+        got = [(m.group(1), m.group(2), m.group(3)) for m in probe.PASS_RE.finditer(out)]
+        self.assertEqual(got, [("PASSED", "tests/a.py::test_ok", None),
+                               ("FAILED", "tests/a.py::test_b", "AssertionError: x"),
+                               ("ERROR", "tests/dspy/test_save.py", None),
+                               ("PASSED", "tests/server/test_handlers.py::test_health", None),
+                               ("FAILED", "tests/server/test_handlers.py::test_repo[wasbs://c@a.net/b-Azure]", "KeyError: 'X'")])
+
+    def test_error_line(self):
+        self.assertEqual(probe.error_line("a\nE   KeyError: 'X'\n  more\nE   SystemExit: 1\n"), "SystemExit: 1")
+        self.assertEqual(probe.error_line("ERROR: usage: pytest\nerror: unrecognized arguments: --x\n"),
+                         "error: unrecognized arguments: --x")
+        self.assertEqual(probe.error_line(""), "")
+
     def test_refs(self):
         res = probe.check_refs(self.root, probe.source_files(self.root, ["pkg"]), ["_eval_univariate", "gone"],
                                ["return  SELF.step()", "absent text"])
@@ -305,15 +343,29 @@ class BuildGuardTest(unittest.TestCase):
 
     @unittest.skipUnless(os.path.isdir("/proc/self"), "needs /proc (runs in the task box and on Linux)")
     def test_run_session_kills_grandchildren(self):
-        code, out, killed = probe.run_session(
-            ["bash", "-c", "sleep 300 >/dev/null 2>&1 & sleep 300 >/dev/null 2>&1 & echo started"], 30)
+        code, out, err, killed = probe.run_session(
+            ["bash", "-c", "sleep 300 >/dev/null 2>&1 & sleep 300 >/dev/null 2>&1 & echo started; echo oops >&2"], 30)
         self.assertEqual(code, 0)
         self.assertIn(b"started", out)
+        self.assertEqual(err, b"oops\n")
         self.assertEqual(killed, 2)
 
     @unittest.skipUnless(os.path.isdir("/proc/self"), "needs /proc (runs in the task box and on Linux)")
+    def test_run_tests_keeps_the_cause_of_an_exit_without_items(self):
+        # 符号 4（conftest の import の誤り）は、項目の行が無く、原因は標準エラーに出る
+        script = ("echo \"ImportError while loading conftest '/testbed/tests/dspy/conftest.py'.\" >&2; "
+                  "echo \"E   ModuleNotFoundError: No module named 'dspy'\" >&2; exit 4")
+        with tempfile.TemporaryDirectory() as root:
+            res = probe.run_tests(root, ["tests/dspy/test_save.py"], f"bash -c {shlex.quote(script)} x", 10, 30, 60)
+        rec = res["files"]["tests/dspy/test_save.py"]
+        self.assertEqual(rec["rc"], 4)
+        self.assertIn("ImportError while loading conftest", rec["err_tail"])
+        self.assertEqual(res["failed"], [{"node": "tests/dspy/test_save.py", "kind": "ERROR", "file_level": True,
+                                          "msg": "ModuleNotFoundError: No module named 'dspy'"}])
+
+    @unittest.skipUnless(os.path.isdir("/proc/self"), "needs /proc (runs in the task box and on Linux)")
     def test_run_session_timeout(self):
-        code, _, killed = probe.run_session(["bash", "-c", "sleep 300"], 1)
+        code, _, _, killed = probe.run_session(["bash", "-c", "sleep 300"], 1)
         self.assertEqual(code, 124)
         self.assertEqual(killed, 0)       # 時間切れで止めた後、残りは無い
 
@@ -461,6 +513,17 @@ class R0ReplayTest(unittest.TestCase):
         self.assertEqual([x["node"] for x in failed["t3.py"]], ["t3.py::c"])
         a_files, _ = replay.state_tests(d, dict(c, name="runs_x01"))            # A の状態には足さない
         self.assertEqual(a_files, {"t1.py": {"rc": 1, "secs": 1}})
+
+    def test_state_tests_recheck_replaces_the_state(self):
+        again = {"tests": {"files": {"t9.py": {"rc": 1, "secs": 3}},
+                           "failed": [{"node": "t9.py::k", "kind": "FAILED", "msg": "KeyError: 'X'"}]}}
+        d = {"recheck": {"runs_x01l": again}, "gold_retest": {"tests": {"files": {"t2.py": {"rc": 0, "secs": 1}}}}}
+        c = {"name": "runs_x01l", "tests": {"files": {"t1.py": {"rc": 1, "secs": 1}}, "failed": []}}
+        files, failed = replay.state_tests(d, c)
+        self.assertEqual(files, {"t9.py": {"rc": 1, "secs": 3}})
+        self.assertEqual([x["node"] for x in failed["t9.py"]], ["t9.py::k"])
+        g_files, _ = replay.state_tests(d, {"name": "gold", "tests": {"files": {"t1.py": {"rc": 0, "secs": 2}}}})
+        self.assertEqual(sorted(g_files), ["t1.py", "t2.py"])                  # 測り直していない状態は今までどおり
 
     def test_r0_state_pushes_target_new_static_and_edits_only(self):
         start = {"undefined": [{"file": "pkg/a.py", "kind": "UndefinedName", "name": "old_noise"}],
