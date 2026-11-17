@@ -449,6 +449,19 @@ class R0ReplayTest(unittest.TestCase):
         self.assertEqual([x["node"] for x in failed["t1.py"]], ["t1.py::a"])   # 重なったファイルは先のものだけ
         self.assertEqual([x["node"] for x in failed["t2.py"]], ["t2.py::b"])
 
+    def test_state_tests_adds_gold_fill_after_run3(self):
+        d = {"gold_fill": {"tests": {"files": {"t3.py": {"rc": 1, "secs": 4}, "t1.py": {"rc": 0, "secs": 9}},
+                                     "failed": [{"node": "t3.py::c", "kind": "ERROR", "msg": "NameError: x"},
+                                                {"node": "t1.py::q", "kind": "FAILED", "msg": "later"}]}}}
+        c = {"name": "gold", "tests": {"files": {"t1.py": {"rc": 1, "secs": 1}},
+                                       "failed": [{"node": "t1.py::a", "kind": "FAILED", "msg": "y"}]}}
+        files, failed = replay.state_tests(d, c)
+        self.assertEqual(files, {"t1.py": {"rc": 1, "secs": 1}, "t3.py": {"rc": 1, "secs": 4}})
+        self.assertEqual([x["node"] for x in failed["t1.py"]], ["t1.py::a"])   # run3 の記録が先
+        self.assertEqual([x["node"] for x in failed["t3.py"]], ["t3.py::c"])
+        a_files, _ = replay.state_tests(d, dict(c, name="runs_x01"))            # A の状態には足さない
+        self.assertEqual(a_files, {"t1.py": {"rc": 1, "secs": 1}})
+
     def test_r0_state_pushes_target_new_static_and_edits_only(self):
         start = {"undefined": [{"file": "pkg/a.py", "kind": "UndefinedName", "name": "old_noise"}],
                  "imports": {"failed": []}, "attrs": {"flags": []}}
