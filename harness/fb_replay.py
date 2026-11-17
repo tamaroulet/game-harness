@@ -890,9 +890,11 @@ def cmd_recheck(args):
         row = rows[iid]
         imports_t0, _, _ = imports_at_t0(row, args.imports)
         ledger = statement_paths(row["problem_statement"])
-        jobs = []
+        jobs, keep = [], set(args.states or [])
         for c in d["candidates"]:
             if c["name"] == "start" or not c.get("applied", True) or "error" in c:
+                continue
+            if keep and c["name"] not in keep and not (c["name"] == "gold" and "start" in keep):
                 continue
             if c["name"] == "gold":
                 patch = gold_patch(row)
@@ -900,7 +902,10 @@ def cmd_recheck(args):
                 p = patches[(c["name"], iid)]
                 patch = strip_hidden(p["patch"], row) if p["white"] else p["patch"]
             _, order = r0_order(imports_t0, ledger, c.get("changed") or [])
-            jobs.append((c["name"], patch, order, sorted(c.get("changed") or [])))
+            if c["name"] == "gold" and "start" in keep:   # 参考：t=0 で、正解の状態と同じファイルを走らせる
+                jobs.insert(0, ("start", None, order, []))
+            if not keep or c["name"] in keep:
+                jobs.append((c["name"], patch, order, sorted(c.get("changed") or [])))
         rs = repo_settings(row)
         t0 = time.time()
         box = Box(row["image_name"], f"fbrecheck-{os.getpid()}-{int(time.time())}", parse_docker_runtime_config(rs))
@@ -909,11 +914,12 @@ def cmd_recheck(args):
             base, _ = prepare(box, row)
             for name, patch, order, changed in jobs:
                 reset(box, base)
-                box.put("/tmp/cand.patch", patch if patch.endswith("\n") else patch + "\n")
-                code, out = box.exec("cd /testbed && git apply --whitespace=fix /tmp/cand.patch")
-                if code != 0:
-                    raise RuntimeError(f"{name} apply failed: {out[-300:]}")
-                clear_bytecode(box)
+                if patch is not None:
+                    box.put("/tmp/cand.patch", patch if patch.endswith("\n") else patch + "\n")
+                    code, out = box.exec("cd /testbed && git apply --whitespace=fix /tmp/cand.patch")
+                    if code != 0:
+                        raise RuntimeError(f"{name} apply failed: {out[-300:]}")
+                    clear_bytecode(box)
                 spec = {"root": "/testbed", "packages": packages_of(row), "checks": ["tests"], "test_files": order,
                         "base": base, "test_cmd": rs.get("test_cmd") or "pytest -rA -p no:cacheprovider --color=no",
                         "timeout_one": rs.get("timeout_one") or 10, "file_timeout": R0_FILE_TIMEOUT,
@@ -1031,6 +1037,8 @@ def main(argv=None):
     rc.add_argument("--runs", nargs="+", required=True)
     rc.add_argument("--out", required=True)
     rc.add_argument("--only", nargs="*", help="ID に含まれる文字列で絞る")
+    rc.add_argument("--states", nargs="*",
+                    help="走らせる状態（既定は正解と記録の A のすべて。start は参考の t=0 で、正解の状態と同じファイル）")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.WARNING)
     return {"run": cmd_run, "summary": cmd_summary, "goldtests": cmd_goldtests, "reground": cmd_reground,
