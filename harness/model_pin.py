@@ -116,6 +116,9 @@ def agent_configs(root=ROOT):
     if p.exists():
         for name, b in sorted(json.loads(p.read_text(encoding="utf-8")).get("backends", {}).items()):
             out.append((f"config/research.json の backends.{name}", b, "model_name" if b.get("cli") == "agy" else "model"))
+    p = Path(root) / "config" / "fb_agy.json"   # FeatureBench の fb infer で走らせる agy（harness/fb_agy.py）
+    if p.exists():
+        out.append(("config/fb_agy.json", json.loads(p.read_text(encoding="utf-8")), "model_name"))
     return out
 
 
