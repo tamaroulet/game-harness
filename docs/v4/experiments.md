@@ -502,6 +502,22 @@ FeatureBench のコードは書き換えない（コミット 08b25d9 のまま�
   - run3 は t=0 でテストを走らせていないので、下の「実走での足し」（t=0 の同じ落ちを除く）は測れない。その分、正解の状態の誤った押し返しは高めに出うる。
   - 時間は、run3 のコンテナでの 1 回の測定を使う。
 
+#### G0-3 の結果（2026-11-17。利用枠 0）
+
+- 実行：6 つのイメージで、テストのファイルの import を読んだ（seaborn 34・astropy 357・pandas 969・mlflow 593・sphinx 139・sympy 626。読めないファイル 0・孤児プロセス 0。pandas で先に確認した）。R0 の集計はコンテナを使わず、run3 の記録だけで行った（harness/fb_replay.py の r0）。
+- 判定線：
+  1. 正解の状態を押し返した課題は、15 のうち 2（astropy の test_realizations：属性の検出 1。mlflow の test_evaluation_dataset：import の検出 4）。線（2 以下）に、上限ちょうどで届いた。
+  2. 未解決の 10 本のうち、的に当たる落ちで押し返したのは 6 本（seaborn の test_statistics の 2 本、pandas の test_formats・test_all_methods・test_describe、sphinx の test_build_html）。線（5 本以上）に届いた。段 a の正解との差の読みは 7 本。R0 で外れたのは mlflow の test_evaluation_dataset で、検出が t=0 からある消された部品の穴だけで、選んだ 2 つのテストのファイルは落ちなかった。
+- 押し返しの内訳：
+  - 未解決の 6 本は、6 本ともテストの落ちで押し返した（消された名の NameError、消された部品の AttributeError など）。静的な検出（t=0 に無かったもの）で押し返した未解決は 0 本。
+  - 正解の状態の押し返しの 2 課題は、2 つとも静的な検出だった。mlflow は、t=0 で消された名の ImportError だった 4 つのモジュールが、正解では import が先に進み、環境に依る誤り（環境変数の KeyError・SystemExit・alembic の AttributeError）に変わって、鍵（モジュール・誤りの種類）が変わったもの。astropy は、正解が戻したコードの属性の検出（BaseData の header。どこかで代入される属性）。
+  - 解決の 9 本のうち押し返したのは 1 本（astropy の test_realizations。§5-4 の本当の未完成 4 本の 1 つ）。ほかの 3 本（mlflow の test_client_webhooks・test_genai_metrics、pandas の test_http_headers）は、環境の型・U・記録不足で押し返していない。
+- 選びと時間：最上位の名を選びに使わないことで、pandas の 2 課題の正解の状態の選びは 897 → 40・891 → 3 ファイルになり、pandas/tests/api/test_api.py は選ばれなくなった。300 秒の内に走るのは、選んだファイルの一部（例：sympy の正解の状態は 378 のうち 71）。
+- 添える数：
+  - U と不明のファイルを押し返しに数えると、正解の状態の押し返しは 3 課題になる（mlflow の test_genai_metrics が加わる。誤りの文が空の収集の誤り 12 件と、符号 4 などのファイル 4）。この数え方では線 1 に届かない。未解決の拾いは 6 本で変わらない。
+  - 記録不足の状態は 7。正解の状態が 3（pandas の test_http_headers は 300 秒の窓の 40 ファイルすべて、test_iceberg は 3 ファイル、mlflow の test_client_webhooks は 5 ファイル）、A の状態が 4（どれも解決のパッチ）。記録不足は「押し返さない」として数えたので、線 1 は、この 3 課題の正解の状態の記録しだいで変わりうる。線 2 は、未解決に記録不足の状態が無いので変わらない。
+- 判定：書いた線のとおりでは 2 つとも届いた。ただし線 1 は上限ちょうどで、記録不足と U に左右される。G0-4 に進む前に、記録不足の 3 課題の正解の状態を埋めるか（コンテナ。利用枠 0）を操縦士に諮る（2026-11-17）。
+
 #### 実走での足し（G0-4。再集計では測れない）
 
 - 1 ターン目の前に、t=0 のコンテナで群 2 のテストを 1 回走らせる（トークン 0。時間は課題の上限 60 分に含める）。t=0 で落ちた項目のうち、原因が対象のパッケージの名の ImportError・NameError・AttributeError（消された部品の穴）でないものは、候補でも同じ例外の型で落ちたとき押し返さない（例：pandas の test_api の AssertionError）。
