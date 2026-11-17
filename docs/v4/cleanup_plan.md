@@ -15,7 +15,7 @@
 | 6 | 設定と表の規約 | 済み（同じ PR）：C# を拒む設定を外し、CLAUDE.md とルートの README を v4 に書き直した |
 | 7 | 手元の片付け | 下調べ済み（2026-11-14。§5）。消すのは、検めと行ごとの確認の後 |
 | 8 | リポジトリの不整合：ルートの README の古い方針（白箱を前提にした「共通骨格だけを証明」「受け入れテストを先に見せる」）と「制御核はこれから作ります」 | 直した（2026-11-14。exp/x02-prep の手元のコミット） |
-| 9 | リポジトリの残骸：v3 の箱の部品と、FeatureBench の繋ぎの白箱の名残 | まだ（§6。#380・#381 のマージの後、main を土台に 1 本の PR。高リスク） |
+| 9 | リポジトリの残骸：v3 の box の部品と、FeatureBench の制御核の繋ぎ（fb_core 一式） | まだ（§6。main を土台に 1 本の PR。高リスク。手元の box-proxy はマージの後に消す） |
 | 10 | agy の全体設定の混入（P-007） | まだ（§4。反証の段の予定を立てるときに） |
 
 ## 1. 保全：タグ archive/pre-v4
@@ -78,8 +78,28 @@
 
 ## 6. リポジトリの残骸の整理（順 9。次の PR）
 
-1. 依存を断つ：harness/fb_agy.py が読む config/box.json の 2 つ（agy の配布の URL と SHA-512、トークンの置き場）を config/fb_agy.json に移し、fb_agy.py の読み先を替える。試験を足す。
-2. 消す：harness/box.py・harness/box_tree.py・box/（Dockerfile・中継・WSL の準備のスクリプト）・config/box.json・docs/ops/box.md・tests/test_box.py・tests/test_box_tree.py。config/risk_tiers.json の箱の行を外す。ルートの README の部品の表を直す。
-3. 白箱の名残：harness/fb_core.py の、白箱の注記からテストのパスを読む所（visible_test_path）と、隠しのパッチが消した import の足し戻しを許す例外（test_edit_problems）を外す。C1 を「系が決めたテスト（非退行の関門と第 2 関門の確かめ）を絞らずに走らせ、1 行も変えさせない」に、C2 を harness/fb_gate_probe.py の参照の完全さに替える。config/fb_core.json の X-02 の 4 つの腕を、E-1 の段 c の腕に替える。harness/core_report.py は C1・C2 の名を直す。試験を直す。
-4. 確かめ：`python -m unittest discover -s tests`・`python -m harness.premises check --strict`・`python -m harness.model_pin`。偽物の agy で、fb infer から fb eval までを 1 課題通す（利用枠 0）。
-5. PR は 1 本。高リスクの区分（tests/・box/・config/box.json・harness/box.py・harness/box_tree.py）に当たるので、本文の冒頭に、当たった区分とパス・変えた理由・確かめたことを書く。土台は main（#380・#381 のマージの後。積む PR の土台は、枝が消えると自動で閉じるため main にする）。
+- FeatureBench の実験は終わった（段 b・段 c・大きい 10 課題の H0 は走らせない。held-out は封を開けずに終える）。harness/fb_core.py を直して残す案はやめ、消す（操縦士の決め、2026-11-17）。
+  - 偽物の agy の通しの確認は、harness/fb_agy.py の素の agy で足りる。
+  - SWE-EVO で使い回したい部品（agy の実行口・pytest の出力の読み・テストの改変の検出）は、S0 のアダプタを設計 §5-1 の契約で作るときに、FeatureBench に依らない所へ書く。消したコードは、そのとき Git の履歴から読む。
+  - 直してから消す二度手間をしないため、この形にする。
+1. 依存を断つ：harness/fb_agy.py が読む config/box.json の 2 項目（agy の配布の URL と SHA-512、トークンの置き場）を config/fb_agy.json に移し、読み先を替える。試験を足す。
+2. 消す（v3 の box の部品）：
+   - harness/box.py・harness/box_tree.py・box/（Dockerfile・中継・WSL の準備のスクリプト）・config/box.json・docs/ops/box.md・tests/test_box.py・tests/test_box_tree.py。
+   - config/risk_tiers.json の box の行を外す。
+3. 消す（FeatureBench の制御核の繋ぎ）：
+   - harness/fb_core.py・config/fb_core.json・harness/core_report.py・tests/test_fb_core.py・tests/test_core_report.py。
+   - harness/fb_agy.py の、fb_core の比較条件を登録する所を外し、素の agy だけを登録する。
+   - harness/core.py（制御核）と tests/test_core.py は残す（E-3 で使う）。
+4. 正本と README：ルートの README の部品の表を直し、§0 の表に結果を書く。
+5. 確認：
+   - `python -m unittest discover -s tests`・`python -m harness.premises check --strict`・`python -m harness.model_pin`。
+   - 偽物の agy で、fb infer から fb eval までを 1 課題通す（利用枠 0。G0-5 の代わり）。
+6. PR は 1 本。
+   - 高リスク（Tier 2）の区分：tests/・box/・config/box.json・harness/box.py・harness/box_tree.py。
+   - 本文の冒頭に、当たった区分とパス・変えた理由・確認したことを書く。土台は main。
+7. 手元の後片付け（PR の外。マージの後に、操縦士の確認を取ってから）：
+   - WSL の docker の box-proxy のコンテナ（gh-box-proxy:1。再起動の方針は always）を止めて消し、イメージも消す。
+   - 消してよい理由：
+     - リポジトリで box-proxy に依るのは config/box.json の 2 項目だけで、1 で移す。
+     - FeatureBench と SWE-EVO の段 0 の走りは、box-proxy を使っていない。
+     - イメージは、タグ archive/pre-v4 の box/ から作り直せる。
