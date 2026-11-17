@@ -41,8 +41,8 @@ premises:
 - id: P-017
   text: 無人で走るエージェントは、VM・コンテナ・クラウドのセッション・CI の使い捨ての環境で動かすのが提供元の勧めで、ネイティブの Windows ではサンドボックスが効かない
   kind: research
-  basis: [R-20261023-m4-agent-execution-isolation#C1, R-20261023-m4-agent-execution-isolation#C2, R-20261023-m4-agent-execution-isolation#C4, R-20261023-m4-agent-execution-isolation#C9, R-20261023-m4-agent-execution-isolation#C10, R-20261023-m4-agent-execution-isolation#C12]
-  note: 2026-11-13 に 6 件とも出典で照合し直して verified。Unity の接続の下見で、Windows の上での閉じ込めの方法を最初に確かめる（設計 §9 の調べの項目。エージェントを WSL の箱に置き Windows の Unity をアダプタだけが呼ぶ形と、Linux の Unity を箱の中で動かす形を比べる）
+  basis: [R-20261023-m4-agent-execution-isolation#C1, R-20261023-m4-agent-execution-isolation#C2, R-20261023-m4-agent-execution-isolation#C4, R-20261023-m4-agent-execution-isolation#C9, R-20261023-m4-agent-execution-isolation#C10, R-20261023-m4-agent-execution-isolation#C12, R-20261117-unity-connection-g06#C10]
+  note: 2026-11-13 に 6 件とも出典で照合し直して verified。Windows Sandbox は Home のエディションでは使えず、手元は Windows 11 Home（2026-11-17、G0-6）。Unity の接続は、エージェントを WSL のコンテナに置き、Windows の Unity をアダプタだけが呼ぶ形にした（設計 §9。操縦士の決め、2026-11-17）
   checked_at: 2026-11-13
   recheck_by: 2026-12-13
   used_by: [ADR-005 D-3, ADR-005 D-6, v4 設計 §9]
@@ -207,3 +207,27 @@ premises:
   checked_at: 2026-11-17
   recheck_by: 2026-12-17
   used_by: [v4 設計 §4-2, v4 設計 §7, v4 設計 §12, v4 実験 §5]
+- id: P-039
+  text: Unity 6000.3.23f1 を手元の Windows 11 で、小さいプロジェクト（falling-blocks。.cs 9 ファイル）のクローンにバッチモードで当てると、Library の無い取り込みは 94 秒、変更なしの起動と 1 ファイルの変更の後の起動（再コンパイル込み）は 6 秒、EditMode のテストの往復は 7 秒。Editor が同じプロジェクトを開いていると、バッチモードは 0.4 秒で終わりの符号 1 になり（ログに理由の文は無い）、別のクローンなら並べて走る。Unity に依らない Core を .NET で分けてビルドし試験すると 1.4 秒
+  kind: measured
+  basis: [docs/v4/experiments.md の M-07（2026-11-17、利用枠 0）]
+  note: 時間は小さいプロジェクトの 1 回ずつの測りで、プロジェクトが大きいと延びる。Personal のライセンスは Hub のサインインが要り、切れるとバッチモードは符号 198 で止まる。Unity.exe が終わった後も、コンパイルサーバーなどの子のプロセスが数分残る
+  checked_at: 2026-11-17
+  recheck_by: 2026-12-17
+  used_by: [v4 設計 §9, v4 設計 §12]
+- id: P-040
+  text: Unity は、Editor の中の AI Assistant パッケージの MCP サーバーを非推奨にし、代わりを Unity CLI の unity mcp にした。Editor の中の MCP サーバーは、Editor が読み込まれている間だけ動く
+  kind: research
+  basis: [R-20261117-unity-connection-g06#C1, R-20261117-unity-connection-g06#C2, R-20261117-unity-connection-g06#C3, R-20261117-unity-connection-g06#C4]
+  note: 出典はどちらも Unity の公式の文書（docs.unity.com と docs.unity3d.com）。Unity CLI は 2026-11 に 1.0 が出た（#C5）。CLI が Editor を操るときは、Pipeline パッケージのローカルの HTTP の API を使う（#C6）。Personal のライセンスで CLI を使えるかは確認していない
+  checked_at: 2026-11-17
+  recheck_by: 2026-12-17
+  used_by: [v4 設計 §9, v4 設計 §12]
+- id: P-041
+  text: Unity Personal のライセンスを有効にする方法は Unity Hub だけで、コマンドラインと手動の有効化は Personal には使えない。Linux の Unity をコンテナの中で有効にする手順は、Personal には文書に無い
+  kind: research
+  basis: [R-20261117-unity-connection-g06#C7, R-20261117-unity-connection-g06#C8, R-20261117-unity-connection-g06#C9]
+  note: 出典はどちらも Unity の公式の文書（docs.unity3d.com と docs.unity.com）。後の文（コンテナの中の手順が無い）は、有効にする方法が Hub だけであることからの読み。設計 §9 の ② を採らない根拠（操縦士の決め、2026-11-17）
+  checked_at: 2026-11-17
+  recheck_by: 2026-12-17
+  used_by: [v4 設計 §9, v4 設計 §12]

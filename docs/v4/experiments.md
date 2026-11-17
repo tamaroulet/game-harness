@@ -69,6 +69,23 @@
 - 4 つの像の課題（X-01 の 5 課題を除く 58）のうち、消した行が 925 以上（Fast の上位 4 分の 1）は 16 課題（pandas 8・astropy 4・mlflow 3・seaborn 1。ファイルの中央 21）。Fast 全体では 25 課題（10 の像）。
 - Fast の 100 課題のうち 37 課題は、隠しのパッチが F2P のテストのファイルも変える（消した部品の import の行を消すなど）。白箱で見えるテストは、そのぶん公式のテストと違う。評価は公式のテストに戻してから走らせる。
 
+### M-07 Unity の実行の時間と振る舞い（G0-6、2026-11-17。利用枠 0）
+
+- 対象：falling-blocks（Unity 6000.3.23f1。.cs 9 ファイル・asmdef 3・EditMode のテスト 1 件）を `git clone --no-hardlinks` で写したクローン。元のプロジェクトと dispatch には触れていない（元の作業ツリーの差分は前後とも 0）。手元は Windows 11 Home（論理 CPU 20）。
+- バッチモード（-batchmode -nographics。時間は Unity.exe の起動から終わりまで。各 1 回）：
+  - Library の無いクローンの取り込み（-quit）：94.3 秒（取り込みの Refresh 91.2 秒）。
+  - 変更なしの起動：6.1 秒。Core の 1 ファイルを変えた後（再コンパイル込み）：6.3 秒。
+  - EditMode のテスト（-runTests -testPlatform EditMode）：7.2 秒。1 ファイルを変えてからは 6.9 秒（コンパイルとテストを 1 回の起動で）。
+  - Library ごとクローンを写すと（1,512MB）13.1 秒。写した先の初めの起動は 35.9 秒（パスが変わり、Bee の依存グラフを作り直した。Refresh 30.3 秒）。
+  - Unity.exe が終わった後も、子のプロセス（Roslyn のコンパイルサーバーの dotnet と UnityPackageManager）が数分残る。Windows PowerShell 5.1 の `Start-Process -Wait` は子孫まで待つので、Unity.exe だけを待つ。
+- ライセンス（Unity Personal）：Hub のサインインが切れていると、バッチモードは 9.1 秒で終わりの符号 198 で止まった（`No valid Unity Editor license found`。headless の利用権が見つからない）。操縦士が Hub でサインインし直した後は通った。
+- Editor（GUI）が開いているとき：
+  - GUI の Editor でクローンを開くのに 9.9 秒（`[Project] Loading completed`）。
+  - 同じプロジェクトにバッチモードを当てると、0.4 秒で終わりの符号 1。ログに理由の文は無い。
+  - 別のクローンなら並べて走る（起動 35.9 秒・EditMode のテスト 9.6 秒。1 件が通過）。
+  - GUI を閉じた後は、同じプロジェクトのバッチモードが 7.1 秒で通った。
+- .NET の道（Unity を起こさない）：src/Core/Core.csproj（net8.0。Assets/Core の .cs をそのまま含む）のビルドは、変更なしで 0.5 秒、1 ファイルの変更の後で 0.6 秒。tests/Core.Tests（NUnit 30 件）は、再ビルド込みで 1.4 秒。Unity に依るコード（MonoBehaviour・Editor のスクリプト）は、この道ではコンパイルできない。
+
 ## 2. 土俵の移行の手順（FeatureBench を先に、SWE-EVO を長い課題に）
 
 | 順 | すること | 利用枠 |
