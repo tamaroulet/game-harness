@@ -1,0 +1,236 @@
+{
+ "id": "R-20261117-unity-connection-g06",
+ "title": "Unity への接続の下調べ（公式の MCP・ライセンス・閉じ込め）",
+ "stage": "compare",
+ "decision": "Unity の実行を設計 §9 の ①（Windows の Unity をアダプタがクローンに対して呼ぶ）と ②（Linux の Unity をコンテナで動かす）のどちらにするか。Editor を操る口（公式の MCP）を使うか",
+ "sectors": [
+  "standards_tools"
+ ],
+ "asked_at": "2026-11-17T16:49:27+09:00",
+ "backend": "seat",
+ "models": [],
+ "usage": null,
+ "claims": [
+  {
+   "id": "C1",
+   "claim": "Unity は、Editor の中の AI Assistant パッケージの MCP サーバーを非推奨にした。",
+   "source_url": "https://docs.unity.com/en-us/unity-cli/replace-mcp-server-unity-cli",
+   "source_title": "Unity CLI as the replacement for the in-Editor MCP server",
+   "published": null,
+   "quote": "Unity has deprecated the MCP server component of the in-editor AI assistant package",
+   "kind": "fact",
+   "confidence": "high",
+   "source_tier": "primary",
+   "sector": "standards_tools",
+   "approach": "Editor を外から操る口（公式の MCP と CLI）",
+   "verify": {
+    "status": "verified",
+    "http_status": 200,
+    "fetched_at": "2026-11-17T16:49:27+09:00",
+    "sha256": "1c1b3d9af70d5958e91ba5d06181d897dafd2614370807d5cdb781ebc14d6afd",
+    "reason": null
+   }
+  },
+  {
+   "id": "C2",
+   "claim": "Editor の中の MCP サーバーの代わりは、Unity CLI の unity mcp の命令。",
+   "source_url": "https://docs.unity.com/en-us/unity-cli/replace-mcp-server-unity-cli",
+   "source_title": "Unity CLI as the replacement for the in-Editor MCP server",
+   "published": null,
+   "quote": "command in the Unity CLI replaces the in-Editor server",
+   "kind": "fact",
+   "confidence": "high",
+   "source_tier": "primary",
+   "sector": "standards_tools",
+   "approach": "Editor を外から操る口（公式の MCP と CLI）",
+   "verify": {
+    "status": "verified",
+    "http_status": 200,
+    "fetched_at": "2026-11-17T16:49:27+09:00",
+    "sha256": "1c1b3d9af70d5958e91ba5d06181d897dafd2614370807d5cdb781ebc14d6afd",
+    "reason": null
+   }
+  },
+  {
+   "id": "C3",
+   "claim": "AI Assistant パッケージ（2.20）の MCP サーバーの文書の冒頭に、非推奨と CLI への移行が書かれている。",
+   "source_url": "https://docs.unity3d.com/Packages/com.unity.ai.assistant@2.20/manual/integration/unity-mcp-get-started.html",
+   "source_title": "Get started with MCP server (Assistant 2.20.0-pre.2)",
+   "published": null,
+   "quote": "Unity MCP server is deprecated.",
+   "kind": "fact",
+   "confidence": "high",
+   "source_tier": "primary",
+   "sector": "standards_tools",
+   "approach": "Editor を外から操る口（公式の MCP と CLI）",
+   "verify": {
+    "status": "verified",
+    "http_status": 200,
+    "fetched_at": "2026-11-17T16:49:27+09:00",
+    "sha256": "b79b95cf97e6fc272327257826513405283828f13a5515e96af8965c623aac11",
+    "reason": null
+   }
+  },
+  {
+   "id": "C4",
+   "claim": "Editor の中の MCP サーバーの橋渡しは、Editor が読み込まれたときに始まる（Editor を開いている間だけ使える）。",
+   "source_url": "https://docs.unity3d.com/Packages/com.unity.ai.assistant@2.20/manual/integration/unity-mcp-get-started.html",
+   "source_title": "Get started with MCP server (Assistant 2.20.0-pre.2)",
+   "published": null,
+   "quote": "The bridge starts automatically when the Unity Editor loads.",
+   "kind": "fact",
+   "confidence": "high",
+   "source_tier": "primary",
+   "sector": "standards_tools",
+   "approach": "Editor を外から操る口（公式の MCP と CLI）",
+   "verify": {
+    "status": "verified",
+    "http_status": 200,
+    "fetched_at": "2026-11-17T16:49:27+09:00",
+    "sha256": "b79b95cf97e6fc272327257826513405283828f13a5515e96af8965c623aac11",
+    "reason": null
+   }
+  },
+  {
+   "id": "C5",
+   "claim": "Unity CLI の 1.0.1 は 2026-11-16 に出た。",
+   "source_url": "https://docs.unity.com/en-us/unity-cli/release-notes/2026/november",
+   "source_title": "Unity CLI release notes for November 2026",
+   "published": null,
+   "quote": "November 16, 2026",
+   "kind": "fact",
+   "confidence": "high",
+   "source_tier": "primary",
+   "sector": "standards_tools",
+   "approach": "Editor を外から操る口（公式の MCP と CLI）",
+   "verify": {
+    "status": "verified",
+    "http_status": 200,
+    "fetched_at": "2026-11-17T16:49:27+09:00",
+    "sha256": "56d77f1beae7480d6664a9ad37625a757e87fc0c756a7d68e338abb99f0325a2",
+    "reason": null
+   }
+  },
+  {
+   "id": "C6",
+   "claim": "Unity CLI が Editor を操るときは、Unity Pipeline パッケージが、ローカルの HTTP の API で Editor を操り、ビルド・テスト・開発の流れを自動化する。",
+   "source_url": "https://docs.unity.com/en-us/unity-cli",
+   "source_title": "Unity CLI",
+   "published": null,
+   "quote": "Control the Unity Editor through a local HTTP API to automate builds, tests, and development workflows.",
+   "kind": "fact",
+   "confidence": "high",
+   "source_tier": "primary",
+   "sector": "standards_tools",
+   "approach": "Editor を外から操る口（公式の MCP と CLI）",
+   "verify": {
+    "status": "verified",
+    "http_status": 200,
+    "fetched_at": "2026-11-17T16:49:27+09:00",
+    "sha256": "4a1055934a287c3c42513338c1d6f87ca7334cb49bcc01aeaf99c629f28d8008",
+    "reason": null
+   }
+  },
+  {
+   "id": "C7",
+   "claim": "Unity Personal のライセンスを有効にする・返す方法は、Unity Hub だけ。",
+   "source_url": "https://docs.unity3d.com/6000.0/Documentation/Manual/LicenseActivationMethods.html",
+   "source_title": "License activation methods (Unity 6000.0)",
+   "published": null,
+   "quote": "For Unity Personal, the Unity Hub is the only method for activating and returning licences.",
+   "kind": "fact",
+   "confidence": "high",
+   "source_tier": "primary",
+   "sector": "standards_tools",
+   "approach": "Unity のライセンスとバッチモード",
+   "verify": {
+    "status": "verified",
+    "http_status": 200,
+    "fetched_at": "2026-11-17T16:49:27+09:00",
+    "sha256": "05222aa80a724f1c53501d2b0336c03caa3f2f0afe582c1b090e9d7da6e4daf7",
+    "reason": null
+   }
+  },
+  {
+   "id": "C8",
+   "claim": "手動の有効化（ライセンスの要求のファイル）は、Personal のプランのライセンスには使えない。",
+   "source_url": "https://docs.unity3d.com/6000.0/Documentation/Manual/LicenseActivationMethods.html",
+   "source_title": "License activation methods (Unity 6000.0)",
+   "published": null,
+   "quote": "This method isn't supported for Unity Pro assigned seats or Unity licenses under a Personal plan.",
+   "kind": "fact",
+   "confidence": "high",
+   "source_tier": "primary",
+   "sector": "standards_tools",
+   "approach": "Unity のライセンスとバッチモード",
+   "verify": {
+    "status": "verified",
+    "http_status": 200,
+    "fetched_at": "2026-11-17T16:49:27+09:00",
+    "sha256": "05222aa80a724f1c53501d2b0336c03caa3f2f0afe582c1b090e9d7da6e4daf7",
+    "reason": null
+   }
+  },
+  {
+   "id": "C9",
+   "claim": "コマンドラインでのライセンスの有効化の手順は、Unity Personal には当てはまらない。",
+   "source_url": "https://docs.unity.com/en-us/engine/6000.6/manual/get-started/install-and-upgrade/licenses-and-activation/managing-your-unity-license",
+   "source_title": "Manage your license through the command line (Unity 6000.6)",
+   "published": null,
+   "quote": "The following procedures don't apply to Unity Personal.",
+   "kind": "fact",
+   "confidence": "high",
+   "source_tier": "primary",
+   "sector": "standards_tools",
+   "approach": "Unity のライセンスとバッチモード",
+   "verify": {
+    "status": "verified",
+    "http_status": 200,
+    "fetched_at": "2026-11-17T16:49:27+09:00",
+    "sha256": "d84d233020773a4361cf1e6d269b3b3ff48197e724a76c9bdbc67249d3e66110",
+    "reason": null
+   }
+  },
+  {
+   "id": "C10",
+   "claim": "Windows Sandbox は Windows の Home のエディションでは使えない。",
+   "source_url": "https://learn.microsoft.com/en-us/windows/security/application-security/application-isolation/windows-sandbox/windows-sandbox-overview",
+   "source_title": "Windows Sandbox (Microsoft Learn)",
+   "published": null,
+   "quote": "Windows Sandbox is currently not supported on Windows Home edition.",
+   "kind": "fact",
+   "confidence": "high",
+   "source_tier": "primary",
+   "sector": "standards_tools",
+   "approach": "Windows の上での閉じ込め",
+   "verify": {
+    "status": "verified",
+    "http_status": 200,
+    "fetched_at": "2026-11-17T16:49:27+09:00",
+    "sha256": "fc00ccd66e1ed08d65226e0a8bd2af9b29342169426fb02c26d1e9b719d0bbc4",
+    "reason": null
+   }
+  }
+ ],
+ "queries": [
+  "Unity official MCP server package docs.unity3d.com AI Assistant MCP 2026",
+  "\"Unity MCP\" server deprecated \"command-line interface\" com.unity.ai.assistant manual",
+  "Unity manual activate license command line headless Docker Personal license serial username password returnlicense",
+  "Unity 6 manual license activation Personal license Hub only command line not supported Unity Licensing Server build automation",
+  "Windows Sandbox prerequisites Windows 11 Pro Enterprise Education Home not supported learn.microsoft.com",
+  "Unity manual command line arguments batchmode \"another Unity instance is running with this project open\""
+ ],
+ "unknowns": [
+  "Unity CLI（1.0 系）を Personal のライセンスでバッチモードの代わりに使えるかは、文書で確認していない。",
+  "Editor が同じプロジェクトを開いているときのバッチモードの振る舞いを書いた今の版の文書は見つからなかった（古い版の文書だけ）。手元で測った（実験と計画の M-07）。",
+  "Unity Test Framework 1.6 のコマンドラインの文書の URL は 404 だった。-runTests の振る舞いは手元で測った。",
+  "practitioners_at_scale・academia・frontier_labs・practitioners の分野は巡回していない（製品の仕様の確認なので、公式の文書だけを読んだ）。"
+ ],
+ "counts": {
+  "verified": 10,
+  "quote_not_found": 0,
+  "unreachable": 0,
+  "no_source": 0
+ },
+ "question": "# Unity への接続の下調べ（G0-6）\n\n## 段\ncompare\n\n## 決めたい判断\nUnity の実行を、Windows の Unity をアダプタがクローンに対して呼ぶ形（設計 §9 の ①）にするか、Linux の Unity をコンテナで動かす形（②）にするか。エージェントに Editor を操らせる口（公式の MCP）を使うか。\n\n## 判断を変えうるもの\nPersonal のライセンスでコンテナの中のバッチモードを有効にできる記述。公式の MCP が Editor を開かずに使える記述。Home のエディションで使える閉じ込めの仕組みの記述。\n\n## 候補\n- ①：Windows の Unity をアダプタがクローンに対して呼ぶ（Core は .NET で分けてビルドする）\n- ②：Linux の Unity をコンテナの中で動かす\n- Editor を操る口：AI Assistant の MCP サーバー／Unity CLI／使わない（バッチモードだけ）\n\n## 問い\nUnity の公式の MCP の今の状態。Personal のライセンスの有効化の方法（コマンドライン・手動・Hub）。Windows Sandbox を使えるエディション。\n"
+}
