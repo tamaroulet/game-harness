@@ -335,5 +335,165 @@ class ReplayTest(unittest.TestCase):
                 replay.commit_sha(bad)
 
 
+class R0SelectTest(unittest.TestCase):
+    """R0 のテストの選び方と、落ちの原因の型（実験と計画 §5-6 の 2・4）。"""
+
+    IMPORTS = {"pkg/tests/test_a.py": ["pkg", "pkg.stats", "pkg.stats.ECDF"],
+               "pkg/tests/test_b.py": ["pkg"],                      # 最上位の名だけ：選ばない
+               "tests/test_c.py": ["pkg.base"],
+               "tests/test_d.py": ["pkg.base", "pkg.stats"]}
+
+    def test_groups_order_and_top_level_dropped(self):
+        sel = probe.select_tests_r0(self.IMPORTS, ["pkg/stats.py"],
+                                    ["pkg/__init__.py", "pkg/base.py", "tests/test_new.py", "data/x.csv"])
+        self.assertEqual(sel["own"], ["tests/test_new.py"])
+        self.assertEqual(sel["ledger"], ["pkg/tests/test_a.py", "tests/test_d.py"])
+        self.assertEqual(sel["changed"], ["tests/test_c.py"])          # test_d は群 2 に入ったので重ねない
+        self.assertEqual(sel["top_level_dropped"], ["pkg"])
+        self.assertEqual(sel["want_changed"], ["pkg.base"])
+
+    def test_test_imports_reads_ast_only(self):
+        with tempfile.TemporaryDirectory() as root:
+            write(root, "pkg/__init__.py", "")
+            write(root, "pkg/tests/test_x.py", "import pkg.base\nfrom pkg.stats import ECDF\n")
+            write(root, "pkg/tests/test_broken.py", "def (:\n")
+            res = probe.test_imports(root)
+        self.assertEqual(res["files"]["pkg/tests/test_x.py"], ["pkg.base", "pkg.stats", "pkg.stats.ECDF"])
+        self.assertEqual(res["unparsed"], ["pkg/tests/test_broken.py"])
+
+    def test_failure_class(self):
+        cases = [
+            ('failed on setup with "ModuleNotFoundError: No module named \'pyspark\'"', ["mlflow"], "E2"),
+            ("ModuleNotFoundError: No module named 'fish_licence.halibut'", ["sphinx"], "E2"),
+            ("ModuleNotFoundError: No module named 'pandas.io.iceberg'", ["pandas"], "target"),
+            ('failed on setup with "AttributeError: module \'moto\' has no attribute \'mock_s3\'"', ["mlflow"], "E3"),
+            ("AttributeError: module 'pandas' has no attribute 'read_iceberg'", ["pandas"], "target"),
+            ("ImportError: cannot import name 'get_handle' from 'pandas.io.common'", ["pandas"], "target"),
+            ("ImportError: cannot import name 'mock_s3' from 'moto'", ["mlflow"], "E3"),
+            ('failed on teardown with "FileNotFoundError: [Errno 2] No such file or directory: \'/root/.mlflow/envs\'"',
+             ["mlflow"], "E4"),
+            ("FileNotFoundError: [Errno 2] No such file or directory: '/testbed/pkg/data.csv'", ["pkg"], "target"),
+            ("AssertionError: lualatex exited with return code 1", ["sphinx"], "E5"),
+            ("Failed: Timeout (>10.0s) from pytest-timeout.", ["sympy"], "E6"),
+            ("astropy.utils.exceptions.AstropyWarning: leap-second auto-update failed due to the following exception: "
+             "IERSStaleWarning('leap-second file is expired.')", ["astropy"], "E1"),
+            ("URLError: <urlopen error [Errno -3] Temporary failure in name resolution>", ["astropy"], "E1"),
+            ("", ["pandas"], "U"),
+            ("AssertionError: Iterable are different", ["pandas"], "target"),
+            ("NameError: name 'get_series_repr_params' is not defined", ["pandas"], "target"),
+        ]
+        for msg, pkgs, want in cases:
+            self.assertEqual(probe.failure_class(msg, pkgs), want, msg)
+
+
+class R0ReplayTest(unittest.TestCase):
+    """R0 の再集計の部品（実験と計画 §5-6 の数え方）。"""
+
+    def test_plan_budget(self):
+        records = {"a.py": {"rc": 0, "secs": 100}, "b.py": {"rc": 1, "secs": 250},
+                   "c.py": {"rc": 0, "secs": 1}, "t.py": {"rc": 124, "secs": 60, "timeout": True}}
+        plan, used = replay.plan_budget(["a.py", "gap.py", "t.py", "b.py", "c.py"], records)
+        self.assertEqual(plan, {"a.py": "done", "gap.py": "no_record", "t.py": "timeout", "b.py": "cut",
+                                "c.py": "not_started"})
+        self.assertEqual(used, 300.0)
+        plan, used = replay.plan_budget(["a.py", "c.py"], records)
+        self.assertEqual(plan, {"a.py": "done", "c.py": "done"})
+        self.assertEqual(used, 101.0)
+
+    def test_existing_test_edits(self):
+        patch = textwrap.dedent("""\
+            diff --git a/pkg/tests/test_new.py b/pkg/tests/test_new.py
+            new file mode 100644
+            --- /dev/null
+            +++ b/pkg/tests/test_new.py
+            @@ -0,0 +1 @@
+            +def test_x(): pass
+            diff --git a/pkg/tests/test_old.py b/pkg/tests/test_old.py
+            --- a/pkg/tests/test_old.py
+            +++ b/pkg/tests/test_old.py
+            @@ -1 +1 @@
+            -assert f() == 1
+            +assert True
+            diff --git a/pkg/tests/conftest.py b/pkg/tests/conftest.py
+            deleted file mode 100644
+            --- a/pkg/tests/conftest.py
+            +++ /dev/null
+            @@ -1 +0,0 @@
+            -import pytest
+            diff --git a/pkg/stats.py b/pkg/stats.py
+            --- a/pkg/stats.py
+            +++ b/pkg/stats.py
+            @@ -1 +1 @@
+            -x = 1
+            +x = 2
+            diff --git a/pkg/tests/data/table.csv b/pkg/tests/data/table.csv
+            --- a/pkg/tests/data/table.csv
+            +++ b/pkg/tests/data/table.csv
+            @@ -1 +1 @@
+            -a
+            +b
+            """)
+        self.assertEqual(replay.existing_test_edits(patch),
+                         [{"path": "pkg/tests/test_old.py", "kind": "modified"},
+                          {"path": "pkg/tests/conftest.py", "kind": "deleted"}])
+        self.assertEqual(replay.existing_test_edits(""), [])
+
+    def test_state_tests_merges_gold_retest(self):
+        d = {"gold_retest": {"tests": {"files": {"t2.py": {"rc": 1, "secs": 2}, "t1.py": {"rc": 1, "secs": 9}},
+                                       "failed": [{"node": "t2.py::b", "kind": "FAILED", "msg": "x"},
+                                                  {"node": "t1.py::z", "kind": "FAILED", "msg": "dup"}]}}}
+        c = {"name": "gold", "tests": {"files": {"t1.py": {"rc": 1, "secs": 1}},
+                                       "failed": [{"node": "t1.py::a", "kind": "FAILED", "msg": "y"}]}}
+        files, failed = replay.state_tests(d, c)
+        self.assertEqual(files, {"t1.py": {"rc": 1, "secs": 1}, "t2.py": {"rc": 1, "secs": 2}})
+        self.assertEqual([x["node"] for x in failed["t1.py"]], ["t1.py::a"])   # 重なったファイルは先のものだけ
+        self.assertEqual([x["node"] for x in failed["t2.py"]], ["t2.py::b"])
+
+    def test_r0_state_pushes_target_new_static_and_edits_only(self):
+        start = {"undefined": [{"file": "pkg/a.py", "kind": "UndefinedName", "name": "old_noise"}],
+                 "imports": {"failed": []}, "attrs": {"flags": []}}
+        cand = {"name": "A", "resolved": False, "changed": ["pkg/stats.py"],
+                "undefined": [{"file": "pkg/a.py", "kind": "UndefinedName", "name": "old_noise"},
+                              {"file": "pkg/stats.py", "kind": "UndefinedName", "name": "gone_helper"}],
+                "imports": {"failed": []}, "attrs": {"flags": []}}
+        imports_t0 = {"pkg/tests/test_stats.py": ["pkg.stats"], "pkg/tests/test_env.py": ["pkg.stats"]}
+        records = {"pkg/tests/test_stats.py": {"rc": 1, "secs": 5}, "pkg/tests/test_env.py": {"rc": 1, "secs": 5}}
+        failed = {"pkg/tests/test_stats.py": [{"node": "pkg/tests/test_stats.py::t", "kind": "FAILED",
+                                               "msg": "NameError: name 'gone_helper' is not defined"}],
+                  "pkg/tests/test_env.py": [{"node": "pkg/tests/test_env.py::e", "kind": "ERROR",
+                                             "msg": "ModuleNotFoundError: No module named 'pyspark'"}]}
+        keys = replay.keysets(start)
+        s = replay.r0_state(cand, keys, imports_t0, ["pkg/stats.py"], ["pkg"], {"gone_helper"}, {"pkg/stats.py"},
+                            records, failed, [])
+        self.assertTrue(s["pushed"])
+        self.assertTrue(s["on_target"])
+        self.assertEqual(s["static_new"]["undefined"], 1)           # t=0 からあった old_noise は押し返さない
+        self.assertEqual(s["tests_target"], 1)
+        self.assertEqual(s["test_classes"], {"target": 1, "E2": 1})
+        # 環境の型の落ちと t=0 からの静的な検出だけなら、押し返さない
+        quiet = dict(cand, undefined=start["undefined"])
+        env_only = {"pkg/tests/test_env.py": failed["pkg/tests/test_env.py"]}
+        s = replay.r0_state(quiet, keys, imports_t0, ["pkg/stats.py"], ["pkg"], {"gone_helper"}, {"pkg/stats.py"},
+                            records, env_only, [])
+        self.assertFalse(s["pushed"])
+        # テストの改変は、それだけで押し返す（的には数えない）
+        s = replay.r0_state(quiet, keys, imports_t0, ["pkg/stats.py"], ["pkg"], set(), set(), records, env_only,
+                            [{"path": "pkg/tests/test_stats.py", "kind": "modified"}])
+        self.assertTrue(s["pushed"])
+        self.assertFalse(s["on_target"])
+
+    def test_r0_lines(self):
+        def st(name, resolved, pushed, on):
+            return {"state": name, "resolved": resolved, "pushed": pushed, "on_target": on,
+                    "pushed_with_unknown": pushed, "on_target_with_unknown": on, "record_gap_files": 0}
+        results = [{"id": "o__r.c.t%d.h.lv1" % i, "states": [st("gold", None, i < 3, False),
+                                                           st("A", False, i < 5, i < 5)]} for i in range(10)]
+        lines = replay.r0_lines(results)
+        self.assertEqual(len(lines["gold_pushed"]), 3)
+        self.assertFalse(lines["line1_gold_le_2"])
+        self.assertTrue(lines["line2_caught_ge_5"])
+        self.assertFalse(lines["pass"])
+
+
 if __name__ == "__main__":
     unittest.main()

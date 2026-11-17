@@ -10,7 +10,7 @@ spec の鍵：
   packages：ソースの根の名の並び（例 ["pandas"]）
   ledger_paths：課題の文の口の Path（根からの相対）
   base：始まりのコミット（変えたファイルを git で数える）
-  checks：走らせる確かめ（undefined・imports・attrs・tests・refs）
+  checks：走らせる検査（undefined・imports・attrs・tests・refs・test_imports）
   pyflakes_dir：pyflakes を置いた所
   test_cmd・timeout_one・file_timeout・test_budget：テストの走らせ方
   hidden_tests：消した公式のテストのファイル（選ばない）
@@ -640,6 +640,84 @@ def select_tests(root, ledger_paths, changed, hidden):
     return sorted(own), picked, sorted(want)
 
 
+def test_imports(root):
+    """テストのファイルごとの、import するモジュールの名の並び（R0 の群 2・3 を選ぶ材料）。構文木で読むだけで、
+    import もテストもしない。読めないファイルは unparsed に入れる。"""
+    files, unparsed = {}, []
+    for rel in all_test_files(root):
+        try:
+            tree = ast.parse(read(root, rel))
+        except (SyntaxError, ValueError):
+            unparsed.append(rel)
+            continue
+        files[rel] = sorted(imported_modules(tree, module_name(rel), rel.endswith("__init__.py")))
+    return {"files": files, "unparsed": unparsed}
+
+
+def select_tests_r0(imports, ledger_paths, changed):
+    """R0 のテストの選び方（実験と計画 §5-6 の 2）。imports は {t=0 にあるテストのファイル: [import するモジュールの名]}。
+    群 1（own）：候補が足したか変えたテストのファイル（名前が test_ で始まるもの）。群 2（ledger）：台帳の Path の
+    モジュールを import するもの。群 3（changed）：変えたソースのモジュールを import するもの。最上位のモジュールの名
+    （. を含まない名）は選びに使わない（最上位の __init__.py の変更は、ほぼすべてのテストに当たる）。群の中はパスの順で、
+    1 つのファイルは最初に当たった群にだけ入れる。"""
+    def names(paths):
+        found = {module_name(p) for p in paths} - {None}
+        return {n for n in found if "." in n}, {n for n in found if "." not in n}
+
+    want_ledger, top_ledger = names(ledger_paths)
+    want_changed, top_changed = names([c for c in changed if not is_test_file(c)])
+    want_changed -= want_ledger
+    own = sorted(c for c in changed if c.endswith(".py") and is_test_file(c) and os.path.basename(c).startswith("test_"))
+    taken = set(own)
+    ledger = sorted(rel for rel, mods in imports.items() if rel not in taken and set(mods) & want_ledger)
+    taken |= set(ledger)
+    other = sorted(rel for rel, mods in imports.items() if rel not in taken and set(mods) & want_changed)
+    return {"own": own, "ledger": ledger, "changed": other, "want_ledger": sorted(want_ledger),
+            "want_changed": sorted(want_changed), "top_level_dropped": sorted(top_ledger | top_changed)}
+
+
+# R0 の環境の型（実験と計画 §5-6 の 4）。E1〜E6 は押し返さない。U は誤りの文が空で判別できない。
+NETWORK_WORDS = ("URLError", "urlopen error", "Name or service not known", "Temporary failure in name resolution",
+                 "Network is unreachable", "Connection refused", "ConnectionError", "Max retries exceeded", "gaierror",
+                 "auto-update failed", "is expired")
+_NO_MODULE_RE = re.compile(r"No module named '([^']+)'")
+_NO_ATTR_RE = re.compile(r"module '([^']+)' has no attribute")
+_CANNOT_IMPORT_RE = re.compile(r"cannot import name '[^']+' from '([^']+)'")
+_PATH_ERROR_RE = re.compile(r"\b(?:FileNotFoundError|NotADirectoryError|IsADirectoryError|PermissionError)\b.*?'(/[^']*)'")
+_TEST_TIMEOUT_RE = re.compile(r"Timeout \(>[0-9.]+s\) from pytest-timeout")
+
+
+def failure_class(msg, packages, root="/testbed"):
+    """テストの落ちの原因の型：E1〜E6（環境）・U（誤りの文が空）・target（押し返す）。packages は対象のパッケージの名。
+    対象のパッケージの名に当たる No module named・has no attribute・cannot import name は、消された部品の穴として target。"""
+    text = (msg or "").strip()
+    if not text:
+        return "U"
+    tops = set(packages or [])
+
+    def outside(name):
+        return name.split(".")[0] not in tops
+
+    m = _NO_MODULE_RE.search(text)
+    if m:
+        return "E2" if outside(m.group(1)) else "target"
+    for rx in (_NO_ATTR_RE, _CANNOT_IMPORT_RE):
+        m = rx.search(text)
+        if m:
+            return "E3" if outside(m.group(1)) else "target"
+    m = _PATH_ERROR_RE.search(text)
+    base = root.rstrip("/")
+    if m and not (m.group(1) == base or m.group(1).startswith(base + "/")):
+        return "E4"
+    if "exited with return code" in text or "command not found" in text:
+        return "E5"
+    if _TEST_TIMEOUT_RE.search(text):
+        return "E6"
+    if any(w in text for w in NETWORK_WORDS):
+        return "E1"
+    return "target"
+
+
 def junit_messages(path):
     """JUnit XML（pytest --junitxml）から、落ちた項目の (クラスの名か None, 項目の名) → 落ちの 1 行。
     端末の幅で切れない落ちの文を取るため（端末の幅の環境変数は、表示を確かめるテストを変えるので触らない）。"""
@@ -761,6 +839,8 @@ def main():
         timed("attrs", lambda: check_attrs(root, files))
     if "refs" in checks:
         timed("refs", lambda: check_refs(root, files, spec.get("names") or [], spec.get("literals") or []))
+    if "test_imports" in checks:
+        timed("test_imports", lambda: test_imports(root))
     if "tests" in checks:
         changed = git_changed(root, spec.get("base"))
         if spec.get("test_files") is not None:   # 決めたファイルだけを走らせる（正解の状態で、A の状態と同じファイルを当て直すため）
