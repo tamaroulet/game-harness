@@ -120,9 +120,32 @@ def test_cmd_of(row):
 
 def start_box(row, tag, patch=None):
     """課題のイメージのコンテナを起こし、（パッチを当てて）公式の準備を走らせ、ネットワークを外し、probe を写す。"""
+    box, info = prepare_box(row, tag, patch)
+    try:
+        code, out = sh(["docker", "network", "disconnect", "bridge", box.name])
+        if code != 0:
+            raise RuntimeError(f"network disconnect failed: {out[-200:]}")
+        sh(["docker", "cp", f"{TOOLS_SRC}/.", f"{box.name}:{TOOLS_DIR}"])
+        box.exec(f"mkdir -p {PROBE_DIR}")
+        for p in PROBE_FILES:
+            box.put(f"{PROBE_DIR}/{p.name}", p.read_text(encoding="utf-8"))
+        _, out = box.exec(f"{CONDA} && {PRELUDE} && command -v python pytest")
+        info["test_tools"] = out.split()
+        code, _ = box.exec(f"{CONDA} && {PRELUDE} && python -c 'import pytest_timeout'")
+        info["pytest_timeout"] = code == 0
+        return box, info
+    except Exception:
+        box.close()
+        raise
+
+
+def prepare_box(row, tag, patch=None, volumes=None, prefix="s0"):
+    """課題のイメージのコンテナを起こし（ブリッジのネットワーク）、`git reset --hard <base_commit>` の後に（パッチを
+    当てて）公式の準備を走らせ、準備の終わりの環境を ENV_FILE に残す。ネットワークはブリッジのまま返す。
+    volumes は [(ホストの置き場, コンテナの置き場, "ro"/"rw")]（§6-3 の実行口が、許可リストのプロキシのソケットに使う）。"""
     from swebench.harness.test_spec.test_spec import make_test_spec
     image = f"sweb.eval.x86_64.{row['instance_id']}:latest"
-    box = Box(image, f"s0-{tag}-{int(time.time())}", {}, network="bridge")
+    box = Box(image, f"{prefix}-{tag}-{int(time.time())}", {}, network="bridge", volumes=volumes)
     info = {"image": image}
     try:
         info["reset_discarded"] = [ln for ln in testbed_status(box) if not ln.startswith(("!!", "??"))]
@@ -144,19 +167,8 @@ def start_box(row, tag, patch=None):
                      "setup_tail": tail[-600:]})
         if box.exec(f"test -s {ENV_FILE}")[0] != 0:
             raise RuntimeError("setup left no environment file")
-        code, out = sh(["docker", "network", "disconnect", "bridge", box.name])
-        if code != 0:
-            raise RuntimeError(f"network disconnect failed: {out[-200:]}")
-        sh(["docker", "cp", f"{TOOLS_SRC}/.", f"{box.name}:{TOOLS_DIR}"])
-        box.exec(f"mkdir -p {PROBE_DIR}")
-        for p in PROBE_FILES:
-            box.put(f"{PROBE_DIR}/{p.name}", p.read_text(encoding="utf-8"))
         clear_bytecode(box)
         info["setup_created"] = sorted(set(testbed_status(box)) - set(before))[:50]
-        _, out = box.exec(f"{CONDA} && {PRELUDE} && command -v python pytest")
-        info["test_tools"] = out.split()
-        code, _ = box.exec(f"{CONDA} && {PRELUDE} && python -c 'import pytest_timeout'")
-        info["pytest_timeout"] = code == 0
         return box, info
     except Exception:
         box.close()

@@ -15,7 +15,7 @@
 | 6 | 設定と表の規約 | 済み（同じ PR）：C# を拒む設定を外し、CLAUDE.md とルートの README を v4 に書き直した |
 | 7 | 手元の片付け | 下調べ済み（2026-11-14。§5）。消すのは、検めと行ごとの確認の後 |
 | 8 | リポジトリの不整合：ルートの README の古い方針（ホワイトボックスを前提にした「共通骨格だけを証明」「受け入れテストを先に見せる」）と「制御核はこれから作ります」 | 直した（2026-11-14。exp/x02-prep の手元のコミット） |
-| 9 | リポジトリの残骸：v3 の box の部品と、FeatureBench の制御核の繋ぎ（fb_core 一式） | 済み（2026-11-18。§6。ブランチ cleanup/v4-remnants の 1 本の PR）。WSL の box-proxy などは、マージの後に確認を取ってから消す |
+| 9 | リポジトリの残骸：v3 の box の部品と、FeatureBench の制御核の繋ぎ（fb_core 一式） | 済み（2026-11-18。§6。game-harness#385）。WSL の box-proxy・ネットワーク・イメージも、マージの後に消した |
 | 10 | agy の全体設定の混入（P-007） | まだ（§4。反証の段の予定を立てるときに） |
 
 ## 1. 保全：タグ archive/pre-v4
@@ -43,7 +43,7 @@
 - 手順（予定を立てるときに）：調べ役の agy を、FeatureBench の腕と同じ形（WSL の箱の中で、全体設定の無い HOME と、agy の宛先だけを通す網）で走らせる部品を作る。~/.gemini には触らない。それまで、Windows の agy の版を照らす部品（agy_pinned と config/agy_digests.json）は残す。
 - 外の評価（argon_eval）と main の写し（main_mirror）は、総監督の部品と一緒に消した。
 
-## 5. 手元の片付け（順 7。2026-11-14 に下調べした。まだ何も消していない）
+## 5. 手元の片付け（順 7。2026-11-14 に下調べした。WSL の Docker のイメージのほかは、まだ何も消していない）
 
 - 消す前の扱い：Git の外の生の記録で、非公開の課題の中身（v3 の鎖の課題）を含みうるものは、中を画面に出さずに圧縮して、手元の非公開の置き場（席の置き場の private の下に、日付のフォルダを作る）に残してから消す。
 - C:\src の直下のほかのフォルダ（操縦士のほかの仕事）は、対象にしない。
@@ -54,7 +54,7 @@
 | 作業ツリー wt-e5p（枝 feat/e5-arms） | 未コミットの変更 0。枝は GitHub にある | 作業ツリーを外す。枝は残す |
 | 一時の置き場の作業ツリー 3 つ（v3 のころの席の置き場） | 中のファイルが、一時の置き場の掃除で消えている（追跡のファイルが全部「消えた」印で、616・684・646。未コミットの仕事は無い）。2 つの枝は GitHub にある。1 つは頭の外れた状態で、そのコミットはどの枝とタグにも無い | `git worktree prune` で外す。頭の外れたコミットは bundle にして残してから外す |
 | 箱のクローン 9 つ（v3 の箱の走り。C:\src の直下の box-*） | どれも Git のクローン。大きさと、記録らしいファイルの数は下の別表 | 実装役の生ログを含むので、圧縮して非公開の置き場に残してから消す |
-| WSL の Docker の像（v3 の箱 gh-box:1 286MB・中継 gh-box-proxy:1 28MB、土台の python:3.12-slim-bookworm 45MB・debian:bookworm-slim 28MB） | 中継の入れ物 box-proxy（2026-11-07 に作った）は、起き直しの設定が always で、WSL の立ち上がりのたびに起きる（2026-11-14 に 2 回見た）。ほかの像には入れ物が無い。v3 の会話の形の名前つきボリュームは 0 | 入れ物を止めて消し、像 4 つを消す（§6 の部品を消すのと一緒に）。FeatureBench の像 10 個は残す |
+| WSL の Docker のイメージ（v3 の box の gh-box:1 286MB・中継 gh-box-proxy:1 28MB、土台の python:3.12-slim-bookworm 45MB・debian:bookworm-slim 28MB） | 中継のコンテナ box-proxy（2026-11-07 に作った）は、再起動の方針が always で、WSL の立ち上がりのたびに起きる（2026-11-14 に 2 回見た）。ほかのイメージにはコンテナが無い。v3 の会話の形の名前つきボリュームは 0 | 済み（2026-11-18。§6）：コンテナ box-proxy・ネットワーク box-int・イメージ 4 つと、v3 の box のラベルを持つタグの無いイメージ 23 個を消した。FeatureBench と SWE-EVO のイメージは残す |
 | .local の直下（18 フォルダ・6 ファイル） | 今の道具（リポジトリの harness・config と、席の今の置き場）から参照されるものは 0。v3 のころの席のスクリプトが out と inbox を指すだけ。main は古いリポジトリの写し、branches は閉じた PR の写し | 残すもの（machine.json・seat・research・oracles・bench）のほかは、1 つに圧縮して非公開の置き場に残してから消す。screen-oracles は、非公開の課題の中身を含みうるので、中を開かずに oracles の下に移す |
 | ACL の写し（94,264 項目。席の置き場） | Windows の別のアカウントで閉じ込める形（P-005）は退けたが、bench のアカウントと拒みの ACL は今も効いている | Unity の閉じ込め方（設計 §9）が決まるまで、今の ACL と写しはそのまま置く |
 
@@ -88,6 +88,6 @@
 - 確認（2026-11-18）：
   - 試験 182 件（main の 263 件から、消した 4 つのファイルの 83 件を引き、fb_agy の 2 件を足した）・`python -m harness.premises check --strict`・`python -m harness.model_pin` が通った。
   - 偽物の agy で（利用枠 0。G0-5 の代わり）、この PR のコードだけを写した置き場（config/box.json は無い）から、0-b と同じ seaborn の 1 課題を、fb infer → output.jsonl → fb eval まで通した。回収したパッチは偽物が作った 1 ファイルだけで、報告されたモデルは名指しと同じ。トークンは agy が読む置き場にあり、コンテナから oauth2.googleapis.com には届き、pypi.org と github.com は止まった。漏れの検査（fb_agy check）は合格。fb eval は、パッチの適用の失敗 0・エラー 0 で終わった（偽物なので解決は 0）。
-- 手元の後片付け（PR の外。マージの後に、操縦士の確認を取ってから）：
-  - WSL の docker の box-proxy のコンテナ（イメージ gh-box-proxy:1。再起動の方針は always）を止めて消し、イメージ gh-box-proxy:1・gh-box:1 とネットワーク box-int を消す。土台のイメージ 2 つは §5 の表のとおり。
+- 手元の後片付け（PR の外。2026-11-18、game-harness#385 のマージと操縦士の確認の後）：
+  - WSL の docker の box-proxy のコンテナ（再起動の方針は always）を止めて消し、ネットワーク box-int と、イメージ gh-box-proxy:1・gh-box:1・土台の 2 つ（python:3.12-slim-bookworm・debian:bookworm-slim）を消した。あわせて、v3 の box のラベル（gh.box.fingerprint）を持つ、タグの無い古い gh-box のビルド 23 個を消した（使うコンテナはどれも 0）。
   - 消してよい理由：リポジトリで box-proxy に依っていたのは config/box.json の 2 項目だけで、移した。FeatureBench・SWE-EVO の段 0・S0 の走りは、box-proxy を使っていない。イメージは、タグ archive/pre-v4 の box/ から作り直せる。
