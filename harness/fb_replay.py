@@ -74,9 +74,9 @@ def commit_sha(stdout):
 class Box:
     """課題の像から起こした箱。exec は (終わりの符号, 出力)。"""
 
-    def __init__(self, image, name, rt):
+    def __init__(self, image, name, rt, network="none"):
         self.name = name
-        args = ["docker", "run", "-d", "--network", "none", "--name", name, "-u", "root", "-w", "/testbed",
+        args = ["docker", "run", "-d", "--network", network, "--name", name, "-u", "root", "-w", "/testbed",
                 "--memory", MEMORY, "--memory-swap", MEMORY]   # 箱ごとの上限（並べた箱で WSL のメモリを使い切らない）
         if rt.get("shm_size"):
             args += ["--shm-size", rt["shm_size"]]
@@ -228,9 +228,13 @@ def packages_of(row):
     return [name or repo.split("/")[-1]]
 
 
-def probe(box, spec, timeout=5400):
+def probe(box, spec, timeout=5400, prelude=""):
+    """prelude は conda activate の後・probe の前に走らせる命令（SWE-EVO の S0 が、準備の後の環境を読み直すため。
+    Box.exports は conda activate の前に走るので、その後の PATH を上書きできない）。"""
     box.put("/tmp/spec.json", json.dumps(spec))
-    code, out = box.exec(f"{CONDA} && python {PROBE_DIR}/fb_gate_probe.py /tmp/spec.json /tmp/out.json", timeout=timeout)
+    pre = f"{prelude} && " if prelude else ""
+    code, out = box.exec(f"{CONDA} && {pre}python {PROBE_DIR}/fb_gate_probe.py /tmp/spec.json /tmp/out.json",
+                         timeout=timeout)
     text = box.get("/tmp/out.json")
     box.exec("rm -f /tmp/out.json")
     if text is None:

@@ -364,6 +364,20 @@ class BuildGuardTest(unittest.TestCase):
                                           "msg": "ModuleNotFoundError: No module named 'dspy'"}])
 
     @unittest.skipUnless(os.path.isdir("/proc/self"), "needs /proc (runs in the task box and on Linux)")
+    def test_run_tests_strict_budget_cuts_the_last_file_and_skips_the_rest(self):
+        # R0 の割り当て：1 ファイルの上限は残りの時間との短いほう。残りが 0 なら走らせない。
+        # timeout の上限とテストの長さを競らせない（終わるファイルはすぐ終わり、止めるファイルは上限よりずっと長い）
+        cmd = "bash -c 'case \"${@: -1}\" in ok.py) exit 0;; *) sleep 30;; esac' x"
+        with tempfile.TemporaryDirectory() as root:
+            res = probe.run_tests(root, ["ok.py", "a.py"], cmd, None, 300, 2.5, strict=True)
+            self.assertEqual(res["files"]["ok.py"]["rc"], 0)
+            self.assertEqual(res["files"]["a.py"]["rc"], 124)    # 残りの 2 秒で止めた（ファイルの上限の 300 秒ではない）
+            self.assertLess(res["files"]["a.py"]["secs"], 10)
+            res = probe.run_tests(root, ["a.py", "b.py"], cmd, None, 300, 0.5, strict=True)
+            self.assertEqual(res["files"]["a.py"]["rc"], 124)    # 残りが 1 秒に満たなくても、1 秒は走らせる
+            self.assertEqual(res["not_run"], ["b.py"])
+
+    @unittest.skipUnless(os.path.isdir("/proc/self"), "needs /proc (runs in the task box and on Linux)")
     def test_run_session_timeout(self):
         code, _, _, killed = probe.run_session(["bash", "-c", "sleep 300"], 1)
         self.assertEqual(code, 124)
