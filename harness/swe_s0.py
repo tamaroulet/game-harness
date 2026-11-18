@@ -6,9 +6,13 @@ SWE-EVO 版の第 1 関門（pyflakes と、R0 の選びのテストと、後か
 
     /opt/swe-evo/venv/bin/python -m harness.swe_s0 run --tasks <ID>... --out <置き場>
 
+- 公式の評価（SWE-EVO の run_evaluation）と同じく、パッチの前に `git reset --hard <base_commit>` で作業ツリーを
+  始まりのコミットに戻す（pydantic のイメージは pdm.lock と pyproject.toml が変わったままで、正解のパッチが当たらない）。
 - 環境の準備は、公式の評価のスクリプトの、テストの前の行（版を決めた pip の install など）をそのまま走らせる。
   公式の評価と同じく、正解のパッチを当ててから走らせる。準備はネットワーク越し（ブリッジ）で行い、終わったら
   ネットワークを外してから関門を当てる。
+- 公式の評価は、準備と同じシェルでテストを走らせる。そのため準備の終わりの環境（export -p）を残し、probe の前に、
+  conda activate の後で読み直す（pydantic の準備は PATH の先頭に $HOME/.local/bin を足す）。
 - t=0 のコンテナは、t=0 の静的な検出の基準・テストの import の読み・後からの対照に使う（課題ごとに 1 つ）。
 - 群 1 は、正解のパッチからテストのファイルを外すので空。群 2（台帳のモジュール）は、S0 には台帳が無いので空。
   測るのは群 3（変えたモジュールを import する既存のテスト）。
@@ -31,6 +35,8 @@ ARROW = "/opt/swe-evo/SWE-EVO/hf_out/hf_dataset/test/data-00000-of-00001.arrow"
 CONDA = "source /opt/miniconda3/bin/activate && conda activate testbed && cd /testbed"
 PER_TEST_TIMEOUT = 60      # pytest-timeout があるイメージで、1 項目に付ける上限
 GATE_LIMIT = 600           # 判定線 2 の 1 回の関門の上限（静的・テスト・後からの対照）
+ENV_FILE = "/tmp/s0_env.sh"   # 準備の終わりの環境
+PRELUDE = f"source {ENV_FILE}"
 
 
 def load_rows(ids):
@@ -52,6 +58,17 @@ def setup_lines(eval_script):
     if not starts or not ends or ends[0] <= starts[-1]:
         raise ValueError("eval script has no setup section")
     return [ln for ln in lines[starts[-1] + 1:ends[0]] if ln.strip()]
+
+
+def setup_command(lines, env_file=ENV_FILE):
+    """準備の行を 1 つの bash で走らせ、終わりの環境を env_file に残す命令。終わりの符号は、準備の最後の行の符号。"""
+    return "\n".join(["cd /testbed", *lines, "rc=$?", f"export -p > {env_file}", "exit $rc"])
+
+
+def testbed_status(box):
+    """/testbed の git status（追跡外と無視のファイルも。ディレクトリはまとめて 1 行）。準備が作ったファイルを見るため。"""
+    code, out, err = box.exec_split("cd /testbed && git status --porcelain --ignored")
+    return sorted(ln for ln in out.splitlines() if ln.strip()) if code == 0 else [f"error: {err.strip()[-200:]}"]
 
 
 def split_patch(patch):
@@ -108,16 +125,25 @@ def start_box(row, tag, patch=None):
     box = Box(image, f"s0-{tag}-{int(time.time())}", {}, network="bridge")
     info = {"image": image}
     try:
+        info["reset_discarded"] = [ln for ln in testbed_status(box) if not ln.startswith(("!!", "??"))]
+        code, out = box.exec(f"cd /testbed && git reset -q --hard {row['base_commit']}")
+        if code != 0:
+            raise RuntimeError(f"git reset failed: {out[-300:]}")
         if patch:
             box.put("/tmp/cand.patch", patch if patch.endswith("\n") else patch + "\n")
             code, out = box.exec("cd /testbed && git apply --whitespace=fix /tmp/cand.patch && rm -f /tmp/cand.patch")
             if code != 0:
                 raise RuntimeError(f"patch apply failed: {out[-300:]}")
+        info["applied"] = bool(patch)
         lines = setup_lines(make_test_spec(row, namespace=None).eval_script)
+        before = testbed_status(box)
         t = time.time()
-        code, out = box.exec("cd /testbed\n" + "\n".join(lines), timeout=1800)
+        code, out = box.exec(setup_command(lines), timeout=1800)
+        tail = "\n".join(ln for ln in out.splitlines() if "Running pip as the 'root' user" not in ln)
         info.update({"setup_lines": lines, "setup_rc": code, "setup_secs": round(time.time() - t, 1),
-                     "setup_tail": out[-600:]})
+                     "setup_tail": tail[-600:]})
+        if box.exec(f"test -s {ENV_FILE}")[0] != 0:
+            raise RuntimeError("setup left no environment file")
         code, out = sh(["docker", "network", "disconnect", "bridge", box.name])
         if code != 0:
             raise RuntimeError(f"network disconnect failed: {out[-200:]}")
@@ -126,7 +152,10 @@ def start_box(row, tag, patch=None):
         for p in PROBE_FILES:
             box.put(f"{PROBE_DIR}/{p.name}", p.read_text(encoding="utf-8"))
         clear_bytecode(box)
-        code, _ = box.exec(f"{CONDA} && python -c 'import pytest_timeout'")
+        info["setup_created"] = sorted(set(testbed_status(box)) - set(before))[:50]
+        _, out = box.exec(f"{CONDA} && {PRELUDE} && command -v python pytest")
+        info["test_tools"] = out.split()
+        code, _ = box.exec(f"{CONDA} && {PRELUDE} && python -c 'import pytest_timeout'")
         info["pytest_timeout"] = code == 0
         return box, info
     except Exception:
@@ -144,7 +173,7 @@ def run_task(row, out_dir):
     try:
         res["t0_setup"] = info0
         base = probe(box0, {"root": "/testbed", "packages": [pkg], "checks": ["undefined", "test_imports"],
-                            "pyflakes_dir": TOOLS_DIR})
+                            "pyflakes_dir": TOOLS_DIR}, prelude=PRELUDE)
         res["t0_static"] = {"found": len(base.get("undefined") or []), "secs": (base.get("secs") or {}).get("undefined"),
                             "error": base.get("error")}
         imports_t0 = (base.get("test_imports") or {}).get("files") or {}
@@ -158,7 +187,7 @@ def run_task(row, out_dir):
                     "pyflakes_dir": TOOLS_DIR, "test_cmd": test_cmd_of(row),
                     "timeout_one": PER_TEST_TIMEOUT if infog["pytest_timeout"] else None,
                     "file_timeout": R0_FILE_TIMEOUT, "test_budget": R0_BUDGET, "strict_budget": True}
-            gold = probe(boxg, spec)
+            gold = probe(boxg, spec, prelude=PRELUDE)
             _, procs_g = boxg.exec("ps -eo comm= | sort | uniq -c | sort -rn")
         finally:
             boxg.close()
@@ -170,7 +199,7 @@ def run_task(row, out_dir):
             control = probe(box0, {"root": "/testbed", "packages": [pkg], "checks": ["tests"], "test_files": failed_files,
                                    "pyflakes_dir": TOOLS_DIR, "test_cmd": test_cmd_of(row),
                                    "timeout_one": spec["timeout_one"], "file_timeout": R0_FILE_TIMEOUT,
-                                   "test_budget": 3600})
+                                   "test_budget": 3600}, prelude=PRELUDE)
         control_secs = round(time.time() - t, 1)
         _, procs_0 = box0.exec("ps -eo comm= | sort | uniq -c | sort -rn")
     finally:
@@ -179,17 +208,21 @@ def run_task(row, out_dir):
     pushed, excused = decide(tests.get("failed") or [], (control.get("tests") or {}).get("failed") or [])
     secs = gold.get("secs") or {}
     gate_secs = round((secs.get("undefined") or 0) + (secs.get("tests") or 0) + control_secs, 1)
-    rc_counts = {}
+    rc_counts, items = {}, {}
     for v in (tests.get("files") or {}).values():
         rc_counts[str(v.get("rc"))] = rc_counts.get(str(v.get("rc")), 0) + 1
+        for k, n in (v.get("counts") or {}).items():
+            items[k] = items.get(k, 0) + n
     res.update({
         "gold_static_new": [list(k) for k in new_static], "gold_tests": {"ran": len(tests.get("files") or {}),
-        "not_run": len(tests.get("not_run") or []), "rc": rc_counts, "failed": len(tests.get("failed") or []),
+        "not_run": len(tests.get("not_run") or []), "rc": rc_counts, "items": items,
+        "failed": len(tests.get("failed") or []),
         "secs": secs.get("tests"), "killed_leftovers": tests.get("killed_leftovers")},
         "control": {"files": len(failed_files), "secs": control_secs, "failed_at_t0": len((control.get("tests") or {}).get("failed") or [])},
         "pushed": [{"node": x["node"], "msg": (x.get("msg") or "")[:200], "type": exception_type(x.get("msg")),
                     "class": gate.failure_class(x.get("msg"), [pkg])} for x in pushed],
         "excused": len(excused), "gold_pushed": bool(new_static or pushed),
+        "excused_items": [{"node": x["node"], "type": exception_type(x.get("msg"))} for x in excused][:50],
         "gate_secs": gate_secs, "gate_within_limit": gate_secs <= GATE_LIMIT,
         "static_secs": {"t0": res["t0_static"]["secs"], "gold": secs.get("undefined")},
         "orphans": {"gold_before": gold.get("orphans_before"), "gold_after": gold.get("orphans_after"),

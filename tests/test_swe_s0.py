@@ -1,8 +1,11 @@
-"""S0（SWE-EVO 版の事前再生ゲート。harness/swe_s0.py）のうち、コンテナが無くても確かめられる所。
+"""S0（SWE-EVO 版の事前再生ゲート。harness/swe_s0.py）のうち、コンテナが無くても確認できる所。
 
     python -m unittest tests.test_swe_s0 -v
 """
+import os
+import subprocess
 import sys
+import tempfile
 import textwrap
 import unittest
 from pathlib import Path
@@ -59,6 +62,21 @@ class S0Test(unittest.TestCase):
             "python -m pip install --no-deps -e .", "pip install 'distributed==2023.6.0'"])
         with self.assertRaises(ValueError):
             swe_s0.setup_lines("#!/bin/bash\necho hi\n")
+
+    def test_setup_command_saves_the_environment_after_the_lines(self):
+        self.assertEqual(swe_s0.setup_command(["a", "b"]),
+                         "cd /testbed\na\nb\nrc=$?\nexport -p > /tmp/s0_env.sh\nexit $rc")
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "bash で走らせる（Linux だけ）")
+    def test_setup_command_keeps_the_last_rc_and_the_path(self):
+        with tempfile.TemporaryDirectory() as d:
+            env = os.path.join(d, "env.sh")
+            cmd = swe_s0.setup_command(['export PATH="/opt/s0x/bin:$PATH"; export S0_MARK=1', "false"], env)
+            self.assertEqual(subprocess.run(["bash", "-c", cmd], capture_output=True).returncode, 1)
+            out = subprocess.run(["bash", "-c", f"source {env} && echo $S0_MARK $PATH"],
+                                 capture_output=True, text=True).stdout.split()
+            self.assertEqual(out[0], "1")
+            self.assertTrue(out[1].startswith("/opt/s0x/bin:"))
 
     def test_split_patch_drops_test_files_only(self):
         code, dropped, files = swe_s0.split_patch(PATCH)
