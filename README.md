@@ -13,10 +13,8 @@
 | `docs/v4/` | 正本の 3 層と、整理の計画 |
 | `docs/research/` | 調べものの記録。主張ごとに出典と抜粋があり、抜粋は出典の本文で機械に照合する |
 | `docs/design/` | 調べ方の規則（`research_protocol.md`）と前提の台帳（`premises.yaml`） |
-| `docs/ops/` | 箱（WSL2 の Docker）の用意と確かめ |
-| `harness/` | 部品：制御核（`core`・`core_report`）、FeatureBench への繋ぎ（`fb_agy`・`fb_core`・出口の関門の確かめ `fb_gate_probe`・項目の根拠の分け `fb_ground`・記録のパッチの再生 `fb_replay`）、エージェントの実行口（`agy_stream`・`agy_pinned`・`agent_cli`・目盛りの読み `agy_quota`）、調べもの（`research`・`research_verify`・`premises`）、モデルの固定（`model_pin`）、土台（`proc`・`job_object`・`exitcode`・`machine`）、v3 の箱（`box`・`box_tree`。消す予定。[整理の計画](docs/v4/cleanup_plan.md)） |
+| `harness/` | 部品：制御核（`core`）、FeatureBench への繋ぎ（agy を足す `fb_agy`・出口の関門の検査 `fb_gate_probe`・項目の根拠の分け `fb_ground`・記録のパッチの再生 `fb_replay`）、エージェントの実行口（`agy_stream`・`agy_pinned`・`agent_cli`・利用枠の読み `agy_quota`）、調べもの（`research`・`research_verify`・`premises`）、モデルの固定（`model_pin`）、土台（`proc`・`job_object`・`exitcode`・`machine`） |
 | `tests/` | 部品の試験 |
-| `box/` | 箱の像（Dockerfile と中継） |
 | `config/` | 部品の設定 |
 | `.github/` | CI（試験・前提の台帳・モデルの固定）と、承認のチェック（`ms4:approved` のラベル） |
 

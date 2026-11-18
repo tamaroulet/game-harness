@@ -114,10 +114,10 @@ FeatureBench のコードは書き換えない（コミット 08b25d9 のまま�
 - FeatureBench のまま使うもの：課題のデータ（Fast v1.1）・課題の像・fb infer の Level 1 の初期化（マスクのパッチ・F2P のテストのファイルの削除・git の作り直し）・パッチの回収（/testbed の git の差分）・output.jsonl・fb eval。
 - 足すもの：
   1. agy のエージェント：FeatureBench の BaseAgent の形で作り、起動のときに FeatureBench のエージェントの表に足す（get_agent を包む）。
-     - 入れ方：入れる段は公開の網が使えるので、config/box.json の URL から agy 1.5.3 を取り、SHA-512 を照らして /usr/local/bin に置く。
+     - 入れ方：入れる段は公開のネットワークが使えるので、config/fb_agy.json の URL から agy 1.5.3 を取り、SHA-512 を照らして /usr/local/bin に置く。
      - 認証：WSL の bench 利用者の OAuth のトークンを、コンテナの HOME の下（/root/.gemini/antigravity-cli/）に置く。/testbed の外で、会話の記録も HOME の下に書かれる。
      - 呼び方：頼み（課題の文だけ）は /tmp の stream-json のファイルから標準入力で渡す。モデルは名指しし、出力は stream-json、許可は自動。
-  2. 中継の宛先：FeatureBench の中継は、エージェントの名前とモデルから API の宛先を 1 つ決める。agy では宛先の決め方を包み、箱の中継の許しの一覧と同じ 3 つ（daily-cloudcode-pa.googleapis.com・www.googleapis.com・oauth2.googleapis.com の 443）だけを通す。
+  2. 中継の宛先：FeatureBench の中継は、エージェントの名前とモデルから API の宛先を 1 つ決める。agy では宛先の決め方を包み、agy の 3 つの宛先（daily-cloudcode-pa.googleapis.com・www.googleapis.com・oauth2.googleapis.com の 443）だけを通す。
 - 確かめること：
   - 偽物の agy で（利用枠 0）、入れる段・トークンの置き場・中継・パッチの回収・output.jsonl・fb eval までが通る。
   - 回収したパッチと infer.log に、トークンの文字列と HOME の下（.gemini）のパスが無い。

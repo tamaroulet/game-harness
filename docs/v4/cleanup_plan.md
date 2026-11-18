@@ -1,6 +1,6 @@
 # 整理の計画（v4 の第 3 層）
 
-- 状態：2026-11-13 に起こし、同じ日に順 1〜6 を済ませた。2026-11-14 に、E-1 の取り下げに合わせて、リポジトリの不整合と残骸の整理（順 8・9）を足し、手元の片付け（順 7）の対象を、消さずに下調べした（§5）。
+- 状態：2026-11-13 に起こし、同じ日に順 1〜6 を済ませた。2026-11-14 に、E-1 の取り下げに合わせて、リポジトリの不整合と残骸の整理（順 8・9）を足し、手元の片付け（順 7）の対象を、消さずに下調べした（§5）。2026-11-18 に順 9 を済ませた（§6）。
 - 方針は[設計と仮説](design.md)の §10。外に出る操作（PR の作成とクローズ・ブランチやタグの削除）と戻せない操作（消す・権限を変える）は、下調べの結果の検めの後、行ごとに操縦士の確認を取ってから行う。
 
 ## 0. 順番と結果
@@ -14,8 +14,8 @@
 | 5 | 検査を CI に入れる | 済み（同じ PR）：前提の台帳の --strict と、モデルの固定 |
 | 6 | 設定と表の規約 | 済み（同じ PR）：C# を拒む設定を外し、CLAUDE.md とルートの README を v4 に書き直した |
 | 7 | 手元の片付け | 下調べ済み（2026-11-14。§5）。消すのは、検めと行ごとの確認の後 |
-| 8 | リポジトリの不整合：ルートの README の古い方針（白箱を前提にした「共通骨格だけを証明」「受け入れテストを先に見せる」）と「制御核はこれから作ります」 | 直した（2026-11-14。exp/x02-prep の手元のコミット） |
-| 9 | リポジトリの残骸：v3 の box の部品と、FeatureBench の制御核の繋ぎ（fb_core 一式） | まだ（§6。main を土台に 1 本の PR。高リスク。手元の box-proxy はマージの後に消す） |
+| 8 | リポジトリの不整合：ルートの README の古い方針（ホワイトボックスを前提にした「共通骨格だけを証明」「受け入れテストを先に見せる」）と「制御核はこれから作ります」 | 直した（2026-11-14。exp/x02-prep の手元のコミット） |
+| 9 | リポジトリの残骸：v3 の box の部品と、FeatureBench の制御核の繋ぎ（fb_core 一式） | 済み（2026-11-18。§6。ブランチ cleanup/v4-remnants の 1 本の PR）。WSL の box-proxy などは、マージの後に確認を取ってから消す |
 | 10 | agy の全体設定の混入（P-007） | まだ（§4。反証の段の予定を立てるときに） |
 
 ## 1. 保全：タグ archive/pre-v4
@@ -27,8 +27,8 @@
 
 - Git が追うファイルを 826 から 81 にした。
 - 消した：H ラインと関門・鎖のベンチ・提案役と外側の周期・総監督・古いゲームの線・A/B の実験の部品と試験（harness/ の 144・tests/ の 256）、experiments/・projects/・rollgame/・tower/・testbed/・launcher/・bench/、docs/ の rebuild・director・tree・bench・testbed・checks・prompts・progress*.yaml・design/ の 40・ops/ の 3、config/ の 17。
-- 残した：調べもの（research・research_verify・premises）、モデルの固定（model_pin）、実行環境のアダプタ（box・box_tree）、エージェントの実行口（agy_stream・agy_pinned・agent_cli）、土台（proc・job_object・exitcode・machine）と、その試験（全件 173）。このうち box・box_tree は、のちに FeatureBench の経路（fb_agy・fb_core）に替わって使わなくなった（§6 で消す）。
-- 移した：調べ役の頼みの前置きを config/research_instruction.md に。承認ゲートの正本は .github/（ひな形を消した）。main のルールセットの写しは .github/ruleset-main.json に。残す部品の試験（agy の stream-json の読み・利用枠切れの検出・時間切れの出力）は、消す試験から移した。
+- 残した：調べもの（research・research_verify・premises）、モデルの固定（model_pin）、実行環境のアダプタ（box・box_tree）、エージェントの実行口（agy_stream・agy_pinned・agent_cli）、土台（proc・job_object・exitcode・machine）と、その試験（全件 173）。このうち box・box_tree は、のちに FeatureBench の経路に替わって使わなくなり、§6 で消した。
+- 移した：調べ役のプロンプトの前置きを config/research_instruction.md に。承認ゲートの正本は .github/（ひな形を消した）。main のルールセットの写しは .github/ruleset-main.json に。残す部品の試験（agy の stream-json の読み・利用枠切れの検出・時間切れの出力）は、消す試験から移した。
 - 進捗の台帳（docs/progress.yaml と progress.py）と、その決まり（CLAUDE.md の progress review・complete・検証コマンドの PR）も消した（操縦士の決め、2026-11-13）。
 
 ## 3. 検査
@@ -76,30 +76,18 @@
 
   - 元に無いコミットと未コミットの変更は、v3 の鎖の課題の実装役の仕事で、公開の記録（件数と費用）はタグ archive/pre-v4 にある。クローンごと（.git を含めて）圧縮して非公開の置き場に残してから消す。
 
-## 6. リポジトリの残骸の整理（順 9。次の PR）
+## 6. リポジトリの残骸の整理（順 9。2026-11-18 に済ませた）
 
-- FeatureBench の実験は終わった（段 b・段 c・大きい 10 課題の H0 は走らせない。held-out は封を開けずに終える）。harness/fb_core.py を直して残す案はやめ、消す（操縦士の決め、2026-11-17）。
-  - 偽物の agy の通しの確認は、harness/fb_agy.py の素の agy で足りる。
-  - SWE-EVO で使い回したい部品（agy の実行口・pytest の出力の読み・テストの改変の検出）は、S0 のアダプタを設計 §5-1 の契約で作るときに、FeatureBench に依らない所へ書く。消したコードは、そのとき Git の履歴から読む。
-  - 直してから消す二度手間をしないため、この形にする。
-1. 依存を断つ：harness/fb_agy.py が読む config/box.json の 2 項目（agy の配布の URL と SHA-512、トークンの置き場）を config/fb_agy.json に移し、読み先を替える。試験を足す。
-2. 消す（v3 の box の部品）：
-   - harness/box.py・harness/box_tree.py・box/（Dockerfile・中継・WSL の準備のスクリプト）・config/box.json・docs/ops/box.md・tests/test_box.py・tests/test_box_tree.py。
-   - config/risk_tiers.json の box の行を外す。
-3. 消す（FeatureBench の制御核の繋ぎ）：
-   - harness/fb_core.py・config/fb_core.json・harness/core_report.py・tests/test_fb_core.py・tests/test_core_report.py。
-   - harness/fb_agy.py の、fb_core の比較条件を登録する所を外し、素の agy だけを登録する。
-   - harness/core.py（制御核）と tests/test_core.py は残す（E-3 で使う）。
-4. 正本と README：ルートの README の部品の表を直し、§0 の表に結果を書く。
-5. 確認：
-   - `python -m unittest discover -s tests`・`python -m harness.premises check --strict`・`python -m harness.model_pin`。
-   - 偽物の agy で、fb infer から fb eval までを 1 課題通す（利用枠 0。G0-5 の代わり）。
-6. PR は 1 本。
-   - 高リスク（Tier 2）の区分：tests/・box/・config/box.json・harness/box.py・harness/box_tree.py。
-   - 本文の冒頭に、当たった区分とパス・変えた理由・確認したことを書く。土台は main。
-7. 手元の後片付け（PR の外。マージの後に、操縦士の確認を取ってから）：
-   - WSL の docker の box-proxy のコンテナ（gh-box-proxy:1。再起動の方針は always）を止めて消し、イメージも消す。
-   - 消してよい理由：
-     - リポジトリで box-proxy に依るのは config/box.json の 2 項目だけで、1 で移す。
-     - FeatureBench と SWE-EVO の段 0 の走りは、box-proxy を使っていない。
-     - イメージは、タグ archive/pre-v4 の box/ から作り直せる。
+- FeatureBench の実験は終わった（段 b・段 c・大きい 10 課題の H0 は走らせない。held-out は封を開けずに終える）。harness/fb_core.py は直して残さず、消した（操縦士の決め、2026-11-17）。
+  - SWE-EVO で使い回したい部品（agy の実行口・pytest の出力の読み・テストの改変の検出）は、SWE-EVO のアダプタを設計 §5-1 の契約で作るときに、FeatureBench に依らない所へ書く。消したコードは、そのとき Git の履歴から読む。
+- 依存を断った：harness/fb_agy.py が config/box.json から読んでいた 2 項目（agy の配布の URL と SHA-512、トークンの置き場）を config/fb_agy.json に移し、読み先を替えた。試験は、agy の 3 つの宛先を box の中継の許しの一覧と照らす形から、宛先そのものを固定する形にした。
+- 消した：
+  - v3 の box の部品：harness/box.py・harness/box_tree.py・box/（Dockerfile・中継・WSL の準備のスクリプト）・config/box.json・docs/ops/box.md・tests/test_box.py・tests/test_box_tree.py。config/risk_tiers.json の box の行。
+  - FeatureBench の制御核の繋ぎ：harness/fb_core.py・config/fb_core.json・harness/core_report.py・tests/test_fb_core.py・tests/test_core_report.py。harness/fb_agy.py は素の agy だけを登録する。
+  - 残した：harness/core.py（制御核）と tests/test_core.py（E-3 で使う）。
+- 確認（2026-11-18）：
+  - 試験 182 件（main の 263 件から、消した 4 つのファイルの 83 件を引き、fb_agy の 2 件を足した）・`python -m harness.premises check --strict`・`python -m harness.model_pin` が通った。
+  - 偽物の agy で（利用枠 0。G0-5 の代わり）、この PR のコードだけを写した置き場（config/box.json は無い）から、0-b と同じ seaborn の 1 課題を、fb infer → output.jsonl → fb eval まで通した。回収したパッチは偽物が作った 1 ファイルだけで、報告されたモデルは名指しと同じ。トークンは agy が読む置き場にあり、コンテナから oauth2.googleapis.com には届き、pypi.org と github.com は止まった。漏れの検査（fb_agy check）は合格。fb eval は、パッチの適用の失敗 0・エラー 0 で終わった（偽物なので解決は 0）。
+- 手元の後片付け（PR の外。マージの後に、操縦士の確認を取ってから）：
+  - WSL の docker の box-proxy のコンテナ（イメージ gh-box-proxy:1。再起動の方針は always）を止めて消し、イメージ gh-box-proxy:1・gh-box:1 とネットワーク box-int を消す。土台のイメージ 2 つは §5 の表のとおり。
+  - 消してよい理由：リポジトリで box-proxy に依っていたのは config/box.json の 2 項目だけで、移した。FeatureBench・SWE-EVO の段 0・S0 の走りは、box-proxy を使っていない。イメージは、タグ archive/pre-v4 の box/ から作り直せる。
