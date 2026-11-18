@@ -12,8 +12,11 @@
   （FeatureBench の network.py。agy の 3 つの宛先の 443 だけ）にだけ届くようにする。github.com・pypi.org などは届かない。
 - プロンプト：H0 は FRAME の 1 文と課題の文（リリースノート）。H_cots はその末尾に COTS（課題によらない 1 段落）を足す。
 - 走りの後に残すもの：stream-json の全文・パッチ・漏れの検査・軌跡の要約（コマンド・pytest の走り・ファイルの編集・
-  最後のパッチのテストのファイルの足し・変え・消し）・エージェントが pytest で走らせたテストのファイルの t=0 の落ち
-  （S0 と同じ probe。利用枠 0）・公式の採点（SWE-EVO の run_instances。予測のパッチに test_patch をつなぐ）。
+  最後のパッチのテストのファイルの足し・変え・消し）・t=0 の落ち（エージェントの pytest の走りの引数の .py のファイルと、
+  落ちた項目のファイルを、S0 と同じ probe で t=0 のコンテナで走らせる。利用枠 0）・公式の採点（SWE-EVO の
+  run_instances。予測のパッチに test_patch をつなぐ）。
+- agy は、約 10 KB を超えるコマンドの出力の中ほどを切って返し、全文をコンテナの brain の下に置く（X-01・X-02 の
+  記録では pytest の走りの約半分）。コンテナを閉じる前に brain を写し、切れた出力は全文から読む。
 - 本物の agy では、走りの前後に Gemini の利用枠を /quota で読み（harness/agy_quota。トークン 0）、週の残り 0.35・
   5 時間の残り 0.15 を切っていたら走らせない。
 """
@@ -24,6 +27,7 @@ import logging
 import os
 import re
 import shlex
+import shutil
 import sys
 import tempfile
 import threading
@@ -44,6 +48,7 @@ SOCKET_DIR = "/run/featurebench-network"
 BRIDGE = "/installed-agent/fb_proxy_bridge.py"
 NET_ENV = "/installed-agent/net_env.sh"
 FAKE_TOKEN = "/opt/fb/fake_token"
+BRAIN = fb_agy.TOKEN_DIR + "/brain"   # agy が切った出力の全文を置く所（<会話>/.system_generated/steps/<段>/output.txt）
 TTL = 3600                       # 1 課題 60 分（設計 §5-1）
 WEEKLY_FLOOR, FIVE_HOUR_FLOOR = 0.35, 0.15
 T0_BUDGET = 600                  # 走らせたテストのファイルの t=0 の落ちを読む時間
@@ -77,7 +82,8 @@ for h in ("oauth2.googleapis.com", "pypi.org", "github.com"):
 
 FAKE_AGY_SWE = r'''#!/usr/bin/env python3
 """偽物の agy（§6-3 の実行口の確認用。利用枠を使わない）。本物と同じ形の stream-json を出し、道具の呼び出しを 3 つ真似る：
-テストを 1 つ走らせる（FAKE_PYTEST）・コードでないファイルを 1 つ書く・テストのファイルを 1 つ足す。届き方も報告する。"""
+テストを走らせる（FAKE_PYTEST）・コードでないファイルを 1 つ書く・テストのファイルを 1 つ足す。届き方も報告する。
+テストの出力が 2,000 字を超えたら、本物と同じ形で中ほどを切って返し、全文を brain の下に置く（本物は約 10 KB で切る）。"""
 import json, os, pathlib, subprocess, sys, time, urllib.error, urllib.request
 data = sys.stdin.read()
 lines = [line for line in data.splitlines() if line.strip()]
@@ -104,8 +110,16 @@ ev("init", {"model": model, "conversation_id": "fake-conv"})
 cmd = "python -m pytest -p no:cacheprovider " + os.environ.get("FAKE_PYTEST", "")
 t = time.time()
 p = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-tool(1, "run_command", {"CommandLine": cmd},
-     "Command exited with code %d.\n\nCommand output:\n%s" % (p.returncode, (p.stdout + p.stderr)[-6000:]), round(time.time() - t, 2))
+full = "Command exited with code %d.\n\nCommand output:\n%s" % (p.returncode, p.stdout + p.stderr)
+output = full
+if len(full) > 2000:
+    saved = pathlib.Path(os.environ.get("HOME", "/root")) / ".gemini/antigravity-cli/brain/fake-conv/.system_generated/steps/1"
+    saved.mkdir(parents=True, exist_ok=True)
+    (saved / "output.txt").write_text(full)
+    output = ("The tool's output was truncated due to being too long. You can find the full output in a file at file://%s.\n\n"
+              "Here is a preview with the middle of the output truncated:\n%s\n<truncated %d of %d bytes from the middle of the "
+              "output>\n%s" % (saved / "output.txt", full[:1000], len(full) - 2000, len(full), full[-1000:]))
+tool(1, "run_command", {"CommandLine": cmd}, output, round(time.time() - t, 2))
 pathlib.Path("FAKE_AGY_CHANGE.txt").write_text("written by the fake agy\n")
 tool(2, "write_file", {"Path": "/testbed/FAKE_AGY_CHANGE.txt"}, "ok", 0.01)
 pathlib.Path("tests").mkdir(exist_ok=True)
@@ -163,12 +177,19 @@ def merge_patches(code_patch, test_patch):
 # ---------------------------------------------------------------- 軌跡の要約
 
 _EXIT_RE = re.compile(r"Command exited with code (-?\d+)")
-_PYTEST_RE = re.compile(r"(?:^|[\s;&|(])(?:\S*python[\d.]*\s+-m\s+)?pytest(?=\s|$|[;&|)])")
+# コマンドの頭（行の頭か ; & | ( の後。環境変数の代入と timeout と python -m を挟んでよい）の pytest だけ。
+# python -c の中の `import pytest` や `which pytest` は走りではない
+_PYTEST_RE = re.compile(r"(?:^|[;&|(])\s*(?:\w+=\S*\s+)*(?:timeout\s+\S+\s+)?(?:\S*python[\d.]*\s+-m\s+)?pytest(?=\s|$|[;&|)])",
+                        re.M)
 _VALUE_OPTS = {"-k", "-m", "-p", "-o", "-c", "-n", "-W", "--deselect", "--ignore", "--rootdir", "--tb", "--timeout",
                "--junitxml", "--maxfail", "--durations"}
-_NODE_RE = re.compile(r"^(?:FAILED|ERROR)\s+(\S+)", re.M)
+# 短い要約の行の項目（.py のファイルの名で始まるもの）。mlflow のプラグインは、行の頭と項目の間に「| MEM … GB |
+# DISK … GB」を挟むので、| で始まる間だけは飛ばす。取り込んだログの行（ERROR    name:file.py:12 …）は項目にしない
+_NODE_RE = re.compile(r"^(?:FAILED|ERROR)\s+(?:\|[^\n]*?\s)?([\w./-]+\.py(?:::\S*)?)(?=\s|$)", re.M)
 _SUMMARY_RE = re.compile(r"^=*\s*((?:\d+ (?:passed|failed|errors?|skipped|deselected|xfailed|xpassed|warnings?)(?:, )?)+"
                          r" in [\d.]+s|no tests ran in [\d.]+s)", re.M)
+_TRUNC_RE = re.compile(r"output was truncated.*?full output in a file at file://(/\S+?\.txt)", re.S)
+_CUT_RE = re.compile(r"[^\n]*\n<truncated \d+ of \d+ bytes from the middle of the output>\n[^\n]*")   # 切れ目の前後の欠けた行
 
 
 def _rel(path):
@@ -199,9 +220,24 @@ def test_targets(cmd):
     return out
 
 
-def trajectory(stream_text):
+def saved_output(brain_dir):
+    """agy が切った出力の全文（file:// の名）を、コンテナから写した brain の下から読む関数。brain の外と無いものは None。"""
+    root = Path(brain_dir).resolve()
+
+    def read(path):
+        if not path.startswith(BRAIN + "/"):
+            return None
+        p = (root / path[len(BRAIN) + 1:]).resolve()
+        if root not in p.parents or not p.is_file():
+            return None
+        return p.read_text(encoding="utf-8", errors="replace")
+    return read
+
+
+def trajectory(stream_text, full_output=None):
     """stream-json → {"commands": [...], "edits": [...], "summary": {...}}。コマンドの全文（500 字まで）・秒・終わりの符号、
-    pytest の走りは対象と落ちた項目と要約の行、ファイルの編集はテストのファイルか。"""
+    pytest の走りは対象と落ちた項目と要約の行、ファイルの編集はテストのファイルか。agy が中ほどを切った出力は、
+    full_output（file:// の名 → 全文か None）で全文を読む。読めなければ、切れ目の前後の欠けた行を外した残りから読む。"""
     commands, edits, reads = [], [], 0
     for line in (stream_text or "").splitlines():
         line = line.strip()
@@ -224,10 +260,19 @@ def trajectory(stream_text):
             out = str(ti.get("output") or ti.get("error") or "")
             m = _EXIT_RE.search(out)
             rec = {"step": su.get("step_index"), "command": cmd[:500], "seconds": secs, "exit": int(m.group(1)) if m else None}
+            cut = _TRUNC_RE.search(out[:1000])
+            if cut:
+                full = full_output(cut.group(1)) if full_output else None
+                rec["truncated"] = "full" if full is not None else "preview"
+                out = full if full is not None else _CUT_RE.sub("\n", out)
             if _PYTEST_RE.search(cmd):
                 summ = _SUMMARY_RE.findall(out)
-                rec.update(pytest=True, targets=test_targets(cmd), failed=_NODE_RE.findall(out)[:100],
-                           summary=summ[-1].strip() if summ else "")
+                targets, failed = test_targets(cmd), list(dict.fromkeys(_NODE_RE.findall(out)))
+                if not failed and rec["exit"] not in (None, 0, 1, 5, 124):
+                    # 項目の行の無い終わり（符号 4：conftest の import の誤りなど）。probe と同じく、ファイルの単位の落ちにする
+                    failed = [t for t in targets if t.endswith(".py")]
+                    rec["file_level"] = True
+                rec.update(pytest=True, targets=targets, failed=failed, summary=summ[-1].strip() if summ else "")
             commands.append(rec)
         elif name in ("edit_file", "write_file"):
             path = _rel(params.get("Path") or params.get("TargetFile") or params.get("AbsolutePath"))
@@ -240,8 +285,11 @@ def trajectory(stream_text):
         "commands": len(commands), "command_seconds": round(sum(c["seconds"] or 0 for c in commands), 1),
         "pytest_runs": len(runs), "pytest_seconds": round(sum(c["seconds"] or 0 for c in runs), 1),
         "pytest_runs_with_failures": sum(1 for c in runs if c["failed"]),
-        "reads": reads, "edited_files": len({x["path"] for x in edits}),
-        "edited_test_files": sorted({x["path"] for x in edits if x["test"]})}}
+        "truncated_outputs": sum(1 for c in commands if c.get("truncated")),
+        "truncated_without_full": sum(1 for c in commands if c.get("truncated") == "preview"),
+        "reads": reads, "edited_files": len({x["path"] for x in edits if x["state"] == "DONE"}),
+        "edited_test_files": sorted({x["path"] for x in edits if x["test"] and x["state"] == "DONE"}),
+        "failed_edits": sum(1 for x in edits if x["state"] != "DONE")}}   # 本物の記録では edit_file の誤りが返ることがある
 
 
 def patch_summary(name_status):
@@ -258,6 +306,17 @@ def patch_summary(name_status):
         else:
             out["code_files"].append(path)
     return out
+
+
+def t0_files(commands):
+    """t=0 で走らせるテストのファイル：pytest の走りの引数の .py のファイルと、落ちた項目のファイル。ディレクトリを指した
+    走りや引数の無い走りでも、落ちた項目からファイルを拾う（t0_overlap が見るのは落ちた項目だけ）。"""
+    files = set()
+    for c in commands:
+        if c.get("pytest"):
+            files.update(t for t in c.get("targets") or [] if t.endswith(".py"))
+            files.update(f for f in (_rel(n).split("::")[0] for n in c.get("failed") or []) if f.endswith(".py"))
+    return sorted(files)
 
 
 def t0_overlap(commands, t0_failed):
@@ -402,8 +461,8 @@ def score(inst, model_patch, run_id):
 
 
 def t0_failures(inst, commands):
-    """エージェントが pytest で走らせたテストのファイル（t=0 にあるもの）を、t=0 のコンテナで走らせ、落ちる項目を読む。"""
-    files = sorted({t for c in commands if c.get("pytest") for t in c.get("targets") or [] if t.endswith(".py")})
+    """t0_files のファイルのうち t=0 にあるものを、t=0 のコンテナで走らせ、落ちる項目を読む。"""
+    files = t0_files(commands)
     if not files:
         return {"files": [], "failed": []}
     box, info = swe_s0.start_box(inst, "t0chk")
@@ -417,7 +476,7 @@ def t0_failures(inst, commands):
         box.close()
     tests = res.get("tests") or {}
     return {"files": existing, "missing_at_t0": sorted(set(files) - set(existing)),
-            "failed": [x["node"] for x in tests.get("failed") or []][:300], "not_run": tests.get("not_run") or [],
+            "failed": [x["node"] for x in tests.get("failed") or []], "not_run": tests.get("not_run") or [],
             "secs": (res.get("secs") or {}).get("tests"), "error": res.get("error")}
 
 
@@ -492,7 +551,10 @@ def run_one(row, cond, out_dir, fake=False, token_file=None, t0_check=True, fake
         rec.update(model_reported=parsed["model"], model_ok=parsed["model"] == imp["model_name"], usage=parsed["usage"],
                    outcome=parsed["outcome"], complete=parsed["complete"], steps=len(parsed["steps"]),
                    response=(parsed["response"] or "")[:2000])
-        traj = trajectory(stream)
+        brain = out / "agy_brain"   # 切れた出力の全文（トークンは brain の外にあるので写らない）
+        shutil.rmtree(brain, ignore_errors=True)
+        rec["brain_copied"] = sh(["docker", "cp", f"{box.name}:{BRAIN}", str(brain)])[0] == 0
+        traj = trajectory(stream, saved_output(brain))
         (out / "trajectory.json").write_text(json.dumps(traj, ensure_ascii=False, indent=1), encoding="utf-8")
         rec["trajectory"] = traj["summary"]
         code, patch, err = box.exec_split(f"cd /testbed && git add -A && git diff --cached --binary {inst['base_commit']}")
@@ -501,7 +563,9 @@ def run_one(row, cond, out_dir, fake=False, token_file=None, t0_check=True, fake
         _, ns, _ = box.exec_split(f"cd /testbed && git diff --cached --name-status {inst['base_commit']}")
         (out / "model.patch").write_text(patch, encoding="utf-8")
         rec["patch"] = dict(patch_summary(ns), bytes=len(patch))
-        rec["leaks"] = fb_agy.leak_problems(patch, stream, token_file.read_text(encoding="utf-8", errors="replace"))
+        saved = "".join(p.read_text(encoding="utf-8", errors="replace") for p in (brain.rglob("*") if brain.is_dir() else [])
+                        if p.is_file())
+        rec["leaks"] = fb_agy.leak_problems(patch, stream + "\n" + saved, token_file.read_text(encoding="utf-8", errors="replace"))
     except Exception as e:   # 記録して、採点の前に止める
         rec["error"] = repr(e)[:500]
         save()

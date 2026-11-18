@@ -5,6 +5,7 @@
 import importlib.util
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -37,6 +38,7 @@ STREAM = "\n".join([
     step(3, "edit_file", "DONE", {"Path": "/testbed/dvc/repo/graph.py"}, "ok", 0.1),
     step(4, "write_file", "DONE", {"Path": "/testbed/tests/unit/test_new.py"}, "ok", 0.1),
     step(5, "read_file", "DONE", {"Path": "/testbed/dvc/repo/graph.py", "StartLine": 1, "EndLine": 9}, "x", 0.1),
+    step(6, "edit_file", "ERROR", {"Path": "/testbed/tests/unit/test_old.py"}, None, 0.1),
     "not json",
 ])
 
@@ -68,16 +70,51 @@ class Trajectory(unittest.TestCase):
         self.assertEqual(run["summary"], "1 failed, 4 passed, 1 error in 3.21s")
         self.assertEqual((run["exit"], run["seconds"]), (1, 3.4))
         self.assertNotIn("pytest", pip)                              # pip install pytest-xdist は pytest の走りではない
-        self.assertEqual([(e["path"], e["test"]) for e in t["edits"]],
-                         [("dvc/repo/graph.py", False), ("tests/unit/test_new.py", True)])
+        self.assertEqual([(e["path"], e["test"], e["state"]) for e in t["edits"]],
+                         [("dvc/repo/graph.py", False, "DONE"), ("tests/unit/test_new.py", True, "DONE"),
+                          ("tests/unit/test_old.py", True, "ERROR")])
         s = t["summary"]
         self.assertEqual((s["commands"], s["pytest_runs"], s["pytest_runs_with_failures"], s["reads"]), (2, 1, 1, 1))
-        self.assertEqual(s["edited_test_files"], ["tests/unit/test_new.py"])
+        self.assertEqual((s["edited_files"], s["edited_test_files"], s["failed_edits"]), (2, ["tests/unit/test_new.py"], 1))
         self.assertEqual((s["pytest_seconds"], s["command_seconds"]), (3.4, 4.4))
+
+    def test_only_pytest_at_the_head_of_a_command_is_a_run(self):
+        runs = ["pytest -q tests/x.py", "cd /testbed && python -m pytest tests/x.py", "timeout 600 python3 -m pytest tests/x.py",
+                "PYTHONPATH=. pytest tests", "(cd tests && pytest unit)"]
+        others = ['python -c "\nimport numpy as np\nimport pytest\nprint(1)"', "which pytest", "pip install pytest-xdist",
+                  "cat pytest.ini"]
+        self.assertEqual([c for c in runs + others if swe_run._PYTEST_RE.search(c)], runs)
+
+    def test_failed_items_skip_the_plugin_prefix_but_not_captured_log_lines(self):
+        # 本物の記録の形：mlflow のプラグインの「| MEM … | DISK … GB」と、取り込んだログの行
+        out = ("ERROR    root:conf.py:12 cannot read /testbed/dvc/x.py now\r\n"
+               "=========================== short test summary info ============================\r\n"
+               "FAILED | MEM 1.2/15.5 GB | DISK 85.0/1006.9 GB tests/a.py::test_b[x-1] - assert 1 == 2\r\n"
+               "ERROR tests/c.py - ImportError: no\r\n"
+               "ERROR: file or directory not found: tests/d.py\r\n")
+        self.assertEqual(swe_run._NODE_RE.findall(out), ["tests/a.py::test_b[x-1]", "tests/c.py"])
+
+    def test_a_run_that_ends_before_any_item_is_a_file_level_failure(self):
+        s = step(1, "run_command", "DONE", {"CommandLine": "pytest tests/a.py tests/unit"},
+                 "Command exited with code 4.\n\nCommand output:\nImportError while loading conftest '/testbed/tests/conftest.py'.\n",
+                 1.0)
+        run = swe_run.trajectory(s)["commands"][0]
+        self.assertEqual((run["failed"], run.get("file_level")), (["tests/a.py"], True))
 
     def test_targets_keep_files_and_test_dirs(self):
         self.assertEqual(swe_run.test_targets("pytest -q tests/unit dask/array/tests/test_core.py -n 4 -W ignore"),
                          ["tests/unit", "dask/array/tests/test_core.py"])
+
+    def test_t0_files_come_from_file_targets_and_from_failed_items(self):
+        # ディレクトリを指した走りと引数の無い走りは、落ちた項目のファイルを拾う（収集の誤りは :: の無いファイルの名）
+        cmds = [{"pytest": True, "targets": ["tests/unit"], "failed": ["tests/unit/test_a.py::T::test_x[1-2]",
+                                                                       "tests/unit/test_b.py"]},
+                {"pytest": True, "targets": [], "failed": ["/testbed/dvc/tests/test_c.py::test_y"]},
+                {"pytest": True, "targets": ["tests/func/test_d.py"], "failed": []},
+                {"command": "ls", "seconds": 0.1}]
+        self.assertEqual(swe_run.t0_files(cmds), ["dvc/tests/test_c.py", "tests/func/test_d.py", "tests/unit/test_a.py",
+                                                  "tests/unit/test_b.py"])
+        self.assertEqual(swe_run.t0_files([{"pytest": True, "targets": ["tests"], "failed": []}]), [])
 
     def test_t0_overlap_counts_runs_whose_failures_all_fail_at_t0(self):
         cmds = [{"pytest": True, "failed": ["a.py::x"], "seconds": 5.0},
@@ -85,6 +122,44 @@ class Trajectory(unittest.TestCase):
                 {"pytest": True, "failed": [], "seconds": 2.0}]
         self.assertEqual(swe_run.t0_overlap(cmds, ["a.py::x"]),
                          {"runs_with_failures": 2, "runs_only_t0_failures": 1, "seconds_only_t0_failures": 5.0})
+
+
+class Truncated(unittest.TestCase):
+    """agy は長い出力の中ほどを切り、全文を brain の下に置く（X-01・X-02 の本物の記録と同じ形）。"""
+    PATH = swe_run.BRAIN + "/abc/.system_generated/steps/7/output.txt"
+    FULL = ("Command exited with code 1.\n\nCommand output:\n" + "".join(f"FAILED tests/t.py::test_{i} - E\n" for i in range(50))
+            + "50 failed in 9.0s\n")
+
+    def stream(self):
+        preview = (f"The tool's output was truncated due to being too long. You can find the full output in a file at "
+                   f"file://{self.PATH}.\n\nHere is a preview with the middle of the output truncated:\n{self.FULL[:120]}"
+                   f"\n<truncated 1234 of 1414 bytes from the middle of the output>\n{self.FULL[-60:]}")
+        return step(7, "run_command", "DONE", {"CommandLine": "python -m pytest tests/t.py"}, preview, 9.5)
+
+    def test_the_failed_items_come_from_the_saved_full_output(self):
+        t = swe_run.trajectory(self.stream(), {self.PATH: self.FULL}.get)
+        run = t["commands"][0]
+        self.assertEqual((run["truncated"], run["exit"], len(run["failed"]), run["summary"]), ("full", 1, 50, "50 failed in 9.0s"))
+        self.assertEqual((t["summary"]["truncated_outputs"], t["summary"]["truncated_without_full"]), (1, 0))
+
+    def test_without_the_full_output_the_cut_lines_are_dropped(self):
+        t = swe_run.trajectory(self.stream())
+        run = t["commands"][0]
+        self.assertEqual(run["truncated"], "preview")
+        self.assertEqual(run["failed"], ["tests/t.py::test_0", "tests/t.py::test_1", "tests/t.py::test_49"])
+        self.assertEqual(t["summary"]["truncated_without_full"], 1)
+
+    def test_saved_output_reads_only_inside_the_brain_copy(self):
+        with tempfile.TemporaryDirectory() as d:
+            steps = Path(d) / "brain" / "abc" / ".system_generated" / "steps" / "7"
+            steps.mkdir(parents=True)
+            (steps / "output.txt").write_text("full", encoding="utf-8")
+            (Path(d) / "secret.txt").write_text("x", encoding="utf-8")
+            read = swe_run.saved_output(Path(d) / "brain")
+            self.assertEqual(read(self.PATH), "full")
+            self.assertIsNone(read(swe_run.BRAIN + "/abc/.system_generated/steps/8/output.txt"))
+            self.assertIsNone(read(swe_run.BRAIN + "/../secret.txt"))
+            self.assertIsNone(read("/etc/passwd"))
 
 
 class Patch(unittest.TestCase):
