@@ -1,21 +1,20 @@
 """FeatureBench の fb infer に、agy のエージェントを足す（実験と計画の 0-b。FeatureBench 0.3.0、コミット 08b25d9 に合わせる）。
 
     python -m harness.fb_agy infer <fb infer の引数…> --agent agy --model <モデル>
-    python -m harness.fb_agy check <ランの置き場> --token-file <トークン>   回収したパッチとログへの漏れを確かめる
+    python -m harness.fb_agy check <ランの置き場> --token-file <トークン>   回収したパッチとログへの漏れを検査する
 
 FeatureBench のコードは書き換えない。起動のときに次の 3 つだけを包む（register）。
 1. fb infer の --agent の選び（argparse の choices）に agy を足す
 2. エージェントの表（get_agent）に AgyAgent を足す
-3. 中継の宛先の決め方（resolve_model_api_endpoints）を、agy では AGY_HOSTS の 3 つ（箱の中継の許しの一覧と同じ）にする
-制御核を通した腕（config/fb_core.json。harness/fb_core.py）も、同じ 3 つで足す（--agent agy-gate など）。
+3. 中継の宛先の決め方（resolve_model_api_endpoints）を、agy では AGY_HOSTS の 3 つ（実験と計画の 0-c）にする
 
-agy の入れ方・認証・呼び方：
-- 入れる段（公開の網が使える）で、config/box.json の URL から agy を取り、SHA-512 を照らして /usr/local/bin に置く
+agy の入れ方・認証・呼び方（設定は config/fb_agy.json）：
+- 入れる段（公開のネットワークが使える）で、install の URL から agy を取り、SHA-512 を照らして /usr/local/bin に置く
 - 認証のトークンは、コンテナの HOME の下（TOKEN_DIR）に、ログに中身を残さない形（put_archive）で置く。/testbed の外
-- 頼み（課題の文だけ）は PROMPT_PATH から標準入力で渡し、stream-json の出力は STREAM_PATH にも残す。どちらも /testbed の外
-- 走りの後に、回収したパッチ（/testbed の git の差分）と infer.log に、トークンの文字列と .gemini のパスが無いことを確かめる（check）
+- プロンプト（課題の文だけ）は PROMPT_PATH から標準入力で渡し、stream-json の出力は STREAM_PATH にも残す。どちらも /testbed の外
+- 走りの後に、回収したパッチ（/testbed の git の差分）と infer.log に、トークンの文字列と .gemini のパスが無いことを検査する（check）
 
-環境変数：FB_AGY_TOKEN（WSL の上のトークンのファイル。既定は config/box.json の token）、FB_AGY_FAKE=1（偽物の agy を入れる。利用枠 0）。
+環境変数：FB_AGY_TOKEN（WSL の上のトークンのファイル。既定は config/fb_agy.json の token）、FB_AGY_FAKE=1（偽物の agy を入れる。利用枠 0）。
 """
 import json
 import os
@@ -29,7 +28,6 @@ import agy_stream  # noqa: E402
 import exitcode  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-BOX_CONFIG = ROOT / "config" / "box.json"
 AGENT_CONFIG = ROOT / "config" / "fb_agy.json"
 NAME = "agy"
 AGY_HOSTS = ("daily-cloudcode-pa.googleapis.com", "oauth2.googleapis.com", "www.googleapis.com")
@@ -42,7 +40,7 @@ STREAM_PATH = LOG_DIR + "/agy_stream.jsonl"
 DEFAULT_TTL = 3600
 
 FAKE_AGY = r'''#!/usr/bin/env python3
-"""偽物の agy（0-b の確かめ用。利用枠を使わない）。本物と同じ置き場に会話の記録を書き、作業の木に 1 つだけファイルを作る。"""
+"""偽物の agy（0-b の確認用。利用枠を使わない）。本物と同じ置き場に会話の記録を書き、作業ツリーに 1 つだけファイルを作る。"""
 import json, os, pathlib, sys
 data = sys.stdin.read()
 lines = [line for line in data.splitlines() if line.strip()]
@@ -80,11 +78,11 @@ def load_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def install_script(box_cfg, fake=False):
-    """入れる段のスクリプト。本物は配布の URL から取り、SHA-512 を照らす（箱の像と同じ手順）。"""
+def install_script(agent_cfg, fake=False):
+    """入れる段のスクリプト。本物は config/fb_agy.json の install の URL から取り、SHA-512 を照らしてから展開する。"""
     if fake:
         return "set -eu\ncat > /usr/local/bin/agy << 'FAKEEOF'\n" + FAKE_AGY + "FAKEEOF\nchmod 755 /usr/local/bin/agy\n"
-    agy = box_cfg["agy"]
+    agy = agent_cfg["install"]
     return "\n".join([
         "set -eu",
         "if ! command -v curl >/dev/null 2>&1; then apt-get update -qq && apt-get install -y -qq --no-install-recommends curl ca-certificates >/dev/null; fi",
@@ -106,7 +104,7 @@ def agent_settings(agent_cfg, model):
 
 
 def run_command(imp, ttl):
-    """/testbed で走らせる命令。頼みは PROMPT_PATH から標準入力で渡し、出力は STREAM_PATH にも残す。自動更新は止める（版の固定。箱の像と同じ）。"""
+    """/testbed で走らせる命令。プロンプトは PROMPT_PATH から標準入力で渡し、出力は STREAM_PATH にも残す。自動更新は止める（版の固定）。"""
     argv = agy_stream.args(imp, [NAME], "", ttl)
     return (f"set -o pipefail; mkdir -p {LOG_DIR}; HOME={HOME} AGY_CLI_DISABLE_AUTO_UPDATE=1 {shlex.join(argv)} < {PROMPT_PATH} "
             f"| tee {STREAM_PATH}")
@@ -128,7 +126,7 @@ def leak_problems(patch, log_text, token):
 
 
 def check_run(run_dir, token):
-    """ランの置き場（runs/<時刻>）の output.jsonl のパッチと、run_outputs の下のログを確かめる。[問題の文]。"""
+    """ランの置き場（runs/<時刻>）の output.jsonl のパッチと、run_outputs の下のログを検査する。[問題の文]。"""
     run_dir = Path(run_dir)
     found = []
     for line in (run_dir / "output.jsonl").read_text(encoding="utf-8").splitlines():
@@ -151,10 +149,9 @@ def register():
     import featurebench.infer.run_infer as run_infer
     from featurebench.infer.agents.base import BaseAgent
 
-    box_cfg = load_json(BOX_CONFIG)
     agent_cfg = load_json(AGENT_CONFIG)
     fake = os.environ.get("FB_AGY_FAKE") == "1"
-    token_file = Path(os.environ.get("FB_AGY_TOKEN") or box_cfg["token"])
+    token_file = Path(os.environ.get("FB_AGY_TOKEN") or agent_cfg["token"])
 
     class AgyAgent(BaseAgent):
         def __init__(self, container_manager, env_vars=None, logger=None, model=None, **kwargs):
@@ -168,7 +165,7 @@ def register():
 
         @property
         def install_script(self):
-            return install_script(box_cfg, fake=fake)
+            return install_script(agent_cfg, fake=fake)
 
         def run(self, container, instruction, log_file, timeout=None):
             self.ttl = int(timeout or DEFAULT_TTL)
@@ -212,10 +209,7 @@ def register():
                 return False
             return True
 
-    import fb_core
-    arms_cfg, core_cfg = fb_core.load_arms()
-    tools = os.environ.get("FB_CORE_TOOLS") or core_cfg.get("tools_dir")
-    agents = {NAME: AgyAgent, **fb_core.arm_agents(AgyAgent, arms_cfg, tools_src=tools)}
+    agents = {NAME: AgyAgent}
     original_get_agent = agents_mod.get_agent
 
     def get_agent(agent_name, **kwargs):
@@ -267,7 +261,7 @@ def main(argv=None):
         sys.argv = ["fb infer", *infer_args(argv[1:])]
         return run_infer.main()
     if argv[:1] == ["check"] and len(argv) >= 2:
-        token_file = argv[argv.index("--token-file") + 1] if "--token-file" in argv else load_json(BOX_CONFIG)["token"]
+        token_file = argv[argv.index("--token-file") + 1] if "--token-file" in argv else load_json(AGENT_CONFIG)["token"]
         token = Path(token_file).read_text(encoding="utf-8", errors="replace")
         found = check_run(argv[1], token)
         for f in found:

@@ -1,11 +1,10 @@
-"""FeatureBench の fb infer に agy を足す部品（harness/fb_agy.py）のうち、FeatureBench が無くても確かめられる所。
+"""FeatureBench の fb infer に agy を足す部品（harness/fb_agy.py）のうち、FeatureBench が無くても確認できる所。
 
     python -m unittest tests.test_fb_agy -v
 
-FeatureBench に足す所（register）は、WSL の FeatureBench の venv で偽物の agy を通して確かめる（実験と計画の 0-b）。
+FeatureBench に足す所（register）は、WSL の FeatureBench の venv で偽物の agy を通して確認する（実験と計画の 0-b）。
 """
 import json
-import re
 import sys
 import tempfile
 import unittest
@@ -16,22 +15,27 @@ sys.path.insert(0, str(ROOT / "harness"))
 import fb_agy  # noqa: E402
 import model_pin  # noqa: E402
 
-BOX = fb_agy.load_json(fb_agy.BOX_CONFIG)
 AGENT = fb_agy.load_json(fb_agy.AGENT_CONFIG)
 
 
 class Install(unittest.TestCase):
+    def test_the_pinned_release_lives_in_the_agent_setting(self):
+        # agy の配布の固定は config/fb_agy.json に持つ（v3 の config/box.json から移した）
+        self.assertEqual(AGENT["install"]["version"], "1.5.3")
+        self.assertTrue(AGENT["install"]["url"].startswith("https://storage.googleapis.com/antigravity-public/"))
+        self.assertRegex(AGENT["install"]["sha512"], r"^[0-9a-f]{128}$")
+
     def test_real_install_checks_the_sha512_of_the_pinned_url(self):
-        script = fb_agy.install_script(BOX)
-        self.assertIn(BOX["agy"]["url"], script)
-        self.assertIn(BOX["agy"]["sha512"] + "  /tmp/agy.tar.gz", script)
+        script = fb_agy.install_script(AGENT)
+        self.assertIn(AGENT["install"]["url"], script)
+        self.assertIn(AGENT["install"]["sha512"] + "  /tmp/agy.tar.gz", script)
         self.assertLess(script.index("sha512sum -c"), script.index("tar -xzf"), "照らしてから展開する")
         self.assertIn("/usr/local/bin/agy", script)
 
     def test_fake_install_writes_a_python_agy_that_touches_only_one_file_in_the_tree(self):
-        script = fb_agy.install_script(BOX, fake=True)
+        script = fb_agy.install_script(AGENT, fake=True)
         self.assertIn("/usr/local/bin/agy", script)
-        self.assertNotIn(BOX["agy"]["url"], script, "偽物は網から取らない")
+        self.assertNotIn(AGENT["install"]["url"], script, "偽物はネットワークから取らない")
         compile(fb_agy.FAKE_AGY, "fake_agy", "exec")
 
 
@@ -39,6 +43,10 @@ class Run(unittest.TestCase):
     def test_the_token_goes_where_agy_reads_it(self):
         self.assertEqual(fb_agy.TOKEN_NAME, "antigravity-oauth-token")
         self.assertIn('"antigravity-cli" / "antigravity-oauth-token"', fb_agy.FAKE_AGY, "偽物も同じ名前を読む")
+
+    def test_the_default_token_file_is_in_the_agent_setting(self):
+        self.assertTrue(AGENT["token"].endswith("/.gemini/antigravity-cli/antigravity-oauth-token"))
+        self.assertFalse(AGENT["token"].startswith("/testbed"))
 
     def test_the_prompt_and_the_stream_stay_outside_the_testbed(self):
         for path in (fb_agy.PROMPT_PATH, fb_agy.STREAM_PATH, fb_agy.TOKEN_DIR):
@@ -71,10 +79,10 @@ class InferArgs(unittest.TestCase):
 
 
 class Network(unittest.TestCase):
-    def test_the_hosts_are_the_same_as_the_box_proxy_allow_list(self):
-        allow = [re.compile(line) for line in (ROOT / "box" / "proxy" / "allow").read_text(encoding="utf-8").split()]
-        for host in fb_agy.AGY_HOSTS:
-            self.assertTrue(any(a.search(host) for a in allow), host)
+    def test_the_relay_gets_only_the_three_agy_hosts(self):
+        # 中継の宛先の決め方に渡す、agy の 3 つの宛先（実験と計画の 0-b・0-c）。Gemini API の宛先は通さない
+        self.assertEqual(sorted(fb_agy.AGY_HOSTS),
+                         ["daily-cloudcode-pa.googleapis.com", "oauth2.googleapis.com", "www.googleapis.com"])
         self.assertNotIn("generativelanguage.googleapis.com", fb_agy.AGY_HOSTS)
 
 

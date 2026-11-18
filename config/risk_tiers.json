@@ -10,11 +10,7 @@
         ".github/ms4-approvers"
       ],
       "権限": [
-        ".claude/",
-        "box/",
-        "config/box.json",
-        "harness/box.py",
-        "harness/box_tree.py"
+        ".claude/"
       ],
       "既存のテスト": [
         "tests/"
