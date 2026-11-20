@@ -2,9 +2,11 @@
 
     python -m unittest discover -s tests -v
 """
+import hashlib
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -42,6 +44,41 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual({t for t, s in name.items() if s == "deny_subagent.sh"}, set(agy_port.SUBAGENT_TOOLS))
         for s in agy_port.HOOK_SCRIPTS:
             self.assertIn('"decision": "deny"', (agy_port.ASSETS / s).read_text(encoding="utf-8"))
+
+
+class BinaryPinTests(unittest.TestCase):
+    """取った後の agy の実行ファイルを、呼ばれるたびに（走りのたびに）設定の SHA-512 と照らし、違えば止まる。"""
+
+    @staticmethod
+    def agent(cache, want):
+        return {"cache": str(cache), "install": {"version": "1.5.3", "binary_sha512": want}}
+
+    @staticmethod
+    def cached(d, content):
+        binary = Path(d) / "1.5.3" / "antigravity"
+        binary.parent.mkdir(exist_ok=True)
+        binary.write_bytes(content)
+        return binary
+
+    def test_config_pins_the_binary(self):
+        inst = agy_port.load_config()["agent"]["install"]
+        self.assertRegex(inst["binary_sha512"], r"^[0-9a-f]{128}$")
+        self.assertNotEqual(inst["binary_sha512"], inst["sha512"])   # 配布物（tar.gz）の値と取り違えない
+
+    def test_cached_binary_is_checked_on_every_call(self):
+        with tempfile.TemporaryDirectory() as d:
+            binary = self.cached(d, b"pinned agy")
+            agent = self.agent(d, hashlib.sha512(b"pinned agy").hexdigest())
+            self.assertEqual(agy_port.ensure_agy(agent), binary)
+            self.cached(d, b"self-updated agy")   # 取った後に書き換わった
+            with self.assertRaisesRegex(RuntimeError, "SHA-512"):
+                agy_port.ensure_agy(agent)
+
+    def test_missing_pin_stops(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.cached(d, b"agy")
+            with self.assertRaisesRegex(RuntimeError, "binary_sha512"):
+                agy_port.ensure_agy(self.agent(d, None))
 
 
 class AuditTests(unittest.TestCase):

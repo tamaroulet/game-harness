@@ -2,7 +2,7 @@
 
 - 設定（config/agy_sandbox.json）：agy の起動の仕方とモデル（model_name で正確な ID を固定。harness/model_pin.py）・
   配布物の固定・コンテナの uid と HOME と作業場・境界の許可リスト・利用枠の下限
-- 配布物（SHA-512 を照らす）・フック（Web の道具と下位エージェントを PreToolUse で止める。root の持ち物で書き換え不可）・
+- 配布物（取るときに配布の SHA-512 を、走りのたびに展開した実行ファイルの SHA-512 を照らす）・フック（Web の道具と下位エージェントを PreToolUse で止める。root の持ち物で書き換え不可）・
   トークン・偽物の agy（利用枠 0）をコンテナに置く
 - AgyPort：start(文, 残り秒) は新しい会話、send(文, 残り秒) は同じ会話の続き（--conversation）。どちらも harness/core.py の
   Turn を返す（run_unit の port の形）。Turn.ok は、agy が手番を終えて答えを返し（終わりの符号 0・result あり・SUCCESS）、
@@ -83,12 +83,34 @@ def load_config(path=CONFIG):
     return cfg
 
 
+def file_sha512(path):
+    """ファイルの SHA-512（1 MiB ずつ読む。agy の実行ファイルは 200 MB を超える）。"""
+    h = hashlib.sha512()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def check_binary(binary, inst):
+    """展開した実行ファイルを、設定に固定した SHA-512（agent.install.binary_sha512）と照らす。違うか固定の値が無ければ
+    止める（取った後に書き換わった・別の版。root は chmod 555 を越えて書けるので、守りを権限に頼らない）。"""
+    want = inst.get("binary_sha512")
+    if not want:
+        raise RuntimeError("設定に agent.install.binary_sha512 が無い（agy の実行ファイルを照らせない）")
+    got = file_sha512(binary)
+    if got != want:
+        raise RuntimeError(f"agy の実行ファイルの SHA-512 が設定と違う: {binary}（{got[:16]}… ≠ {want[:16]}…）")
+    return binary
+
+
 def ensure_agy(agent):
-    """配布物を取り、SHA-512 を照らしてから展開する（agent.install）。展開した実行ファイルのパス。"""
+    """配布物を取り、SHA-512 を照らしてから展開する（agent.install）。展開した実行ファイルは、取った後も呼ばれるたびに
+    （走りのたびに）SHA-512 を照らす（check_binary）。展開した実行ファイルのパス。"""
     inst = agent["install"]
     binary = Path(agent["cache"]) / inst["version"] / "antigravity"
     if binary.is_file():
-        return binary
+        return check_binary(binary, inst)
     binary.parent.mkdir(parents=True, exist_ok=True)
     tgz = binary.parent / "cli.tar.gz"
     urllib.request.urlretrieve(inst["url"], tgz)   # noqa: S310 - 固定の配布の URL
@@ -100,7 +122,7 @@ def ensure_agy(agent):
     tgz.unlink()
     if not binary.is_file():
         raise RuntimeError(f"展開した中に antigravity が無い: {binary.parent}")
-    return binary
+    return check_binary(binary, inst)
 
 
 def dirs(sbx):

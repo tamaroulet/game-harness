@@ -12,7 +12,9 @@
     "install": {
       "version": "1.5.3",
       "url": "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.5.3-6604829099950080/linux-x64/cli_linux_x64.tar.gz",
-      "sha512": "e363e1b17daaac2589f18e6973429c039fd5a5e5c15e9c0852fa349836f3992b10fe84732bc8d8c8208e149f0304f15aba9dec696d12efeed03917492c0580eb"
+      "sha512": "e363e1b17daaac2589f18e6973429c039fd5a5e5c15e9c0852fa349836f3992b10fe84732bc8d8c8208e149f0304f15aba9dec696d12efeed03917492c0580eb",
+      "_binary_sha512_note": "展開した実行ファイル antigravity の SHA-512。取った後も、走りのたびに照らし、違えば止める（harness/agy_port.py の check_binary。操縦士の承認、2026-11-21）",
+      "binary_sha512": "9bc9162deb8c101e9242e0a013152ad0ab61c4a77948739b17e4ebd39a95b771a1b2f390f59928713d43148ac0f6921aebd24852262d23368c3ab43c5748d3fd"
     },
     "cache": "/root/agy_sandbox/agy",
     "token": "/home/bench/.gemini/antigravity-cli/antigravity-oauth-token"
