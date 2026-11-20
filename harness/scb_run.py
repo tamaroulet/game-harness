@@ -10,7 +10,12 @@
 - 比較条件（§6-4）：H0 は 1 つのコンテナと 1 つの会話を続ける（2 つ目からは同じ会話に送る）。H0_fresh は
   チェックポイントごとに新しいコンテナと新しい会話で、引き継ぐのは作業場だけ。隠しテストの出力は返さない。
 - 文面：公式の `slop-code utils render-prompts`（just-solve のひな形。canary を除き、入口の置き換えをしたもの）。
+- 走らせるのは公開の dev（config/phase1_dev.json）の問題だけ。外の名前なら何も作らずに止まる（harness/phase1_dev.py）。
 - 走りの後の検査（ベンチ固有の分）：作業場の .evaluation_tests/（壊れたシンボリックリンクも含め、あれば採点せず無効）。
+- 時間切れ（agy の --print-timeout か、実行口の上限。種類は記録の agent.timeout）：公式の走らせ方と同じく、その
+  チェックポイントの作業場の写しを採点する。公式は時間切れでその問題を止めるが、ここでは次のチェックポイントへ進む
+  （H0 は同じ会話に送る。続けられなければ Stage 1 の止める線で止める。実験と計画 §6-5）。集計では、時間切れの
+  チェックポイントを母数から外さない。
 - 採点：作業場の写し（公式のスナップショットの既定の除外に合わせる）を、非 root（HUID・HGID）で採点する。
   環境の設定は公式の値のまま environment.include_os_env だけを足し（environment.env を変えると、公式の採点は
   基本のイメージを作り直して同じ名前に付け替える）、UV_EXCLUDE_NEWER（採点の時刻）はホストの最小の環境で渡す。
@@ -33,6 +38,7 @@ import agy_port  # noqa: E402
 import agy_quota  # noqa: E402
 import exitcode  # noqa: E402
 import model_pin  # noqa: E402
+import phase1_dev  # noqa: E402
 import sandbox  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -150,6 +156,7 @@ def write_record(out_dir, rec):
 
 
 def run_problem(cfg, problem, cond, out_dir, fake=False, ttl=DEFAULT_TTL, upto=None, token_file=None):
+    phase1_dev.require_scb(problem)   # 公開の dev の外は、何も作らずに止まる
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     scb, sbx, net = cfg["scb"], cfg["sandbox"], cfg["network"]
@@ -238,7 +245,8 @@ def cmd_run(args):
         s = ((c.get("eval") or {}).get("summary")) or {}
         print(f"c{c['checkpoint']} valid={c.get('valid')} strict={s.get('strict')} iso={s.get('iso')} core={s.get('core')} "
               f"passed={s.get('passed')}/{s.get('total')} denied_tools={len(c.get('denied_tools') or [])} "
-              f"denied_ran={sum(1 for d in c.get('denied_tools') or [] if d['ran'])} stopped={c.get('stopped')}")
+              f"denied_ran={sum(1 for d in c.get('denied_tools') or [] if d['ran'])} "
+              f"timeout={(c.get('agent') or {}).get('timeout')} stopped={c.get('stopped')}")
     print(f"boxes_left={rec['boxes_left']}")
     return 0
 

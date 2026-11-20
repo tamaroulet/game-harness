@@ -5,9 +5,13 @@
 - 配布物（SHA-512 を照らす）・フック（Web の道具と下位エージェントを PreToolUse で止める。root の持ち物で書き換え不可）・
   トークン・偽物の agy（利用枠 0）をコンテナに置く
 - AgyPort：start(文, 残り秒) は新しい会話、send(文, 残り秒) は同じ会話の続き（--conversation）。どちらも harness/core.py の
-  Turn を返す（run_unit の port の形）。ターンごとの詳しい記録は records に残す：終わりの符号・秒・stream-json の置き場・
-  報告されたモデルと照合の誤り・会話・利用量・道具・止めた道具の手番・フックの SHA-256・有効か
-- 時間切れ：TimeoutExpired の出力を文字列に直して全文を残し、コンテナの中の uid のプロセスを止めて残りを数える
+  Turn を返す（run_unit の port の形）。Turn.ok は、agy が手番を終えて答えを返し（終わりの符号 0・result あり・SUCCESS）、
+  時間切れでなく、走りの後の検査（モデル・止めた道具・フック）に通ったときだけ True。そうでなければ理由を note に書く。
+  ターンごとの詳しい記録は records に残す：終わりの符号・秒・時間切れの種類・stream-json の置き場・報告されたモデルと
+  照合の誤り・会話・利用量・道具・止めた道具の手番・フックの SHA-256・有効か
+- 時間切れは 2 種類：print_timeout は agy が --print-timeout（残り秒 − 20）で自分で止まったもの（1.5.3 は result の
+  finished_reason と終わりの符号 3）、hard は実行口の上限（TimeoutExpired。符号 124。出力は文字列に直して全文を残す）。
+  どちらも、コンテナの中の uid のプロセスを止めて残りを数える
 - 止めた道具：手番が DONE で終わった（道具が走った）ものだけを ran にする。フックの deny はエラーの手番（hook_denied）
 """
 import hashlib
@@ -37,6 +41,9 @@ WEB_TOOLS = ("search_web", "read_url_content", "read_url", "open_browser_url", "
 SUBAGENT_TOOLS = ("invoke_subagent",)
 DENIED_TOOLS = WEB_TOOLS + SUBAGENT_TOOLS
 HOOK_DENIED = "denied by pre-tool hook"   # agy 1.5.3 が deny を返す文言（"Tool call denied by pre-tool hook: %s"）
+HARD_TIMEOUT_RC = 124                       # 実行口の上限で止めたとき（TimeoutExpired）に記録する符号
+PRINT_TIMEOUT_RC = 3                        # agy 1.5.3 が --print-timeout で切れたときの符号（変更履歴 1.5.0）
+PRINT_TIMEOUT_MARK = "[agy] print timeout"  # そのときの stderr の行の頭（同）
 HOOKS_DIR = "/opt/agy-hooks"
 HOOK_SCRIPTS = ("deny_web.sh", "deny_subagent.sh")
 AGY_BIN = "/usr/local/bin/agy"
@@ -175,6 +182,34 @@ def turn_valid(rec, hooks_expected):
             and not rec.get("model_error"))
 
 
+def timeout_kind(code, outcome, text):
+    """時間切れの種類（無ければ None）。hard：実行口の上限。print_timeout：agy が --print-timeout で自分で止まった
+    （result の finished_reason が print_timeout か、終わりの符号 3 と stderr の印）。"""
+    if code == HARD_TIMEOUT_RC:
+        return "hard"
+    if (outcome or {}).get("finished_reason") == "print_timeout" or (
+            code == PRINT_TIMEOUT_RC and PRINT_TIMEOUT_MARK in (text or "")):
+        return "print_timeout"
+    return None
+
+
+def turn_problem(rec):
+    """ターンを ok にしない理由（無ければ None）。モデルの照合・止めた道具が走った・フックが変わった・時間切れ・終わり方の順。"""
+    if rec.get("model_error"):
+        return "model: " + rec["model_error"]
+    ran = [d.get("tool") for d in rec.get("denied_tools") or [] if d.get("ran")]
+    if ran:
+        return "invalid: denied tool ran: " + ",".join(map(str, ran))
+    if not rec.get("valid"):
+        return "invalid: hooks changed"
+    agent, out = rec.get("agent") or {}, rec.get("outcome") or {}
+    if agent.get("timeout"):
+        return "timeout: " + agent["timeout"]
+    if agent.get("rc") != 0 or not rec.get("complete") or out.get("status") != "SUCCESS":
+        return f"agent: rc={agent.get('rc')} complete={rec.get('complete')} status={out.get('status')} error={out.get('error')}"
+    return None
+
+
 def timeout_output(e):
     """subprocess.TimeoutExpired の出力を文字列に。POSIX では text=True でも bytes で返る（Python の文書のとおり）。"""
     parts = []
@@ -239,11 +274,14 @@ class AgyPort:
         try:
             code, out = sandbox.sh(cmd, input=agy_stream.stdin_for(agent, text), timeout=ttl)
         except subprocess.TimeoutExpired as e:
-            code, out = 124, timeout_output(e)
+            code, out = HARD_TIMEOUT_RC, timeout_output(e)
             extra["left_procs"] = sandbox.stop_user(self.box, sbx)
         stream.write_text(out, encoding="utf-8")
         rec["agent"] = {"rc": code, "seconds": round(time.time() - t0, 1), **extra}
         parsed = agy_stream.parse(out, workdir=sbx["workdir"])
+        rec["agent"]["timeout"] = timeout_kind(code, parsed["outcome"], out)
+        if rec["agent"]["timeout"] == "print_timeout":   # agy は止まったが、それが起こしたコマンドが残りうる
+            rec["agent"]["left_procs"] = sandbox.stop_user(self.box, sbx)
         try:   # init の前に落ちた走りも、ここまでを記録する（止めるのは呼んだ側）
             rec["model_reported"] = model_pin.check_reported(agent["model_name"], parsed["model"], f"{self.label} t{n}")
         except model_pin.ModelPinError as e:
@@ -251,12 +289,13 @@ class AgyPort:
         if parsed["conversation_id"]:
             self.conversation_id = parsed["conversation_id"]
         rec.update(conversation_id=parsed["conversation_id"], usage=parsed["usage"], outcome=parsed["outcome"],
-                   tools=sorted({s.get("tool") for s in parsed["steps"] if s.get("tool")}),
+                   complete=parsed["complete"], tools=sorted({s.get("tool") for s in parsed["steps"] if s.get("tool")}),
                    denied_tools=denied_tool_steps(parsed["steps"], step_errors(out)),
                    hooks_sha256_after=hooks_sha(self.box, sbx))
         rec["valid"] = turn_valid(rec, self.hooks_expected)
+        rec["turn_note"] = turn_problem(rec)
+        rec["turn_ok"] = rec["turn_note"] is None
         self.records.append(rec)
-        ok = code == 0 and parsed["complete"] and parsed["outcome"]["status"] == "SUCCESS"
-        return core.Turn(ok=ok, model=parsed["model"] or "", usage=parsed["usage"], seconds=rec["agent"]["seconds"],
-                         response=parsed["response"] or "", conversation_id=parsed["conversation_id"] or "",
-                         note=rec.get("model_error", ""))
+        return core.Turn(ok=rec["turn_ok"], model=parsed["model"] or "", usage=parsed["usage"],
+                         seconds=rec["agent"]["seconds"], response=parsed["response"] or "",
+                         conversation_id=parsed["conversation_id"] or "", note=rec["turn_note"] or "")

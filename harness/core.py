@@ -75,7 +75,9 @@ class Ledger:
 
 @dataclass
 class Turn:
-    """実行口の 1 回の呼び出し。ok は、エージェントが手番を終えて答えを返したか（打ち切り・誤りなら False）。"""
+    """実行口の 1 回の呼び出し。ok は、エージェントが手番を終えて答えを返したか（打ち切り・時間切れ・誤りなら False）。
+    実行口が走りの後の検査（モデルの照合・止めた道具・フック）を持つなら、それに落ちたターンも False にし、理由を note に書く
+    （harness/agy_port.py）。"""
     ok: bool
     model: str
     usage: dict

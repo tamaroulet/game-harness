@@ -2,13 +2,14 @@
 
 - 内部のネットワーク（外への経路が無い）と、許可リストのプロキシ（tinyproxy）。プロキシのイメージは、入力（Dockerfile・
   設定・許可リスト）のハッシュを名前に付けて作り、入力が変わったときだけ新しく作る（同じ名前で作り直して古いものを
-  名前の無いイメージにしない）
+  名前の無いイメージにしない）。動いているプロキシは使い回し、ほかの走りの実装役がつながっている間は作り直さない
 - 非 root のコンテナ：作業場をマウントし、実装役の HOME を uid に渡す。root で行う操作は `--user 0:0` を明示する
   （イメージの既定のユーザーは root とは限らない。SWE-Game のイメージは agent）
 - 境界の検査（標準入力で渡し、コンテナにファイルを残さない）・uid のプロセスの停止と生きている残りの数え・
   残ったコンテナの数え
 """
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -80,8 +81,37 @@ def egress_image(net, files=None):
     return f"{net['proxy_image']}-{inputs_hash(files or egress_inputs(net))[:12]}"
 
 
+def proxy_state(net):
+    """プロキシのコンテナの状態（無ければ None）：動いているか・イメージの名前・つながっているネットワークの名前。"""
+    code, out = sh(["docker", "inspect", "-f", "{{.State.Running}}|{{.Config.Image}}|{{json .NetworkSettings.Networks}}",
+                    net["proxy_name"]])
+    if code != 0:
+        return None
+    running, image, nets = out.strip().split("|", 2)
+    return {"running": running == "true", "image": image, "networks": sorted(json.loads(nets or "null") or {})}
+
+
+def attached(net):
+    """内部のネットワークにつながっている、プロキシのほかのコンテナの名前（走っている実装役）。"""
+    code, out = sh(["docker", "network", "inspect", "-f", "{{json .Containers}}", net["internal"]])
+    if code != 0:
+        return []
+    return sorted(c.get("Name") for c in (json.loads(out.strip() or "null") or {}).values()
+                  if c.get("Name") != net["proxy_name"])
+
+
+def egress_plan(state, image, internal, others):
+    """reuse：同じイメージで動き、内部のネットワークにつながっている（作り直さない）。refuse：作り直しが要るが、ほかの
+    コンテナが内部のネットワークにいる（走っている実装役の外への道を切らない）。replace：作り直す。"""
+    if state and state["running"] and state["image"] == image and internal in state["networks"]:
+        return "reuse"
+    return "refuse" if others else "replace"
+
+
 def ensure_egress(net):
-    """内部のネットワークと許可リストのプロキシを用意する。イメージは、入力のハッシュの名前が無いときだけ作る。"""
+    """内部のネットワークと許可リストのプロキシを用意する。イメージは、入力のハッシュの名前が無いときだけ作る。プロキシは、
+    同じイメージで動いていれば使い回し、作り直すのは、内部のネットワークにほかのコンテナがいないときだけ（同時に起こした
+    走りの外への道を、後の走りが切らない）。"""
     if sh(["docker", "network", "inspect", net["internal"]])[0] != 0:
         must(["docker", "network", "create", "--internal", net["internal"]], "network create")
     files = egress_inputs(net)
@@ -92,10 +122,16 @@ def ensure_egress(net):
             for name, text in files.items():
                 (Path(d) / name).write_bytes(text.encode("utf-8"))
             must(["docker", "build", "-q", "-t", image, d], "egress build")
-    sh(["docker", "rm", "-f", net["proxy_name"]])
-    must(["docker", "run", "-d", "--name", net["proxy_name"], "--network", "bridge", image], "egress run")
-    must(["docker", "network", "connect", net["internal"], net["proxy_name"]], "egress connect")
-    return {"internal": net["internal"], "proxy": net["proxy_name"], "image": image, "built": built, "allow": net["allow"]}
+    others = attached(net)
+    plan = egress_plan(proxy_state(net), image, net["internal"], others)
+    if plan == "refuse":
+        raise RuntimeError(f"内部のネットワークにほかのコンテナがある間は、プロキシを作り直さない（同時の走りを切らない）: {others}")
+    if plan == "replace":
+        sh(["docker", "rm", "-f", net["proxy_name"]])
+        must(["docker", "run", "-d", "--name", net["proxy_name"], "--network", "bridge", image], "egress run")
+        must(["docker", "network", "connect", net["internal"], net["proxy_name"]], "egress connect")
+    return {"internal": net["internal"], "proxy": net["proxy_name"], "image": image, "built": built,
+            "reused": plan == "reuse", "allow": net["allow"]}
 
 
 def proxy_env(net):

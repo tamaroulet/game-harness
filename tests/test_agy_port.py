@@ -81,6 +81,37 @@ class AuditTests(unittest.TestCase):
             sandbox.sh3([sys.executable, "-c", code], timeout=3)
         self.assertIn('{"event": "init"}', agy_port.timeout_output(cm.exception))
 
+    def test_timeout_kind_reads_both_the_hard_limit_and_agy_print_timeout(self):
+        self.assertEqual(agy_port.timeout_kind(124, {}, ""), "hard")
+        self.assertEqual(agy_port.timeout_kind(3, {"finished_reason": "print_timeout"}, ""), "print_timeout")
+        self.assertEqual(agy_port.timeout_kind(0, {"finished_reason": "print_timeout"}, ""), "print_timeout")   # 古い版は符号 0
+        self.assertEqual(agy_port.timeout_kind(3, {}, "...\n[agy] print timeout after 3580s with turn in progress\n"),
+                         "print_timeout")
+        self.assertIsNone(agy_port.timeout_kind(3, {"finished_reason": "error"}, 'AGY_ERROR: {"short_error":"x"}\n'))
+        self.assertIsNone(agy_port.timeout_kind(0, {"status": "SUCCESS"}, ""))
+
+    def test_print_timeout_from_a_stream(self):
+        text = "\n".join(json.dumps(e) for e in (
+            {"event": "init", "init": {"model": "gemini-4-hydrogen-medium", "conversation_id": "c1"}},
+            step(0, "run_command", "DONE"),
+            {"event": "result", "result": {"status": "SUCCESS", "finished_reason": "print_timeout", "conversation_id": "c1"}},
+        )) + "\n[agy] print timeout after 3580s with turn in progress; returning partial output\n"
+        parsed = agy_stream.parse(text)
+        self.assertEqual(agy_port.timeout_kind(3, parsed["outcome"], text), "print_timeout")
+
+    def test_turn_problem_names_why_a_turn_is_not_ok(self):
+        ok = {"agent": {"rc": 0, "timeout": None}, "complete": True, "outcome": {"status": "SUCCESS"},
+              "denied_tools": [{"tool": "search_web", "ran": False}], "valid": True}
+        self.assertIsNone(agy_port.turn_problem(ok))
+        self.assertTrue(agy_port.turn_problem(dict(ok, model_error="報告が無い", valid=False)).startswith("model:"))
+        self.assertEqual(agy_port.turn_problem(dict(ok, denied_tools=[{"tool": "invoke_subagent", "ran": True}], valid=False)),
+                         "invalid: denied tool ran: invoke_subagent")
+        self.assertEqual(agy_port.turn_problem(dict(ok, valid=False)), "invalid: hooks changed")
+        self.assertEqual(agy_port.turn_problem(dict(ok, agent={"rc": 3, "timeout": "print_timeout"})), "timeout: print_timeout")
+        self.assertTrue(agy_port.turn_problem(dict(ok, agent={"rc": 3, "timeout": None},
+                                                   outcome={"status": "ERROR"})).startswith("agent:"))
+        self.assertTrue(agy_port.turn_problem(dict(ok, complete=False)).startswith("agent:"))
+
     def test_quota_floor(self):
         floor = {"gemini-weekly": 0.35, "gemini-5h": 0.15}
         ok = {"buckets": {"gemini-weekly": {"remaining_fraction": 0.5}, "gemini-5h": {"remaining_fraction": 0.2}}}

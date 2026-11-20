@@ -108,8 +108,12 @@ class Outcome(unittest.TestCase):
                               "status": "ERROR", "error": "Your previous response was cut off\nRetries remaining: 3",
                               "usage": {"input_tokens": 20}}})])
         oc = agy_stream.parse(text)["outcome"]
-        self.assertEqual(oc, {"status": "ERROR", "error": "Your previous response was cut off",
+        self.assertEqual(oc, {"status": "ERROR", "finished_reason": None, "error": "Your previous response was cut off",
                               "error_steps": 1, "thinking_only_steps": 1})
+
+    def test_finished_reason_is_recorded(self):
+        text = json.dumps({"event": "result", "result": {"status": "SUCCESS", "finished_reason": "print_timeout"}})
+        self.assertEqual(agy_stream.parse(text)["outcome"]["finished_reason"], "print_timeout")
 
     def test_cut_call_has_no_status(self):
         self.assertIsNone(agy_stream.parse(self.step(1, "agent_response", 5, 9))["outcome"]["status"])
