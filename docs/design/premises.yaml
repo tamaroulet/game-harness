@@ -267,7 +267,7 @@ premises:
 - id: P-046
   text: 実装役のコンテナを Docker の内部のネットワークだけにつなぎ、許可リストのプロキシ（tinyproxy 1.11.0。agy の 3 つの宛先と PyPI の 443 だけ）を外への道にすると、許可した 5 つの宛先だけに届き、GitHub・Google の検索・Hugging Face・npm と平文の HTTP は拒まれ、直の接続と生の TCP はどこにも届かない。pip は PyPI からだけ入る。agy 1.5.3 は、root の持ち物で書き換えのできない ~/.gemini/config/hooks.json のフック（PreToolUse で、search_web・read_url_content・webview_browser などの Web の道具と、下位エージェントの口 invoke_subagent を deny）を uid 1000 で読み込み、uid 1000 からはフックを書き換え・消し・移しできない。公式の採点は、環境の設定の environment.env を変えると基本のイメージを作り直して同じ名前に付け替える。environment.env を公式のまま environment.include_os_env を足し、UV_EXCLUDE_NEWER をホストの環境から渡すと、イメージを作り直さずに採点のコンテナの中の解決が固定され、同じ時刻の 2 回で道具の版・結果・テストの一覧のハッシュが一致した。eval-snapshot は、提出物に .evaluation_tests/ があると公式のテストを写さず、そのフォルダのテストで一覧づくりも本番も行う
   kind: measured
-  basis: [docs/v4/experiments.md の §6-3（2026-11-20、利用枠 0）, R-20261120-phase1-arena#C21]
+  basis: [docs/v4/experiments.md の §6-3（2026-11-20、利用枠 0）, docs/v4/archive/phase1_checks.md の §6-3 の確認, R-20261120-phase1-arena#C21]
   note: 止める道具の名前は、agy 1.5.3 の実行ファイルの中の道具の実装の名前と文言で確かめた（利用枠 0）。invoke_subagent は親と違うモデルを選べ、下位エージェントの手番は親の stream-json に出ないので止める。deny が実際に道具を止めるかは、モデルが道具を呼ぶまで観測できない（agy は deny を手番のエラーで返すと見込み、Stage 1 の最初の軌跡で確かめる。止めた道具の手番が DONE で終わった走りは無効にする）。.evaluation_tests の振る舞いは、slop-code-bench de70a479acce の evaluation/pytest_runner.py と evaluation/collection.py の _copy_tests_from_problem を読んで確認した（どちらも、作業場にそのフォルダがあれば写さずに戻る）
   checked_at: 2026-11-20
   recheck_by: 2026-12-20

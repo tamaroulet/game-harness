@@ -125,9 +125,7 @@
 
   - 判定：S2 の線のとおりなら黒（KNOWN_ISSUES の外の落ちが 8 チェックポイントで、直らない環境の型を含む）。落ちは 4 問に閉じ、ほかの 32 問・174 チェックポイントは正解が全テストに通った。
   - 事後の除外の透明性：書いた線のとおりなら黒だった。エージェントを走らせる前（利用枠 0）に、外部の監査（slop-code-bench#27・scb-problems#37）と一致した 5 問を母集団から外し、残りで使うと操縦士が決めた（2026-11-20）。外した理由は正解とテストの仕組みの事実だけで、エージェントの結果は 1 つも見ていない。公開資料にもこのとおりに書く。
-- SWE-Game Mode 4（2026-11-19 の会話の席の実測。利用枠 0。ベンチのコードの変更 0）：
-  - 公式の `./docker/build.sh godot --redistributable`（`gamebench-agent:godot-4.5.1`、2.09 GB）・`./docker/smoke.sh`（Godot 4.5.1、Mesa の llvmpipe で描画と PNG が通る）・`bench selfcheck`（10 項目すべて PASS）が通った。
-  - 公式の `gen-task` → `eval-task`：2D の 1 ケースは生成 6 秒・採点 75 秒。3D の 1 ケースは生成 6 秒・採点 322 秒と 320 秒で、2 回の採点の全指標が一致した（WSL の 15 GiB で OOM 0）。
+- SWE-Game Mode 4 の 0b（2026-11-19。公式のビルドと selfcheck、gen-task と eval-task の時間と、2 回の採点の一致）の全文は [archive/phase1_checks.md](archive/phase1_checks.md) にある。
 
 ### 6-2. 母集団と dev・held-out（2026-11-20 に分けて封をした）
 
@@ -154,7 +152,7 @@
 
 - ネットワーク（実装役のコンテナ）：
   - Docker の内部のネットワーク（`--internal`。外への経路が無い）だけにつなぎ、外への道は許可リストのプロキシ（tinyproxy 1.11.0 を別のコンテナで立てる）だけにする。許可は CONNECT の 443 で、agy の 3 つの宛先（daily-cloudcode-pa.googleapis.com・oauth2.googleapis.com・www.googleapis.com）と、依存を入れるための PyPI（pypi.org・files.pythonhosted.org）だけ。
-  - 確認（実装役と同じイメージ・uid 1000 のコンテナから）：許可した 5 つは届き、github.com・raw.githubusercontent.com・api.github.com・codeload.github.com・www.google.com・huggingface.co・registry.npmjs.org と平文の HTTP はプロキシが拒む（403 Filtered）。プロキシを通らない直の接続と生の TCP は、どの宛先にも届かない。pip は PyPI からは入れられ、GitHub からは落ちる。
+  - 確認（実装役と同じイメージ・uid 1000 のコンテナから。宛先ごとの結果）の全文は [archive/phase1_checks.md](archive/phase1_checks.md) にある。
   - PyPI に SlopCodeBench の問題やテストを含むパッケージが無いことを確認した（作者の scb-check は品質の指標の道具）。
 - agy の Web の道具と下位エージェント：
   - agy 1.5.3 の道具のうち、外から取るものは `search_web`（検索と要約をサーバーの側で行うので、コンテナのネットワークでは止まらない）・`read_url_content`・ブラウザの `webview_browser` で、下位エージェントの口は `invoke_subagent`（実行ファイルの中の道具の実装の名前と文言で確かめた。利用枠 0）。下位エージェントは親と違うモデルを選べ（`inherit` か `named_model`）、その道具の手番は親の stream-json に出ないので、モデルの照合（model_pin）と走りの後の検査のどちらも及ばない。
@@ -167,7 +165,7 @@
   - 公式の `slop-code eval-snapshot` を、実装役の作業場の写しに当てる。非 root（`HUID`・`HGID`）、基本のイメージは ID を記録して作り直さない。
   - 公式の採点は、基本のイメージに、環境の設定の environment.env から描いた Dockerfile のハッシュのラベルを付け、合わなければ作り直して同じ名前に付け替える（そのときの最新の道具が入る）。採点ごとに environment.env を変える形は、イメージの固定とぶつかる（確認の採点で実際に作り直しが起き、公式の設定の採点がビルドのキャッシュから同じ ID を作り直して名前を戻した）。
   - そこで、環境の設定は公式の値のまま `environment.include_os_env: true`（採点を起動したホストの環境変数を採点のコマンドに写す公式の口。ハッシュに入らない）だけを足し、`UV_EXCLUDE_NEWER`（uv が、その日時より後に公開された配布物を候補から外す）を採点の時刻にして、ホストの最小の環境（PATH・HOME=/tmp/agent_home・問題の置き場・HUID・HGID）で渡す。時刻を記録し、採り直すときは同じ時刻を与える。
-  - 確認：この形で 3 回採点して、基本のイメージは作り直されなかった（ID は `c49426ce309b…` のまま）。古い時刻（2025-06-01）では解決が変わり、採点に infrastructure_failure の印が付いた。同じ時刻の 2 回は、採点の道具の版（pytest 9.2.0・pluggy 1.7.0・プラグイン 4 つ）、結果、テストの一覧のハッシュが一致した。HOME をホストの値（/root）のまま写すと、uv が書けない場所を読んで採点が落ちる。
+  - 確認（3 回の採点でイメージが作り直されないこと・時刻を変えたときと同じ時刻の 2 回の比べ・HOME の写し）の全文は [archive/phase1_checks.md](archive/phase1_checks.md) にある。
   - 実行口は、採点の前に基本のイメージの ID を固定の値と照らし、違えば採点しない（偽物の通しで、確認の採点が付け替えた名前を、この照らし合わせが採点の前に止めた）。
 - 採点の抜け道（scb-problems#39 の影響）：
   - #39 は Harbor 版を読んだ指摘。Harbor の走らせ方に固有の項目（`python -m pytest` での入れ替え・報酬のスクリプトの書き換え・root の共有コンテナ・品質の履歴・全チェックポイントのテストの写し）は、eval-snapshot には当たらない。eval-snapshot は、提出物を一時のフォルダに写して採点し、pytest を uvx の分けた環境で走らせ、報告をホストで読み、写すテストは今と前のチェックポイントのものだけ。
