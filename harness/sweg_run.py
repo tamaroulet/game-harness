@@ -9,12 +9,17 @@ collect_submission と eval-task で採点する。ベンチのコードは書�
 
 - 包み：data/task-data.json の固定の版のゲームの束を SHA-256 で照らして取り（evalsys.reference_data.ensure_game）、
   公式の `bench gen-task --mode bugfix` で作る（採点のコンテナ。ネットワークは束を取るためだけ）。hidden は実装役に入れない
+- 走らせるのは公開の dev（config/phase1_dev.json）のゲームとケースの組だけ。外なら何も作らずに止まる（harness/phase1_dev.py）
 - 文面：公式の PROMPT.md に、公式の時間の文と環境の文（evalsys の _deadline_prompt・_environment_prompt）を足す。
   環境の事実（Godot・HOME・表示・道具）は実装役のコンテナで測る
-- 時間切れ：公式の時間の文のとおり、提出物を残さない（採点しない）
+- 提出：公式の走らせ方（evalsys.taskgen.matrix の run_coding_agent）と同じく、実装役が終わりの符号 0 で終わったときだけ
+  提出物を集めて採点する。時間切れ（agy の --print-timeout か、実行口の上限）は agent_timeout、0 でない符号は
+  agent_execution_error で、どちらも提出物を残さない（公式の時間の文：「If that timeout fires, the harness records no
+  submission even when files exist」）。集計では、採点しなかったケースも母数に残し、resolved: false・0 点に数える
+  （記録の aggregate。measured は、採点できたケースだけの公式の形の割合のため）
 - 採点：ネットワークの無い採点のコンテナで、公式の collect_submission と `bench eval-task --visual-judge none`。
   基本のイメージの ID を固定の値と照らし、違えば採点しない
-- 走らせ方の値（時間の上限など）は、操縦士の判断を待つ案（C:\\src\\.local\\seat\\work\\phase1_next_20261120\\runner_design.md §4）
+- 走らせ方の値（時間の上限・playtest の道具など。config/sweg_run.json）は、操縦士の承認（2026-11-20。実験と計画 §6-4）
 """
 import argparse
 import hashlib
@@ -31,6 +36,7 @@ import agy_port  # noqa: E402
 import agy_quota  # noqa: E402
 import exitcode  # noqa: E402
 import model_pin  # noqa: E402
+import phase1_dev  # noqa: E402
 import sandbox  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -110,6 +116,27 @@ def parse_facts(text, budget_s):
             "home": kv.get("home", ""), "home_writable": kv.get("home_writable") == "1", "display": kv.get("display", ""),
             "path": kv.get("path", ""), "uname": kv.get("uname", ""),
             "tools": {t: kv.get(f"tool_{t}") == "1" for t in AGENT_ENV_TOOLS}, "budget_s": budget_s}
+
+
+def submission(turn):
+    """提出物を集めて採点するか。(採点するか, 落ちの種類)。公式と同じく、終わりの符号 0 で終わったときだけ採点する。"""
+    agent = (turn or {}).get("agent") or {}
+    if agent.get("timeout"):
+        return False, "agent_timeout"
+    if agent.get("rc") != 0:
+        return False, "agent_execution_error"
+    return True, None
+
+
+def aggregate(ev):
+    """集計の値。採点しなかった（提出物が無い）ケースは resolved: false・0 点で母数に残す（measured: false）。集めか採点が
+    落ちた（測定系の異常）ケースは resolved を None にする（落ちに数えず、止める線で止める）。"""
+    ev = ev or {}
+    if ev.get("summary"):
+        return {"resolved": bool(ev["summary"].get("resolved")), "score": ev["summary"].get("score"), "measured": True}
+    if ev.get("failure_kind"):
+        return {"resolved": False, "score": 0.0, "measured": False, "reason": ev["failure_kind"]}
+    return {"resolved": None, "score": None, "measured": False, "reason": "collect_or_verifier_error"}
 
 
 def eval_summary(report):
@@ -198,6 +225,7 @@ def measure_facts(box, sbx, budget_s):
 
 
 def run_case(cfg, game, case_id, out_dir, fake=False, token_file=None):
+    phase1_dev.require_mode4(game, case_id)   # 公開の dev の外は、何も作らずに止まる
     check_id(game, "ゲーム")
     check_id(case_id, "ケース")
     out_dir = Path(out_dir)
@@ -239,10 +267,12 @@ def run_case(cfg, game, case_id, out_dir, fake=False, token_file=None):
         if t.get("model_error"):
             rec["stopped"] = "モデルの照合に落ちた（採点しない。作業場は workspace に残る）"
             raise model_pin.ModelPinError(t["model_error"])
-        if t["agent"]["rc"] == 124:
-            rec["eval"] = {"skipped": "時間切れ（公式の時間の文のとおり、提出物を残さない）"}
-        else:
+        submit, failure = submission(t)
+        if submit:
             rec["eval"] = collect_and_evaluate(cfg, workspace, out_dir, tag)
+        else:
+            rec["eval"] = {"skipped": "公式と同じく提出物を残さない（採点しない）", "failure_kind": failure}
+        rec["aggregate"] = aggregate(rec["eval"])
         if not fake:
             rec["quota_after"] = agy_quota.read()
     finally:
@@ -282,7 +312,8 @@ def cmd_run(args):
     s = ((rec.get("eval") or {}).get("summary")) or {}
     t = rec.get("turn") or {}
     print(f"{rec['case_id']} valid={rec.get('valid')} resolved={s.get('resolved')} score={s.get('score')} "
-          f"status={s.get('status')} rc={(t.get('agent') or {}).get('rc')} "
+          f"status={s.get('status')} rc={(t.get('agent') or {}).get('rc')} timeout={(t.get('agent') or {}).get('timeout')} "
+          f"failure_kind={(rec.get('eval') or {}).get('failure_kind')} aggregate={rec.get('aggregate')} "
           f"denied_ran={sum(1 for d in t.get('denied_tools') or [] if d['ran'])} stopped={rec.get('stopped')}")
     print(f"boxes_left={rec['boxes_left']}")
     return 0

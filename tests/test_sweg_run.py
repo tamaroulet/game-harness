@@ -3,11 +3,13 @@
     python -m unittest discover -s tests -v
 """
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+import phase1_dev  # noqa: E402
 import sweg_run  # noqa: E402
 
 
@@ -50,6 +52,30 @@ class PartsTests(unittest.TestCase):
         s = sweg_run.eval_summary(report)
         self.assertEqual((s["resolved"], s["score"], s["status"]), (False, 0.0, "complete"))
         self.assertEqual(s["failing_strict_items"], ["gold_replay", "repair_differential"])
+
+
+class SubmissionTests(unittest.TestCase):
+    """提出と集計（公式の run_coding_agent と同じく、終わりの符号 0 のときだけ提出物を集めて採点する）。"""
+
+    def test_only_a_normal_exit_is_scored(self):
+        self.assertEqual(sweg_run.submission({"agent": {"rc": 0, "timeout": None}}), (True, None))
+        self.assertEqual(sweg_run.submission({"agent": {"rc": 3, "timeout": "print_timeout"}}), (False, "agent_timeout"))
+        self.assertEqual(sweg_run.submission({"agent": {"rc": 124, "timeout": "hard"}}), (False, "agent_timeout"))
+        self.assertEqual(sweg_run.submission({"agent": {"rc": 3, "timeout": None}}), (False, "agent_execution_error"))
+
+    def test_unscored_cases_stay_in_the_denominator(self):
+        scored = {"summary": {"resolved": True, "score": 87.5}}
+        self.assertEqual(sweg_run.aggregate(scored), {"resolved": True, "score": 87.5, "measured": True})
+        self.assertEqual(sweg_run.aggregate({"skipped": "x", "failure_kind": "agent_timeout"}),
+                         {"resolved": False, "score": 0.0, "measured": False, "reason": "agent_timeout"})
+        self.assertIsNone(sweg_run.aggregate({"collect_rc": 1, "error": "boom", "summary": None})["resolved"])   # 測定系の異常
+
+    def test_run_case_stops_outside_the_dev_before_making_anything(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "out"
+            with self.assertRaises(phase1_dev.NotDevError):
+                sweg_run.run_case({}, "ballast_yard", "canopy-dash-hollow-phase-bind-v2", out, fake=True)
+            self.assertFalse(out.exists())
 
 
 if __name__ == "__main__":
