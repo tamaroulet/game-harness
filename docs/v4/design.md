@@ -119,7 +119,7 @@
 | 層 | 中身 | ベンチ | Unity の実開発 |
 |:--|:--|:--|:--|
 | 制御核 | 要件の台帳（JSON。項目と確かめ方。実装役は状態の欄だけ変える）・検証の手順の形（汎用のスキーマ）・1 つの単位を 1 つの会話で進める周回（粒度は設定）・2 つの関門（合否の決定と押し返し）・第 2 関門の検証役の呼び出しと、確かめの固め・積み重ねの周回（仕事の列を順に回し、合格で確定のコミット・非退行の関門への積み・落ちたら始まりに戻す・文脈の持ち方） | 同じ。積み重ねの周回は E-3 の前に作る（今の harness/core.py は 1 つの単位の周回 run_unit だけ） | 同じ。粒度を大きくする（4-4） |
-| 実行環境のアダプタ | 検証の手順を実際に走らせ、結果を決まった形で返す。ファイルの受け渡しと閉じ込め | SlopCodeBench と SWE-Game の公式のイメージのコンテナ。実装役は内部のネットワークと許可リストのプロキシの内側で非 root で動き、採点は公式の eval-snapshot と eval-task（[実験と計画](experiments.md)の §6-3）。閉じ込め（ネットワークとプロキシ・非 root のコンテナ・境界の検査・後始末）はベンチに依らない共通の層の harness/sandbox.py、公式の文面と採点と周回はベンチ固有の層（SlopCodeBench は harness/scb_run.py。§6-5）。閉じた段の道具：SWE-EVO の S0 は harness/swe_s0.py、先読みは harness/swe_run.py、第 1 関門の probe は harness/fb_gate_probe.py） | Windows の Unity をクローンに対してバッチモードで呼ぶ多段の関門と、Core の .NET の分けたビルド（§9） |
+| 実行環境のアダプタ | 検証の手順を実際に走らせ、結果を決まった形で返す。ファイルの受け渡しと閉じ込め | SlopCodeBench と SWE-Game の公式のイメージのコンテナ。実装役は内部のネットワークと許可リストのプロキシの内側で非 root で動き、採点は公式の eval-snapshot と eval-task（[実験と計画](experiments.md)の §6-3）。閉じ込め（ネットワークとプロキシ・非 root のコンテナ・境界の検査・後始末）はベンチに依らない共通の層の harness/sandbox.py、公式の文面と採点と周回はベンチ固有の層（SlopCodeBench は harness/scb_run.py、SWE-Game Mode 4 は harness/sweg_run.py。§6-4・§6-5）。閉じた段の道具：SWE-EVO の S0 は harness/swe_s0.py、先読みは harness/swe_run.py、第 1 関門の probe は harness/fb_gate_probe.py） | Windows の Unity をクローンに対してバッチモードで呼ぶ多段の関門と、Core の .NET の分けたビルド（§9） |
 | エージェントの実行口 | 会話を始める・続ける、利用量と使ったモデルの記録、利用枠切れの検出 | agy の Gemini（標準は gemini-4-hydrogen-medium。P-032）。harness/agy_port.py の AgyPort（start・send が制御核の Turn を返す。フック・モデルの照合・止めた道具と時間切れの記録。設定は config/agy_sandbox.json）と harness/agy_stream.py | その時点で最も賢いモデルの CLI |
 
 - 制御核とアダプタのあいだは、検証の手順の形（どの確かめを・どの順で・何をもって合格とするか）と、結果の形（確かめごとの合否・通ったテストと落ちたテストの名・時間・生の出力の置き場）だけで繋ぐ。制御核は、コマンドの文字列・パスの形・OS を持たない。
