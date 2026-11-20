@@ -1,0 +1,36 @@
+{
+  "_comment": "SlopCodeBench の実行口（harness/scb_run.py、実験と計画 §6-3〜6-5）。実装役は agy。モデルは model_name で正確な ID を固定し、走りの後に CLI が報告したモデルと照らす（harness/model_pin.py）。パスは WSL の上のもの",
+  "cli": "agy",
+  "headless_flag": "-p",
+  "auto_approve_flag": "--dangerously-skip-permissions",
+  "model_flag": "--model",
+  "model_name": "gemini-4-hydrogen-medium",
+  "output_format_args": ["--output-format", "stream-json"],
+  "extra_flags": [],
+  "usage_format": "agy",
+  "install": {
+    "version": "1.5.3",
+    "url": "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.5.3-6604829099950080/linux-x64/cli_linux_x64.tar.gz",
+    "sha512": "e363e1b17daaac2589f18e6973429c039fd5a5e5c15e9c0852fa349836f3992b10fe84732bc8d8c8208e149f0304f15aba9dec696d12efeed03917492c0580eb"
+  },
+  "token": "/home/bench/.gemini/antigravity-cli/antigravity-oauth-token",
+  "scb": {
+    "bench": "/root/scb_0b/slop-code-bench",
+    "problems": "/root/scb_0b/scb-problems",
+    "uv_bin": "/root/scb_0b/uvenv/bin",
+    "env_config": "configs/environments/docker-python3.12-uv.yaml",
+    "prompt": "just-solve",
+    "image": "slop-code:python3.12",
+    "image_id": "sha256:c49426ce309bfbeef097f6e2f2cb4be0c0f2ca7c2dedb070b06c97ec988a22f2",
+    "uid": 1000
+  },
+  "network": {
+    "_comment": "実装役のコンテナは内部のネットワークだけにつなぎ、外への道は許可リストのプロキシだけ（実験と計画 §6-3）",
+    "internal": "scb-int",
+    "proxy_name": "scb-egress",
+    "proxy_image": "scb-egress:tinyproxy",
+    "proxy_port": 8888,
+    "allow": ["daily-cloudcode-pa.googleapis.com", "oauth2.googleapis.com", "www.googleapis.com", "pypi.org", "files.pythonhosted.org"]
+  },
+  "quota_floor": {"gemini-weekly": 0.35, "gemini-5h": 0.15}
+}
