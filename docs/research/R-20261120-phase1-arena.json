@@ -1,0 +1,451 @@
+{
+  "id": "R-20261120-phase1-arena",
+  "title": "フェーズ 1 の土俵（SlopCodeBench と SWE-Game Mode 4）と、走らせ方の境界",
+  "stage": "compare",
+  "decision": "フェーズ 1 の土俵を、一般の連続積み上げ・非退行は SlopCodeBench、ゲーム骨子は SWE-Game Mode 4 にしてよいか。母集団から外す問題と、走らせ方の境界（ネットワーク・採点の再現性・採点の抜け道）を何で決めるか",
+  "sectors": [],
+  "asked_at": "2026-11-20T16:03:07+09:00",
+  "backend": "seat",
+  "models": [],
+  "usage": null,
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "各チェックポイントは、新しい Docker のコンテナで非 root のユーザーとして走り、チェックポイントの間に残るのは作業のフォルダだけ。",
+      "source_url": "https://arxiv.org/html/2603.24755",
+      "source_title": "SlopCodeBench: Benchmarking How Coding Agents Degrade Over Long-Horizon Iterative Tasks（arXiv 2603.24755、HTML）",
+      "published": "2026-03",
+      "quote": "Each checkpoint runs in a fresh Docker container as a non-root user; only the working directory persists between checkpoints",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "SlopCodeBench の公式の形",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "222fb4c76f9adeb8dfbb161f6ac6ce7f20fe9855c5bc380c27358adae132b53e",
+        "reason": null
+      }
+    },
+    {
+      "id": "C2",
+      "claim": "エージェントの作業場（自分のコード）は次のチェックポイントへ引き継がれ、品質は毎ステップで測る。",
+      "source_url": "https://arxiv.org/html/2603.24755",
+      "source_title": "SlopCodeBench: Benchmarking How Coding Agents Degrade Over Long-Horizon Iterative Tasks（arXiv 2603.24755、HTML）",
+      "published": "2026-03",
+      "quote": "workspace is carried forward to the next checkpoint, and quality is measured at every step",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "SlopCodeBench の公式の形",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "222fb4c76f9adeb8dfbb161f6ac6ce7f20fe9855c5bc380c27358adae132b53e",
+        "reason": null
+      }
+    },
+    {
+      "id": "C3",
+      "claim": "前のチェックポイントのテスト（regression）が前の要求を後へ運ぶので、前のチェックポイントの誤りが後のチェックポイントの点を 0 にしうる。",
+      "source_url": "https://arxiv.org/html/2603.24755",
+      "source_title": "SlopCodeBench: Benchmarking How Coding Agents Degrade Over Long-Horizon Iterative Tasks（arXiv 2603.24755、HTML）",
+      "published": "2026-03",
+      "quote": "Because regression tests carry earlier requirements forward",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "SlopCodeBench の公式の形",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "222fb4c76f9adeb8dfbb161f6ac6ce7f20fe9855c5bc380c27358adae132b53e",
+        "reason": null
+      }
+    },
+    {
+      "id": "C4",
+      "claim": "どのエージェントも 36 問のどれも全部は解いていない。",
+      "source_url": "https://arxiv.org/html/2603.24755",
+      "source_title": "SlopCodeBench: Benchmarking How Coding Agents Degrade Over Long-Horizon Iterative Tasks（arXiv 2603.24755、HTML）",
+      "published": "2026-03",
+      "quote": "No agent fully solves any of the 36 problems",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "SlopCodeBench の公式の形",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "222fb4c76f9adeb8dfbb161f6ac6ce7f20fe9855c5bc380c27358adae132b53e",
+        "reason": null
+      }
+    },
+    {
+      "id": "C5",
+      "claim": "strict（全テストの通過）の最高は GPT 5.5 の 14.8%。",
+      "source_url": "https://arxiv.org/html/2603.24755",
+      "source_title": "SlopCodeBench: Benchmarking How Coding Agents Degrade Over Long-Horizon Iterative Tasks（arXiv 2603.24755、HTML）",
+      "published": "2026-03",
+      "quote": "GPT 5.5 achieves the highest strict solve rate at 14.8",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "academia",
+      "approach": "SlopCodeBench の公式の形",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "222fb4c76f9adeb8dfbb161f6ac6ce7f20fe9855c5bc380c27358adae132b53e",
+        "reason": null
+      }
+    },
+    {
+      "id": "C6",
+      "claim": "公式の既知の問題の一覧は、仕様の変化のため、正解の一部はすべてのテストには通らないと書いている。",
+      "source_url": "https://raw.githubusercontent.com/SprocketLab/slop-code-bench/de70a479acce7b565d2d0c772f48d7c881c15510/docs/KNOWN_ISSUES.md",
+      "source_title": "SlopCodeBench docs/KNOWN_ISSUES.md（コミット de70a479acce）",
+      "published": "不明",
+      "quote": "some reference solutions may not pass all tests",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "正解とテストの欠陥",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "1af16fecb6568ac51e79f8cb54b539f24ea12206277fda990d63aa3f0c7153e6",
+        "reason": null
+      }
+    },
+    {
+      "id": "C7",
+      "claim": "コンテナは、それを起動したホストのプロセスの uid:gid で走る（環境変数と環境の設定で上書きできる）。",
+      "source_url": "https://raw.githubusercontent.com/SprocketLab/slop-code-bench/de70a479acce7b565d2d0c772f48d7c881c15510/docs/execution/docker.md",
+      "source_title": "SlopCodeBench docs/execution/docker.md（コミット de70a479acce）",
+      "published": "不明",
+      "quote": "Containers run as the uid:gid of the host process that launched them",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "SlopCodeBench の公式の形",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "a8ec8d8d74c89552cd1457acbe5c2bf26af11d1940bca77ff7b27e1565d9d5da",
+        "reason": null
+      }
+    },
+    {
+      "id": "C8",
+      "claim": "外部の監査は、公式のイメージで dynamic_buffer のチェックポイント 2〜4 の正解が自分のテストに落ちると報告した。",
+      "source_url": "https://api.github.com/repos/SprocketLab/slop-code-bench/issues/27",
+      "source_title": "slop-code-bench#27 Pinned answer keys fail evaluation in the official image",
+      "published": "2026-08-11",
+      "quote": "checkpoints 2 through 4 fail their own tests (48/50, 102/104, 122/172)",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "正解とテストの欠陥",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "fc2f7a3c0cedf4e040b689f983533c45eff9ac5d8c2e95738b530caf93b55f08",
+        "reason": null
+      }
+    },
+    {
+      "id": "C9",
+      "claim": "同じ監査は、env_manager のチェックポイント 3 の正解が前のチェックポイントのテスト 3 つに落ちると報告した。",
+      "source_url": "https://api.github.com/repos/SprocketLab/slop-code-bench/issues/27",
+      "source_title": "slop-code-bench#27 Pinned answer keys fail evaluation in the official image",
+      "published": "2026-08-11",
+      "quote": "checkpoint 3 fails three regression tests from checkpoints 1 and 2 (184/187)",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "正解とテストの欠陥",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "fc2f7a3c0cedf4e040b689f983533c45eff9ac5d8c2e95738b530caf93b55f08",
+        "reason": null
+      }
+    },
+    {
+      "id": "C10",
+      "claim": "同じ監査は、pwd_manager のチェックポイント 4 が不安定（走りごとに違う 1 項目が落ちる）と報告した。",
+      "source_url": "https://api.github.com/repos/SprocketLab/slop-code-bench/issues/27",
+      "source_title": "slop-code-bench#27 Pinned answer keys fail evaluation in the official image",
+      "published": "2026-08-11",
+      "quote": "checkpoint 4 is unstable",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "正解とテストの欠陥",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "fc2f7a3c0cedf4e040b689f983533c45eff9ac5d8c2e95738b530caf93b55f08",
+        "reason": null
+      }
+    },
+    {
+      "id": "C11",
+      "claim": "同じ監査は、test_translator の TypeScript の 8 チェックポイントが、npx が最新の typescript を取ると全部落ちると報告した。",
+      "source_url": "https://api.github.com/repos/SprocketLab/slop-code-bench/issues/27",
+      "source_title": "slop-code-bench#27 Pinned answer keys fail evaluation in the official image",
+      "published": "2026-08-11",
+      "quote": "All eight TypeScript checkpoints fail when",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "正解とテストの欠陥",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "fc2f7a3c0cedf4e040b689f983533c45eff9ac5d8c2e95738b530caf93b55f08",
+        "reason": null
+      }
+    },
+    {
+      "id": "C12",
+      "claim": "meshctl のテストは、提出物から 3 つの名前だけを作業場に写すので、複数のファイルに分けた解は import で落ちる。",
+      "source_url": "https://api.github.com/repos/gabeorlanski/scb-problems/issues/37",
+      "source_title": "scb-problems#37 meshctl: test workspace copies only meshctl.py",
+      "published": "2026-10-27",
+      "quote": "copies only three names from the submission",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "正解とテストの欠陥",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "23cb47bee1678fdc29ee6bddd809c2e3a4f7f3b4f47cd96b3a4ea51ed3e0baa9",
+        "reason": null
+      }
+    },
+    {
+      "id": "C13",
+      "claim": "作業場の根に実装役が置いた conftest.py が採点を 0 にする問題を、採点のテストのフォルダで conftest の探索を止めて直した（マージ済み）。",
+      "source_url": "https://api.github.com/repos/SprocketLab/slop-code-bench/issues/16",
+      "source_title": "slop-code-bench#16 Isolate eval pytest collection from agent-authored conftest.py",
+      "published": "2026-06-10",
+      "quote": "caps conftest discovery at the eval test dir",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "テストの漏れと抜け道",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "544a39f792ff0b4318b9b722308be20c47f7895244440eda66e1f825f94319d2",
+        "reason": null
+      }
+    },
+    {
+      "id": "C14",
+      "claim": "cursor-agent が Web で SlopCodeBench の隠しテストを引いた例が報告されている。",
+      "source_url": "https://api.github.com/repos/SprocketLab/slop-code-bench/issues/24",
+      "source_title": "slop-code-bench#24 Network access",
+      "published": "2026-08-03",
+      "quote": "just looked up the SlopCodeBench hidden tests on the web",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "テストの漏れと抜け道",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "ba9a8567dfdf8b66381099c3a8f0f106732dec69d887504071c669a4aec9e71c",
+        "reason": null
+      }
+    },
+    {
+      "id": "C15",
+      "claim": "外部の追試（DeepSeek V4.1 Flash、各 1 回）で、続く会話の回は core 134/196、strict 44/196（22.4%）だった。",
+      "source_url": "https://api.github.com/repos/SprocketLab/slop-code-bench/issues/45",
+      "source_title": "slop-code-bench#45 Closing report: our four rounds on the official setup",
+      "published": "2026-10-16",
+      "quote": "continuous session — the run in #40 | 36/36 | 134/196 (68.4%) | 44/196 (22.4%)",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "続く会話と新しい会話",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "50a1c2ddaf5bec9e9604dc295f32307cd239046751755a175e32a6185add7499",
+        "reason": null
+      }
+    },
+    {
+      "id": "C16",
+      "claim": "同じ追試で、チェックポイントごとに新しいプロセスと会話にした回は core 144/196、strict 66/196（33.7%）だった。",
+      "source_url": "https://api.github.com/repos/SprocketLab/slop-code-bench/issues/45",
+      "source_title": "slop-code-bench#45 Closing report: our four rounds on the official setup",
+      "published": "2026-10-16",
+      "quote": "fresh process + fresh session per checkpoint, no cross-checkpoint instruction channel | 36/36 | 144/196 (73.5%) | 66/196 (33.7%)",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "続く会話と新しい会話",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "50a1c2ddaf5bec9e9604dc295f32307cd239046751755a175e32a6185add7499",
+        "reason": null
+      }
+    },
+    {
+      "id": "C17",
+      "claim": "scb-problems#39 が挙げた 1 問では、空の作業場がチェックポイント 1 の 11 項目のうち 5 に通る（エラーのテストが終わりの符号だけを見る）。",
+      "source_url": "https://api.github.com/repos/gabeorlanski/scb-problems/issues/39",
+      "source_title": "scb-problems#39 Grader bypasses and verifier gaps in SlopCodeBench tasks",
+      "published": "2026-11-20",
+      "quote": "passes 5 of the 11 checkpoint 1 tests",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "テストの漏れと抜け道",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "c2f2fee84090f9b3270ec58aae6e47ce1e4f538ebc39e5ade9d6e13ce635dfd2",
+        "reason": null
+      }
+    },
+    {
+      "id": "C18",
+      "claim": "scb-problems#39 が挙げた別の 1 問のチェックポイント 4 では、何も書かずに 0 で終わるプログラムが core の 9 項目のうち 8 に通る（期待の出力が実行のフォルダに先に置かれている）。",
+      "source_url": "https://api.github.com/repos/gabeorlanski/scb-problems/issues/39",
+      "source_title": "scb-problems#39 Grader bypasses and verifier gaps in SlopCodeBench tasks",
+      "published": "2026-11-20",
+      "quote": "exits 0 without writing anything therefore passes 8 of the 9 core case tests",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "secondary",
+      "sector": "practitioners",
+      "approach": "テストの漏れと抜け道",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "c2f2fee84090f9b3270ec58aae6e47ce1e4f538ebc39e5ade9d6e13ce635dfd2",
+        "reason": null
+      }
+    },
+    {
+      "id": "C19",
+      "claim": "SWE-Game の Bug Repair は、ゲームの振る舞いを保ったまま修理する課題で、入力は不具合のあるプロジェクト・遊びの要件・不具合の報告。",
+      "source_url": "https://raw.githubusercontent.com/Charly-chan/SWE-Game/a1de4d63f750bcc70cbccc8aca0ad672ef189cca/README.md",
+      "source_title": "SWE-Game README（コミット a1de4d63f750）",
+      "published": "不明",
+      "quote": "Repair a game while preserving its behavior",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "SWE-Game の Bug Repair",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "6dfa0ef29344f679bc401a7c3599f91deab4b41e414e23664c5911a7b9890ffc",
+        "reason": null
+      }
+    },
+    {
+      "id": "C20",
+      "claim": "SWE-Game の同梱の作品には、別の条件が記録されたものがある（例：Hurry Curry の上流の素材は AGPL-3.0-only）。",
+      "source_url": "https://raw.githubusercontent.com/Charly-chan/SWE-Game/a1de4d63f750bcc70cbccc8aca0ad672ef189cca/THIRD_PARTY_NOTICES.md",
+      "source_title": "SWE-Game THIRD_PARTY_NOTICES.md（コミット a1de4d63f750）",
+      "published": "不明",
+      "quote": "Hurry Curry upstream material | AGPL-3.0-only",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "SWE-Game の Bug Repair",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "0682f954436816ebe63dff53d39b244566c68d219d82491c587ad5470c3ad225",
+        "reason": null
+      }
+    },
+    {
+      "id": "C21",
+      "claim": "uv は UV_EXCLUDE_NEWER を与えると、その日時より後に公開された配布物を候補から外す。",
+      "source_url": "https://docs.astral.sh/uv/reference/environment/",
+      "source_title": "uv の環境変数の文書",
+      "published": "不明",
+      "quote": "If set, uv will exclude distributions published after the specified date",
+      "kind": "fact",
+      "confidence": "high",
+      "source_tier": "primary",
+      "sector": "standards_tools",
+      "approach": "採点の依存の再現性",
+      "verify": {
+        "status": "verified",
+        "http_status": 200,
+        "fetched_at": "2026-11-20T16:03:07+09:00",
+        "sha256": "28c9532e13d664b66ae33a05116fe12fc7aaf827d20aec7ed229906f8befcb81",
+        "reason": null
+      }
+    }
+  ],
+  "queries": [
+    "slop-code-bench issues（GitHub の API で全件を一覧した）",
+    "scb-problems issues（同）",
+    "SlopCodeBench paper arXiv 2603.24755",
+    "uv UV_EXCLUDE_NEWER"
+  ],
+  "unknowns": [
+    "agy（Antigravity CLI 1.5.3）の hooks.json の仕様は、公開の URL ではなく配布物に埋め込まれた文書で読んだ（実験と計画 §6-3。ここでは主張にしない）",
+    "PreToolUse の deny が search_web を実際に止めるかは、モデルの呼び出しが要るので未確認（Stage 1 の軌跡で確認する）",
+    "issue #45 の追試は外部の 1 チームの各 1 回で、続く会話と新しい会話のほかにも条件が違う"
+  ],
+  "counts": {
+    "verified": 21,
+    "quote_not_found": 0,
+    "unreachable": 0,
+    "no_source": 0
+  },
+  "question": "# フェーズ 1 の土俵（SlopCodeBench と SWE-Game Mode 4）と、走らせ方の境界\n\n## 段\ncompare\n\n## 決めたい判断\nフェーズ 1 の土俵を、一般の連続積み上げ・非退行は SlopCodeBench、ゲーム骨子は SWE-Game Mode 4 にしてよいか。母集団から外す問題と、走らせ方の境界（ネットワーク・採点の再現性・採点の抜け道）を何で決めるか\n\n## 判断を変えうるもの\n公式の正解が手元で広く落ちる。テストの弱さや抜け道が採点を左右する。隠しテストを Web で引ける道を塞げない。採点の依存の解決が日によって変わり、採り直せない\n\n## 候補\nSlopCodeBench・SWE-Chain・SWE-Game Mode 4\n\n## 問い\nSlopCodeBench の公式の形（チェックポイントごとのコンテナ・作業場の引き継ぎ・前のチェックポイントのテスト・難しさ）、公式と外部の監査が挙げた正解とテストの欠陥、ネットワークとテストの漏れ、続く会話と新しい会話の外部の観測、SWE-Game の Bug Repair の形とライセンスの注記、採点の依存の解決を日付で固定する手段を、一次の出典で確認する。SWE-Chain と SlopCodeBench の手元の実測（0b）は、実験と計画 §6-1 に書く（この記録の外）。\n"
+}

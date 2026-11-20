@@ -235,8 +235,48 @@ premises:
 - id: P-042
   text: SWE-EVO の開発用 7 課題の正解のパッチの状態に、第 1 関門（pyflakes の t=0 との差・R0 の選びのテスト（周辺の既存のテストの群 3。1 回 300 秒）・後からの t=0 の対照）を当てると、正解の状態を 7 課題中 4 課題で押し返し、S0 の線 1（1 以下）に届かない。押し返した 12 項目はすべて、リリースが意図して変えた振る舞いを守る既存のテストで、公式の test_patch がそのテストを書き替えるか、中を変えるか、消している。1 回の関門は 7 課題とも 600 秒以内（20〜453 秒）だが、dask の 3 課題は選んだファイルの約 4 割が 300 秒の窓に入らず、dvc の 3 課題は t=0 から落ちるテスト（193〜740 項目）の対照に 62〜224 秒かかる。pyflakes の新しい検出は 7 課題とも 0
   kind: measured
-  basis: [docs/v4/experiments.md の §6-2 の S0 の結果（2026-11-17〜18、利用枠 0。harness/swe_s0.py と harness/fb_gate_probe.py）]
+  basis: [docs/v4/experiments.md の §6-10 の S0 の結果（2026-11-17〜18、利用枠 0。harness/swe_s0.py と harness/fb_gate_probe.py）]
   note: 正解のパッチはテストのファイルを含まないので、群 1 は空で、群 3 を測った。押し返しの分けは、test_patch の変わった行を t=0 のテストの関数の範囲に照らした記録の分析で、関門には使っていない。下げた形（pyflakes の差と群 1）なら、同じ記録で正解の押し返しは 0/7。t=0 から落ちる主な原因は、環境の版のずれ（dvc_2.7.2 は pygit2 1.15.1 に GIT_OBJ_COMMIT が無い、dvc_2.5.0 は pathspec の正規表現の名の重なり）と、root で走ることによる書き込み禁止の確認の落ち。設計 §4-2 の第 1 関門の 3 で群 2・3 を選ばない根拠（操縦士の決め、2026-11-18）
   checked_at: 2026-11-18
   recheck_by: 2026-12-18
-  used_by: [v4 設計 §4-2, v4 設計 §5-1, v4 設計 §7, v4 実験 §6-2]
+  used_by: [v4 設計 §4-2, v4 設計 §5-1, v4 設計 §7, v4 実験 §6-10]
+- id: P-043
+  text: SWE-Chain（1cd84f09e41d）の公式の採点は、README のとおり git clone した中では、差分を当てる git apply が全部のパッチを飛ばして終わりの符号 0 を返し、どのステップも始まりのコードのまま採点する（正解でも resolving 0%）。git の外のコピーでは当たる。採点は自前の pytest のプラグインを入れて走らせるので、pytest の鎖では正解でも解けない upgrade-related の項目が毎ステップに入る（git の外での正解の再生で resolving 96.8%・40.0%・57.1%、regressed 0）。同じ型の目印は 12 鎖のうち 6 鎖にある（flask で upgrade-related の 45%）。oracle の作り直しは、2 区間・14 ファイルで公開の oracle と全項目一致した。目印の無い attrs の区間では、正解の再生は resolving 100%・regressed 0
+  kind: measured
+  basis: [docs/v4/experiments.md の §6-1（2026-11-20、利用枠 0。ベンチのコードの変更 0）]
+  note: 目印（同じ項目が鎖の半分以上のステップで upgrade-related になる）は公開の oracle で数えたもので、正解の再生で確認したのは pytest 8 だけ。採らない理由（操縦士の決め、2026-11-20）は、使える鎖が 6 本・73 ステップに減り、dev と held-out の多様性が足りないこと。公開の issue での作者への報告はしない（同）
+  checked_at: 2026-11-20
+  recheck_by: 2026-12-20
+  used_by: [v4 実験 §6-1]
+- id: P-044
+  text: SlopCodeBench（slop-code-bench de70a479acce・scb-problems 9cd9ca3a51c3）の公式の正解を、公式の eval-snapshot に 192 チェックポイント通すと（uid 1000、基本のイメージ sha256:c49426ce309b…）、183 が全テストに通った。落ちは 4 問に閉じる：test_translator（公式のイメージに TypeScript の道具が無い環境の型で、公式の設定では直らない）・dynamic_buffer（正解の誤り）・env_manager（正解が前の振る舞いを壊す）・pwd_manager（不安定）。公式の KNOWN_ISSUES.md の 8 チェックポイントのうち 7 は手元で通った。採点のコンテナは起動したホストのユーザーの uid で走り、root から起動すると権限の検査が正解でも落ちる。1 チェックポイントの採点は中央 41 秒・上位 1 割 128 秒以上・最大 753 秒
+  kind: measured
+  basis: [docs/v4/experiments.md の §6-1（2026-11-20、利用枠 0。ベンチのコードの変更 0）, R-20261120-phase1-arena#C6, R-20261120-phase1-arena#C7, R-20261120-phase1-arena#C8, R-20261120-phase1-arena#C9, R-20261120-phase1-arena#C10, R-20261120-phase1-arena#C11]
+  note: 走らせる前に書いた線（KNOWN_ISSUES の外の落ちが 6 チェックポイント以上か、直らない環境の型があれば黒）のとおりなら黒。4 問の落ちは、外部の監査（slop-code-bench#27）が公式のイメージで報告したものと同じ。test_translator の 5〜8 は時間（チェックポイント 4 が 778 秒）で止めた
+  checked_at: 2026-11-20
+  recheck_by: 2026-12-20
+  used_by: [v4 実験 §6-1, v4 実験 §6-2, v4 設計 §8]
+- id: P-045
+  text: フェーズ 1 の土俵は、一般の連続積み上げ・非退行が SlopCodeBench、ゲーム骨子が SWE-Game Mode 4。SlopCodeBench の母集団は、0b で正解が全チェックポイントに通った 32 問から meshctl（テストが提出物の 3 つの名前だけを写し、複数のファイルの解が落ちる）を外した 31 問・166 チェックポイント。Mode 4 の母集団は、上流の条件が別に記録された 6 ゲームを外した 35 ゲーム・70 ケース。単位は途中で切らず、難しさ（SlopCodeBench）と視点（Mode 4）の層ごとに、非公開の種で dev を 3 分の 1（四捨五入）、残りを held-out にして封をした。基本形は H0（1 つの問題を 1 つの会話で続ける）と H0_fresh（チェックポイントごとに新しい会話）で、隠しテストの出力は返さない。採点は非 root で、基本のイメージの ID を固定する。SWE-Chain・Web-Bench・EvoCode-Bench・Multi-step SWE は採らない
+  kind: decision
+  basis: [操縦士の決め（2026-11-20、会話の席の構成案の第 1 版と第 2 版への判断）, docs/v4/experiments.md の §6-2]
+  note: 0b の書いた線のとおりなら SlopCodeBench は黒だった。エージェントを走らせる前（利用枠 0）に、外部の監査（slop-code-bench#27・scb-problems#37）と一致した 5 問を外して使う（公開資料にこのとおりに書く）。held-out の並びの SHA-256 は SlopCodeBench が d7582cf8…、Mode 4 がゲーム e0426b29…・ケース 03cdc931…（全文は実験 §6-2）。held-out は区画ごとに 1 回使い切る（憲章 §5）
+  checked_at: 2026-11-20
+  recheck_by: 2026-12-20
+  used_by: [v4 設計 §4-4, v4 設計 §7, v4 実験 §6]
+- id: P-046
+  text: 実装役のコンテナを Docker の内部のネットワークだけにつなぎ、許可リストのプロキシ（tinyproxy 1.11.0。agy の 3 つの宛先と PyPI の 443 だけ）を外への道にすると、許可した 5 つの宛先だけに届き、GitHub・Google の検索・Hugging Face・npm と平文の HTTP は拒まれ、直の接続と生の TCP はどこにも届かない。pip は PyPI からだけ入る。agy 1.5.3 は、root の持ち物で書き換えのできない ~/.gemini/config/hooks.json のフック（PreToolUse で、search_web・read_url_content・webview_browser などの Web の道具と、下位エージェントの口 invoke_subagent を deny）を uid 1000 で読み込み、uid 1000 からはフックを書き換え・消し・移しできない。公式の採点は、環境の設定の environment.env を変えると基本のイメージを作り直して同じ名前に付け替える。environment.env を公式のまま environment.include_os_env を足し、UV_EXCLUDE_NEWER をホストの環境から渡すと、イメージを作り直さずに採点のコンテナの中の解決が固定され、同じ時刻の 2 回で道具の版・結果・テストの一覧のハッシュが一致した。eval-snapshot は、提出物に .evaluation_tests/ があると公式のテストを写さず、そのフォルダのテストで一覧づくりも本番も行う
+  kind: measured
+  basis: [docs/v4/experiments.md の §6-3（2026-11-20、利用枠 0）, R-20261120-phase1-arena#C21]
+  note: 止める道具の名前は、agy 1.5.3 の実行ファイルの中の道具の実装の名前と文言で確かめた（利用枠 0）。invoke_subagent は親と違うモデルを選べ、下位エージェントの手番は親の stream-json に出ないので止める。deny が実際に道具を止めるかは、モデルが道具を呼ぶまで観測できない（agy は deny を手番のエラーで返すと見込み、Stage 1 の最初の軌跡で確かめる。止めた道具の手番が DONE で終わった走りは無効にする）。.evaluation_tests の振る舞いは、slop-code-bench de70a479acce の evaluation/pytest_runner.py と evaluation/collection.py の _copy_tests_from_problem を読んで確認した（どちらも、作業場にそのフォルダがあれば写さずに戻る）
+  checked_at: 2026-11-20
+  recheck_by: 2026-12-20
+  used_by: [v4 設計 §5-1, v4 実験 §6-3]
+- id: P-047
+  text: SlopCodeBench の母集団の 31 問・166 チェックポイントに、空の提出物（入口のファイルが無いもの・何もせず 0 で終わるもの）を公式の採点で通すと、どちらかで通るテストは、採点したテストの延べ 19,416 のうち 1,518（7.8%）で、98 チェックポイント・22 問にある（Core 51/1,088・Error 174/982・Functionality 192/3,831・Regression 1,101/13,515。最も多い recli で 53.4%）。空の提出物が strict や core を満たしたチェックポイントは 0
+  kind: measured
+  basis: [docs/v4/experiments.md の §6-3（2026-11-20、利用枠 0。公式の eval-snapshot、uid 1000）, R-20261120-phase1-arena#C17, R-20261120-phase1-arena#C18]
+  note: scb-problems#39 は 7 問を読んだ指摘（Harbor 版）で、問題のロジックの弱さ（エラーのテストが終わりの符号だけを見る・期待の出力が実行のフォルダに先に置かれているなど）は eval-snapshot にも当たる。全 31 問で数を取った。テストごとの通過率を読むときの扱いは Gate ② で決める（実験 §6-6）
+  checked_at: 2026-11-20
+  recheck_by: 2026-12-20
+  used_by: [v4 設計 §8, v4 実験 §6-3, v4 実験 §6-6]
