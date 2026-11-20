@@ -8,7 +8,8 @@
 **手番の記録**：手番ごとに種類（step_type）・状態・秒・利用量と、道具の名前（あれば）だけを残す。
 ファイルの中身や応答の本文は残さない。
 
-**--print-timeout**：TTL より短くして、agy に先に止まらせる（止まれば `result` が出る）。TTL は安全弁。
+**--print-timeout**：TTL より短くして、agy に先に止まらせる（止まれば `result` が出る）。TTL は安全弁。1.5.3 では、
+切れると result の `finished_reason` が `print_timeout` になり、終わりの符号は 3（実行ファイルの変更履歴の 1.4.11 と 1.5.0）。
 """
 import json
 import re
@@ -207,16 +208,18 @@ def cache_stats(steps):
 
 
 def outcome(result, steps):
-    """呼び出しの終わり方（v2-smoke-04 の後）。{"status", "error", "error_steps", "thinking_only_steps"}。
+    """呼び出しの終わり方（v2-smoke-04 の後）。{"status", "finished_reason", "error", "error_steps", "thinking_only_steps"}。
 
     - status：agy の result の status（SUCCESS・ERROR）。result が無ければ None（打ち切り）
+    - finished_reason：手番が早く終わった理由（agy 1.4.11 から。print_timeout は --print-timeout で切れて応答が途中・
+      interrupted・error。ふつうに終われば無い）
     - error：agy のエラーの先頭 1 行（実装役の応答の本文ではない。例：出力トークンの上限を超えた）
     - error_steps：手番の中の error_message の数（agy が内部でやり直した回数）
     - thinking_only_steps：出力がすべて思考で、道具も応答も出さなかった手番の数
     v2-smoke-02〜04 では、長い呼び出しの多くが「思考だけの手番 → error_message → やり直し」だった。
     """
     err = (result or {}).get("error")
-    return {"status": (result or {}).get("status"),
+    return {"status": (result or {}).get("status"), "finished_reason": (result or {}).get("finished_reason"),
             "error": err.splitlines()[0][:200] if isinstance(err, str) and err.strip() else None,
             "error_steps": sum(1 for s in steps if s.get("type") == "error_message"),
             "thinking_only_steps": sum(1 for s in steps if (s.get("usage") or {}).get("output_tokens")

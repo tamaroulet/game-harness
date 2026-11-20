@@ -1,0 +1,19 @@
+{
+  "_comment": "フェーズ 1 の公開の dev（実験と計画 §6-2 の並び）。実行口は、この外の問題・ゲーム・ケースを走らせない（harness/phase1_dev.py。held-out の誤走の防止。操縦士の承認 2026-11-20）。held-out の並びは公開に置かない。Mode 4 はゲームごとのケースの ID（公式の data/task-data.json の固定の版）",
+  "slopcodebench": ["circuit_eval", "etl_pipeline", "execution_server", "file_query_tool", "forge", "migrate_configs", "mvvault",
+                    "recli", "rejector", "sith", "trajectory_api"],
+  "swe_game_mode4": {
+    "ballast_yard": ["ballast-yard-fixture-lifecycle-v2", "ballast-yard-rest-gate-bind-v6"],
+    "canopy_dash": ["canopy-dash-hollow-phase-bind-v2", "canopy-dash-plank-hold-clock-v1"],
+    "dont_stop": ["dont-stop-hold-arc-span-v1", "dont-stop-stand-cycle-scope-v1"],
+    "gunfire_dungeon": ["gunfire-dungeon-combat-sheet-v1", "gunfire-dungeon-room-mount-gate-v1"],
+    "harvest_ledger": ["harvest-ledger-boot-day-bind-v1", "harvest-ledger-sitting-pace-v1"],
+    "pixel_platformer": ["pixel-platformer-phase-prop-seat-v1", "pixel-platformer-vault-clear-scope-v1"],
+    "racing": ["racing-lakeside-sector-bind-v1", "racing-result-circuit-scope-v1"],
+    "shadow_walker": ["shadow-walker-entry-reset-scope-v1", "shadow-walker-reach-gap-bind-v1"],
+    "super_dungeon_delve": ["super-dungeon-delve-company-roster-scope-v1", "super-dungeon-delve-hall-look-clock-v1"],
+    "toon_shooter": ["toon-shooter-bay-stride-row-v1", "toon-shooter-wave-marker-clock-v1"],
+    "twin_holds": ["twin-holds-terrain-sheet-v1"],
+    "volley_break": ["volley-break-serve-step-clock-v1", "volley-break-wall-sheet-v1"]
+  }
+}

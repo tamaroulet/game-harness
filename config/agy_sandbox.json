@@ -1,0 +1,35 @@
+{
+  "_comment": "実装役（agy）の共通の実行層（harness/sandbox.py・harness/agy_port.py。実験と計画 §6-3）。モデルは agent.model_name で正確な ID を固定し、走りの後に CLI が報告したモデルと照らす（harness/model_pin.py）。パスは WSL の上のもの。ベンチ固有の設定は config/scb_run.json・config/sweg_run.json",
+  "agent": {
+    "cli": "agy",
+    "headless_flag": "-p",
+    "auto_approve_flag": "--dangerously-skip-permissions",
+    "model_flag": "--model",
+    "model_name": "gemini-4-hydrogen-medium",
+    "output_format_args": ["--output-format", "stream-json"],
+    "extra_flags": [],
+    "usage_format": "agy",
+    "install": {
+      "version": "1.5.3",
+      "url": "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.5.3-6604829099950080/linux-x64/cli_linux_x64.tar.gz",
+      "sha512": "e363e1b17daaac2589f18e6973429c039fd5a5e5c15e9c0852fa349836f3992b10fe84732bc8d8c8208e149f0304f15aba9dec696d12efeed03917492c0580eb"
+    },
+    "cache": "/root/agy_sandbox/agy",
+    "token": "/home/bench/.gemini/antigravity-cli/antigravity-oauth-token"
+  },
+  "sandbox": {
+    "_comment": "実装役は非 root（uid 1000）。作業場は workdir にマウントし、HOME は uid に渡す",
+    "uid": 1000,
+    "home": "/home/agent",
+    "workdir": "/workspace"
+  },
+  "network": {
+    "_comment": "実装役のコンテナは内部のネットワークだけにつなぎ、外への道は許可リストのプロキシだけ（実験と計画 §6-3）",
+    "internal": "scb-int",
+    "proxy_name": "scb-egress",
+    "proxy_image": "scb-egress:tinyproxy",
+    "proxy_port": 8888,
+    "allow": ["daily-cloudcode-pa.googleapis.com", "oauth2.googleapis.com", "www.googleapis.com", "pypi.org", "files.pythonhosted.org"]
+  },
+  "quota_floor": {"gemini-weekly": 0.35, "gemini-5h": 0.15}
+}
