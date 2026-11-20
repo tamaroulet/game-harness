@@ -188,7 +188,7 @@
   - held-out：20 問・99 チェックポイント（易 7・中 7・難 6）。並びの SHA-256 `d7582cf83126ff03314a8d7e7271ef80dbdba5fa5f15aa6aebcb5bc6bead0cd3`。
 - SWE-Game Mode 4：
   - 母集団：41 ゲーム・82 ケースから、上流の作品や素材に別の条件が記録された 6 ゲーム（THIRD_PARTY_NOTICES.md の dogwalk（CC BY 4.0）・hurry_curry（AGPL-3.0-only）・where_the_dead_lie（GPL-3.0）・wizard_chase（MIT と素材ごとの条件）・kindle_relay（MIT と素材ごとの条件）と、同梱のファイルの大半が「MIT port output」と記録された sands_of_the_restless）を外した 35 ゲーム・70 ケース（2D 23・3D 12）。
-  - dev（12 ゲーム・23 ケース。2D 8・3D 4）：ballast_yard・canopy_dash・dont_stop・gunfire_dungeon・harvest_ledger・pixel_platformer・racing・shadow_walker・super_dungeon_delve・toon_shooter・twin_holds・volley_break。0b で採点した 2 ケースのゲーム（pixel_platformer・canopy_dash）は dev に入った。
+  - dev（12 ゲーム・23 ケース。2D 8・3D 4）：ballast_yard・canopy_dash・dont_stop・gunfire_dungeon・harvest_ledger・pixel_platformer・racing・shadow_walker・super_dungeon_delve・toon_shooter・twin_holds・volley_break。0b で公式の採点に通した 2 ケースのうち、3D のケースのゲーム（canopy_dash）は dev に、2D のケースのゲームは held-out に入った（2026-11-20 の訂正：前の版の「2 ケースのゲームはどちらも dev に入った」は誤りだった。0b は分ける前で、エージェントは走らせず、壊れた状態のプロジェクトを採点に通しただけ）。
   - held-out：23 ゲーム・47 ケース（2D 15・3D 8）。ゲームの並びの SHA-256 `e0426b293b6234c3cff523fc98a9f0230d9ae55129270677ebc82b6745987def`、ケースの並びの SHA-256 `03cdc93174945fcb294ea7c419a67b6545eb553edaf0b8b267d157609ed3909e`。
 - A（H0）が全チェックポイント（Mode 4 ではケース）で通った単位は、効きの母数から分けて番兵にする（解けたものを壊さないか・無駄に膨らまないか）。
 
