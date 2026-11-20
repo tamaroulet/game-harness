@@ -119,9 +119,9 @@ def agent_configs(root=ROOT):
     p = Path(root) / "config" / "fb_agy.json"   # FeatureBench の fb infer で走らせる agy（harness/fb_agy.py）
     if p.exists():
         out.append(("config/fb_agy.json", json.loads(p.read_text(encoding="utf-8")), "model_name"))
-    p = Path(root) / "config" / "scb_run.json"   # SlopCodeBench の実行口の agy（harness/scb_run.py）
+    p = Path(root) / "config" / "agy_sandbox.json"   # ベンチの実行口の agy（harness/agy_port.py。scb_run・sweg_run）
     if p.exists():
-        out.append(("config/scb_run.json", json.loads(p.read_text(encoding="utf-8")), "model_name"))
+        out.append(("config/agy_sandbox.json の agent", json.loads(p.read_text(encoding="utf-8"))["agent"], "model_name"))
     return out
 
 

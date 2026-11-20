@@ -1,0 +1,13 @@
+{
+  "agy-deny-tools": {
+    "PreToolUse": [
+      {"matcher": "search_web", "hooks": [{"type": "command", "command": "/opt/agy-hooks/deny_web.sh", "timeout": 10}]},
+      {"matcher": "read_url_content", "hooks": [{"type": "command", "command": "/opt/agy-hooks/deny_web.sh", "timeout": 10}]},
+      {"matcher": "read_url", "hooks": [{"type": "command", "command": "/opt/agy-hooks/deny_web.sh", "timeout": 10}]},
+      {"matcher": "open_browser_url", "hooks": [{"type": "command", "command": "/opt/agy-hooks/deny_web.sh", "timeout": 10}]},
+      {"matcher": "browser_subagent", "hooks": [{"type": "command", "command": "/opt/agy-hooks/deny_web.sh", "timeout": 10}]},
+      {"matcher": "webview_browser", "hooks": [{"type": "command", "command": "/opt/agy-hooks/deny_web.sh", "timeout": 10}]},
+      {"matcher": "invoke_subagent", "hooks": [{"type": "command", "command": "/opt/agy-hooks/deny_subagent.sh", "timeout": 10}]}
+    ]
+  }
+}
