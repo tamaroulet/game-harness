@@ -128,10 +128,14 @@ def submission(turn):
     return True, None
 
 
-def aggregate(ev):
-    """集計の値。採点しなかった（提出物が無い）ケースは resolved: false・0 点で母数に残す（measured: false）。集めか採点が
-    落ちた（測定系の異常）ケースは resolved を None にする（落ちに数えず、止める線で止める）。"""
+def aggregate(ev, valid=True):
+    """集計の値。無効の走り（止めた道具が走った・フックが変わった・モデルの照合に落ちた。止める線 2・4）は、採点の結果に
+    よらず resolved を None にする（素の A の測りにならないので、解けたにも落ちにも数えない）。採点しなかった（提出物が
+    無い）ケースは resolved: false・0 点で母数に残す（measured: false）。集めか採点が落ちた（測定系の異常）ケースは
+    resolved を None にする（落ちに数えず、止める線で止める）。"""
     ev = ev or {}
+    if not valid:
+        return {"resolved": None, "score": None, "measured": False, "reason": "invalid_run"}
     if ev.get("summary"):
         return {"resolved": bool(ev["summary"].get("resolved")), "score": ev["summary"].get("score"), "measured": True}
     if ev.get("failure_kind"):
@@ -272,7 +276,7 @@ def run_case(cfg, game, case_id, out_dir, fake=False, token_file=None):
             rec["eval"] = collect_and_evaluate(cfg, workspace, out_dir, tag)
         else:
             rec["eval"] = {"skipped": "公式と同じく提出物を残さない（採点しない）", "failure_kind": failure}
-        rec["aggregate"] = aggregate(rec["eval"])
+        rec["aggregate"] = aggregate(rec["eval"], valid=t["valid"])
         if not fake:
             rec["quota_after"] = agy_quota.read()
     finally:

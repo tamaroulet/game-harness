@@ -70,6 +70,11 @@ class SubmissionTests(unittest.TestCase):
                          {"resolved": False, "score": 0.0, "measured": False, "reason": "agent_timeout"})
         self.assertIsNone(sweg_run.aggregate({"collect_rc": 1, "error": "boom", "summary": None})["resolved"])   # 測定系の異常
 
+    def test_an_invalid_run_is_never_counted_as_resolved(self):
+        """止めた道具が走った・フックが変わった走りは、終わりの符号 0 で採点されても解けたに数えない（止める線 2）。"""
+        a = sweg_run.aggregate({"summary": {"resolved": True, "score": 100.0}}, valid=False)
+        self.assertEqual(a, {"resolved": None, "score": None, "measured": False, "reason": "invalid_run"})
+
     def test_run_case_stops_outside_the_dev_before_making_anything(self):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / "out"
