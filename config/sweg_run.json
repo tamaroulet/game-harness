@@ -1,0 +1,9 @@
+{
+  "_comment": "SWE-Game Mode 4 の実行口（harness/sweg_run.py）のベンチ固有の設定。実装役（agy）と境界と利用枠の下限は config/agy_sandbox.json。budget_s・playtest_kit は操縦士の判断を待つ案（C:\\src\\.local\\seat\\work\\phase1_next_20261120\\runner_design.md §4 の W3・W5）。パスは WSL の上のもの",
+  "repo": "/root/sweg_0b",
+  "image": "gamebench-agent:godot-4.5.1",
+  "image_id": "sha256:383f1e18441c73cade2b022ec4684355bf07a8f9a15ea6c5ded98e54528602fe",
+  "budget_s": 3600,
+  "playtest_kit": "off",
+  "visual_judge": "none"
+}
