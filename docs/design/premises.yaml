@@ -2,7 +2,7 @@
 # kind: research（調べものの記録の主張の ID）・measured（実測の記録のパス）・decision（決めた者と日付）・assumption（根拠なし）
 # 期限（recheck_by）を過ぎたら確かめ直す。外部の事情の前提は 30 日、根拠の無い前提は 14 日を目安にする
 # 2026-11-13：v4 に移った（docs/v4/）。v3 の H ラインと承認と比べの仮定だった P-001〜P-006 と、古い課題の裁定の P-008 は退けた
-# （理由は docs/v4/design.md §11）。P-014〜P-020 は抜粋を出典で照合し直した。P-021 から後は v4 の前提。
+# （理由は docs/v4/design_basis.md §11）。P-014〜P-020 は抜粋を出典で照合し直した。P-021 から後は v4 の前提。
 premises:
 - id: P-007
   text: Windows の上の agy は、リポジトリの外のグローバルの ~/.gemini/GEMINI.md を文脈に読み込み、その挙動に左右される
@@ -73,7 +73,7 @@ premises:
 - id: P-021
   text: agy（1.5.3、gemini-3.8-flash-medium）の新しい会話は、文脈が約 1.6 万〜2.1 万トークンを越えるまでキャッシュが当たらず、1 回の始まりでキャッシュでない入力を約 5.6 万〜13.6 万トークン（中央 約 8.5 万）使う
   kind: measured
-  basis: [docs/v4/experiments.md の M-01（2026-11-13、会話の始まり 25 回）]
+  basis: [docs/v4/archive/measurements.md の M-01（2026-11-13、会話の始まり 25 回）]
   note: Gemini API の文書の最低（3.8 Flash で 4,096）と合わない。仕組みは公開されていない。agy の版やモデルが変われば測り直す
   checked_at: 2026-11-13
   recheck_by: 2026-12-13
@@ -81,7 +81,7 @@ premises:
 - id: P-022
   text: 同じ 6 ステージの課題で、1 つの会話を続けた A のキャッシュでない分（入力＋出力）は 67.7 万で、ステージごとに新しい会話にした B の 136.8 万の約半分だった。差の約半分は立ち上がりの冷え、残りはターンの多さ
   kind: measured
-  basis: [docs/v4/experiments.md の M-02（2026-11-13、B07 を 1 回ずつ）, bench/records/chains/e5-chat2-b07/B07.json, bench/records/chains/e5-lean-b07/B07.json]
+  basis: [docs/v4/archive/measurements.md の M-02（2026-11-13、B07 を 1 回ずつ）, bench/records/chains/e5-chat2-b07/B07.json, bench/records/chains/e5-lean-b07/B07.json]
   note: 課題 1 つ・1 回ずつで、品質は両方とも満点。費用の向きの根拠で、品質の比べの根拠にはしない
   checked_at: 2026-11-13
   recheck_by: 2026-12-13
@@ -89,7 +89,7 @@ premises:
 - id: P-023
   text: v3 の自作の鎖の課題は、素の A を落とさない（A は 6/6 を 1 回で完了。B のゲートは 42 ステージすべてで 1 回目に合格）。前の凍結の 10 本も単一の文脈の形が満点だった
   kind: measured
-  basis: [docs/v4/experiments.md の M-03, bench/records/chains/e5-chat2-b07/B07.json, bench/records/chains/e5-lean-b07/B07.json, bench/records/chains/e4-dev1/, bench/records/chains/e4-dev2/]
+  basis: [docs/v4/archive/measurements.md の M-03, bench/records/chains/e5-chat2-b07/B07.json, bench/records/chains/e5-lean-b07/B07.json, bench/records/chains/e4-dev1/, bench/records/chains/e4-dev2/]
   checked_at: 2026-11-13
   recheck_by: 2026-12-13
   used_by: [v4 憲章 §5, v4 設計 §1, v4 設計 §6]
@@ -195,7 +195,7 @@ premises:
 - id: P-037
   text: FeatureBench の開発用 15 課題で、第 1 関門（pyflakes の未定義の名・全モジュールの import・self の属性・絞らない既存のテスト）の検出の絶対の数は、正しい実装でも 13 課題で 0 にならない。最後に合格した状態との差で読むと（段 a では正解の状態を基準の代わりにした。比較条件の中ではこの読みを使わず、正解を使わない読み R0 にする。2026-11-17、v4 実験 §5-6）、記録の A のパッチの未解決 10 本のうち 7 本で検出が出て、7 本とも消された名か変えたファイルに当たり、解決 9 本のうち 4 本でも、残ったコードが呼ぶ名を戻していない本当の未完成を拾う。漏れた未解決の 3 本は、作った口の引数の扱いと不正な入力の拒み方（根拠のある 5 項目）と、課題の文に無いエラーの文言だけだった
   kind: measured
-  basis: [docs/v4/experiments.md の §5-4（2026-11-14〜15、利用枠 0。再生ツールは harness/fb_replay.py と harness/fb_gate_probe.py、コミット 57cd5b1 と 1d2b769）]
+  basis: [docs/v4/archive/e1.md の §5-4（2026-11-14〜15、利用枠 0。再生ツールは harness/fb_replay.py と harness/fb_gate_probe.py、コミット 57cd5b1 と 1d2b769）]
   note: 正解の状態の検出は、ライブラリにもとからあるもの（動的な名前空間・任意の依存のスキップ）と、コンテナの環境で落ちるテスト（ネットワークを切ったこと・入っていない任意の依存・TeX・1 テスト 10 秒の上限）。FeatureBench は、実装を消した状態で落ちるテストを P2P から外すので、残った参照の壊れを解決に数える。A のパッチは同じモデルの 1 回ずつで、19 本のうち 14 本はホワイトボックスの実行の最後の状態。押し返しで解決が上がるかは測っていない（FeatureBench での段 c は見送り。P-038）
   checked_at: 2026-11-15
   recheck_by: 2026-12-15
@@ -203,7 +203,7 @@ premises:
 - id: P-038
   text: FeatureBench の開発用 15 課題で、正解を使わない第 1 関門の読み R0（静的な検出は t=0 に無かったものだけ、テストの落ちは環境の型の文言に当たらないもの、既存のテストの改変を押し返す。テストの段は 1 回 300 秒）は、記録の A のパッチの未解決 10 本のうち 7 本を、7 本ともテストの落ちで拾う。一方で正解の状態を 15 課題中 4 課題で押し返し、G0-3 の線（2 以下）に届かない。正解の押し返しは、静的な検出（2 課題）と、環境の欠け（API キー・パッケージの外の任意の依存）による落ちのうち、環境の型の文言に当たらないもの（mlflow の 3 課題）。静的な検出は未解決を 1 本も拾わない（t=0 がコードを消して壊れているので、戻し忘れの検出は t=0 との差で相殺される。段 a の正解との差では、未解決 7 本で静的な検出が出て、その 399 件はすべて t=0 にもあった）。正解を押し返した静的な検出は、属性（astropy の 1 件）とモジュールを実行して読む import（mlflow の 4 件）で、pyflakes（未定義の名・構文の誤り）で正解を押し返した課題は 15 のうち 0
   kind: measured
-  basis: [docs/v4/experiments.md の §5-6 の G0-3 の結果（2026-11-17、利用枠 0。harness/fb_replay.py の r0・fill・recheck と harness/fb_gate_probe.py）]
+  basis: [docs/v4/archive/e1.md の §5-6 の G0-3 の結果（2026-11-17、利用枠 0。harness/fb_replay.py の r0・fill・recheck と harness/fb_gate_probe.py）]
   note: 段 a の記録（run3）に R0 を当てた再集計で、t=0 ではテストを走らせていない。実走で予定した、t=0 と同じ落ちを除く足しは、mlflow の 3 課題で参考に測り、当てても正解の押し返しは減らなかった。mlflow の 3 課題は、要約の行を読めるように直した probe で、正解と A の状態を測り直した。環境の型の一覧は run3 の正解の状態の落ちを見直してから書いたが、mlflow の要約の行が読めていなかったので、その落ちは見直しに入っていなかった
   checked_at: 2026-11-17
   recheck_by: 2026-12-17
@@ -211,7 +211,7 @@ premises:
 - id: P-039
   text: Unity 6000.3.23f1 を手元の Windows 11 で、小さいプロジェクト（falling-blocks。.cs 9 ファイル）のクローンにバッチモードで当てると、Library の無い取り込みは 94 秒、変更なしの起動と 1 ファイルの変更の後の起動（再コンパイル込み）は 6 秒、EditMode のテストの往復は 7 秒。Editor が同じプロジェクトを開いていると、バッチモードは 0.4 秒で終わりの符号 1 になり（ログに理由の文は無い）、別のクローンなら並べて走る。Unity に依らない Core を .NET で分けてビルドし試験すると 1.4 秒
   kind: measured
-  basis: [docs/v4/experiments.md の M-07（2026-11-17、利用枠 0）]
+  basis: [docs/v4/archive/measurements.md の M-07（2026-11-17、利用枠 0）]
   note: 時間は小さいプロジェクトの 1 回ずつの測りで、プロジェクトが大きいと延びる。Personal のライセンスは Hub のサインインが要り、切れるとバッチモードは符号 198 で止まる。Unity.exe が終わった後も、コンパイルサーバーなどの子のプロセスが数分残る
   checked_at: 2026-11-17
   recheck_by: 2026-12-17
@@ -235,7 +235,7 @@ premises:
 - id: P-042
   text: SWE-EVO の開発用 7 課題の正解のパッチの状態に、第 1 関門（pyflakes の t=0 との差・R0 の選びのテスト（周辺の既存のテストの群 3。1 回 300 秒）・後からの t=0 の対照）を当てると、正解の状態を 7 課題中 4 課題で押し返し、S0 の線 1（1 以下）に届かない。押し返した 12 項目はすべて、リリースが意図して変えた振る舞いを守る既存のテストで、公式の test_patch がそのテストを書き替えるか、中を変えるか、消している。1 回の関門は 7 課題とも 600 秒以内（20〜453 秒）だが、dask の 3 課題は選んだファイルの約 4 割が 300 秒の窓に入らず、dvc の 3 課題は t=0 から落ちるテスト（193〜740 項目）の対照に 62〜224 秒かかる。pyflakes の新しい検出は 7 課題とも 0
   kind: measured
-  basis: [docs/v4/experiments.md の §6-10 の S0 の結果（2026-11-17〜18、利用枠 0。harness/swe_s0.py と harness/fb_gate_probe.py）]
+  basis: [docs/v4/archive/swe_evo_s0.md の §6-10 の S0 の結果（2026-11-17〜18、利用枠 0。harness/swe_s0.py と harness/fb_gate_probe.py）]
   note: 正解のパッチはテストのファイルを含まないので、群 1 は空で、群 3 を測った。押し返しの分けは、test_patch の変わった行を t=0 のテストの関数の範囲に照らした記録の分析で、関門には使っていない。下げた形（pyflakes の差と群 1）なら、同じ記録で正解の押し返しは 0/7。t=0 から落ちる主な原因は、環境の版のずれ（dvc_2.7.2 は pygit2 1.15.1 に GIT_OBJ_COMMIT が無い、dvc_2.5.0 は pathspec の正規表現の名の重なり）と、root で走ることによる書き込み禁止の確認の落ち。設計 §4-2 の第 1 関門の 3 で群 2・3 を選ばない根拠（操縦士の決め、2026-11-18）
   checked_at: 2026-11-18
   recheck_by: 2026-12-18
@@ -267,7 +267,7 @@ premises:
 - id: P-046
   text: 実装役のコンテナを Docker の内部のネットワークだけにつなぎ、許可リストのプロキシ（tinyproxy 1.11.0。agy の 3 つの宛先と PyPI の 443 だけ）を外への道にすると、許可した 5 つの宛先だけに届き、GitHub・Google の検索・Hugging Face・npm と平文の HTTP は拒まれ、直の接続と生の TCP はどこにも届かない。pip は PyPI からだけ入る。agy 1.5.3 は、root の持ち物で書き換えのできない ~/.gemini/config/hooks.json のフック（PreToolUse で、search_web・read_url_content・webview_browser などの Web の道具と、下位エージェントの口 invoke_subagent を deny）を uid 1000 で読み込み、uid 1000 からはフックを書き換え・消し・移しできない。公式の採点は、環境の設定の environment.env を変えると基本のイメージを作り直して同じ名前に付け替える。environment.env を公式のまま environment.include_os_env を足し、UV_EXCLUDE_NEWER をホストの環境から渡すと、イメージを作り直さずに採点のコンテナの中の解決が固定され、同じ時刻の 2 回で道具の版・結果・テストの一覧のハッシュが一致した。eval-snapshot は、提出物に .evaluation_tests/ があると公式のテストを写さず、そのフォルダのテストで一覧づくりも本番も行う
   kind: measured
-  basis: [docs/v4/experiments.md の §6-3（2026-11-20、利用枠 0）, R-20261120-phase1-arena#C21]
+  basis: [docs/v4/experiments.md の §6-3（2026-11-20、利用枠 0）, docs/v4/archive/phase1_checks.md の §6-3 の確認, R-20261120-phase1-arena#C21]
   note: 止める道具の名前は、agy 1.5.3 の実行ファイルの中の道具の実装の名前と文言で確かめた（利用枠 0）。invoke_subagent は親と違うモデルを選べ、下位エージェントの手番は親の stream-json に出ないので止める。deny が実際に道具を止めるかは、モデルが道具を呼ぶまで観測できない（agy は deny を手番のエラーで返すと見込み、Stage 1 の最初の軌跡で確かめる。止めた道具の手番が DONE で終わった走りは無効にする）。.evaluation_tests の振る舞いは、slop-code-bench de70a479acce の evaluation/pytest_runner.py と evaluation/collection.py の _copy_tests_from_problem を読んで確認した（どちらも、作業場にそのフォルダがあれば写さずに戻る）
   checked_at: 2026-11-20
   recheck_by: 2026-12-20
