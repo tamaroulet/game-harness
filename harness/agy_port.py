@@ -35,10 +35,12 @@ import sandbox  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "config" / "agy_sandbox.json"
 ASSETS = sandbox.ASSETS
-# 止める道具（§6-3）。agy 1.5.3 の実行ファイルの中の名前と、2026-11-22 の Stage 1 の 1a で init が返した道具の一覧（60）で
-# 確かめた（read_url と webview_browser は実行ファイルの中の名前で、一覧には無い）。Web の道具は外から取るもの（search_web は
-# 検索をサーバーの側で行い、コンテナの境界を通らない）とブラウザ系。下位エージェントとワークフローの口は、別のモデルや
-# エージェントに仕事を渡せ、その手番は親の stream-json に出ないので、モデルの照合と走りの後の検査が及ばない
+# 止める道具（§6-3）。agy 1.5.3 の CLI がモデルに渡す道具は、実行ファイルの oneharness の組（14）と見られ、そのうち止めるのは
+# search_web・invoke_subagent・define_subagent・manage_subagents（2026-11-22 の deny の確認と、走りに出た道具の名前から）。
+# 残り（init が返す IDE の側の道具の一覧（60）の名前と、実行ファイルの中の名前の read_url・webview_browser）は、今の CLI では
+# モデルに渡らないが、版が変わっても止まるよう表に残す。Web の道具は外から取るもの（search_web は検索をサーバーの側で行い、
+# コンテナの境界を通らない）とブラウザ系。下位エージェントとワークフローの口は、別のモデルやエージェントに仕事を渡せ、その
+# ステップは親の stream-json に出ないので、モデルの照合と走りの後の検査が及ばない
 BROWSER_TOOLS = (
     "open_browser_url", "browser_subagent", "webview_browser",
     "browser_click_element", "browser_drag_pixel_to_pixel", "browser_get_dom", "browser_get_network_request",
@@ -50,6 +52,7 @@ WEB_TOOLS = ("search_web", "read_url_content", "read_url", "search_marketplace")
 SUBAGENT_TOOLS = ("invoke_subagent", "define_subagent", "manage_subagents", "run_workflow")
 DENIED_TOOLS = WEB_TOOLS + SUBAGENT_TOOLS
 HOOK_DENIED = "denied by pre-tool hook"   # agy 1.5.3 が deny を返す文言（"Tool call denied by pre-tool hook: %s"）
+SUBAGENT_HOOK_REASON = "Subagents are not available in this environment."   # deny_subagent.sh の理由の文（試験で照らす）
 HARD_TIMEOUT_RC = 124                       # 実行口の上限で止めたとき（TimeoutExpired）に記録する符号
 PRINT_TIMEOUT_RC = 3                        # agy 1.5.3 が --print-timeout で切れたときの符号（変更履歴 1.5.0）
 PRINT_TIMEOUT_MARK = "[agy] print timeout"  # そのときの stderr の行の頭（同）
@@ -173,9 +176,8 @@ def hooks_sha(box, sbx):
 
 # ---------------------------------------------------------------- 走りの後の検査（docker に依らない）
 
-def step_errors(stream_text):
-    """stream-json の手番ごとのエラーの文の先頭 1 行（agy は道具のエラーを state: ERROR と tool_info.error で返す）。"""
-    out = {}
+def _step_updates(stream_text):
+    """stream-json の step_update のイベントの中身（dict）を順に返す。"""
     for line in (stream_text or "").splitlines():
         line = line.strip()
         if not line.startswith("{"):
@@ -185,10 +187,32 @@ def step_errors(stream_text):
         except ValueError:
             continue
         su = e.get("step_update") if e.get("event") == "step_update" else None
-        err = ((su or {}).get("tool_info") or {}).get("error") if isinstance(su, dict) else None
+        if isinstance(su, dict):
+            yield su
+
+
+def step_errors(stream_text):
+    """stream-json の手番ごとのエラーの文の先頭 1 行（agy は道具のエラーを state: ERROR と tool_info.error で返す）。"""
+    out = {}
+    for su in _step_updates(stream_text):
+        err = (su.get("tool_info") or {}).get("error")
         msg = err.get("message") if isinstance(err, dict) else None
         if isinstance(msg, str) and msg.strip():
             out[su.get("step_index")] = msg.strip().splitlines()[0][:200]
+    return out
+
+
+def subagent_steps(stream_text):
+    """下位エージェントの形のイベント（step_type subagent）が出たステップ。{ステップ: subagent_info の subagents の数（無ければ
+    None）}。agy 1.5.3 は、フックが止めた invoke_subagent のステップを、ERROR のイベントで step_type subagent・subagents 空で
+    返し、tool_info（エラーの文）を付けない（2026-11-22 の deny の確認。モデルには文が届き、返事に引用された）。"""
+    out = {}
+    for su in _step_updates(stream_text):
+        if su.get("step_type") != "subagent":
+            continue
+        info = su.get("subagent_info")
+        subs = info.get("subagents") if isinstance(info, dict) else None
+        out[su.get("step_index")] = len(subs) if isinstance(subs, list) else None
     return out
 
 
@@ -272,14 +296,13 @@ def quota_check(cfg):
 
 # ---------------------------------------------------------------- deny の確認（実験と計画 §6-5。docker に依らない部分）
 
-# §6-5 の確認で 1 度ずつ呼ぶよう頼む道具：外から取る道具・init の一覧の名前で照らされるかを見る read_url_content・
-# ブラウザ系の代表・下位エージェントの口（操縦士の承認、2026-11-22）
-DENY_CHECK_TOOLS = ("search_web", "read_url_content", "read_browser_page", "invoke_subagent")
+# §6-5 の確認で 1 度ずつ呼ぶよう頼む道具：止める道具のうち、今の CLI がモデルに渡す 2 つ（フックのスクリプト 2 つを両方とも
+# 通る。操縦士の決め、2026-11-22）
+DENY_CHECK_TOOLS = ("search_web", "invoke_subagent")
 DENY_CHECK_PROMPT = (
     "This is a tool-permission check, not a coding task. Do not create or change any files.\n"
     "Call each of the following tools exactly once, one after another, even if a call fails: {tools}.\n"
-    "Use these arguments: for search_web, search for \"SlopCodeBench\"; for read_url_content, read the URL "
-    "\"https://example.com\"; for read_browser_page, read the page \"https://example.com\" (any page id or URL it accepts); "
+    "Use these arguments: for search_web, search for \"SlopCodeBench\"; "
     "for invoke_subagent, ask the subagent to reply with the word OK. If you are unsure of an argument, use a placeholder "
     "value: the call itself is what is being checked.\n"
     "After the calls, reply with one line per tool saying whether the call succeeded or returned an error, "
@@ -287,21 +310,35 @@ DENY_CHECK_PROMPT = (
 
 
 def tool_attempts(stream_text, wanted):
-    """頼んだ道具ごとの手番。{道具: [{"index", "state", "error", "hook_denied", "ran"}]}（止める道具の表に無い道具も読む）。"""
-    errors = step_errors(stream_text)
+    """頼んだ道具ごとのステップ。{道具: [{"index", "state", "error", "hook_denied", "evidence", "subagents", "ran"}]}
+    （止める道具の表に無い道具も読む）。フックの deny の印（evidence）は 2 通り：
+    - "tool_info"：ステップのエラーの文に agy の deny の文言がある（Web の道具など）
+    - "reply_quote"：下位エージェントの形のステップで、エラーの文が無く、ERROR で終わり、下位エージェントが 0 で、モデルの返事に
+      deny_subagent.sh の deny の文の引用がある（agy 1.5.3 は、このステップにエラーの文を付けない。§6-3）
+    ran の読み方は走りの後の検査（denied_tool_steps）と同じ。"""
+    errors, subs = step_errors(stream_text), subagent_steps(stream_text)
+    parsed = agy_stream.parse(stream_text)
+    quoted = f"{HOOK_DENIED}: {SUBAGENT_HOOK_REASON}".lower() in (parsed["response"] or "").lower()
     out = {t: [] for t in wanted}
-    for s in agy_stream.parse(stream_text)["steps"]:
-        if s.get("tool") in out:
-            err = errors.get(s.get("index"))
-            denied = HOOK_DENIED in (err or "").lower()
-            out[s["tool"]].append({"index": s.get("index"), "state": s.get("state"), "error": err,
-                                   "hook_denied": denied, "ran": s.get("state") == "DONE" and not denied})
+    for s in parsed["steps"]:
+        if s.get("tool") not in out:
+            continue
+        i, state = s.get("index"), s.get("state")
+        err, n_sub = errors.get(i), subs.get(i)
+        if HOOK_DENIED in (err or "").lower():
+            evidence = "tool_info"
+        elif err is None and state == "ERROR" and n_sub == 0 and quoted:
+            evidence = "reply_quote"
+        else:
+            evidence = None
+        out[s["tool"]].append({"index": i, "state": state, "error": err, "hook_denied": evidence is not None,
+                               "evidence": evidence, "subagents": n_sub, "ran": state == "DONE" and evidence is None})
     return out
 
 
 def deny_verdict(attempts):
-    """deny の確認の判定。(合格か, 理由)。頼んだ道具がどれも 1 度は呼ばれ、どの手番もフックの deny で止まり（state: ERROR と
-    deny の文言）、DONE で終わった手番が無いときだけ合格。呼ばれなかった道具があれば落ち（確かめられていない）。"""
+    """deny の確認の判定。(合格か, 理由)。頼んだ道具がどれも 1 度は呼ばれ、どのステップもフックの deny で止まり（state: ERROR と
+    deny の印。印は tool_attempts の evidence）、DONE で終わったステップが無いときだけ合格。呼ばれなかった道具があれば落ち。"""
     missing = [t for t, a in attempts.items() if not a]
     if missing:
         return False, "呼ばれなかった: " + ",".join(missing)
