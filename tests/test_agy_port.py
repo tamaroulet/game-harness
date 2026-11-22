@@ -44,6 +44,31 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual({t for t, s in name.items() if s == "deny_subagent.sh"}, set(agy_port.SUBAGENT_TOOLS))
         for s in agy_port.HOOK_SCRIPTS:
             self.assertIn('"decision": "deny"', (agy_port.ASSETS / s).read_text(encoding="utf-8"))
+        self.assertEqual(len(entries), len(set(script)))   # 同じ道具を 2 度書かない
+
+    # 2026-11-22 の Stage 1 の 1a で、agy 1.5.3（gemini-4-hydrogen-medium）の init が返した道具の一覧（60）
+    OFFERED_1A = (
+        "ask_custom_permission ask_permission ask_question browser_click_element browser_drag_pixel_to_pixel browser_get_dom "
+        "browser_get_network_request browser_input browser_list_network_requests browser_mouse_down browser_mouse_up "
+        "browser_move_mouse browser_press_key browser_refresh_page browser_resize_window browser_scroll browser_scroll_dom "
+        "browser_select_option browser_subagent call_mcp_tool capture_browser_console_logs capture_browser_screenshot "
+        "click_browser_pixel command_status define_subagent delete_knowledge execute_browser_javascript find_by_name finish "
+        "generate_image grep_search invoke_subagent list_browser_pages list_dir list_permissions list_plugin_accounts "
+        "list_resources manage_inbox manage_subagents manage_task multi_replace_file_content notebook_edit notebook_execution "
+        "open_browser_url read_browser_page read_resource read_url_content replace_file_content run_command run_workflow "
+        "schedule search_marketplace search_web sed_file send_command_input send_message view_file wait wait_5_seconds "
+        "write_to_file").split()
+
+    def test_offered_web_and_subagent_tools_are_denied(self):
+        """一覧のうち、ブラウザ系・外から取る道具・別のモデルやエージェントに仕事を渡す口は、どれも止める表にある。"""
+        offered = set(self.OFFERED_1A)
+        self.assertEqual(len(offered), 60)
+        web = {t for t in offered if "browser" in t} | {"search_web", "read_url_content", "search_marketplace"}
+        self.assertEqual(len({t for t in offered if "browser" in t} - {"open_browser_url", "browser_subagent"}), 21)
+        self.assertLessEqual(web, set(agy_port.WEB_TOOLS))
+        self.assertLessEqual({"invoke_subagent", "define_subagent", "manage_subagents", "run_workflow"},
+                             set(agy_port.SUBAGENT_TOOLS))
+        self.assertLessEqual(set(agy_port.DENY_CHECK_TOOLS), set(agy_port.DENIED_TOOLS) & offered)
 
 
 class BinaryPinTests(unittest.TestCase):
@@ -93,22 +118,26 @@ class DenyCheckTests(unittest.TestCase):
     def verdict(self, *events):
         return agy_port.deny_verdict(agy_port.tool_attempts(self.stream(*events), agy_port.DENY_CHECK_TOOLS))
 
+    def denied_all(self, **override):
+        """頼んだ道具をどれもフックの deny で返す手番（override で 1 つの道具の手番を差し替える）。"""
+        return [override.get(t, step(i, t, "ERROR", self.DENY)) for i, t in enumerate(agy_port.DENY_CHECK_TOOLS, 1)]
+
     def test_passes_when_every_wanted_tool_was_denied_by_the_hook(self):
-        self.assertEqual(self.verdict(step(1, "search_web", "ERROR", self.DENY), step(2, "invoke_subagent", "ERROR", self.DENY)),
-                         (True, None))
+        self.assertEqual(len(agy_port.DENY_CHECK_TOOLS), 4)
+        self.assertEqual(self.verdict(*self.denied_all()), (True, None))
 
     def test_a_tool_that_was_not_called_is_not_confirmed(self):
-        ok, why = self.verdict(step(1, "search_web", "ERROR", self.DENY))
+        ok, why = self.verdict(*[s for s in self.denied_all() if s["step_update"]["tool_name"] != "read_browser_page"])
         self.assertFalse(ok)
-        self.assertIn("invoke_subagent", why)
+        self.assertIn("read_browser_page", why)
 
     def test_a_tool_that_ran_or_failed_without_the_hook_fails(self):
-        ok, why = self.verdict(step(1, "search_web", "DONE"), step(2, "invoke_subagent", "ERROR", self.DENY))
+        ok, why = self.verdict(*self.denied_all(search_web=step(1, "search_web", "DONE")))
         self.assertFalse(ok)
         self.assertIn("search_web", why)
-        ok, why = self.verdict(step(1, "search_web", "ERROR", "network unreachable"), step(2, "invoke_subagent", "ERROR", self.DENY))
+        ok, why = self.verdict(*self.denied_all(read_url_content=step(2, "read_url_content", "ERROR", "network unreachable")))
         self.assertFalse(ok)
-        self.assertIn("search_web", why)
+        self.assertIn("read_url_content", why)
 
     def test_attempts_read_tools_outside_the_denied_list(self):
         a = agy_port.tool_attempts(self.stream(step(1, "read_browser_page", "ERROR", "no browser")), ("read_browser_page",))
@@ -120,6 +149,12 @@ class DenyCheckTests(unittest.TestCase):
         for t in agy_port.DENY_CHECK_TOOLS:
             self.assertIn(t, p)
         self.assertIn("not a coding task", p)
+
+    def test_prompt_gives_an_argument_example_for_every_default_tool(self):
+        """引数の例が無い道具は、モデルが呼ばずに飛ばしうる（呼ばれなかった → 落ち）。文面のひな形そのものに道具ごとの例を書く。"""
+        template = agy_port.DENY_CHECK_PROMPT.format(tools="")
+        for t in agy_port.DENY_CHECK_TOOLS:
+            self.assertIn(f"for {t},", template)
 
 
 class AuditTests(unittest.TestCase):

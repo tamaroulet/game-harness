@@ -35,10 +35,19 @@ import sandbox  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "config" / "agy_sandbox.json"
 ASSETS = sandbox.ASSETS
-# 止める道具（§6-3。agy 1.5.3 の実行ファイルの中の道具の実装の名前と文言で確かめた）。下位エージェントは親と違う
-# モデルを選べ、その手番は親の stream-json に出ないので、モデルの照合と走りの後の検査が及ばない
-WEB_TOOLS = ("search_web", "read_url_content", "read_url", "open_browser_url", "browser_subagent", "webview_browser")
-SUBAGENT_TOOLS = ("invoke_subagent",)
+# 止める道具（§6-3）。agy 1.5.3 の実行ファイルの中の名前と、2026-11-22 の Stage 1 の 1a で init が返した道具の一覧（60）で
+# 確かめた（read_url と webview_browser は実行ファイルの中の名前で、一覧には無い）。Web の道具は外から取るもの（search_web は
+# 検索をサーバーの側で行い、コンテナの境界を通らない）とブラウザ系。下位エージェントとワークフローの口は、別のモデルや
+# エージェントに仕事を渡せ、その手番は親の stream-json に出ないので、モデルの照合と走りの後の検査が及ばない
+BROWSER_TOOLS = (
+    "open_browser_url", "browser_subagent", "webview_browser",
+    "browser_click_element", "browser_drag_pixel_to_pixel", "browser_get_dom", "browser_get_network_request",
+    "browser_input", "browser_list_network_requests", "browser_mouse_down", "browser_mouse_up", "browser_move_mouse",
+    "browser_press_key", "browser_refresh_page", "browser_resize_window", "browser_scroll", "browser_scroll_dom",
+    "browser_select_option", "capture_browser_console_logs", "capture_browser_screenshot", "click_browser_pixel",
+    "execute_browser_javascript", "list_browser_pages", "read_browser_page")
+WEB_TOOLS = ("search_web", "read_url_content", "read_url", "search_marketplace") + BROWSER_TOOLS
+SUBAGENT_TOOLS = ("invoke_subagent", "define_subagent", "manage_subagents", "run_workflow")
 DENIED_TOOLS = WEB_TOOLS + SUBAGENT_TOOLS
 HOOK_DENIED = "denied by pre-tool hook"   # agy 1.5.3 が deny を返す文言（"Tool call denied by pre-tool hook: %s"）
 HARD_TIMEOUT_RC = 124                       # 実行口の上限で止めたとき（TimeoutExpired）に記録する符号
@@ -263,11 +272,16 @@ def quota_check(cfg):
 
 # ---------------------------------------------------------------- deny の確認（実験と計画 §6-5。docker に依らない部分）
 
-DENY_CHECK_TOOLS = ("search_web", "invoke_subagent")   # §6-5 の確認で 1 度ずつ呼ぶよう頼む道具
+# §6-5 の確認で 1 度ずつ呼ぶよう頼む道具：外から取る道具・init の一覧の名前で照らされるかを見る read_url_content・
+# ブラウザ系の代表・下位エージェントの口（操縦士の承認、2026-11-22）
+DENY_CHECK_TOOLS = ("search_web", "read_url_content", "read_browser_page", "invoke_subagent")
 DENY_CHECK_PROMPT = (
     "This is a tool-permission check, not a coding task. Do not create or change any files.\n"
     "Call each of the following tools exactly once, one after another, even if a call fails: {tools}.\n"
-    "For search_web, search for \"SlopCodeBench\". For invoke_subagent, ask the subagent to reply with the word OK.\n"
+    "Use these arguments: for search_web, search for \"SlopCodeBench\"; for read_url_content, read the URL "
+    "\"https://example.com\"; for read_browser_page, read the page \"https://example.com\" (any page id or URL it accepts); "
+    "for invoke_subagent, ask the subagent to reply with the word OK. If you are unsure of an argument, use a placeholder "
+    "value: the call itself is what is being checked.\n"
     "After the calls, reply with one line per tool saying whether the call succeeded or returned an error, "
     "and quote the error message if there was one. Do not call any other tools.")
 
