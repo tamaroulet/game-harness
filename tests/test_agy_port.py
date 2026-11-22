@@ -81,6 +81,47 @@ class BinaryPinTests(unittest.TestCase):
                 agy_port.ensure_agy(self.agent(d, None))
 
 
+class DenyCheckTests(unittest.TestCase):
+    """deny の確認の判定（実験と計画 §6-5）：頼んだ道具がどれも呼ばれ、どの手番もフックの deny で止まったときだけ合格。"""
+
+    DENY = "Tool call denied by pre-tool hook: blocked by the harness"
+
+    @staticmethod
+    def stream(*events):
+        return "\n".join(json.dumps(e) for e in events)
+
+    def verdict(self, *events):
+        return agy_port.deny_verdict(agy_port.tool_attempts(self.stream(*events), agy_port.DENY_CHECK_TOOLS))
+
+    def test_passes_when_every_wanted_tool_was_denied_by_the_hook(self):
+        self.assertEqual(self.verdict(step(1, "search_web", "ERROR", self.DENY), step(2, "invoke_subagent", "ERROR", self.DENY)),
+                         (True, None))
+
+    def test_a_tool_that_was_not_called_is_not_confirmed(self):
+        ok, why = self.verdict(step(1, "search_web", "ERROR", self.DENY))
+        self.assertFalse(ok)
+        self.assertIn("invoke_subagent", why)
+
+    def test_a_tool_that_ran_or_failed_without_the_hook_fails(self):
+        ok, why = self.verdict(step(1, "search_web", "DONE"), step(2, "invoke_subagent", "ERROR", self.DENY))
+        self.assertFalse(ok)
+        self.assertIn("search_web", why)
+        ok, why = self.verdict(step(1, "search_web", "ERROR", "network unreachable"), step(2, "invoke_subagent", "ERROR", self.DENY))
+        self.assertFalse(ok)
+        self.assertIn("search_web", why)
+
+    def test_attempts_read_tools_outside_the_denied_list(self):
+        a = agy_port.tool_attempts(self.stream(step(1, "read_browser_page", "ERROR", "no browser")), ("read_browser_page",))
+        self.assertEqual(a["read_browser_page"][0]["state"], "ERROR")
+        self.assertFalse(a["read_browser_page"][0]["hook_denied"])
+
+    def test_prompt_names_the_tools_and_is_not_a_coding_task(self):
+        p = agy_port.DENY_CHECK_PROMPT.format(tools=", ".join(agy_port.DENY_CHECK_TOOLS))
+        for t in agy_port.DENY_CHECK_TOOLS:
+            self.assertIn(t, p)
+        self.assertIn("not a coding task", p)
+
+
 class AuditTests(unittest.TestCase):
     def test_denied_tool_steps_read_state_and_hook_error(self):
         text = "\n".join(json.dumps(e) for e in [

@@ -261,6 +261,45 @@ def quota_check(cfg):
     return rec, ok, why
 
 
+# ---------------------------------------------------------------- deny の確認（実験と計画 §6-5。docker に依らない部分）
+
+DENY_CHECK_TOOLS = ("search_web", "invoke_subagent")   # §6-5 の確認で 1 度ずつ呼ぶよう頼む道具
+DENY_CHECK_PROMPT = (
+    "This is a tool-permission check, not a coding task. Do not create or change any files.\n"
+    "Call each of the following tools exactly once, one after another, even if a call fails: {tools}.\n"
+    "For search_web, search for \"SlopCodeBench\". For invoke_subagent, ask the subagent to reply with the word OK.\n"
+    "After the calls, reply with one line per tool saying whether the call succeeded or returned an error, "
+    "and quote the error message if there was one. Do not call any other tools.")
+
+
+def tool_attempts(stream_text, wanted):
+    """頼んだ道具ごとの手番。{道具: [{"index", "state", "error", "hook_denied", "ran"}]}（止める道具の表に無い道具も読む）。"""
+    errors = step_errors(stream_text)
+    out = {t: [] for t in wanted}
+    for s in agy_stream.parse(stream_text)["steps"]:
+        if s.get("tool") in out:
+            err = errors.get(s.get("index"))
+            denied = HOOK_DENIED in (err or "").lower()
+            out[s["tool"]].append({"index": s.get("index"), "state": s.get("state"), "error": err,
+                                   "hook_denied": denied, "ran": s.get("state") == "DONE" and not denied})
+    return out
+
+
+def deny_verdict(attempts):
+    """deny の確認の判定。(合格か, 理由)。頼んだ道具がどれも 1 度は呼ばれ、どの手番もフックの deny で止まり（state: ERROR と
+    deny の文言）、DONE で終わった手番が無いときだけ合格。呼ばれなかった道具があれば落ち（確かめられていない）。"""
+    missing = [t for t, a in attempts.items() if not a]
+    if missing:
+        return False, "呼ばれなかった: " + ",".join(missing)
+    ran = [t for t, a in attempts.items() if any(x["ran"] for x in a)]
+    if ran:
+        return False, "フックで止まらずに走った: " + ",".join(ran)
+    undenied = [t for t, a in attempts.items() if not all(x["state"] == "ERROR" and x["hook_denied"] for x in a)]
+    if undenied:
+        return False, "フックの deny の印が無い: " + ",".join(undenied)
+    return True, None
+
+
 # ---------------------------------------------------------------- 実行口
 
 class AgyPort:

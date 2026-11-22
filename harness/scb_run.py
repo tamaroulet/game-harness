@@ -2,6 +2,8 @@
 
     python -m harness.scb_run check                                        境界の検査（利用枠 0）
     python -m harness.scb_run run --problem <名> --cond H0|H0_fresh --out <置き場> [--fake] [--ttl 秒] [--upto N]
+    python -m harness.scb_run deny-check --out <置き場> [--tools search_web,invoke_subagent] [--fake]
+                                                                           deny の確認（§6-5。比べの記録に入れない）
 
 1 つの問題を、チェックポイント 1 から順に実装役（agy）に渡し、チェックポイントごとに作業場の写しを公式の
 `slop-code eval-snapshot` で採点する。ベンチのコードは書き換えない。境界・コンテナ・agy・走りの後の検査は共通の層
@@ -267,6 +269,54 @@ def cmd_run(args):
     return 0
 
 
+def cmd_deny_check(args):
+    """deny の確認（実験と計画 §6-5）：問題の文を使わない新しい会話の 1 ターンで、止めた道具を 1 度ずつ呼ぶよう頼み、
+    フックが止めるかを確かめる。境界・フック・モデル・利用枠の下限は本の走りと同じ。比べの記録には入れない。"""
+    cfg = load_config()
+    sbx, net = cfg["sandbox"], cfg["network"]
+    token = None if args.fake else Path(args.token or cfg["agent"]["token"])
+    if token is not None and not token.is_file():
+        raise RuntimeError(f"認証のトークンが無い: {token}")
+    wanted = tuple(t for t in args.tools.split(",") if t)
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True)   # すでにあれば止める（前の確認の記録を上書きしない）
+    rec = {"kind": "deny_check", "fake": args.fake, "model": cfg["agent"]["model_name"], "tools": list(wanted)}
+    tag, box = f"scb-deny-check-{os.getpid()}", None
+    try:
+        if not args.fake:
+            rec["quota_before"], ok, why = agy_port.quota_check(cfg)
+            if not ok:
+                rec["stopped"] = why
+                return 1
+        workspace = out_dir / "workspace"
+        workspace.mkdir()
+        os.chown(workspace, sbx["uid"], sbx["uid"])
+        rec["egress"] = sandbox.ensure_egress(net)
+        box = sandbox.start(net, sbx, cfg["scb"]["image"], tag, workspace)
+        port = agy_port.AgyPort(cfg, box, lambda n: out_dir / f"stream_t{n}.jsonl", label="deny-check", fake=args.fake)
+        rec["hooks_sha256"] = port.install(token)
+        rec["network"] = sandbox.net_check(box, sbx)
+        if not rec["network"]["ok"]:
+            raise RuntimeError(f"境界の検査に落ちた: {rec['network']}")
+        port.start(agy_port.DENY_CHECK_PROMPT.format(tools=", ".join(wanted)), args.ttl)
+        t = port.records[-1]
+        rec["turn"] = {k: v for k, v in t.items() if k != "turn"}
+        rec["attempts"] = agy_port.tool_attempts((out_dir / "stream_t1.jsonl").read_text(encoding="utf-8"), wanted)
+        ok, why = agy_port.deny_verdict(rec["attempts"])
+        if ok and not t["valid"]:
+            ok, why = False, "走りが無効（モデルの照合・止めた道具の走り・フックの変化）: " + str(t.get("turn_note"))
+        rec["verdict"] = {"pass": ok, "reason": why}
+        if not args.fake:
+            rec["quota_after"] = agy_quota.read()
+        return 0 if ok else 1
+    finally:
+        if box:
+            sandbox.remove(box)
+        rec["boxes_left"] = sandbox.boxes_left(tag)
+        write_record(out_dir, rec)
+        print(f"deny_check verdict={rec.get('verdict')} stopped={rec.get('stopped')} boxes_left={rec['boxes_left']}")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="SlopCodeBench の実行口（実験と計画 §6-3〜6-5）")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -279,8 +329,14 @@ def main(argv=None):
     r.add_argument("--ttl", type=int, default=DEFAULT_TTL, help="1 チェックポイントの実装役の時間の上限（秒）")
     r.add_argument("--upto", type=int, default=None, help="先頭から何チェックポイントまで")
     r.add_argument("--token", default=None)
+    d = sub.add_parser("deny-check", help="deny の確認（§6-5。止めた道具を 1 度ずつ呼ぶよう頼む。比べの記録に入れない）")
+    d.add_argument("--out", required=True)
+    d.add_argument("--tools", default=",".join(agy_port.DENY_CHECK_TOOLS))
+    d.add_argument("--ttl", type=int, default=600, help="実装役の時間の上限（秒）")
+    d.add_argument("--fake", action="store_true", help="偽物の agy（利用枠 0）")
+    d.add_argument("--token", default=None)
     args = ap.parse_args(argv)
-    return cmd_check(args) if args.cmd == "check" else cmd_run(args)
+    return {"check": cmd_check, "run": cmd_run, "deny-check": cmd_deny_check}[args.cmd](args)
 
 
 if __name__ == "__main__":
