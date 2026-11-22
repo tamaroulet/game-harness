@@ -25,6 +25,37 @@ def step(i, tool, state, error=None):
     return {"event": "step_update", "step_update": su}
 
 
+# 2026-11-22 の deny の確認（本物の agy 1.5.3・gemini-4-hydrogen-medium）の stream-json の実際のイベント。会話の ID だけ置き換え、
+# init・user_input・agent_response のステップは略した。search_web は tool_info.error に deny の文が入り、invoke_subagent は
+# ERROR のイベントで step_type が subagent に変わり、subagent_info.subagents が空で、エラーの文が無い（文は返事の引用にだけ出る）
+MEASURED_REPLY = (
+    "- `search_web`: returned an error — `\"Encountered error in tool execution: tool call denied by pre-tool hook: "
+    "Web access is not available in this environment.\"`\n"
+    "- `read_url_content`: not called — tool is not declared/available in this environment's toolset.\n"
+    "- `read_browser_page`: not called — tool is not declared/available in this environment's toolset.\n"
+    "- `invoke_subagent`: returned an error — `\"Encountered error in tool execution: tool call denied by pre-tool hook: "
+    "Subagents are not available in this environment.\"`\n")
+MEASURED_DENY_CHECK = [
+    {"event": "step_update", "step_update": {
+        "conversation_id": "c", "step_index": 2, "state": "ACTIVE", "step_type": "tool", "tool_name": "search_web",
+        "tool_info": {"name": "search_web", "parameters": {"query": "SlopCodeBench"}}}},
+    {"event": "step_update", "step_update": {
+        "conversation_id": "c", "step_index": 2, "state": "ERROR", "step_type": "tool", "tool_name": "search_web",
+        "duration_seconds": 0.279626928,
+        "tool_info": {"name": "search_web", "parameters": {"query": "SlopCodeBench"}, "error": {
+            "type": "TOOL_ERROR",
+            "message": "tool call denied by pre-tool hook: Web access is not available in this environment."}}}},
+    {"event": "step_update", "step_update": {
+        "conversation_id": "c", "step_index": 4, "state": "ACTIVE", "step_type": "tool", "tool_name": "invoke_subagent",
+        "tool_info": {"name": "invoke_subagent", "parameters": {"Role": "Permission Check Subagent", "TypeName": "self"}}}},
+    {"event": "step_update", "step_update": {
+        "conversation_id": "c", "step_index": 4, "state": "ERROR", "step_type": "subagent", "tool_name": "invoke_subagent",
+        "duration_seconds": 0.298547666, "subagent_info": {"subagents": []}}},
+    {"event": "result", "result": {"conversation_id": "c", "status": "SUCCESS", "response": MEASURED_REPLY,
+                                   "duration_seconds": 11.492606876, "num_turns": 1}},
+]
+
+
 class ConfigTests(unittest.TestCase):
     def test_config_pins_model_and_stream(self):
         agent = agy_port.load_config()["agent"]
@@ -107,7 +138,7 @@ class BinaryPinTests(unittest.TestCase):
 
 
 class DenyCheckTests(unittest.TestCase):
-    """deny の確認の判定（実験と計画 §6-5）：頼んだ道具がどれも呼ばれ、どの手番もフックの deny で止まったときだけ合格。"""
+    """deny の確認の判定（実験と計画 §6-5）：頼んだ道具がどれも呼ばれ、どのステップもフックの deny で止まったときだけ合格。"""
 
     DENY = "Tool call denied by pre-tool hook: blocked by the harness"
 
@@ -123,32 +154,58 @@ class DenyCheckTests(unittest.TestCase):
         return [override.get(t, step(i, t, "ERROR", self.DENY)) for i, t in enumerate(agy_port.DENY_CHECK_TOOLS, 1)]
 
     def test_passes_when_every_wanted_tool_was_denied_by_the_hook(self):
-        self.assertEqual(len(agy_port.DENY_CHECK_TOOLS), 4)
+        self.assertEqual(agy_port.DENY_CHECK_TOOLS, ("search_web", "invoke_subagent"))
         self.assertEqual(self.verdict(*self.denied_all()), (True, None))
 
+    def test_the_measured_deny_check_events_pass(self):
+        """2026-11-22 の実際のイベントの形で合格する（invoke_subagent はエラーの文が無いので、返事の引用で印を読む）。"""
+        a = agy_port.tool_attempts(self.stream(*MEASURED_DENY_CHECK), agy_port.DENY_CHECK_TOOLS)
+        got = {t: [(x["state"], x["evidence"], x["subagents"], x["ran"]) for x in v] for t, v in a.items()}
+        self.assertEqual(got, {"search_web": [("ERROR", "tool_info", None, False)],
+                               "invoke_subagent": [("ERROR", "reply_quote", 0, False)]})
+        self.assertEqual(agy_port.deny_verdict(a), (True, None))
+
+    def test_a_subagent_step_needs_the_quote_and_no_subagent(self):
+        """下位エージェントの形のステップは、返事に deny の文の引用が無いか、下位エージェントが作られていれば、印にしない。"""
+        reply = MEASURED_REPLY.replace(agy_port.SUBAGENT_HOOK_REASON, "unknown error")
+        no_quote = MEASURED_DENY_CHECK[:-1] + [{"event": "result", "result": {
+            "conversation_id": "c", "status": "SUCCESS", "response": reply}}]
+        created = json.loads(json.dumps(MEASURED_DENY_CHECK))
+        created[3]["step_update"]["subagent_info"] = {"subagents": [{"conversation_id": "sub"}]}
+        for events in (no_quote, created):
+            ok, why = self.verdict(*events)
+            self.assertFalse(ok)
+            self.assertEqual(why, "フックの deny の印が無い: invoke_subagent")
+
+    def test_the_subagent_reason_is_the_one_the_hook_script_returns(self):
+        script = (agy_port.ASSETS / "deny_subagent.sh").read_text(encoding="utf-8")
+        self.assertIn(f'"reason": "{agy_port.SUBAGENT_HOOK_REASON}"', script)
+
     def test_a_tool_that_was_not_called_is_not_confirmed(self):
-        ok, why = self.verdict(*[s for s in self.denied_all() if s["step_update"]["tool_name"] != "read_browser_page"])
+        ok, why = self.verdict(*[s for s in self.denied_all() if s["step_update"]["tool_name"] != "invoke_subagent"])
         self.assertFalse(ok)
-        self.assertIn("read_browser_page", why)
+        self.assertIn("invoke_subagent", why)
 
     def test_a_tool_that_ran_or_failed_without_the_hook_fails(self):
         ok, why = self.verdict(*self.denied_all(search_web=step(1, "search_web", "DONE")))
         self.assertFalse(ok)
         self.assertIn("search_web", why)
-        ok, why = self.verdict(*self.denied_all(read_url_content=step(2, "read_url_content", "ERROR", "network unreachable")))
+        ok, why = self.verdict(*self.denied_all(invoke_subagent=step(2, "invoke_subagent", "ERROR", "network unreachable")))
         self.assertFalse(ok)
-        self.assertIn("read_url_content", why)
+        self.assertIn("invoke_subagent", why)
 
     def test_attempts_read_tools_outside_the_denied_list(self):
-        a = agy_port.tool_attempts(self.stream(step(1, "read_browser_page", "ERROR", "no browser")), ("read_browser_page",))
-        self.assertEqual(a["read_browser_page"][0]["state"], "ERROR")
-        self.assertFalse(a["read_browser_page"][0]["hook_denied"])
+        self.assertNotIn("generate_image", agy_port.DENIED_TOOLS)
+        a = agy_port.tool_attempts(self.stream(step(1, "generate_image", "ERROR", "no image model")), ("generate_image",))
+        self.assertEqual(a["generate_image"][0]["state"], "ERROR")
+        self.assertFalse(a["generate_image"][0]["hook_denied"])
 
     def test_prompt_names_the_tools_and_is_not_a_coding_task(self):
         p = agy_port.DENY_CHECK_PROMPT.format(tools=", ".join(agy_port.DENY_CHECK_TOOLS))
         for t in agy_port.DENY_CHECK_TOOLS:
             self.assertIn(t, p)
         self.assertIn("not a coding task", p)
+        self.assertIn("quote the error message", p)   # 下位エージェントの印は返事の引用で読む
 
     def test_prompt_gives_an_argument_example_for_every_default_tool(self):
         """引数の例が無い道具は、モデルが呼ばずに飛ばしうる（呼ばれなかった → 落ち）。文面のひな形そのものに道具ごとの例を書く。"""
@@ -174,6 +231,14 @@ class AuditTests(unittest.TestCase):
                                2: ("invoke_subagent", "ERROR", True, False),
                                3: ("read_url_content", "ERROR", False, False),  # ほかのエラーでも走っていない
                                4: ("webview_browser", "DONE", False, True)})    # 走った：無効
+
+    def test_the_measured_subagent_error_is_not_counted_as_ran(self):
+        """2026-11-22 の実際の invoke_subagent のステップ（ERROR・エラーの文なし）は、走ったと数えない（走りを無効にしない）。
+        走りの後の検査は返事を読まないので、hook_denied は False のまま。"""
+        text = "\n".join(json.dumps(e) for e in MEASURED_DENY_CHECK)
+        steps = agy_port.denied_tool_steps(agy_stream.parse(text)["steps"], agy_port.step_errors(text))
+        got = {s["tool"]: (s["state"], s["hook_denied"], s["ran"]) for s in steps}
+        self.assertEqual(got, {"search_web": ("ERROR", True, False), "invoke_subagent": ("ERROR", False, False)})
 
     def test_turn_valid_only_when_no_denied_tool_ran(self):
         ok = {"denied_tools": [{"ran": False}], "hooks_sha256_after": "h"}

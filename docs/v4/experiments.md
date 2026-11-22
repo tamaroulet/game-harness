@@ -111,9 +111,8 @@
   - 欠陥の細部（git apply がパッチを飛ばすこと・自前の pytest のプラグインの影響・鎖ごとの目印）は [archive/swe_chain_0b.md](archive/swe_chain_0b.md) と前提 P-043 にある。
   - 判定：L3 に届かず黒。使える鎖は 6 本・73 ステップに減り、dev と held-out の多様性が足りないので採らない（操縦士の決め、2026-11-20）。公開の issue での作者への報告はしない（同）。
 - SlopCodeBench：
-  - 走らせ方の条件（ベンチのコードは変えていない）：README の前提どおり uv を PATH に入れた。採点のコンテナは起動したホストのユーザーの uid で走る（公式の設計）ので、公式の `HUID=1000`・`HGID=1000` で非 root にした（WSL の root から起動した最初の走りは、権限の検査が正解でも落ちたので使わない）。基本のイメージは公式の設定から手元で 1 度ビルドした `slop-code:python3.12`（6.03 GB、ID `sha256:c49426ce309bfbeef097f6e2f2cb4be0c0f2ca7c2dedb070b06c97ec988a22f2`）。
-  - 公式の正解を、公式の `slop-code eval-snapshot` に 192 チェックポイント通した（196 のうち、test_translator の 5〜8 はチェックポイント 4 が 778 秒かかったので止めた）。全テストに通ったのは 183。採点の時間は 1 チェックポイントの中央 41 秒、上位 1 割 128 秒以上、最大 753 秒。メモリの最大は 4.4 GB（4 並列）。最後まで走った問題はコンテナを残さなかった。
-  - 正解の落ちの内訳（KNOWN_ISSUES.md の内と外。外の 4 問は、どれも外部の監査 slop-code-bench#27 の報告と同じ）は [archive/phase1_checks.md](archive/phase1_checks.md) の §6-1 にある。
+  - 走らせ方の条件（ベンチのコードは変えていない）：README の前提どおり uv を PATH に入れた。採点のコンテナは起動したホストのユーザーの uid で走る（公式の設計）ので、公式の `HUID=1000`・`HGID=1000` で非 root にした。基本のイメージは公式の設定から手元で 1 度ビルドした `slop-code:python3.12`（6.03 GB、ID `sha256:c49426ce309bfbeef097f6e2f2cb4be0c0f2ca7c2dedb070b06c97ec988a22f2`）。
+  - 公式の正解を `slop-code eval-snapshot` に通した数（192 チェックポイント）・採点の時間とメモリと、正解の落ちの内訳（KNOWN_ISSUES.md の内と外。外の 4 問は、どれも外部の監査 slop-code-bench#27 の報告と同じ）は [archive/phase1_checks.md](archive/phase1_checks.md) の §6-1 にある。
   - 判定：S2 の線のとおりなら黒（KNOWN_ISSUES の外の落ちが 8 チェックポイントで、直らない環境の型を含む）。落ちは 4 問に閉じ、ほかの 32 問・174 チェックポイントは正解が全テストに通った。
   - 事後の除外の透明性：書いた線のとおりなら黒だった。エージェントを走らせる前（利用枠 0）に、外部の監査（slop-code-bench#27・scb-problems#37）と一致した 5 問を母集団から外し、残りで使うと操縦士が決めた（2026-11-20）。外した理由は正解とテストの仕組みの事実だけで、エージェントの結果は 1 つも見ていない。公開資料にもこのとおりに書く。
 - SWE-Game Mode 4 の 0b（2026-11-19。公式のビルドと selfcheck、gen-task と eval-task の時間と、2 回の採点の一致）の全文は [archive/phase1_checks.md](archive/phase1_checks.md) にある。
@@ -143,21 +142,21 @@
 
 - ネットワーク（実装役のコンテナ）：
   - Docker の内部のネットワーク（`--internal`。外への経路が無い）だけにつなぎ、外への道は許可リストのプロキシ（tinyproxy 1.11.0 を別のコンテナで立てる）だけにする。許可は CONNECT の 443 で、agy の 3 つの宛先（daily-cloudcode-pa.googleapis.com・oauth2.googleapis.com・www.googleapis.com）と、依存を入れるための PyPI（pypi.org・files.pythonhosted.org）だけ。
-  - 確認（実装役と同じイメージ・uid 1000 のコンテナから。宛先ごとの結果）の全文は [archive/phase1_checks.md](archive/phase1_checks.md) にある。
-  - PyPI に SlopCodeBench の問題やテストを含むパッケージが無いことを確認した（作者の scb-check は品質の指標の道具）。
+  - 確認（実装役と同じイメージ・uid 1000 のコンテナから。宛先ごとの結果。PyPI に問題やテストを含むパッケージが無いこと）の全文は [archive/phase1_checks.md](archive/phase1_checks.md) にある。
 - agy の Web の道具と下位エージェント：
-  - agy 1.5.3 がモデルに渡す道具（Stage 1 の 1a の init の一覧で 60）のうち、外から取るものは `search_web`（検索と要約をサーバーの側で行うので、コンテナのネットワークでは止まらない）・`read_url_content`・`search_marketplace` とブラウザ系（`open_browser_url`・`browser_subagent` と、`browser_*` など 21）で、別のモデルやエージェントに仕事を渡す口は `invoke_subagent`・`define_subagent`・`manage_subagents`・`run_workflow`。下位エージェントは親と違うモデルを選べ（`inherit` か `named_model`）、その道具の手番は親の stream-json に出ないので、モデルの照合（model_pin）と走りの後の検査のどちらも及ばない。
-  - 公式のフック（`~/.gemini/config/hooks.json` の `PreToolUse` で `"decision": "deny"`）で、Web の道具（上の外から取るものとブラウザ系の全部と、実行ファイルの中の名前の `read_url`・`webview_browser`。28。名前の全部は harness/agy_port.py の `WEB_TOOLS`）と、下位エージェントとワークフローの口（上の 4 つ）を止める。うち 25 は、1a の一覧を見て 1b の前に足した（操縦士の承認、2026-11-22）。止めたときの文は、Web の道具が「Web access is not available in this environment.」、下位エージェントとワークフローの口が「Subagents are not available in this environment.」で、どの比較条件でも同じ。この土俵の素の A は、Web の道具と下位エージェントを使わない agy になる。
+  - agy 1.5.3 の CLI がモデルに渡す道具は、実行ファイルの oneharness の組の 14 と見られる。init が返す道具の一覧（60）は IDE の側の一覧で、モデルに渡る一覧ではない（名前と根拠は [archive/phase1_checks.md](archive/phase1_checks.md) の §6-5）。この組で外から取るのは `search_web`（検索と要約をサーバーの側で行うので、コンテナのネットワークでは止まらない）で、別のモデルやエージェントに仕事を渡す口は `invoke_subagent`・`define_subagent`・`manage_subagents`。下位エージェントは親と違うモデルを選べ（`inherit` か `named_model`）、そのステップは親の stream-json に出ないので、モデルの照合（model_pin）と走りの後の検査のどちらも及ばない。
+  - 公式のフック（`~/.gemini/config/hooks.json` の `PreToolUse` で `"decision": "deny"`）で、Web の道具（`search_web`・`read_url_content`・ブラウザ系など 28。名前の全部は harness/agy_port.py の `WEB_TOOLS`）と、下位エージェントとワークフローの口（上の 3 つと `run_workflow`）を止める。今の CLI でモデルに渡るのは `search_web` と上の 3 つで、残りの 28 は、版が変わってモデルに渡るようになっても止まるよう残す（操縦士の決め、2026-11-22）。止めたときの文は、Web の道具が「Web access is not available in this environment.」、下位エージェントとワークフローの口が「Subagents are not available in this environment.」で、どの比較条件でも同じ。この土俵の素の A は、Web の道具と下位エージェントを使わない agy になる。
+  - モデルに渡る `generate_image`（画像を別のモデルに作らせる。ステップは親の stream-json に出る）・`schedule`・`manage_task`（時刻や間隔で仕事を走らせる口）は止めず、記録に出たら報告する（操縦士の決め、2026-11-22）。
   - フックのファイルとスクリプトは root の持ち物で書き換え不可、置き場のフォルダは root の 1777（sticky）にする（確認は [archive/phase1_checks.md](archive/phase1_checks.md) の §6-3）。走りの後にフックのファイルの SHA-256 を照らす。
-  - 走りの後の検査：止めた道具の手番が DONE で終わった走り（道具が走った）は無効にする。agy は deny を手番のエラー（`state: ERROR`、`tool_info.error` の文に「denied by pre-tool hook」）で返すと見込む（実行ファイルの文言と、ほかの道具がエラーで終わった手番の形から）。`deny` が実際に道具を止めるかと、見込みどおりの形で返るかは、モデルが道具を呼ぶまで観測できない。1a では呼ばれなかったので、1b の前の deny の確認（6-5）で確かめる。
+  - 走りの後の検査：止めた道具のステップが DONE で終わった走り（道具が走った）は無効にする。本物の agy は、フックで止めた道具のステップを ERROR で終わらせる（2026-11-22 の deny の確認で、`search_web` と `invoke_subagent` はどちらも DONE にならず、下位エージェントは作られなかった）。`search_web` は `tool_info.error` に「tool call denied by pre-tool hook: <理由>」が入る。`invoke_subagent` は ERROR のイベントで step_type が subagent に変わり、`subagent_info.subagents` が空で、エラーの文が付かない（文はモデルに届き、返事に引用された）。
   - agy のエージェントの定義で道具の一覧そのものを絞る形は採らない（系統のプロンプトが替わり、素の A が変わる）。
 - 実装役は非 root（イメージの agent ユーザー、uid 1000）で走らせる。公式の SlopCodeBench の走らせ方と同じ。
 - 採点：
   - 公式の `slop-code eval-snapshot` を、実装役の作業場の写しに当てる。非 root（`HUID`・`HGID`）、基本のイメージは ID を記録して作り直さない。
-  - 公式の採点は、基本のイメージに、環境の設定の environment.env から描いた Dockerfile のハッシュのラベルを付け、合わなければ作り直して同じ名前に付け替える（そのときの最新の道具が入る）。採点ごとに environment.env を変える形は、イメージの固定とぶつかる（確認の採点で実際に作り直しが起き、公式の設定の採点がビルドのキャッシュから同じ ID を作り直して名前を戻した）。
+  - 公式の採点は、基本のイメージに、環境の設定の environment.env から描いた Dockerfile のハッシュのラベルを付け、合わなければ作り直して同じ名前に付け替える（そのときの最新の道具が入る）。採点ごとに environment.env を変える形は、イメージの固定とぶつかる。
   - そこで、環境の設定は公式の値のまま `environment.include_os_env: true`（採点を起動したホストの環境変数を採点のコマンドに写す公式の口。ハッシュに入らない）だけを足し、`UV_EXCLUDE_NEWER`（uv が、その日時より後に公開された配布物を候補から外す）を採点の時刻にして、ホストの最小の環境（PATH・HOME=/tmp/agent_home・問題の置き場・HUID・HGID）で渡す。時刻を記録し、採り直すときは同じ時刻を与える。
-  - 確認（3 回の採点でイメージが作り直されないこと・時刻を変えたときと同じ時刻の 2 回の比べ・HOME の写し）の全文は [archive/phase1_checks.md](archive/phase1_checks.md) にある。
-  - 実行口は、採点の前に基本のイメージの ID を固定の値と照らし、違えば採点しない（偽物の通しで、確認の採点が付け替えた名前を、この照らし合わせが採点の前に止めた）。
+  - 確認（作り直しが起きた確認の採点・3 回の採点でイメージが作り直されないこと・時刻を変えたときと同じ時刻の 2 回の比べ・HOME の写し・下の照らし合わせの偽物の通し）の全文は [archive/phase1_checks.md](archive/phase1_checks.md) にある。
+  - 実行口は、採点の前に基本のイメージの ID を固定の値と照らし、違えば採点しない。
 - 採点の抜け道（scb-problems#39 の影響）：
   - #39 は Harbor 版を読んだ指摘。Harbor の走らせ方に固有の項目（`python -m pytest` での入れ替え・報酬のスクリプトの書き換え・root の共有コンテナ・品質の履歴・全チェックポイントのテストの写し）は、eval-snapshot には当たらない。eval-snapshot は、提出物を一時のフォルダに写して採点し、pytest を uvx の分けた環境で走らせ、報告をホストで読み、写すテストは今と前のチェックポイントのものだけ。
   - eval-snapshot の抜け道（#39 に無い。コードで確認した）：提出物にすでに `.evaluation_tests/` があると、公式のテストを写さず、テストの一覧づくりも本番もそのフォルダのテストで行う。実行口は、このフォルダのある提出物を採点せず、無効として記録する（正直な実装役は作らない名前）。
@@ -184,7 +183,7 @@
 - 時間切れ：agy は残り秒の 20 秒前に自分で止まる（`--print-timeout`。1.5.3 では終わりの符号 3 と、result の `finished_reason: print_timeout`）。実行口は、これと安全弁の強制終了（符号 124）を時間切れとして種類を記録し、コンテナの中の実装役のプロセスを止める。SlopCodeBench は、公式と同じく時間切れのチェックポイントの作業場の写しも採点する。公式はそこで問題を止める（既定の pass_policy: any では、テストの落ちでは止めず、エージェントの誤りで止める）が、ここでは次のチェックポイントへ進み（止める線 8）、同じ問題で 2 回続けて時間切れなら打ち切る（止める線 9）。記録からは公式の止め方の値も出せる。集計では、時間切れの単位を母数から外さない。
 - 形（操縦士の承認、2026-11-20。数と費用の見込みの元は会話の席の計画の資料）：SlopCodeBench の dev の 3 問で H0 と H0_fresh。1 回目の後に、利用枠の減り・時間・採点・軌跡の読み取りを報告し、確認を取ってから残りを走らせる。1b と 1c は、Gate ② で条件が変わらなければ E-3 の H0 と H0_fresh の結果にそのまま使えるよう、記録の形と走らせ方を本の比べと同じに保つ。
   - 1a：etl_pipeline のチェックポイント 1 を H0 で 1 回（較正。1b の続きにはしない）。
-  - 1a で止めた道具が 1 度も呼ばれなければ、1b の前に deny の確認を別に立てる：問題の文を使わない新しい会話の 1 ターンで、search_web・read_url_content（一覧の名前で照らされるか）・read_browser_page（ブラウザ系の代表）・invoke_subagent を 1 度ずつ呼ぶよう頼む（harness/scb_run.py の deny-check）。どの手番も `state: ERROR` と「denied by pre-tool hook」で返り、DONE で終わる手番が無ければ合格（比べの記録に入れない）。呼ばれなかった道具があるか、落ちたら Stage 1 を止める。2026-11-22 の 1a では呼ばれなかった。
+  - deny の確認（harness/scb_run.py の deny-check。比べの記録に入れない）：新しい会話の 1 ターンで、今の CLI がモデルに渡す止めた道具 `search_web`・`invoke_subagent` を 1 度ずつ呼ぶよう頼み、どのステップもフックの deny の印（`tool_info.error` の文か、下位エージェントのステップでは ERROR・下位エージェント 0・返事の deny の文の引用）で止まれば合格。2026-11-22 の 1 回はモデルに渡らない 2 つも頼んで決めの線では落ちたが、`search_web`・`invoke_subagent` がフックで止まったことは記録に残り、フックは変えないので走らせ直さない（操縦士の決め、2026-11-22。記録は [archive/phase1_checks.md](archive/phase1_checks.md) の §6-5）。
   - 1b：etl_pipeline の全 5 チェックポイントを H0 と H0_fresh。1c：file_query_tool（5）と sith（6）を H0 と H0_fresh。1d：Mode 4 の dev の 1 ケース（pixel_platformer の pixel-platformer-phase-prop-seat-v1）を H0 で 1 回。
   - 問題は難しさの層ごとに 1 問（易・中・難）で、チェックポイントが 5〜6 のもの。外した：recli（空の提出物で通るテストが 53.4%。6-3）・rejector（仕様に無い振る舞いを検査するテスト。scb-problems#35）・forge と circuit_eval（8 チェックポイントで費用が大きい）。
   - 見込みの立て直し：1a の後と 1b の後に、1 チェックポイントの週の減りと壁時計の実測を報告し、それで 1b と 1c の費用を見込み直して、確認を取ってから次を走らせる。見込みの合計が、リセットの後に下限まで使える分（65 ポイント）の 6 割（上限の目安）を超えたら、1c を縮める案（sith を外す・H0 だけにする）を添える。
