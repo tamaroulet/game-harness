@@ -78,6 +78,21 @@ class EvalSummaryTests(unittest.TestCase):
         self.assertTrue(s["infrastructure_failure"])
 
 
+class TimeoutStreakTests(unittest.TestCase):
+    """止める線 9：同じ問題で続けて時間切れになった数（末尾から）。"""
+
+    def test_counts_only_the_trailing_timeouts(self):
+        cp = lambda t: {"agent": {"rc": 0 if t is None else 3, "timeout": t}}  # noqa: E731
+        self.assertEqual(scb_run.timeout_streak([]), 0)
+        self.assertEqual(scb_run.timeout_streak([cp(None)]), 0)
+        self.assertEqual(scb_run.timeout_streak([cp("print_timeout")]), 1)
+        self.assertEqual(scb_run.timeout_streak([cp(None), cp("hard"), cp("print_timeout")]), 2)
+        self.assertEqual(scb_run.timeout_streak([cp("hard"), cp(None)]), 0)
+        self.assertEqual(scb_run.timeout_streak([cp("hard"), cp(None), cp("hard")]), 1)
+        self.assertEqual(scb_run.timeout_streak([{"checkpoint": 1, "stopped": "quota"}]), 0)   # 走らなかった
+        self.assertEqual(scb_run.TIMEOUT_STREAK_STOP, 2)
+
+
 class WorkspaceTests(unittest.TestCase):
     def test_reserved_present_sees_dangling_symlink(self):
         with tempfile.TemporaryDirectory() as d:

@@ -14,8 +14,9 @@
 - 走りの後の検査（ベンチ固有の分）：作業場の .evaluation_tests/（壊れたシンボリックリンクも含め、あれば採点せず無効）。
 - 時間切れ（agy の --print-timeout か、実行口の上限。種類は記録の agent.timeout）：公式の走らせ方と同じく、その
   チェックポイントの作業場の写しを採点する。公式は時間切れでその問題を止めるが、ここでは次のチェックポイントへ進む
-  （H0 は同じ会話に送る。続けられなければ Stage 1 の止める線で止める。実験と計画 §6-5）。集計では、時間切れの
-  チェックポイントを母数から外さない。
+  （H0 は同じ会話に送る。続けられなければ Stage 1 の止める線で止める。実験と計画 §6-5）。同じ問題で
+  TIMEOUT_STREAK_STOP 回続けて時間切れなら、そのチェックポイントを採点した後に問題を打ち切る（止める線 9）。
+  集計では、時間切れのチェックポイントを母数から外さない。
 - 採点：作業場の写し（公式のスナップショットの既定の除外に合わせる）を、非 root（HUID・HGID）で採点する。
   環境の設定は公式の値のまま environment.include_os_env だけを足し（environment.env を変えると、公式の採点は
   基本のイメージを作り直して同じ名前に付け替える）、UV_EXCLUDE_NEWER（採点の時刻）はホストの最小の環境で渡す。
@@ -47,9 +48,20 @@ CONDITIONS = ("H0", "H0_fresh")
 RESERVED = ".evaluation_tests"
 SNAPSHOT_IGNORE = ("*.pyc", "venv", ".venv", ".DS_Store")   # 公式の Snapshot の既定の除外（execution/snapshot.py）
 DEFAULT_TTL = 3600
+TIMEOUT_STREAK_STOP = 2   # 同じ問題で続けて時間切れになったら打ち切る回数（実験と計画 §6-5 の止める線 9）
 
 
 # ---------------------------------------------------------------- 試験できる部品（docker に依らない）
+
+def timeout_streak(checkpoints):
+    """末尾から数えて、続けて時間切れ（記録の agent.timeout が有る）になったチェックポイントの数。"""
+    n = 0
+    for c in reversed(checkpoints):
+        if not (c.get("agent") or {}).get("timeout"):
+            break
+        n += 1
+    return n
+
 
 def load_config(path=CONFIG, common=agy_port.CONFIG):
     """共通の設定（agent・sandbox・network・quota_floor）に、ベンチ固有の設定を scb として足す。"""
@@ -208,7 +220,11 @@ def run_problem(cfg, problem, cond, out_dir, fake=False, ttl=DEFAULT_TTL, upto=N
                 c["eval"] = evaluate(cfg, problem, cp, snap, out_dir)
             if not fake:
                 c["quota_after"] = agy_quota.read()
+            if timeout_streak(rec["checkpoints"]) >= TIMEOUT_STREAK_STOP:
+                c["stopped"] = f"{TIMEOUT_STREAK_STOP} 回続けて時間切れ（止める線 9。この問題を打ち切る）"
             write_record(out_dir, rec)
+            if c.get("stopped"):
+                break
     finally:
         if box:
             sandbox.remove(box)

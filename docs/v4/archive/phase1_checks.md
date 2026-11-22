@@ -2,11 +2,21 @@
 
 - [実験と計画](../experiments.md)の §6 から 2026-11-20 に移した記録。中身は変えていない。決めと計画は[実験と計画](../experiments.md)の §6 にある。節の番号は元のまま。
 
-## 6-1. 0b：公式の採点に正解を通す（のうち、SWE-Game Mode 4）
+## 6-1. 0b：公式の採点に正解を通す（のうち、SWE-Game Mode 4 と、SlopCodeBench の正解の落ちの内訳）
 
 - SWE-Game Mode 4（2026-11-19 の会話の席の実測。利用枠 0。ベンチのコードの変更 0）：
   - 公式の `./docker/build.sh godot --redistributable`（`gamebench-agent:godot-4.5.1`、2.09 GB）・`./docker/smoke.sh`（Godot 4.5.1、Mesa の llvmpipe で描画と PNG が通る）・`bench selfcheck`（10 項目すべて PASS）が通った。
   - 公式の `gen-task` → `eval-task`：2D の 1 ケースは生成 6 秒・採点 75 秒。3D の 1 ケースは生成 6 秒・採点 322 秒と 320 秒で、2 回の採点の全指標が一致した（WSL の 15 GiB で OOM 0）。
+- SlopCodeBench の正解の落ちの内訳（2026-11-20 の夜に、正本を 1 回で読める大きさに保つため移した。中身は変えていない）：
+  - KNOWN_ISSUES.md の 8 チェックポイントのうち、手元で落ちたのは dynamic_buffer の 4 だけ（ほかの 7 は通った）。
+  - KNOWN_ISSUES.md の外で落ちたのは 4 問で、どれも外部の監査（slop-code-bench#27）が公式のイメージで報告したものと同じ：
+
+| 問題 | 落ちたチェックポイント | 型 |
+|:--|:--|:--|
+| test_translator | 1〜4（5〜8 は止めた）。TypeScript の項目だけ | 環境：公式のイメージに ts-node が無く、正解が使う `npx ts-node --esm` が最新の typescript を取って組み合わずに落ちる。公式の設定では直らない |
+| dynamic_buffer | 2・3（4 は KNOWN_ISSUES） | 正解のコードの生成の誤り |
+| env_manager | 3（前のチェックポイントのテスト 3 項目） | 正解が前の振る舞いを壊す |
+| pwd_manager | 4（前のチェックポイントのテスト 1 項目） | 不安定（監査は走りごとに違う 1 項目が落ちると報告） |
 
 ## 6-3. 走らせ方の境界と採点の再現性（のうち、確認）
 
