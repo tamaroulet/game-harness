@@ -18,7 +18,7 @@ import sandbox  # noqa: E402
 
 
 def step(i, tool, state, error=None):
-    """agy の stream-json の手番（道具のエラーは state: ERROR と tool_info.error。実際の agy の記録の形）。"""
+    """agy の stream-json のステップ（道具のエラーは state: ERROR と tool_info.error。実際の agy の記録の形）。"""
     su = {"step_index": i, "step_type": "tool", "tool_name": tool, "state": state}
     if error:
         su["tool_info"] = {"name": tool, "error": {"type": "TOOL_ERROR", "message": error}}
@@ -150,7 +150,7 @@ class DenyCheckTests(unittest.TestCase):
         return agy_port.deny_verdict(agy_port.tool_attempts(self.stream(*events), agy_port.DENY_CHECK_TOOLS))
 
     def denied_all(self, **override):
-        """頼んだ道具をどれもフックの deny で返す手番（override で 1 つの道具の手番を差し替える）。"""
+        """指示した道具をどれもフックの deny で返すステップ（override で 1 つの道具のステップを差し替える）。"""
         return [override.get(t, step(i, t, "ERROR", self.DENY)) for i, t in enumerate(agy_port.DENY_CHECK_TOOLS, 1)]
 
     def test_passes_when_every_wanted_tool_was_denied_by_the_hook(self):
@@ -247,6 +247,25 @@ class AuditTests(unittest.TestCase):
         self.assertFalse(agy_port.turn_valid(ok, "other"))
         self.assertFalse(agy_port.turn_valid(dict(ok, model_error="報告が無い"), "h"))
 
+    def test_hook_scripts_are_part_of_the_post_run_check(self):
+        """root の実装役は chmod 444 を越えて書けるので、hooks.json だけでなくスクリプトの実体も走りの後に照らす。"""
+        sbx = {"home": "/root", "uid": 0}
+        exp = agy_port.expected_hooks(sbx)
+        self.assertEqual(sorted(exp), sorted(["/root/.gemini/config/hooks.json"] +
+                                             [f"{agy_port.HOOKS_DIR}/{s}" for s in agy_port.HOOK_SCRIPTS]))
+        self.assertEqual(exp["/root/.gemini/config/hooks.json"],
+                         hashlib.sha256((agy_port.ASSETS / "hooks.json").read_bytes()).hexdigest())
+        fp = agy_port.hooks_fingerprint(exp)
+        listing = "".join(f"{d}  {n}\n" for n, d in exp.items())
+        self.assertEqual(agy_port.hooks_fingerprint(agy_port.parse_sha256sum(listing, list(exp))), fp)
+        script = f"{agy_port.HOOKS_DIR}/deny_web.sh"
+        changed = dict(exp, **{script: "0" * 64})
+        self.assertNotEqual(agy_port.hooks_fingerprint(changed), fp)          # スクリプトの書き換えで指紋が変わる
+        gone = agy_port.parse_sha256sum(listing.replace(f"  {script}\n", "  /elsewhere\n"), list(exp))
+        self.assertEqual(gone[script], "missing")
+        self.assertNotEqual(agy_port.hooks_fingerprint(gone), fp)             # 消されても変わる
+        self.assertFalse(agy_port.turn_valid({"denied_tools": [], "hooks_sha256_after": agy_port.hooks_fingerprint(changed)}, fp))
+
     def test_timeout_output_keeps_bytes_and_text(self):
         e = subprocess.TimeoutExpired(["agy"], 1, output=b'{"event": "init"}\n', stderr=b"late\n")
         self.assertEqual(agy_port.timeout_output(e), '{"event": "init"}\nlate\n')
@@ -290,13 +309,15 @@ class AuditTests(unittest.TestCase):
                                                    outcome={"status": "ERROR"})).startswith("agent:"))
         self.assertTrue(agy_port.turn_problem(dict(ok, complete=False)).startswith("agent:"))
 
-    def test_quota_floor(self):
-        floor = {"gemini-weekly": 0.35, "gemini-5h": 0.15}
-        ok = {"buckets": {"gemini-weekly": {"remaining_fraction": 0.5}, "gemini-5h": {"remaining_fraction": 0.2}}}
-        low = {"buckets": {"gemini-weekly": {"remaining_fraction": 0.3}, "gemini-5h": {"remaining_fraction": 0.9}}}
-        self.assertEqual(agy_port.quota_ok(ok, floor), (True, None))
-        self.assertFalse(agy_port.quota_ok(low, floor)[0])
-        self.assertFalse(agy_port.quota_ok(None, floor)[0])
+    def test_quota_guard(self):
+        guard = agy_port.load_config()["quota_guard"]
+        self.assertEqual(guard, {"gemini-weekly": 0.05, "gemini-5h": 0.10}, "枯渇寸前の安全弁だけ（旧 35% の床ではない）")
+        ok = {"buckets": {"gemini-weekly": {"remaining_fraction": 0.2}, "gemini-5h": {"remaining_fraction": 0.2}}}
+        low = {"buckets": {"gemini-weekly": {"remaining_fraction": 0.04}, "gemini-5h": {"remaining_fraction": 0.9}}}
+        self.assertEqual(agy_port.quota_ok(ok, guard), (True, None))
+        self.assertFalse(agy_port.quota_ok(low, guard)[0])
+        self.assertFalse(agy_port.quota_ok(None, guard)[0])
+        self.assertNotIn("quota_floor", agy_port.load_config())
 
 
 if __name__ == "__main__":

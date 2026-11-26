@@ -1,18 +1,18 @@
 """実装役 agy の実行口（設計 §5-1 のエージェントの実行口。実験と計画 §6-3〜6-5）。ベンチに依らない。
 
 - 設定（config/agy_sandbox.json）：agy の起動の仕方とモデル（model_name で正確な ID を固定。harness/model_pin.py）・
-  配布物の固定・コンテナの uid と HOME と作業場・境界の許可リスト・利用枠の下限
+  配布物の固定・コンテナの uid と HOME と作業場・境界の許可リスト・利用枠の枯渇寸前の安全弁（quota_guard）
 - 配布物（取るときに配布の SHA-512 を、走りのたびに展開した実行ファイルの SHA-512 を照らす）・フック（Web の道具と下位エージェントを PreToolUse で止める。root の持ち物で書き換え不可）・
   トークン・偽物の agy（利用枠 0）をコンテナに置く
 - AgyPort：start(文, 残り秒) は新しい会話、send(文, 残り秒) は同じ会話の続き（--conversation）。どちらも harness/core.py の
-  Turn を返す（run_unit の port の形）。Turn.ok は、agy が手番を終えて答えを返し（終わりの符号 0・result あり・SUCCESS）、
+  Turn を返す（run_unit の port の形）。Turn.ok は、agy がターンを終えて答えを返し（終わりの符号 0・result あり・SUCCESS）、
   時間切れでなく、走りの後の検査（モデル・止めた道具・フック）に通ったときだけ True。そうでなければ理由を note に書く。
   ターンごとの詳しい記録は records に残す：終わりの符号・秒・時間切れの種類・stream-json の置き場・報告されたモデルと
-  照合の誤り・会話・利用量・道具・止めた道具の手番・フックの SHA-256・有効か
+  照合の誤り・会話・利用量・道具・止めた道具のステップ・フックの SHA-256・有効か
 - 時間切れは 2 種類：print_timeout は agy が --print-timeout（残り秒 − 20）で自分で止まったもの（1.5.3 は result の
   finished_reason と終わりの符号 3）、hard は実行口の上限（TimeoutExpired。符号 124。出力は文字列に直して全文を残す）。
   どちらも、コンテナの中の uid のプロセスを止めて残りを数える
-- 止めた道具：手番が DONE で終わった（道具が走った）ものだけを ran にする。フックの deny はエラーの手番（hook_denied）
+- 止めた道具：ステップが DONE で終わった（道具が走った）ものだけを ran にする。フックの deny はエラーのステップ（hook_denied）
 """
 import hashlib
 import json
@@ -61,7 +61,7 @@ HOOK_SCRIPTS = ("deny_web.sh", "deny_subagent.sh")
 AGY_BIN = "/usr/local/bin/agy"
 
 FAKE_AGY = r'''#!/usr/bin/env python3
-"""偽物の agy（利用枠 0）。stream-json の形で init・道具の手番・result を出し、作業場に小さな変更を 1 つ書く。"""
+"""偽物の agy（利用枠 0）。stream-json の形で init・道具のステップ・result を出し、作業場に小さな変更を 1 つ書く。"""
 import json, os, pathlib, sys, urllib.request, uuid
 lines = [l for l in sys.stdin.read().splitlines() if l.strip()]
 prompt = json.loads(lines[0])["message"]["content"] if lines else ""
@@ -144,7 +144,8 @@ def dirs(sbx):
 
 
 def install(cfg, box, token_file=None, fake=False):
-    """agy（本物か偽物）・フック・トークンをコンテナに置く。フックの SHA-256 を返す。"""
+    """agy（本物か偽物）・フック・トークンをコンテナに置く。フックの指紋（hooks.json とスクリプトの実体の SHA-256 を
+    まとめたもの。hooks_fingerprint）を返す。"""
     sbx, d = cfg["sandbox"], dirs(cfg["sandbox"])
     uid, home = sbx["uid"], sbx["home"]
     if fake:
@@ -166,12 +167,50 @@ def install(cfg, box, token_file=None, fake=False):
     if token_file:
         sandbox.copy_in(box, token_file, d["token"], "token copy")
         sandbox.must_root(box, f"chown {uid}:{uid} {d['token']} && chmod 600 {d['token']}", "token chmod")
-    return hashlib.sha256((ASSETS / "hooks.json").read_bytes()).hexdigest()
+    return hooks_fingerprint(expected_hooks(sbx))
+
+
+def hook_files(sbx):
+    """走りの後に照らすフックのファイル：コンテナの中の名前 → 実行口の側の元のファイル。hooks.json と、それが呼ぶ
+    スクリプトの実体（HOOKS_DIR の deny_web.sh・deny_subagent.sh）。実装役が root（uid 0）だと chmod 444 や root の
+    持ち物は書き換えを止めないので、実体のスクリプトも走りの後の SHA-256 で照らす。"""
+    out = {f"{dirs(sbx)['config']}/hooks.json": ASSETS / "hooks.json"}
+    out.update({f"{HOOKS_DIR}/{s}": ASSETS / s for s in HOOK_SCRIPTS})
+    return out
+
+
+def expected_hooks(sbx):
+    """置いたフックのファイルの SHA-256（{コンテナの中の名前: SHA-256}。元のファイルから）。"""
+    return {name: hashlib.sha256(src.read_bytes()).hexdigest() for name, src in hook_files(sbx).items()}
+
+
+def hooks_fingerprint(shas):
+    """{コンテナの中の名前: SHA-256} → 1 つの SHA-256（名前の順の「名前 SHA-256」の行の並びの SHA-256）。1 つでも
+    変わるか無くなれば値が変わる。"""
+    text = "".join(f"{name} {shas.get(name)}\n" for name in sorted(shas))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def parse_sha256sum(text, names):
+    """sha256sum の出力 → {名前: SHA-256}（出力に無い名前は "missing"）。"""
+    got = {}
+    for line in (text or "").splitlines():
+        digest, _, name = line.strip().partition("  ")
+        if len(digest) == 64 and name:
+            got[name] = digest
+    return {n: got.get(n, "missing") for n in names}
+
+
+def hook_shas(box, sbx):
+    """コンテナの中のフックのファイルの SHA-256（{名前: SHA-256}。無いファイルは "missing"）。"""
+    names = list(hook_files(sbx))
+    code, out = sandbox.sh(["docker", "exec", "--user", "0:0", box, "sha256sum"] + names, timeout=120)
+    return parse_sha256sum(out, names)
 
 
 def hooks_sha(box, sbx):
-    out = sandbox.must(["docker", "exec", "--user", "0:0", box, "sha256sum", f"{dirs(sbx)['config']}/hooks.json"], "hooks sha")
-    return out.split()[0]
+    """走りの後のフックの指紋（hooks.json とスクリプトの実体。install の返り値と比べる）。"""
+    return hooks_fingerprint(hook_shas(box, sbx))
 
 
 # ---------------------------------------------------------------- 走りの後の検査（docker に依らない）
@@ -192,7 +231,7 @@ def _step_updates(stream_text):
 
 
 def step_errors(stream_text):
-    """stream-json の手番ごとのエラーの文の先頭 1 行（agy は道具のエラーを state: ERROR と tool_info.error で返す）。"""
+    """stream-json のステップごとのエラーの文の先頭 1 行（agy は道具のエラーを state: ERROR と tool_info.error で返す）。"""
     out = {}
     for su in _step_updates(stream_text):
         err = (su.get("tool_info") or {}).get("error")
@@ -217,7 +256,7 @@ def subagent_steps(stream_text):
 
 
 def denied_tool_steps(steps, errors=None):
-    """止めた道具の手番。ran は、手番が DONE で終わり（道具が走った）、フックの deny の印が無いもの。
+    """止めた道具のステップ。ran は、ステップが DONE で終わり（道具が走った）、フックの deny の印が無いもの。
     hook_denied は、エラーの文に agy の deny の文言があるもの。走りの有効の判定は ran だけで読む（§6-3）。"""
     errors = errors or {}
     out = []
@@ -276,21 +315,22 @@ def timeout_output(e):
     return "".join(parts)
 
 
-def quota_ok(rec, floor):
-    """週と 5 時間の残りが、どちらも下限を切っていないか。(ok, 理由)。"""
+def quota_ok(rec, guard):
+    """週と 5 時間の残りが、どちらも安全弁の値を切っていないか。(ok, 理由)。"""
     if rec is None:
         return False, "利用枠を読めない"
-    for k, low in floor.items():
+    for k, low in guard.items():
         frac = ((rec.get("buckets") or {}).get(k) or {}).get("remaining_fraction")
         if not isinstance(frac, (int, float)) or frac < low:
-            return False, f"{k} の残り {frac} が下限 {low} を切っている"
+            return False, f"{k} の残り {frac} が安全弁 {low} を切っている"
     return True, None
 
 
 def quota_check(cfg):
-    """走りの前の利用枠。(記録, ok, 理由)。"""
+    """走りの前の利用枠（枯渇寸前の安全弁 quota_guard だけを見る。予算はベンチ固有の設定の実験単体の上限）。
+    (記録, ok, 理由)。"""
     rec = agy_quota.read()
-    ok, why = quota_ok(rec, cfg["quota_floor"])
+    ok, why = quota_ok(rec, cfg["quota_guard"])
     return rec, ok, why
 
 
@@ -355,10 +395,12 @@ def deny_verdict(attempts):
 
 class AgyPort:
     """コンテナの中の agy の 1 つの会話。start は新しい会話、send は同じ会話の続き。stream_path(n) は n 番目のターンの
-    stream-json の置き場（ホスト）。"""
+    stream-json の置き場（ホスト）。env は agy の exec に足す環境（ベンチの手順が起こしたコンテナで、プロキシの環境と
+    ログインのシェルの PATH を実装役のプロセスにだけ渡すとき。VibePrevisBench）。"""
 
-    def __init__(self, cfg, box, stream_path, label, fake=False):
+    def __init__(self, cfg, box, stream_path, label, fake=False, env=None):
         self.cfg, self.box, self.stream_path, self.label, self.fake = cfg, box, stream_path, label, fake
+        self.env = dict(env or {})
         self.conversation_id = None
         self.hooks_expected = None
         self.records = []
@@ -379,8 +421,8 @@ class AgyPort:
         uid, n, ttl = sbx["uid"], len(self.records) + 1, max(int(budget_s), 1)
         stream = Path(self.stream_path(n))
         argv = agy_stream.args(agent, [agent["cli"]], "", ttl, conversation_id=self.conversation_id)
-        cmd = ["docker", "exec", "-i", "--user", f"{uid}:{uid}", "-e", f"HOME={sbx['home']}",
-               "-e", "AGY_CLI_DISABLE_AUTO_UPDATE=1", "-w", sbx["workdir"], self.box] + argv
+        cmd = (["docker", "exec", "-i", "--user", f"{uid}:{uid}", "-e", f"HOME={sbx['home']}",
+                "-e", "AGY_CLI_DISABLE_AUTO_UPDATE=1"] + sandbox.env_args(self.env) + ["-w", sbx["workdir"], self.box] + argv)
         rec = {"turn": n, "conversation_in": self.conversation_id, "stream": stream.name}
         t0, extra = time.time(), {}
         try:
@@ -400,10 +442,11 @@ class AgyPort:
             rec["model_reported"], rec["model_error"] = parsed["model"], str(e)
         if parsed["conversation_id"]:
             self.conversation_id = parsed["conversation_id"]
+        after = hook_shas(self.box, sbx)
         rec.update(conversation_id=parsed["conversation_id"], usage=parsed["usage"], outcome=parsed["outcome"],
                    complete=parsed["complete"], tools=sorted({s.get("tool") for s in parsed["steps"] if s.get("tool")}),
                    denied_tools=denied_tool_steps(parsed["steps"], step_errors(out)),
-                   hooks_sha256_after=hooks_sha(self.box, sbx))
+                   hooks_sha256_after=hooks_fingerprint(after), hook_files_after=after)
         rec["valid"] = turn_valid(rec, self.hooks_expected)
         rec["turn_note"] = turn_problem(rec)
         rec["turn_ok"] = rec["turn_note"] is None
