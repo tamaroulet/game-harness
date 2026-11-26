@@ -14,9 +14,13 @@ import phase1_dev  # noqa: E402
 import scb_run  # noqa: E402
 
 
+# 実験と計画 §6-2（SlopCodeBench と SWE-Game Mode 4 の母集団と分け）の全文は、2026-11-27 に archive に節の番号のまま移した
+DOC = ROOT / "docs" / "v4" / "archive" / "phase1_scb_mode4.md"
+
+
 def doc_list(marker):
-    """実験と計画 §6-2 の dev の行（marker で始まる行の「：」の後）の名前。"""
-    text = (ROOT / "docs" / "v4" / "experiments.md").read_text(encoding="utf-8")
+    """§6-2 の dev の行（marker で始まる行の「：」の後）の名前。"""
+    text = DOC.read_text(encoding="utf-8")
     line = next(ln for ln in text.splitlines() if ln.strip().startswith(marker))
     names = line.split("）：", 1)[1].split("。", 1)[0]
     return sorted(names.split("・"))
@@ -29,6 +33,7 @@ class DevListTests(unittest.TestCase):
         self.assertEqual(len(dev["swe_game_mode4"]), 12)
         self.assertEqual(sum(len(v) for v in dev["swe_game_mode4"].values()), 23)
 
+    @unittest.skipUnless(DOC.is_file(), "docs の無い写し（WSL の実行用の写しは harness・config・tests だけ）")
     def test_lists_are_the_public_dev_of_the_docs(self):
         dev = phase1_dev.load()
         self.assertEqual(sorted(dev["slopcodebench"]), doc_list("- dev（11 問"))

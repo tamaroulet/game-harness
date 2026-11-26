@@ -45,11 +45,37 @@ class EgressTests(unittest.TestCase):
         self.assertEqual(sandbox.egress_plan(None, img, internal, []), "replace")
 
     def test_netcheck_probes_follow_the_allow_list(self):
-        """境界の検査（netcheck.py）が届くことを確かめる宛先は、許可リスト（config/agy_sandbox.json）と同じ。片方だけ変えると落ちる。"""
+        """境界の検査（netcheck.py）が届くことを確認する宛先は、許可リスト（config/agy_sandbox.json）と同じ。片方だけ変えると落ちる。"""
         src = (sandbox.ASSETS / "netcheck.py").read_text(encoding="utf-8")
         allowed = re.search(r"ALLOWED = \[(.*?)\]", src, re.S).group(1)
         hosts = sorted({urllib.parse.urlsplit(u).hostname for u in re.findall(r'"(https?://[^"]+)"', allowed)})
         self.assertEqual(hosts, sorted(agy_port.load_config()["network"]["allow"]))
+
+    def test_package_registries_are_closed(self):
+        """許可はモデルの API だけ。パッケージのレジストリ（PyPI・npm・crates.io・Go のプロキシ・中国のミラー）は許可リストに
+        無く、境界の検査が塞がれていることを確認する宛先に入っている（操縦士の決め、2026-11-25）。"""
+        allow = agy_port.load_config()["network"]["allow"]
+        self.assertEqual(sorted(allow), ["daily-cloudcode-pa.googleapis.com", "oauth2.googleapis.com", "www.googleapis.com"])
+        src = (sandbox.ASSETS / "netcheck.py").read_text(encoding="utf-8")
+        blocked = re.search(r"BLOCKED = \[(.*?)\]", src, re.S).group(1)
+        hosts = {urllib.parse.urlsplit(u).hostname for u in re.findall(r'"(https?://[^"]+)"', blocked)}
+        for h in ("pypi.org", "files.pythonhosted.org", "registry.npmjs.org", "registry.yarnpkg.com", "crates.io",
+                  "index.crates.io", "static.crates.io", "proxy.golang.org", "goproxy.cn", "pypi.tuna.tsinghua.edu.cn"):
+            self.assertIn(h, hosts)
+        self.assertIn("pip_pypi.returncode != 0", src)   # pip の取得も落ちることを合格の条件にする
+
+
+class BoxTests(unittest.TestCase):
+    def test_live_processes_skip_init_and_self_only_for_root(self):
+        root = sandbox.live_script(0)
+        self.assertIn('[ "${p#/proc/}" = 1 ] && continue;', root)
+        self.assertIn('[ "${p#/proc/}" = $$ ] && continue;', root)
+        self.assertNotIn("$$", sandbox.live_script(1000))
+        self.assertIn('= 1000 ] || continue', sandbox.live_script(1000))
+
+    def test_env_args(self):
+        self.assertEqual(sandbox.env_args({"A": "1", "PATH": "/x:/y"}), ["-e", "A=1", "-e", "PATH=/x:/y"])
+        self.assertEqual(sandbox.env_args(None), [])
 
 
 if __name__ == "__main__":

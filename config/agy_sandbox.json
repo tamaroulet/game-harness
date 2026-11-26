@@ -26,12 +26,13 @@
     "workdir": "/workspace"
   },
   "network": {
-    "_comment": "実装役のコンテナは内部のネットワークだけにつなぎ、外への道は許可リストのプロキシだけ（実験と計画 §6-3）",
+    "_comment": "実装役のコンテナは内部のネットワークだけにつなぎ、外への道は許可リストのプロキシだけ（実験と計画 §6-3）。許可はモデルの API（agy の 3 つの宛先）だけで、パッケージのレジストリ（PyPI・npm・crates.io・Go のプロキシ・ミラー）は塞ぐ（実在の OSS の答えの配布物を取らせない。操縦士の決め、2026-11-25）",
     "internal": "scb-int",
     "proxy_name": "scb-egress",
     "proxy_image": "scb-egress:tinyproxy",
     "proxy_port": 8888,
-    "allow": ["daily-cloudcode-pa.googleapis.com", "oauth2.googleapis.com", "www.googleapis.com", "pypi.org", "files.pythonhosted.org"]
+    "allow": ["daily-cloudcode-pa.googleapis.com", "oauth2.googleapis.com", "www.googleapis.com"]
   },
-  "quota_floor": {"gemini-weekly": 0.35, "gemini-5h": 0.15}
+  "_quota_guard_comment": "利用枠の枯渇寸前の安全弁（走りの前に、週と 5 時間の残りがこの値を切っていたら始めない。harness/agy_port.py の quota_check）。普段使いと混ざる週の残りの床（旧 quota_floor の 35%）での予算の管理はやめ、予算は実験単体のトークンと壁時計の上限で持つ（ベンチ固有の設定の limits）。値は操縦士の裁定（2026-11-26）",
+  "quota_guard": {"gemini-weekly": 0.05, "gemini-5h": 0.10}
 }

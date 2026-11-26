@@ -1,0 +1,16 @@
+{
+  "_comment": "RoadmapBench の薄い接続（harness/rb_run.py。Gate 1、操縦士の指示 2026-11-25）のベンチ固有の設定。RoadmapBench は 2026-11-26 に凍結した（1 課題 1 ターンの単発で、要綱 3・4 に使えない。実験と計画 §8-2）。記録の再現のために残す。実装役（agy）と境界（許可はモデルの API だけ）と利用枠の安全弁は config/agy_sandbox.json。走らせるのは中身を読んだ dev の扱いの課題だけで、イメージの ID は Gate 0・Stage 2 のオフラインの 0b（正解 1.0）で使ったもの。実装役は Harbor の公式と同じく、イメージの既定のユーザー（root）と HOME（/root）と WORKDIR（/app）。パスは WSL の上のもの。B-0（操縦士の指示 2026-11-26）で、確定した dev の枠（fal・plr・mko・prm・fyn・tpl・Rust 1 つ）から種つきの無作為の順で選んだ課題を足した（イメージの ID は B-0 で取得したもの。オフラインの 0b に落ちた課題は外す）",
+  "data": "/root/gate0_20261123/rb/data",
+  "dev_tasks": {
+    "fal-3.0.0-roadmap": "sha256:9a9098ea6b7f366675be04153f0b7e9ce9dd7838a543f8101703f394a7e6b110",
+    "mko-5.8.0-roadmap": "sha256:f0431202986df6e3ab3cc495abf3ec1625e1e8feab9e1fd9414ee7d3301140ae",
+    "fal-4.1.0-roadmap": "sha256:d60c072d1c8377215404bfaf5814d0c360af83b48d74cb0a70d06ccae0b28257",
+    "mko-3.0.0-roadmap": "sha256:2e90fa87739e4306ae26e671963460c001b60a1086cb575ff9328250853e5cad",
+    "plr-1.22.0-roadmap": "sha256:83e36167ee563f18fc0fc236ef7f8971b2aa59f46ac31ed383a1a1963d7358ae",
+    "prm-5.15.0-roadmap": "sha256:78f49a6b587a386fbd361ea7ec2e4cf218a88acb148b4a9060b122edab5f3d11",
+    "ruf-0.3.0-roadmap": "sha256:f05d0e482dfe5e18dfed9a78c911f49ba422dad6de181a72fa77a00185efbd93",
+    "tpl-3.0.0-roadmap": "sha256:f30b4af83daadede914a91934e1ff64e7db2ec27d0b8368ed52287d840623076",
+    "tpl-5.1.0-roadmap": "sha256:049ef3d98a806cddc26077c69e71f23dc6cb6c1fee081141c241b5a9ab1562d6"
+  },
+  "sandbox": {"uid": 0, "home": "/root", "workdir": "/app"}
+}

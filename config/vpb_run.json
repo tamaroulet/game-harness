@@ -1,0 +1,20 @@
+{
+  "_comment": "VibePrevisBench（text の課題）の薄い接続（harness/vpb_run.py。Gate 1、操縦士の指示 2026-11-25）のベンチ固有の設定。VibePrevisBench は 2026-11-26 に撤退した（落ちた点の 48.5% が採点の側の作りと課題文から決まらない値。実験と計画 §8-2）。記録の再現のために残す。実装役（agy）と境界（許可はモデルの API だけ）と利用枠の安全弁は config/agy_sandbox.json。公式のコードは vibeprevisbench/vibeprevisbench の固定のコミット、データは HF の Kling-Keye/vibeprevisbench の固定の版（CC BY-NC-SA 4.0。公開物に置かない）。走らせるのは中身を読んだ dev の扱いの text の課題だけ（Stage 2 の報告 §10）。採点は Rule-based Scene Check だけ（VLM の Screen Check は使わない）。実装役は公式の手順（prepare のコンテナに docker exec … bash -l）と同じく root・HOME=/root。エージェントのコンテナは公式の既定の 8 CPU だが、メモリの上限は 12g にした（公式の既定は 16 GB＝memory_official。Gate 1 の時点の WSL の VM の物理メモリ 約 15 GiB を超える上限は、暴走したときにコンテナの cgroup の OOM より先に VM ごと落ちる恐れがあるため、ホストを守る値にした。Gate 1 の実測の最大は 2,007 MiB。H0 と H_harness は同じ上限。操縦士の指示 2026-11-26）。時間の上限は公式の TASK.md の 4 時間。replay のインフラの落ち（environment_failure など）は公式の方針どおり未採点で再走し、再走は max_rerun_batches 回まで（操縦士の承認 2026-11-26）。パスは WSL の上のもの",
+  "repo": "/root/stage2_20261124/vpb/repo",
+  "repo_commit": "ec8f54240f3842bb5265ef7864620639dbe4e1e4",
+  "python": "/root/stage2_20261124/vpb/venv/bin/python",
+  "data": "/root/stage2_20261124/vpb/repo/data",
+  "hf_revision": "5c7500f6e7ceec48ff77c7cc15f46517471f961a",
+  "image": "vibeprevisbench-sandbox:5.2.2",
+  "image_id": "sha256:80beed133926fb3f0a3710f2828ac3397b2bf5a5076611e7215d0b01bdcf134c",
+  "dev_tasks": ["TP152", "TP168", "TP153"],
+  "system": "g1h0",
+  "budget_s": 14400,
+  "cpus": "8",
+  "memory": "12g",
+  "memory_official": "16g",
+  "replay_timeout_s": 10800,
+  "max_rerun_batches": 2,
+  "dump_timeout_s": 7200,
+  "sandbox": {"uid": 0, "home": "/root", "workdir": "/work/blender_agent"}
+}

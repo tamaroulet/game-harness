@@ -1,5 +1,5 @@
 {
-  "_comment": "SWE-Game Mode 4 の実行口（harness/sweg_run.py）のベンチ固有の設定。実装役（agy）と境界と利用枠の下限は config/agy_sandbox.json。budget_s（1 ケースの上限。公式の時間の文にも入る）・playtest_kit（公式の既定の off）は操縦士の承認（2026-11-20。実験と計画 §6-4）。パスは WSL の上のもの",
+  "_comment": "SWE-Game Mode 4 の実行口（harness/sweg_run.py）のベンチ固有の設定。SWE-Game Mode 4 は 2026-11-22 に撤退した（実験と計画 §6）。記録の再現のために残す。実装役（agy）と境界と利用枠の安全弁は config/agy_sandbox.json。budget_s（1 ケースの上限。公式の時間の文にも入る）・playtest_kit（公式の既定の off）は操縦士の承認（2026-11-20。実験と計画 §6-4）。パスは WSL の上のもの",
   "repo": "/root/sweg_0b",
   "image": "gamebench-agent:godot-4.5.1",
   "image_id": "sha256:383f1e18441c73cade2b022ec4684355bf07a8f9a15ea6c5ded98e54528602fe",

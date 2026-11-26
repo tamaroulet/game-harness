@@ -143,11 +143,15 @@ def proxy_env(net):
 
 # ---------------------------------------------------------------- 実装役のコンテナ
 
-def start(net, sbx, image, name, workspace):
+def start(net, sbx, image, name, workspace=None, extra=()):
     """実装役のコンテナを起こす（内部のネットワークだけ・プロキシの環境・作業場を workdir に）。本体の sleep は root で
-    走らせ、実装役のコマンドは uid で exec する。HOME を作って uid に渡す。名前を返す。"""
+    走らせ、実装役のコマンドは uid で exec する。HOME を作って uid に渡す。名前を返す。workspace が None なら何も
+    マウントせず、イメージの中の workdir をそのまま作業場にする（課題のイメージに作業場が入っているベンチ。RoadmapBench）。
+    extra は docker run に足す引数（CPU とメモリの上限など）。"""
     cmd = ["docker", "run", "-d", "--name", name, "--network", net["internal"], "--user", "0:0",
-           "-e", f"HOME={sbx['home']}", "-v", f"{workspace}:{sbx['workdir']}", "-w", sbx["workdir"]]
+           "-e", f"HOME={sbx['home']}", "-w", sbx["workdir"]] + list(extra)
+    if workspace is not None:
+        cmd += ["-v", f"{workspace}:{sbx['workdir']}"]
     for k, v in proxy_env(net).items():
         cmd += ["-e", f"{k}={v}"]
     must(cmd + [image, "sleep", "infinity"], "box run")
@@ -172,16 +176,52 @@ def scratch(box, sbx):
     return set(out.split())
 
 
-def net_check(box, sbx):
+def env_args(env):
+    """docker exec に渡す -e の並び。"""
+    out = []
+    for k, v in (env or {}).items():
+        out += ["-e", f"{k}={v}"]
+    return out
+
+
+def net_check(box, sbx, env=None):
     """境界の検査。netcheck.py は標準入力で渡してコンテナに写さず、検査の一時のフォルダは消す。
-    実装役が始まる前に、検査が /tmp と ~/.cache に何も残していないこと（residue が空）も合格の条件にする。"""
+    実装役が始まる前に、検査が /tmp と ~/.cache に何も残していないこと（residue が空）も合格の条件にする。
+    env は exec に足す環境（ベンチの手順が起こしたコンテナで、プロキシの環境を実装役のプロセスにだけ渡すとき）。"""
     uid = sbx["uid"]
     before = scratch(box, sbx)
-    code, out = sh(["docker", "exec", "-i", "--user", f"{uid}:{uid}", box, "python3", "-"],
+    code, out = sh(["docker", "exec", "-i", "--user", f"{uid}:{uid}"] + env_args(env) + [box, "python3", "-"],
                    input=(ASSETS / "netcheck.py").read_text(encoding="utf-8"), timeout=300)
     as_root(box, "rm -rf /tmp/scb-netcheck-*", timeout=60)
     residue = sorted(scratch(box, sbx) - before)
     return {"ok": "BOUNDARY_OK" in out and not residue, "tail": out.strip().splitlines()[-6:], "residue": residue}
+
+
+def live_script(uid):
+    """uid の生きているプロセス（ゾンビを除く）の /proc の名前を出す bash の 1 行。uid が 0（実装役が root。課題の
+    イメージの既定のユーザーのままのベンチ）なら、コンテナの本体（PID 1 の sleep）と、数えている bash 自身を数えない
+    （root の `kill -9 -1` は PID 1 と自分を残す）。"""
+    skip = " [ \"${p#/proc/}\" = 1 ] && continue; [ \"${p#/proc/}\" = $$ ] && continue;" if int(uid) == 0 else ""
+    return ("for p in /proc/[0-9]*; do" + skip + " [ \"$(stat -c %u $p 2>/dev/null)\" = " + str(uid) + " ] || continue; "
+            "s=$(awk '/^State:/{print $2}' $p/status 2>/dev/null); [ -n \"$s\" ] && [ \"$s\" != Z ] && echo $p; done")
+
+
+def memory_peak(box):
+    """コンテナの cgroup v2 のメモリの最大（memory.peak。バイト）。読めなければ None。"""
+    code, out = as_root(box, "cat /sys/fs/cgroup/memory.peak", timeout=60)
+    out = out.strip()
+    return int(out) if code == 0 and out.isdigit() else None
+
+
+def oom_kills(box):
+    """コンテナの cgroup で OOM に止められたプロセスの数（memory.events の oom_kill）。読めなければ None。
+    docker inspect の State.OOMKilled は、本体（PID 1）が動いている間は子のプロセスの OOM を表さないので使わない。"""
+    code, out = as_root(box, "cat /sys/fs/cgroup/memory.events", timeout=60)
+    for line in out.splitlines() if code == 0 else []:
+        k, _, v = line.partition(" ")
+        if k == "oom_kill" and v.strip().isdigit():
+            return int(v)
+    return None
 
 
 def stop_user(box, sbx, tries=10):
@@ -189,8 +229,7 @@ def stop_user(box, sbx, tries=10):
     コンテナの中のプロセスは走り続け、次のターンや、作業場の写しと採点に混ざるため。止めたプロセスは回収されるまで
     ゾンビ（State: Z）で /proc に残るので数えず、0 になるまで少し待って止め直す。"""
     uid = sbx["uid"]
-    live = ("for p in /proc/[0-9]*; do [ \"$(stat -c %u $p 2>/dev/null)\" = " + str(uid) + " ] || continue; "
-            "s=$(awk '/^State:/{print $2}' $p/status 2>/dev/null); [ -n \"$s\" ] && [ \"$s\" != Z ] && echo $p; done")
+    live = live_script(uid)
     left = None
     for _ in range(tries):
         sh(["docker", "exec", "--user", f"{uid}:{uid}", box, "bash", "-c", "kill -9 -1"], timeout=60)

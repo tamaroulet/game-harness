@@ -66,7 +66,7 @@ def timeout_streak(checkpoints):
 
 
 def load_config(path=CONFIG, common=agy_port.CONFIG):
-    """共通の設定（agent・sandbox・network・quota_floor）に、ベンチ固有の設定を scb として足す。"""
+    """共通の設定（agent・sandbox・network・quota_guard）に、ベンチ固有の設定を scb として足す。"""
     cfg = agy_port.load_config(common)
     cfg["scb"] = json.loads(Path(path).read_text(encoding="utf-8"))
     return cfg
@@ -270,8 +270,8 @@ def cmd_run(args):
 
 
 def cmd_deny_check(args):
-    """deny の確認（実験と計画 §6-5）：問題の文を使わない新しい会話の 1 ターンで、止めた道具を 1 度ずつ呼ぶよう頼み、
-    フックが止めるかを確かめる。境界・フック・モデル・利用枠の下限は本の走りと同じ。比べの記録には入れない。"""
+    """deny の確認（実験と計画 §6-5）：問題の文を使わない新しい会話の 1 ターンで、止めた道具を 1 度ずつ呼ぶよう指示し、
+    フックが止めるかを確認する。境界・フック・モデル・利用枠の安全弁は本の走りと同じ。比べの記録には入れない。"""
     cfg = load_config()
     sbx, net = cfg["sandbox"], cfg["network"]
     token = None if args.fake else Path(args.token or cfg["agent"]["token"])

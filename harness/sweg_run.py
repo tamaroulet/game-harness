@@ -43,7 +43,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "config" / "sweg_run.json"
 REPO = "/repo"                                 # 採点のコンテナの中の SWE-Game のリポジトリ
 EVALSYS = REPO + "/eval/evalsys"
-ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")   # ゲームとケースの ID（シェルに渡すので形を確かめる）
+ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")   # ゲームとケースの ID（シェルに渡すので形を確認する）
 AGENT_ENV_TOOLS = ("jq", "ffmpeg", "ffprobe", "xvfb-run", "node", "ruby", "python3")   # 公式の matrix.py と同じ並び
 
 PROBE = r'''
@@ -93,7 +93,7 @@ print(collect_submission(Path("/ws"), Path("/out/submission"), mode="bugfix"))
 # ---------------------------------------------------------------- 試験できる部品（docker に依らない）
 
 def load_config(path=CONFIG, common=agy_port.CONFIG):
-    """共通の設定（agent・sandbox・network・quota_floor）に、ベンチ固有の設定を sweg として足す。"""
+    """共通の設定（agent・sandbox・network・quota_guard）に、ベンチ固有の設定を sweg として足す。"""
     cfg = agy_port.load_config(common)
     cfg["sweg"] = json.loads(Path(path).read_text(encoding="utf-8"))
     return cfg

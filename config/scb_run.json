@@ -1,5 +1,5 @@
 {
-  "_comment": "SlopCodeBench の実行口（harness/scb_run.py、実験と計画 §6-3〜6-5）のベンチ固有の設定。実装役（agy）と境界と利用枠の下限は config/agy_sandbox.json。パスは WSL の上のもの",
+  "_comment": "SlopCodeBench の実行口（harness/scb_run.py、実験と計画 §6-3〜6-5）のベンチ固有の設定。SlopCodeBench は 2026-11-22 に撤退した（実験と計画 §6）。記録の再現のために残す。実装役（agy）と境界と利用枠の安全弁は config/agy_sandbox.json。パスは WSL の上のもの",
   "bench": "/root/scb_0b/slop-code-bench",
   "problems": "/root/scb_0b/scb-problems",
   "uv_bin": "/root/scb_0b/uvenv/bin",

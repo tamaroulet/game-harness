@@ -1,0 +1,44 @@
+{
+  "_comment": "Multi-step SWE の実行口（harness/ms_run.py。Step B-1）のベンチ固有の設定。実装役（agy 1.5.3・gemini-4-hydrogen-medium）と境界（許可はモデルの API だけ。パッケージのレジストリは塞ぐ）は config/agy_sandbox.json。走らせるのは Task A の種つきの無作為の選びで中身を読んだ dev の扱いの課題だけで、イメージの ID は Task A のイメージの点検とオフラインの 0b で使ったもの（msscan-<課題>:env）。setup_net は、段の workdir/setup.sh が課題自身の道具（インタプリタと venv）を取りにいく課題で、setup.sh の間だけ bridge につなぐ（実装役のターンは境界の中。操縦士の裁定 2026-11-26 の (b)）。パスは WSL の上のもの",
+  "data": "/root/b0audit/msswe/repo/tasks",
+  "dev_tasks": {
+    "pandas-numpy-modernization": "sha256:5f39e186ff2cfcc0515d886004a517ec6aaa9049a03002dcdf4ca63e4c63fa83",
+    "ooxml-spreadsheet-engine-multiversion": "sha256:a1bdf2ee5adc5f2115ae7f4b2e8a4b6bccc02941619b3967c5d1d6af092a3f78"
+  },
+  "setup_net": ["pandas-numpy-modernization"],
+  "_sandbox_comment": "実装役は非 root（uid 1000）。課題のイメージの /app は root の持ち物なので、段の workdir の重ね・setup.sh（root）の後に /app を uid に渡す（harness/ms_run.py の give_app）。フック（hooks.json は root の持ち物・444）を実装役が書き換えられない（uid 0 のときは事後の SHA-256 の照合だけが守り）",
+  "sandbox": {"uid": 1000, "home": "/home/agent", "workdir": "/app"},
+  "_mem_cap_comment": "コンテナのメモリの上限（task.toml の memory_mb をこの値で切る）。12 GiB は、クリーンの 14 題を選んだ線（実装役と採点のメモリが 12 GiB 以下）と同じで、14 題では切りが効かない。WSL のメモリは 22 GB（2026-11-26 に .wslconfig を更新。free の Mem 22,015 MiB）で、上限はそれより小さく保つ（tests/test_preflight_contract.py）",
+  "mem_cap_mb": 12288,
+  "limits": {
+    "_comment": "実験単体の上限（Level 4。操縦士の裁定 2026-11-26）。run_tokens はキャッシュでない入力＋出力（思考を含む）のトークンの累計、run_seconds は走りの壁時計。段の前ごとに見る（段の途中では切らない。段の時間は task.toml の上限）。目安：Task C の pandas の H0 は 1 段目 26 万・2 段目 56 万トークン",
+    "run_tokens": 12000000,
+    "run_seconds": 172800
+  },
+  "conditions": {
+    "_comment": "比較条件（What。操縦士の裁定 2026-11-26：S3a のベースラインは H0_continue で、H0_continue・H_continue・H_handoff を対等に比べる。第 1 関門を先に入れ、第 2 関門は S3b で足す）。H0 は第 1 関門の押し返しなし。段の間の文脈は fresh（Harbor の既定。Task C の形。S3a の比較条件には入れない）・continue（同じ会話を続ける。--resume-trajectory に当たる）・handoff（新しい会話＋構造化の引き継ぎ WORKSPACE_HANDOFF.md と進捗の JSON）。H_* は第 1 関門（gate の検査）で押し返し、H_stop_1 で止まった段は要約を残して次の段へ進む（ベンチの走り。halt_on_stop は人の裁定を待つ実戦の形）。protect: false は、積んだ項目の合否は見続けるが、そのファイルの改変を押し返さない（Multi-step SWE は後の段の正解が前の段のテストを書き換える：pandas の 2 段目の正解が 1 段目のテストのファイル 3 つを変えた、2026-11-26。消えた項目も数えない。改廃の宣言の出どころ＝上流の台帳が無い間の扱いで、制御核の protect と supersede の機能はほかのベンチと Phase 2 のために残す）",
+    "H0_fresh": {"gate": false, "context": "fresh"},
+    "H0_continue": {"gate": false, "context": "continue"},
+    "H_continue": {"gate": true, "context": "continue", "max_rounds": 4,
+                   "stop_rules": {"same_diff": 2, "no_progress": 2, "protect": 2, "second": 2},
+                   "rollback": false, "halt_on_stop": false, "protect": false},
+    "H_handoff": {"gate": true, "context": "handoff", "max_rounds": 4,
+                  "stop_rules": {"same_diff": 2, "no_progress": 2, "protect": 2, "second": 2},
+                  "rollback": false, "halt_on_stop": false, "protect": false}
+  },
+  "gate": {
+    "_comment": "第 1 関門の検査（設計 §4-2 の 1〜4。公式のテストは使わない。操縦士の裁定 2026-11-26）。参照の完全さは、Python は pyflakes の未定義の名と構文の誤りの新しい検出だけ（pyflakes_diff。使われない import は数えない）、Go はコンパイル（go build と、テストのコンパイルだけの go test -run '^$'。go vet の警告は数えない：正解のコードにも stringintconv の警告が出た、2026-11-26。go test は既定で vet の一部を走らせるので -vet=off を付ける）。pytest の changed＝実装役が足したか変えたテスト（群 1。単位の始まりから落ちていた項目は押し返さない）、Go は変わったパッケージのテスト。合格した段の通った項目（pytest の項目）は非退行の検査として次の段から積み、そのファイルの改変は protect で見る",
+    "pandas-numpy-modernization": [
+      {"id": "pyflakes", "kind": "pyflakes_diff"},
+      {"id": "tests", "kind": "pytest", "target": ["changed"]}
+    ],
+    "ooxml-spreadsheet-engine-multiversion": [
+      {"id": "build", "kind": "cmd", "target": ["go", "build", "./..."]},
+      {"id": "compile_tests", "kind": "cmd", "target": ["go", "test", "-vet=off", "-count=1", "-run", "^$", "./..."]},
+      {"id": "tests", "kind": "cmd", "target": ["go", "test", "-vet=off", "-count=1", "{changed_dirs:*_test.go}"]}
+    ]
+  },
+  "check_timeout_s": 300,
+  "_pyflakes_comment": "pyflakes の API を走らせる Python（ホストの WSL。uv のキャッシュの pyflakes 4.1.0 をオフラインで使う。スクリプトは harness/ms_run.py の PYFLAKES_SCRIPT を標準入力で渡す）",
+  "pyflakes": ["/root/scb_0b/uvenv/bin/uv", "run", "--offline", "--quiet", "--no-project", "--with", "pyflakes==4.1.0", "python", "-I", "-"]
+}
