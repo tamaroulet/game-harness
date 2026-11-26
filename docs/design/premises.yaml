@@ -1,8 +1,9 @@
 # 前提の台帳（ADR-004 の K-15）。いまの方向が依っている前提を 1 件ずつ持つ。harness/premises.py が検査する。
 # kind: research（調べものの記録の主張の ID）・measured（実測の記録のパス）・decision（決めた者と日付）・assumption（根拠なし）
-# 期限（recheck_by）を過ぎたら確かめ直す。外部の事情の前提は 30 日、根拠の無い前提は 14 日を目安にする
+# 期限（recheck_by）を過ぎたら確認し直す。外部の事情の前提は 30 日、根拠の無い前提は 14 日を目安にする
 # 2026-11-13：v4 に移った（docs/v4/）。v3 の H ラインと承認と比べの仮定だった P-001〜P-006 と、古い課題の裁定の P-008 は退けた
 # （理由は docs/v4/design_basis.md §11）。P-014〜P-020 は抜粋を出典で照合し直した。P-021 から後は v4 の前提。
+# 2026-11-27：閉じた土俵か使わない形の P-015・P-043・P-044・P-047 を退けた（理由は docs/v4/design_basis.md §11）。
 premises:
 - id: P-007
   text: Windows の上の agy は、リポジトリの外のグローバルの ~/.gemini/GEMINI.md を文脈に読み込み、その挙動に左右される
@@ -10,7 +11,7 @@ premises:
   basis:
     - 総監督の記録（2026-09-18 の実測）
     - 会話の席の実測（2026-11-14。agy 1.2.14 と gemini-3.8-flash-high を道具なしで 1 回呼ぶと、全体の GEMINI.md の見出しの 1 行をそのまま引いた。その行は実物に 1 回だけある。入力 18,247・出力 666 トークン）
-  note: v4 では agy を箱の中で、全体設定の無い HOME で呼ぶ形に寄せて影響を断つ（docs/v4/cleanup_plan.md の §4）。それまで、Windows の agy で調べ役（反証の段）を回さない。~/.gemini には触らない（中身は読まず、引かれた行の一致だけを数えた）
+  note: v4 では agy をコンテナの中で、全体設定の無い HOME で呼ぶ形に寄せて影響を断つ（docs/v4/cleanup_plan.md の §4）。それまで、Windows の agy で調べ役（反証の段）を回さない。~/.gemini には触らない（中身は読まず、引かれた行の一致だけを数えた）
   checked_at: 2026-11-14
   recheck_by: 2026-12-14
   used_by: [調べ役の agy（反証の段）, v4 整理の計画 §4]
@@ -22,20 +23,12 @@ premises:
   checked_at: 2026-11-13
   recheck_by: 2026-12-13
   used_by: [ADR-005 D-2, ADR-005 D-3, v4 設計 §2-1]
-- id: P-015
-  text: 提供元は、エージェントを CI の中で動かす公式の道具（Claude Code GitHub Actions・Copilot の coding agent など）を出しており、GitHub が運用する runner のジョブは 1 件 6 時間まで、Copilot の coding agent は 1 セッション 59 分までである
-  kind: research
-  basis: [R-20261023-m1-autonomous-dev-architecture#C13, R-20261023-m4-agent-execution-isolation#C10, R-20261023-c1-run-loop-on-ci-vs-local#C2, R-20261023-c1-run-loop-on-ci-vs-local#C7, R-20261023-c1-run-loop-on-ci-vs-local#C12]
-  note: CI の上で長く多くのタスクを回した当事者の事後検証は見つからない（c1 の unknowns）。2026-11-13 の照合し直しで 5 件のうち c1#C12 が quote_not_found（ページの変更）、ほかは verified。v4 では CI の上で比べを回す予定は無い
-  checked_at: 2026-11-13
-  recheck_by: 2026-12-13
-  used_by: [ADR-005 D-3]
 - id: P-016
   text: エージェントが自分で書いた試験は合否の根拠として価値が小さく、ベンチの試験は弱く、reward hacking は実在する。合否は、採点者がすり抜けに耐えること（別の役が先に書いた試験・変異で導いた試験）に依るべきである
   kind: research
   basis: [R-20261023-m2-verification-of-agent-changes#C1, R-20261023-m2-verification-of-agent-changes#C2, R-20261023-m2-verification-of-agent-changes#C4, R-20261023-m2-verification-of-agent-changes#C5, R-20261023-m2-verification-of-agent-changes#C9, R-20261023-m2-verification-of-agent-changes#C11]
-  note: 2026-11-13 に 6 件とも出典で照合し直して verified。v4 では、受け入れの検証を実装役から独立に系が作り、合否を実装役の自己採点に依らせない（憲章 §6、2026-11-14 の操縦士の書き足し）。2026-11-14 から、その検証は中流の出口の第 2 関門で行い、台帳から作って候補の実装を見る前に固めた確かめの結果で合否を決める（設計 §4-2）。人が決めるのは受け入れの基準まで
-  checked_at: 2026-11-14
+  note: 2026-11-13 に 6 件とも出典で照合し直して verified。v4 では、受け入れの検証を実装役から独立に系が作り、合否を実装役の自己採点に依らせない（憲章 §6、2026-11-14 の操縦士の書き足し）。2026-11-26 から、その検証は中流の出口の第 2 関門で、外からの実行検証（契約）と不変条件・性質の検査に限って行い、固めた検査の結果で合否を決める（設計 §4-2）。仕様だけから細かい単体テストを作る形はやめた（P-034）。人が決めるのは受け入れの基準まで
+  checked_at: 2026-11-27
   recheck_by: 2026-12-13
   used_by: [ADR-005 D-4, ADR-004 K-2, v4 設計 §2-2, v4 設計 §4-2 の第 2 関門]
 - id: P-017
@@ -82,10 +75,10 @@ premises:
   text: 1 つの会話を続ける形は、段ごとに新しい会話にする形より安く、前の段で通っていたテストを壊しにくい。SlopCodeBench の易・中・難の 3 問（etl_pipeline・file_query_tool・sith。gemini-4-hydrogen-medium）で、チェックポイントごとの新しい会話（H0_fresh）は、続く会話（H0）より、キャッシュしない入力が 2.00 倍（165.6 万 対 82.9 万）・出力が 1.75 倍・実装役の時間が 2.30 倍（5,380 秒 対 2,337 秒）で、前のチェックポイントで通っていたテストの真の退行は H0 0 件・H0_fresh 3 件だった。差は立ち上がりでなく、作業場のコードとテストを毎回読み直すステップの多さによる。旧モデル（gemini-3.8-flash-medium）の自作の 6 ステージの課題では、続く会話のキャッシュでない分（入力＋出力）67.7 万が、毎ステージの新しい会話の 136.8 万の約半分で、差の約半分が立ち上がりの冷え、残りがターンの多さだった
   kind: measured
   basis: [docs/v4/archive/phase1_checks.md の §6-5 の Stage 1 の 1b と 1c（2026-11-22、H0 と H0_fresh を 1 回ずつ）, docs/v4/archive/measurements.md の M-02（2026-11-13、B07 を 1 回ずつ）, bench/records/chains/e5-chat2-b07/B07.json, bench/records/chains/e5-lean-b07/B07.json]
-  note: どれも 1 回ずつ。問題ごとの H0_fresh ÷ H0 は、キャッシュしない入力が etl_pipeline 2.52・file_query_tool 1.33・sith 2.52、実装役の時間が 2.10・1.60・2.81（難しいほど開いた）。出来は差を言えない（最後のチェックポイントのテストの和 H0 441・H0_fresh 442/473）。真の退行の 3 件は sith の H0_fresh で、前のチェックポイントの仕様を持たない新しい会話が、c1 の補完の決まりを c2・c3 で壊した。B07 は品質が両方とも満点。Gate ② でベースラインを H0 に絞る材料（操縦士の承認、2026-11-22）
-  checked_at: 2026-11-22
+  note: どれも 1 回ずつ。問題ごとの H0_fresh ÷ H0 は、キャッシュしない入力が etl_pipeline 2.52・file_query_tool 1.33・sith 2.52、実装役の時間が 2.10・1.60・2.81（難しいほど開いた）。出来は差を言えない（最後のチェックポイントのテストの和 H0 441・H0_fresh 442/473）。真の退行の 3 件は sith の H0_fresh で、前のチェックポイントの仕様を持たない新しい会話が、c1 の補完の決まりを c2・c3 で壊した。B07 は品質が両方とも満点。どれも引き継ぎの無い裸のリセットの結果で、区切りに構造化の引き継ぎを付けた形は測っていない。Multi-step SWE の S3a で、段をまたぐ所を H0_continue・H_continue・H_handoff で対等に比べる（操縦士の裁定、2026-11-26）。その Task C（段ごとに新しい会話、1 回）では、1 段目の取り残しを 2 段目の新しい会話が知らず、持ち越しの規則で 2 段目も 0 になった（P-048）
+  checked_at: 2026-11-27
   recheck_by: 2026-12-22
-  used_by: [v4 設計 §4-1, v4 設計 §6, v4 設計 §12, v4 設計の根拠 §3]
+  used_by: [v4 設計 §4-1, v4 設計 §6, v4 設計 §12, v4 設計の根拠 §3, v4 実験 §8-6]
 - id: P-023
   text: v3 の自作の鎖の課題は、素の A を落とさない（A は 6/6 を 1 回で完了。B のゲートは 42 ステージすべてで 1 回目に合格）。前の凍結の 10 本も単一の文脈の形が満点だった
   kind: measured
@@ -108,13 +101,13 @@ premises:
   recheck_by: 2026-12-13
   used_by: [v4 設計 §2-5, v4 設計 §5, v4 設計 §8]
 - id: P-026
-  text: 1 つの仕事の中は、頼みの先頭を固定して追記だけにするとキャッシュが効く。古い道具の出力を伏せるだけで費用は半分になり、解決率は落ちない。キャッシュの値段は提供元で違う
+  text: 1 つの仕事の中は、プロンプトの先頭を固定して追記だけにするとキャッシュが効く。古い道具の出力を伏せるだけで費用は半分になり、解決率は落ちない。キャッシュの値段は提供元で違う
   kind: research
   basis: [R-20261113-v4-harness-principles#C17, R-20261113-v4-harness-principles#C18, R-20261113-v4-harness-principles#C20, R-20261113-v4-harness-principles#C21, R-20261113-v4-harness-principles#C31]
-  note: 古い道具の出力を伏せる形（H_ctx_1）は、agy に会話の履歴を伏せる引数も公開の口も無いので、v4 のベンチの比べには入れない（2026-11-17。v4 設計 §12）
-  checked_at: 2026-11-13
+  note: 古い道具の出力を伏せる形（H_ctx_1）は、agy に会話の履歴を伏せる引数も公開の口も無いので、v4 のベンチの比べには入れない（2026-11-17。v4 設計 §12）。Phase 2（Unity の実開発）では、提供元の標準の文脈の編集と道具の結果の消去を使う（操縦士の決め、2026-11-26。v4 設計 §4-4）
+  checked_at: 2026-11-27
   recheck_by: 2026-12-13
-  used_by: [v4 設計 §2-3, v4 設計 §4-2]
+  used_by: [v4 設計 §2-3, v4 設計 §4-2, v4 設計 §4-4]
 - id: P-027
   text: 公式の長い課題では、強いモデルでも解決は 1〜2 割台で、落ち方は指示の読み違い・ファイルをまたぐ参照の誤り・読まずに推測する怠けが多い。正解のテストを見せると解決は大きく上がる
   kind: research
@@ -138,20 +131,20 @@ premises:
   recheck_by: 2026-12-13
   used_by: [v4 設計 §2-6, v4 設計 §5, v4 設計 §6]
 - id: P-030
-  text: v3 を凍結して v4 の 3 層に移る。game-harness#377 はマージせずに閉じる。比べの土俵を公式のベンチ（FeatureBench を先に、SWE-EVO を長い課題に）に移す。細かいリセットはやめる。実戦（実際のゲーム開発。Unity などでの実開発）の想定は、賢いモデルに中くらいの仕事を一括で任せる形。公開する比べと証明（X-01〜X-03）は agy の Gemini のモデル 1 つで完結させ（モデルは P-032）、Claude の枠で公式のベンチは回さない。ハーネスは、細かいリセットに頼らず実戦にそのまま持ち越せる構造として設計し、検証用のモデルで確かめる。制御核は、実行環境のアダプタとエージェントの実行口から切り離す。v1〜v3 の資産はタグ archive/pre-v4 で残し、main には残さない
+  text: v3 を凍結して v4 の 3 層に移る。game-harness#377 はマージせずに閉じる。比べの土俵を公式のベンチ（FeatureBench を先に、SWE-EVO を長い課題に）に移す。細かいリセットはやめる。実戦（実際のゲーム開発。Unity などでの実開発）の想定は、賢いモデルに中くらいの仕事を一括で任せる形。公開する比べと証明（X-01〜X-03）は agy の Gemini のモデル 1 つで完結させ（モデルは P-032）、Claude の枠で公式のベンチは回さない。ハーネスは、細かいリセットに頼らず実戦にそのまま持ち越せる構造として設計し、検証用のモデルで確認する。制御核は、実行環境のアダプタとエージェントの実行口から切り離す。v1〜v3 の資産はタグ archive/pre-v4 で残し、main には残さない
   kind: decision
   basis: [操縦士の裁定（2026-11-13、v4 への移行の指示書と、PR の前の指示と、整理の指示）]
   checked_at: 2026-11-13
   recheck_by: 2026-12-13
   used_by: [v4 憲章, v4 設計 §4-1, v4 設計 §4-4, v4 実験 §2]
 - id: P-031
-  text: 3 段の形（上流で、人の受け入れの基準から確かめられる形の要件の台帳を作る・中流で、1 つの仕事を 1 つの会話で走り切らせ、出口でトークン 0 の機械の検査（参照の完全さ・絞らないテスト・守るテストの不変）と、実装役から独立した検証（台帳から作り、候補の実装を見る前に固めた確かめ）で押し返し、積み重ねでは合格した確かめを非退行の関門に積む・外側で、失敗の型の台帳から直し続ける）は、仕様の読み飛ばし・作った範囲だけで確かめて終える早合点・参照の崩れ・退行を減らし、その上乗せの費用は手戻りの費用より小さい。この効きは、細かいリセットに依らない
+  text: 3 段の形（上流で、人の受け入れの基準から検証できる形の要件の台帳を作る・中流で、1 つの仕事を 1 つの会話で走り切らせ、出口でトークン 0 の機械の検査（参照の完全さ・絞らないテスト・守るテストの不変。最後に合格した状態との差で読む）と、外からの実行検証と不変条件・性質の検査（実装役から独立に作って固め、区切りの出口で 1 回だけ作る）で押し返し、積み重ねでは合格した検査を非退行の関門に積み、段をまたぐ文脈の持ち方は測って決める・外側で、失敗の型の台帳から直し続ける）は、仕様の読み飛ばし・作った範囲だけで確認して終える早合点・参照の崩れ・退行・動かして初めて出る破綻を減らし、その上乗せの費用は手戻りの費用より小さい。この効きは、細かいリセットに依らない
   kind: assumption
   basis: []
-  note: v4 の中心の仮説（設計 §7 の U1〜U3・M1・M2・O1・R1）。2026-11-14 の監査と操縦士の決めで、共通骨格の形（ホワイトボックスの F2P のテストを見せて押し返す）から書き直し、同じ日に、実装の前に課題の文から検証を作る形（前の版の E-1）を取り下げて、出口の 2 つの関門の形に書き直した。FeatureBench での出口の関門だけの比べ（E-1 の段 c）は、G0-3 で正解を使わない読みが線に届かず見送った（P-038）。出口の第 1 関門・非退行の関門・企画からの分解（E-2）・積み重ね（E-3）は、SWE-EVO で、H_stack として H0・H_cots と比べ、検証用のモデル（P-032）で検証する（v4 実験 §6）。第 1 関門は、S0 で周辺の既存のテスト（群 2・3）が正解を押し返したので、pyflakes の差・群 1・非退行の関門に下げた（P-042、操縦士の決め、2026-11-18）。賢いモデルでの効きの大きさは、このベンチの計画では測らない（設計 §4-4）
-  checked_at: 2026-11-14
-  recheck_by: 2026-11-28
-  used_by: [v4 設計 §4-2, v4 設計 §4-4, v4 設計 §7]
+  note: v4 の中心の仮説（設計 §7 の U1〜U3・M1・M2・G1・O1・R1）。2026-11-14 に出口の 2 つの関門の形に書き直し、2026-11-18 に第 1 関門を pyflakes の差・群 1・非退行の関門に下げた（P-042）。2026-11-26 に、第 2 関門を、仕様だけから作る単体テストから、外からの実行検証と不変条件・性質の検査に替え、段をまたぐ文脈の比べを、続く会話と構造化の引き継ぎの対等な比べにした（操縦士の決め）。土俵は Multi-step SWE（第 1 関門と文脈は S3a、第 2 関門は S3b）と CaP-X（3D と物理。S4a・S4b）で、検証用のモデル（P-032）で検証する（P-045）。S1 では、差の読みに直した第 1 関門が dev の 2 題の正解を全段 1 回目で通した（P-048）が、効きの大きさはまだ測っていない。賢いモデルでの効きの大きさは、このベンチの計画では測らない（設計 §4-4）。期限は、今後の動き（S3a の結果）を確認する節目
+  checked_at: 2026-11-27
+  recheck_by: 2026-12-11
+  used_by: [v4 設計 §4-2, v4 設計 §4-4, v4 設計 §7, v4 実験 §8]
 - id: P-032
   text: ベンチの検証用のモデルは Gemini 4 Hydrogen（medium）を標準にし（X-01 の 1 課題目の燃費で決めた）、3.8 Flash は少数の課題で比べる候補にする。FeatureBench の課題は Fast（v1.1）から取り、4 つのイメージ（seaborn・mlflow・pandas・astropy）を中心に、大きい層は全部のイメージから取る（P-033）。正解のテストを見せるホワイトボックスでの比べはやめ、X-02 は段 1 の A の 4 課題で止めた。E-1 では、正解の実装と公式のテストを、実装役と検証役に見せずに、採点と、出口の 2 つの関門の誤検出の測りだけに使う。X-02 の前に分けた held-out の 14 課題は、E-1 の段 c を見送ったので、封を開けずに終える（操縦士の決め、2026-11-17）
   kind: decision
@@ -161,37 +154,37 @@ premises:
   recheck_by: 2026-12-17
   used_by: [v4 設計 §4-1, v4 設計 §4-2, v4 設計 §5-1, v4 実験 §2, v4 実験 §3, v4 実験 §4, v4 実験 §5]
 - id: P-033
-  text: FeatureBench の Lite（v1.1）は、30 課題のうち 19 課題が課題の設定で GPU を求め、手元の Docker（NVIDIA の container toolkit なし）では始まらない。Fast（v1.1）の 100 課題は GPU を求めず、手元で正解のパッチが通る
+  text: 手元の Docker（WSL）は GPU を渡さない（NVIDIA の container toolkit は、2026-11-26 にも既定の apt に無く入れていない）。課題の設定で GPU を求める課題は始まらない。FeatureBench の Lite（v1.1）は 30 課題のうち 19 課題が GPU を求め、Fast（v1.1）の 100 課題は求めず、手元で正解のパッチが通る。CaP-X の Minimal（PyRoKi だけ）と状態 API の系統は、CPU だけで公式の課題と採点が成立する
   kind: measured
-  basis: [会話の席の実測（2026-11-14。FeatureBench 0.3.0 の parse_docker_runtime_config で数え、seaborn の 2 課題の正解のパッチを Fast の設定で評価して、どちらも解決した）]
-  note: GPU を求めるかは docker_specs.run_args.cuda_visible_devices で決まり、同じ課題の ID でも split の設定で変わる。X-01〜X-03 を Fast に移した根拠（P-032）
-  checked_at: 2026-11-14
-  recheck_by: 2026-12-14
-  used_by: [v4 実験 M-04, v4 実験 §2, v4 実験 §3]
+  basis: [会話の席の実測（2026-11-14。FeatureBench 0.3.0 の parse_docker_runtime_config で数え、seaborn の 2 課題の正解のパッチを Fast の設定で評価して、どちらも解決した）, docs/v4/experiments.md の §8-4（2026-11-26、CaP-X の 0b。利用枠 0）]
+  note: GPU を求めるかは docker_specs.run_args.cuda_visible_devices で決まり、同じ課題の ID でも split の設定で変わる。X-01〜X-03 を Fast に移した根拠（P-032）。GPU 16 GB が要るテスト（CaP-X の Full の視覚のサーバーなど）は、視覚の認識（⑤）を測ることになるので追わない（操縦士の決め、2026-11-26。設計 §6）
+  checked_at: 2026-11-26
+  recheck_by: 2026-12-26
+  used_by: [v4 実験 M-04, v4 実験 §8-4, v4 設計 §6, v4 設計 §12]
 - id: P-034
-  text: LLM が仕様（イシューや課題の文）から作るテストは、正解の実装でも落ちるものを多く含み、修正前のコードでの落ち方（AssertionError か例外か）が妥当性を予測する。既存のコードに対して作る性質のテストの報告も、約半分は誤り。採点の仕組みが働いているかは、多くの試行の記録と採点の結果を読まないと分からない。そのため、機械で走る受け入れの確かめは、実装の前に作るか後に作るかによらず、正しい実装のある所で誤検出を測ってから押し返しに使う
+  text: LLM が仕様（イシューや課題の文）から作るテストは、正解の実装でも落ちるものを多く含み、修正前のコードでの落ち方（AssertionError か例外か）が妥当性を予測する。既存のコードに対して作る性質のテストの報告も、約半分は誤り。採点の仕組みが働いているかは、多くの試行の記録と採点の結果を読まないと分からない。そのため、機械で走る受け入れの検査は、実装の前に作るか後に作るかによらず、正しい実装のある所で誤検出を測ってから押し返しに使う
   kind: research
   basis: [R-20261114-e1-acceptance-and-handoff#C2, R-20261114-e1-acceptance-and-handoff#C4, R-20261114-e1-acceptance-and-handoff#C7, R-20261023-m2-verification-of-agent-changes#C6]
-  note: SWT-Bench の pass@5 で、修正前に落ちるテストを作れた課題 62.7%・正解の後で通るテストを作れた課題 22.1%（直す前に落ちたテストのうち正解でも落ちたものが課題の約 4 割。落ちの理由は記録で未確認）。Otter の表 6 で、AssertionError で落ちたテストの 57.1%・例外で落ちたテストの 3.7% が fail-to-pass。Agentic PBT の報告の 56% が有効。どれも既存のコードの課題の数。2026-11-14 に、実装の前に課題の文からテストを作る形（前の版の E-1）を取り下げた後も、出口の第 2 関門の確かめに同じ筋を当てる（設計 §4-2、E-1 の段 b）
-  checked_at: 2026-11-14
+  note: SWT-Bench の pass@5 で、修正前に落ちるテストを作れた課題 62.7%・正解の後で通るテストを作れた課題 22.1%（直す前に落ちたテストのうち正解でも落ちたものが課題の約 4 割。落ちの理由は記録で未確認）。Otter の表 6 で、AssertionError で落ちたテストの 57.1%・例外で落ちたテストの 3.7% が fail-to-pass。Agentic PBT の報告の 56% が有効。どれも既存のコードの課題の数。この筋で、2026-11-14 に実装の前に課題の文からテストを作る形（前の版の E-1）を取り下げ、2026-11-26 に、仕様だけから細かい単体テストを作る第 2 関門をやめて、外からの実行検証と不変条件・性質の検査にした。その検査も、正しい実装での誤った押し返しを測ってから押し返しに使う（設計 §4-2）
+  checked_at: 2026-11-27
   recheck_by: 2026-12-14
   used_by: [v4 設計 §2-8, v4 設計 §4-2, v4 設計 §8, v4 実験 §5]
 - id: P-035
   text: 区切りで仕事を引き継ぐとき、文脈を持つ引き継ぎ（生の記録・要約・構造化のメモ）は、リポジトリだけの引き継ぎより後任の手間を減らす。続く会話は 1 ターンの中でキャッシュがよく当たり、ターンの境と圧縮の後で外れる。新しい文脈に入るエージェントは向き直りに時間を使う
   kind: research
   basis: [R-20261114-e1-acceptance-and-handoff#C9, R-20261114-e1-acceptance-and-handoff#C10, R-20261113-v4-harness-principles#C16]
-  note: 中くらいの仕事を積み重ねる同じ土俵で、続く会話と観測の伏せ・区切りと構造化の引き継ぎ・別文脈の検証役を直接比べた一次の実測は見つからなかった（E-3 で測る）
-  checked_at: 2026-11-14
+  note: 中くらいの仕事を積み重ねる同じ土俵で、続く会話と観測の伏せ・区切りと構造化の引き継ぎ・別文脈の検証役を直接比べた一次の実測は見つからなかった（Multi-step SWE の S3a で測る）
+  checked_at: 2026-11-27
   recheck_by: 2026-12-14
-  used_by: [v4 設計 §2-3, v4 設計 §12, v4 実験 §6]
+  used_by: [v4 設計 §2-3, v4 設計 §12, v4 実験 §8-6]
 - id: P-036
-  text: 最前線の長く走る開発のハーネスは、実装の前に、何をもって完了とするかを確かめられる振る舞いで取り決め、実装の後に、書き手と文脈を共有しない評価役が、動くものを外から確かめる。評価役は放っておくと甘く、問題を見つけても通してしまい、較正しても深い所を見落とす。生成役に自分を厳しく見させるより、独立した評価役を厳しくするほうが扱いやすい
+  text: 最前線の長く走る開発のハーネスは、実装の前に、何をもって完了とするかを確認できる振る舞いで取り決め、実装の後に、書き手と文脈を共有しない評価役が、動くものを外から確認する。評価役は放っておくと甘く、問題を見つけても通してしまい、較正しても深い所を見落とす。生成役に自分を厳しく見させるより、独立した評価役を厳しくするほうが扱いやすい
   kind: research
   basis: [R-20261114-harness-contract-evaluator#C1, R-20261114-harness-contract-evaluator#C2, R-20261114-harness-contract-evaluator#C3, R-20261114-harness-contract-evaluator#C4, R-20261114-harness-contract-evaluator#C5, R-20261114-harness-contract-evaluator#C6, R-20261114-harness-contract-evaluator#C7, R-20261113-v4-harness-principles#C25]
-  note: Anthropic の 1 つの開発の記録（評価役あり・なしの数の比べは無い）と、Cognition の実務の記事。テストのコードを実装の前に書く記述は無い。手元では、評価役の頼みの較正（憲章 §5 で効きに数えない）でなく、合否を、候補の実装を見る前に固めた機械の確かめの結果で決めることで、甘さに手当てする（設計 §4-2）
-  checked_at: 2026-11-14
+  note: Anthropic の 1 つの開発の記録（評価役あり・なしの数の比べは無い）と、Cognition の実務の記事。テストのコードを実装の前に書く記述は無い。手元の Phase 1 では、評価役のプロンプトの較正（憲章 §5 で効きに数えない）でなく、合否を固めた機械の検査の結果で決めることで甘さに手当てする。第 2 関門は、動くものを外から確認する契約の検証（#C3）と不変条件・性質の検査で、区切りの出口で 1 回だけ作る（#C8。設計 §4-2、2026-11-26）。評価役の較正は Phase 2 で解禁する（設計 §4-4）
+  checked_at: 2026-11-27
   recheck_by: 2026-12-14
-  used_by: [v4 設計 §2-8, v4 設計 §4-2, v4 設計 §8, v4 憲章 §2 の改定案]
+  used_by: [v4 設計 §2-8, v4 設計 §4-2, v4 設計 §4-4, v4 設計 §8]
 - id: P-037
   text: FeatureBench の開発用 15 課題で、第 1 関門（pyflakes の未定義の名・全モジュールの import・self の属性・絞らない既存のテスト）の検出の絶対の数は、正しい実装でも 13 課題で 0 にならない。最後に合格した状態との差で読むと（段 a では正解の状態を基準の代わりにした。比較条件の中ではこの読みを使わず、正解を使わない読み R0 にする。2026-11-17、v4 実験 §5-6）、記録の A のパッチの未解決 10 本のうち 7 本で検出が出て、7 本とも消された名か変えたファイルに当たり、解決 9 本のうち 4 本でも、残ったコードが呼ぶ名を戻していない本当の未完成を拾う。漏れた未解決の 3 本は、作った口の引数の扱いと不正な入力の拒み方（根拠のある 5 項目）と、課題の文に無いエラーの文言だけだった
   kind: measured
@@ -220,8 +213,8 @@ premises:
   text: Unity は、Editor の中の AI Assistant パッケージの MCP サーバーを非推奨にし、代わりを Unity CLI の unity mcp にした。Editor の中の MCP サーバーは、Editor が読み込まれている間だけ動く
   kind: research
   basis: [R-20261117-unity-connection-g06#C1, R-20261117-unity-connection-g06#C2, R-20261117-unity-connection-g06#C3, R-20261117-unity-connection-g06#C4]
-  note: 出典はどちらも Unity の公式の文書（docs.unity.com と docs.unity3d.com）。Unity CLI は 2026-11 に 1.0 が出た（#C5）。CLI が Editor を操るときは、Pipeline パッケージのローカルの HTTP の API を使う（#C6）。Personal のライセンスで CLI を使えるかは確認していない
-  checked_at: 2026-11-17
+  note: 出典はどちらも Unity の公式の文書（docs.unity.com と docs.unity3d.com）。Unity CLI は 2026-11 に 1.0 が出た（#C5）。CLI が Editor を操るときは、Pipeline パッケージのローカルの HTTP の API を使う（#C6）。Personal のライセンスで CLI 1.0 が動くかは、Phase 2 の入口のスパイク（S6a）の最初に、利用枠 0 で確認する（操縦士の決め、2026-11-26）。動けば Editor への HTTP の繋ぎ、動かなければバッチモードと .NET の Core の分け（design_unity §9）
+  checked_at: 2026-11-27
   recheck_by: 2026-12-17
   used_by: [v4 設計 §9, v4 設計 §12]
 - id: P-041
@@ -239,44 +232,36 @@ premises:
   note: 正解のパッチはテストのファイルを含まないので、群 1 は空で、群 3 を測った。押し返しの分けは、test_patch の変わった行を t=0 のテストの関数の範囲に照らした記録の分析で、関門には使っていない。下げた形（pyflakes の差と群 1）なら、同じ記録で正解の押し返しは 0/7。t=0 から落ちる主な原因は、環境の版のずれ（dvc_2.7.2 は pygit2 1.15.1 に GIT_OBJ_COMMIT が無い、dvc_2.5.0 は pathspec の正規表現の名の重なり）と、root で走ることによる書き込み禁止の確認の落ち。設計 §4-2 の第 1 関門の 3 で群 2・3 を選ばない根拠（操縦士の決め、2026-11-18）
   checked_at: 2026-11-18
   recheck_by: 2026-12-18
-  used_by: [v4 設計 §4-2, v4 設計 §5-1, v4 設計 §7, v4 実験 §6-10]
-- id: P-043
-  text: SWE-Chain（1cd84f09e41d）の公式の採点は、README のとおり git clone した中では、差分を当てる git apply が全部のパッチを飛ばして終わりの符号 0 を返し、どのステップも始まりのコードのまま採点する（正解でも resolving 0%）。git の外のコピーでは当たる。採点は自前の pytest のプラグインを入れて走らせるので、pytest の鎖では正解でも解けない upgrade-related の項目が毎ステップに入る（git の外での正解の再生で resolving 96.8%・40.0%・57.1%、regressed 0）。同じ型の目印は 12 鎖のうち 6 鎖にある（flask で upgrade-related の 45%）。oracle の作り直しは、2 区間・14 ファイルで公開の oracle と全項目一致した。目印の無い attrs の区間では、正解の再生は resolving 100%・regressed 0
-  kind: measured
-  basis: [docs/v4/experiments.md の §6-1（2026-11-20、利用枠 0。ベンチのコードの変更 0）]
-  note: 目印（同じ項目が鎖の半分以上のステップで upgrade-related になる）は公開の oracle で数えたもので、正解の再生で確認したのは pytest 8 だけ。採らない理由（操縦士の決め、2026-11-20）は、使える鎖が 6 本・73 ステップに減り、dev と held-out の多様性が足りないこと。公開の issue での作者への報告はしない（同）
-  checked_at: 2026-11-20
-  recheck_by: 2026-12-20
-  used_by: [v4 実験 §6-1]
-- id: P-044
-  text: SlopCodeBench（slop-code-bench de70a479acce・scb-problems 9cd9ca3a51c3）の公式の正解を、公式の eval-snapshot に 192 チェックポイント通すと（uid 1000、基本のイメージ sha256:c49426ce309b…）、183 が全テストに通った。落ちは 4 問に閉じる：test_translator（公式のイメージに TypeScript の道具が無い環境の型で、公式の設定では直らない）・dynamic_buffer（正解の誤り）・env_manager（正解が前の振る舞いを壊す）・pwd_manager（不安定）。公式の KNOWN_ISSUES.md の 8 チェックポイントのうち 7 は手元で通った。採点のコンテナは起動したホストのユーザーの uid で走り、root から起動すると権限の検査が正解でも落ちる。1 チェックポイントの採点は中央 41 秒・上位 1 割 128 秒以上・最大 753 秒
-  kind: measured
-  basis: [docs/v4/experiments.md の §6-1（2026-11-20、利用枠 0。ベンチのコードの変更 0）, R-20261120-phase1-arena#C6, R-20261120-phase1-arena#C7, R-20261120-phase1-arena#C8, R-20261120-phase1-arena#C9, R-20261120-phase1-arena#C10, R-20261120-phase1-arena#C11]
-  note: 走らせる前に書いた線（KNOWN_ISSUES の外の落ちが 6 チェックポイント以上か、直らない環境の型があれば黒）のとおりなら黒。4 問の落ちは、外部の監査（slop-code-bench#27）が公式のイメージで報告したものと同じ。test_translator の 5〜8 は時間（チェックポイント 4 が 778 秒）で止めた
-  checked_at: 2026-11-20
-  recheck_by: 2026-12-20
-  used_by: [v4 実験 §6-1, v4 実験 §6-2, v4 設計 §8]
+  used_by: [v4 設計 §4-2, v4 設計 §5-1, v4 設計 §7, v4 実験 §6（archive/swe_evo_s0.md）]
 - id: P-045
-  text: フェーズ 1 の土俵は、一般の連続積み上げ・非退行が SlopCodeBench、ゲーム骨子が SWE-Game Mode 4。SlopCodeBench の母集団は、0b で正解が全チェックポイントに通った 32 問から meshctl（テストが提出物の 3 つの名前だけを写し、複数のファイルの解が落ちる）を外した 31 問・166 チェックポイント。Mode 4 の母集団は、上流の条件が別に記録された 6 ゲームを外した 35 ゲーム・70 ケース。単位は途中で切らず、難しさ（SlopCodeBench）と視点（Mode 4）の層ごとに、非公開の種で dev を 3 分の 1（四捨五入）、残りを held-out にして封をした。基本形は H0（1 つの問題を 1 つの会話で続ける）と H0_fresh（チェックポイントごとに新しい会話）で、隠しテストの出力は返さない。採点は非 root で、基本のイメージの ID を固定する。SWE-Chain・Web-Bench・EvoCode-Bench・Multi-step SWE は採らない
+  text: フェーズ 1 の土俵は 2 本主軸の直列のリレー。第 1 走者が Multi-step SWE（Klavis-AI、MIT。69 題からメモリ・ネットワーク・速さの採点・穴で絞ったクリーンの 14 題。dev は種つきの無作為の 2 題で、残りの 12 題は未開封の held-out の候補。要綱 1〜4・7）、第 2 走者が CaP-X（capgym/cap-x、MIT。Robosuite と LIBERO-PRO の特権の系統を、CPU だけの Minimal と状態 API で。Robosuite のシードの 2 行の最小の穴塞ぎを当て、主指標は task_completed。要綱 5〜7）。S3a はベースラインを H0_continue とし、H0_continue・H_continue・H_handoff を対等に比べる（第 1 関門を先に、第 2 関門は S3b）。Multi-step SWE では protect を外し、消えたテストの項目を退行に数えない。実装役は非 root（uid 1000）で、課題ごとに正解を uid 1000 で当てる 0b を取ってから使う。実験単体の上限は run_tokens 1,200 万・run_seconds 172,800 で、利用枠は枯渇寸前の安全弁（週 5%・5 時間 10%）だけを見る。主指標は段の完答（公式の二値の報酬）で、連続の点・new_capability・inherited_regression・失敗の 5 分類を並べる。VibePrevisBench は撤退、BenchCAD は CaP-X が不適のときの要綱 5 の予備、RoadmapBench は凍結。SlopCodeBench と SWE-Game Mode 4 は Stage 1 の後に撤退した
   kind: decision
-  basis: [操縦士の決め（2026-11-20、会話の席の構成案の第 1 版と第 2 版への判断）, docs/v4/experiments.md の §6-2]
-  note: 0b の書いた線のとおりなら SlopCodeBench は黒だった。エージェントを走らせる前（利用枠 0）に、外部の監査（slop-code-bench#27・scb-problems#37）と一致した 5 問を外して使う（公開資料にこのとおりに書く）。held-out の並びの SHA-256 は SlopCodeBench が d7582cf8…、Mode 4 がゲーム e0426b29…・ケース 03cdc931…（全文は実験 §6-2）。held-out は区画ごとに 1 回使い切る（憲章 §5）
-  checked_at: 2026-11-20
-  recheck_by: 2026-12-20
-  used_by: [v4 設計 §4-4, v4 設計 §7, v4 実験 §6]
+  basis: [操縦士の裁定（2026-11-26、S1 の報告の判断点 10 件への裁定と、その前の指示書の主指標・setup のネットワーク・段の会話・2 本主軸・第 2 関門・予算の裁定）, docs/v4/experiments.md の §8]
+  note: 現行の PC を正本の環境として進める（新しい PC は待たない。操縦士の裁定、2026-11-26）。SlopCodeBench と SWE-Game Mode 4 の母集団と分けと封（2026-11-20 の決め）は docs/v4/archive/phase1_scb_mode4.md の §6-2 にあり、その held-out（SlopCodeBench 20 問・Mode 4 の 23 ゲーム）は封を開けずに終える
+  checked_at: 2026-11-27
+  recheck_by: 2026-12-27
+  used_by: [v4 設計 §4-4, v4 設計 §7, v4 実験 §8]
 - id: P-046
-  text: 実装役のコンテナを Docker の内部のネットワークだけにつなぎ、許可リストのプロキシ（tinyproxy 1.11.0。agy の 3 つの宛先と PyPI の 443 だけ）を外への道にすると、許可した 5 つの宛先だけに届き、GitHub・Google の検索・Hugging Face・npm と平文の HTTP は拒まれ、直の接続と生の TCP はどこにも届かない。pip は PyPI からだけ入る。agy 1.5.3 は、root の持ち物で書き換えのできない ~/.gemini/config/hooks.json のフック（PreToolUse で、search_web・read_url_content・ブラウザ系などの Web の道具と、下位エージェントとワークフローの口（invoke_subagent など）を deny）を uid 1000 で読み込み、uid 1000 からはフックを書き換え・消し・移しできない。本物の agy 1.5.3 は、このフックで search_web と invoke_subagent を止めた（どちらもステップが DONE にならず ERROR で終わり、下位エージェントは作られなかった。2026-11-22 の deny の確認）。公式の採点は、環境の設定の environment.env を変えると基本のイメージを作り直して同じ名前に付け替える。environment.env を公式のまま environment.include_os_env を足し、UV_EXCLUDE_NEWER をホストの環境から渡すと、イメージを作り直さずに採点のコンテナの中の解決が固定され、同じ時刻の 2 回で道具の版・結果・テストの一覧のハッシュが一致した。eval-snapshot は、提出物に .evaluation_tests/ があると公式のテストを写さず、そのフォルダのテストで一覧づくりも本番も行う
+  text: 実装役のコンテナを Docker の内部のネットワークだけにつなぎ、許可リストのプロキシ（tinyproxy 1.11.0）を外への道にすると、許可した宛先だけに届き、直の接続と生の TCP はどこにも届かない。許可はモデルの API（agy の 3 つの宛先）だけにし、パッケージのレジストリ（PyPI・npm・crates.io・Go のプロキシとミラー）とコードの置き場（GitHub）は塞ぐ（境界の検査で、プロキシ越しにも直にも届かないことを走りの前ごとに確認する）。agy 1.5.3 は、root の持ち物で書き換えのできない ~/.gemini/config/hooks.json のフック（PreToolUse で、search_web・read_url_content・ブラウザ系などの Web の道具と、下位エージェントとワークフローの口を deny）を uid 1000 で読み込み、uid 1000 からはフックを書き換え・消し・移しできない。本物の agy 1.5.3 は、このフックで search_web と invoke_subagent を止めた（どちらもステップが DONE にならず ERROR で終わり、下位エージェントは作られなかった）
   kind: measured
-  basis: [docs/v4/experiments.md の §6-3（2026-11-20、利用枠 0）, docs/v4/archive/phase1_checks.md の §6-3 の確認, docs/v4/archive/phase1_checks.md の §6-5 の deny の確認（2026-11-22、本物の agy）, R-20261120-phase1-arena#C21]
-  note: 止める道具は 32（名前の全部は harness/agy_port.py）。init が返す道具の一覧（60）は IDE の側の一覧で、agy 1.5.3 の CLI がモデルに渡す道具は、実行ファイルの oneharness の組（14）と見られる（走りに出た道具の名前がどれもこの組の名前で、組に無い read_url_content・read_browser_page はモデルが「無い」と答えて呼ばなかった）。32 のうち、この組にあるのは search_web・invoke_subagent・define_subagent・manage_subagents の 4 つで、残りの 28 は版が変わっても止まるよう残す。下位エージェントとワークフローの口は親と違うモデルやエージェントに仕事を渡せ、そのステップは親の stream-json に出ないので止める。フックで止めたステップは ERROR で終わる：search_web は tool_info.error に deny の文が入り、invoke_subagent は ERROR のイベントで step_type が subagent に変わり、subagent_info.subagents が空で、エラーの文が付かない（文はモデルに届き、返事に引用された）。止めた道具のステップが DONE で終わった走りは無効にする。.evaluation_tests の振る舞いは、slop-code-bench de70a479acce の evaluation/pytest_runner.py と evaluation/collection.py の _copy_tests_from_problem を読んで確認した（どちらも、作業場にそのフォルダがあれば写さずに戻る）
-  checked_at: 2026-11-20
-  recheck_by: 2026-12-20
-  used_by: [v4 設計 §5-1, v4 実験 §6-3]
-- id: P-047
-  text: SlopCodeBench の母集団の 31 問・166 チェックポイントに、空の提出物（入口のファイルが無いもの・何もせず 0 で終わるもの）を公式の採点で通すと、どちらかで通るテストは、採点したテストの延べ 19,416 のうち 1,518（7.8%）で、98 チェックポイント・22 問にある（Core 51/1,088・Error 174/982・Functionality 192/3,831・Regression 1,101/13,515。最も多い recli で 53.4%）。空の提出物が strict や core を満たしたチェックポイントは 0
+  basis: [docs/v4/archive/phase1_checks.md の §6-3 の確認（2026-11-20、利用枠 0）, docs/v4/archive/phase1_checks.md の §6-5 の deny の確認（2026-11-22、本物の agy）, docs/v4/experiments.md の §8-5（2026-11-25〜26、レジストリを塞いだ後の Gate 1 と Multi-step SWE の境界の検査）]
+  note: レジストリを塞いだのは操縦士の決め（2026-11-25。実在の OSS の答えの配布物を取らせない）。止める道具は 32（名前の全部は harness/agy_port.py）。init が返す道具の一覧（60）は IDE の側の一覧で、agy 1.5.3 の CLI がモデルに渡す道具は、実行ファイルの oneharness の組（14）と見られる。32 のうちこの組にあるのは search_web・invoke_subagent・define_subagent・manage_subagents の 4 つで、残りの 28 は版が変わっても止まるよう残す。止めた道具のステップが DONE で終わった走りは無効にする。実装役が root（uid 0）のベンチでは、走りの後に hooks.json とスクリプトの実体の SHA-256 を照らすことが守りになる。SlopCodeBench の採点の再現性の事実（UV_EXCLUDE_NEWER・.evaluation_tests の抜け道）は docs/v4/archive/phase1_scb_mode4.md の §6-3
+  checked_at: 2026-11-26
+  recheck_by: 2026-12-26
+  used_by: [v4 設計 §5-1, v4 実験 §8-5]
+- id: P-048
+  text: Multi-step SWE（Klavis-AI、コミット 346719b）の 69 題を、実装役と採点のメモリ 12 GiB 以下・正解の solve.sh にネットワークらしい命令と深い clone が無い・速さを採点に使わない、で絞ると 18 題で、本物の実装か採点の期待の出力が環境か採点のイメージにある穴の 4 題を除くとクリーンの 14 題。dev の 2 題（pandas 8 段・ooxml 10 段）のオフラインの 0b は、解答ありが全段 1.0、解答なしが全段 0.0。段の報酬は二値で（69 題のうち 51 題の helpers.sh が 1.0 ちょうど以外を 0 に丸める）、前の段の取り残しは次の段の関門 B を 0 にする。段ごとに新しい会話の素の A は、pandas の 1・2 段で完答 0（連続の点 0.80 と 0、計 3.68 ポイント）。差の読みに直した第 1 関門（pyflakes の未定義の名と構文の誤り・群 1・積んだ非退行の項目。Go はビルドとテスト）は、正解を uid 1000 で当てる通しで、2 題の全段を 1 回目で通した（誤った押し返し 0）
   kind: measured
-  basis: [docs/v4/experiments.md の §6-3（2026-11-20、利用枠 0。公式の eval-snapshot、uid 1000）, R-20261120-phase1-arena#C17, R-20261120-phase1-arena#C18]
-  note: scb-problems#39 は 7 問を読んだ指摘（Harbor 版）で、問題のロジックの弱さ（エラーのテストが終わりの符号だけを見る・期待の出力が実行のフォルダに先に置かれているなど）は eval-snapshot にも当たる。全 31 問で数を取った。テストごとの通過率を読むときの扱いは Gate ② で決める（実験 §6-6）
-  checked_at: 2026-11-20
-  recheck_by: 2026-12-20
-  used_by: [v4 設計 §8, v4 実験 §6-3, v4 実験 §6-6]
+  basis: [docs/v4/experiments.md の §8-3（2026-11-26、穴の点検・0b・Task C）, docs/v4/experiments.md の §8-5（2026-11-26、S1 の偽物の正解の通し。利用枠 0）]
+  note: Task C は 1 回だけ。第 1 関門の値は、誤った押し返しの型 6 つ（群 1 の前からの落ち・pyflakes の使われない import・go vet・非 root の Go のキャッシュ・後の段の正解による前の段のテストの書き換え・道具の入れ替えとテストの消去）を実測して直した後のもの。protect を外す・消えた項目を数えないのは操縦士の裁定（2026-11-26）。held-out の 12 題は開けていないので、root を前提にした作りがあるかは分からない（開けたときに課題ごとの 0b を取る）
+  checked_at: 2026-11-26
+  recheck_by: 2026-12-26
+  used_by: [v4 設計 §4-2, v4 設計 §7, v4 設計 §12, v4 実験 §8-3, v4 実験 §8-5]
+- id: P-049
+  text: CaP-X（capgym/cap-x、コミット acac62f、MIT）の Robosuite と LIBERO-PRO の特権の系統は、Minimal のプロファイル（PyRoKi だけ・CPU だけ）と状態 API で、GPU も視覚のサーバーも無く、オフライン（ロボットの記述 482 MB の事前の取得 1 回の後は --network none）のまま、公式の正解で task_completed が成功し（Robosuite のキューブの持ち上げ 5/5 × 2・LIBERO-PRO の object_swap_7 3/3 × 2）、解答なしで 0。公式のままでは試行のシードが Robosuite の初期の配置に届かず、reset の頭で環境とサンプラの乱数を作り直す 2 行で、初期と最後の状態が小数 9 桁まで一致する。要約の success rate はコードが走った割合で、平均の報酬は何もしなくても 0.47〜0.50
+  kind: measured
+  basis: [docs/v4/experiments.md の §8-4（2026-11-26、CaP-X の 0b。利用枠 0）]
+  note: 主指標は task_completed（シミュレータの状態だけで決まる二値）。シードの 2 行の穴塞ぎと主指標は操縦士が採用した（2026-11-26）。Hydrogen での H0 の落ちる余地は未測（公式の Gemini 3.1 Pro の目安は、特権の nut_assembly 約 0.15 から cube_lifting 約 0.99）。母集団・dev と held-out の分け・agy への繋ぎは S4a で決める
+  checked_at: 2026-11-26
+  recheck_by: 2026-12-26
+  used_by: [v4 設計 §4-4, v4 設計 §8, v4 実験 §8-4]

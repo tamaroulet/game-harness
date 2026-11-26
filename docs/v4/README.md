@@ -11,11 +11,11 @@
 ## 根拠の置き場
 
 - 調べものの記録：[docs/research/](../research/)。調べ方の規則は [research_protocol.md](../design/research_protocol.md)。主張ごとに出典と抜粋があり、抜粋は出典の本文で機械に照合する。
-- 前提の台帳：[premises.yaml](../design/premises.yaml)。根拠の種類（research・measured・decision・assumption）と、確かめ直す期限を持つ。`python -m harness.premises check --strict` で点検する。
+- 前提の台帳：[premises.yaml](../design/premises.yaml)。根拠の種類（research・measured・decision・assumption）と、確認し直す期限を持つ。`python -m harness.premises check --strict` で点検する。
 - v3 までのランの公開の記録（件数と費用だけ。M-02 の B07 の 2 本を含む）：タグ archive/pre-v4 の [bench/records/](https://github.com/tamaroulet/game-harness/tree/archive/pre-v4/bench/records)。
 
 ## 読む順
 
 1. 憲章（数十行）で、目的と変えない条件を知る。
-2. 設計と仮説の §4（上流・中流・外側の 3 段）と §7（仮説）と §12（分かっている事実と未解決の問い）で、何を確かめようとしているかを知る。
-3. 実験と計画で、今どの実験の、どの段にいるかを知る。
+2. 設計と仮説の §4（上流・中流・外側の 3 段）と §7（仮説）と §12（分かっている事実と未解決の問い）で、何を検証しようとしているかを知る。
+3. 実験と計画の §8 で、今の土俵（Multi-step SWE と CaP-X）と、この後の段を知る。
